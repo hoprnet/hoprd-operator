@@ -15,7 +15,7 @@ kube = { version = "0.78", default-features = true, features = [
 ] }
 k8s-openapi = { version = "0.17", default-features = false, features = [
     "v1_24",
-] } # Kube-rs depends on k8s-openapi
+] }
 futures = "0.3"
 # All serde dependencies are used to serialize/deserialize CRDs and other Kubernetes-related structs
 serde = "1.0"
