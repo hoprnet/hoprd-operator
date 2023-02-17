@@ -74,7 +74,7 @@ spec:
                   description: 'Number of confirmations required for on-chain transactions'
                 networkQualityThreshold:
                   type: number
-                  description: 'Miniumum quality of a peer connection to be considered usable'
+                  description: 'Minimum acceptable peer connection quality'
                 secret:
                   type: object
                   description: The secret containing sensitive data from the Hoprd node
