@@ -1,5 +1,5 @@
 [package]
-name = "hopr_k8s_operator"
+name = "hopr_operator"
 version = "0.1.0"
 authors = ["HOPR Association <tech@hoprnet.org>"]
 edition = "2021"

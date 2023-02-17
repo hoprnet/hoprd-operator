@@ -62,4 +62,3 @@ pub struct ResourceTypes {
     pub cpu: String,
     pub memory: String
 }
-

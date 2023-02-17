@@ -12,7 +12,9 @@ use crate::crd::Hoprd;
 
 pub mod crd;
 mod hoprd;
+mod utils;
 mod finalizer;
+mod constants;
 
 #[tokio::main]
 async fn main() {
