@@ -1,4 +1,5 @@
-
+## @section Common parameters
+##
 
 ## @param nameOverride String to partially override common.names.fullname
 ##
@@ -13,6 +14,9 @@ commonLabels: {}
 ## @param commonAnnotations [object] Annotations to add to all deployed objects
 ##
 commonAnnotations: {}
+
+## @section Hopr Operator Parameters
+##
 
 ## @param privateKey Private Key of the Wallet used to make blockchain transactions like: register in network registry or fund nodes.
 ##
@@ -67,3 +71,49 @@ image:
   ## ref: http://kubernetes.io/docs/user-guide/images/#pre-pulling-images
   ##
   pullPolicy: IfNotPresent
+
+service:
+  ports:
+    ## @param service.ports.name Name of the API service port 
+    ##
+    name: api
+
+## @section Metrics parameters
+##
+metrics:
+  serviceMonitor:
+    ## @param metrics.serviceMonitor.enabled Specify if a ServiceMonitor will be deployed for Hopr Operator
+    ##
+    enabled: false
+    ## @param metrics.serviceMonitor.namespace Namespace in which deploy the service Monitor
+    ##
+    namespace: ""
+    ## @param metrics.serviceMonitor.namespaceSelector Namespaces which will be scrapped for metrics
+    ##
+    namespaceSelector: []
+    ## @param metrics.serviceMonitor.jobLabel The name of the label on the target service to use as the job name in Prometheus
+    ##
+    jobLabel: "hoprd"
+    ## @param metrics.serviceMonitor.honorLabels honorLabels chooses the metric's labels on collisions with target labels
+    ##
+    honorLabels: false
+    ## @param metrics.serviceMonitor.interval Interval at which metrics should be scraped.
+    ## e.g:
+    ## interval: 10s
+    ##
+    interval: ""
+    ## @param metrics.serviceMonitor.scrapeTimeout Timeout after which the scrape is ended
+    ## e.g:
+    ## scrapeTimeout: 10s
+    ##
+    scrapeTimeout: ""
+    ## @param metrics.serviceMonitor.metricRelabelings Specify additional relabeling of metrics
+    ##
+    metricRelabelings: []
+    ## @param metrics.serviceMonitor.relabelings Specify general relabeling
+    ##
+    relabelings: []
+    ## @param metrics.serviceMonitor.selector Hord node instance selector labels
+    ##
+    selector: {}
+

@@ -13,7 +13,7 @@ jobs:
 
     steps:
       - name: Install readme-generator-for-helm
-        run: npm install -g @bitnami/readme-generator-for-helm@2.4.2
+        run: npm install -g @bitnami/readme-generator-for-helm@2.5.0
       - name: Checkout
         uses: actions/checkout@v3
         with:
@@ -26,7 +26,7 @@ jobs:
       - name: Push changes
         run: |
           # Push all the changes
-          if git status -s | grep deploy/charts; then
+          if git status -s | grep charts; then
             git config user.email "noreply@hoprnet.org"
             git config user.name "HOPR CI robot"
             git config pull.rebase false
