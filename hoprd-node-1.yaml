@@ -1,5 +1,5 @@
 ---
-apiVersion: hoprnet.org/v1
+apiVersion: hoprnet.org/v1alpha
 kind: Hoprd
 metadata:
   name: hoprd-node-1

@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 #[derive(CustomResource, Serialize, Deserialize, Debug, PartialEq, Clone, JsonSchema)]
 #[kube(
     group = "hoprnet.org",
-    version = "v1",
+    version = "v1alpha",
     kind = "Hoprd",
     plural = "hoprds",
     derive = "PartialEq",

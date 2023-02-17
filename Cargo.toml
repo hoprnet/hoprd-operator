@@ -1,7 +1,7 @@
 [package]
 name = "hopr_k8s_operator"
 version = "0.1.0"
-authors = ["Ausias Armesto <ausias.armesto@hoprnet.org>"]
+authors = ["HOPR Association <tech@hoprnet.org>"]
 edition = "2021"
 
 [dependencies]
