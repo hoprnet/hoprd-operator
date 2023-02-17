@@ -8,7 +8,7 @@ edition = "2021"
 tokio = { version = "1.25", features = [
     "macros",
     "rt-multi-thread",
-] } # Macros for easy project setup and testing, multi-threaded runtime for best utilization of resources
+] }
 kube = { version = "0.78", default-features = true, features = [
     "derive",
     "runtime",
