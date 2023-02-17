@@ -1,6 +1,6 @@
 ---
 apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
+kind: ClusterRole
 metadata:
   name: {{ include "hopr-operator.fullname" . }}
   namespace: {{ .Release.Namespace | quote }}
@@ -41,6 +41,17 @@ rules:
   - list
   - update
   - patch
+- apiGroups:
+  - hoprnet.org
+  resources:
+  - hoprds
+  verbs:
+  - get
+  - create
+  - list
+  - watch
+  - update
+  - patch
 ---
 apiVersion: v1
 kind: ServiceAccount
@@ -58,7 +69,7 @@ metadata:
 {{- end }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
-kind: RoleBinding
+kind: ClusterRoleBinding
 metadata:
   name: {{ include "hopr-operator.fullname" . }}
   namespace: {{ .Release.Namespace | quote }}
@@ -73,7 +84,7 @@ metadata:
 {{- end }}
 roleRef:
   apiGroup: rbac.authorization.k8s.io
-  kind: Role
+  kind: ClusterRole
   name: {{ include "hopr-operator.fullname" . }}
 subjects:
 - kind: ServiceAccount
