@@ -1,2 +1,50 @@
+.DS_Store
+
+## Editor
+*.swp
+*.swo
+Session.vim
+.cproject
+.idea
+*.iml
+.vscode
+.project
+.favorites.json
+.settings/
+
+## Tool
+.valgrindrc
+.cargo
+
+
+## Configuration
+/config.toml
+config.mk
+config.stamp
+no_llvm_build
+
+## Build
+/dl/
+/doc/
+/inst/
+/llvm/
+/mingw-build/
+/build/
+/build-rust-analyzer/
+/dist/
+/unicode-downloads
 /target
-.idea/
+
+
+## Temporary files
+*~
+\#*
+\#*\#
+.#*
+
+## Tags
+tags
+tags.*
+TAGS
+TAGS.*
+
