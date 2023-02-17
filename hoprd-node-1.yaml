@@ -1,0 +1,14 @@
+---
+apiVersion: hoprnet.org/v1alpha
+kind: Hoprd
+metadata:
+  name: hoprd-node-1
+  namespace: riga
+spec:
+  environment: monte_rosa
+  version: riga
+  secret:
+    secretName: hoprd-ku5wzs
+  # announce: true
+  # autoRedeemTickets: true
+  # networkQualityThreshold: 0.6

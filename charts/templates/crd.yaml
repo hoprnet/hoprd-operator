@@ -1,0 +1,129 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: hoprds.hoprnet.org
+  namespace: {{ .Release.Namespace | quote }}
+  labels:
+    {{- include "hopr-operator.labels" . | nindent 4 }}
+    {{- if .Values.commonLabels }}
+    {{- .Values.commonLabels | toYaml | nindent 4 }}
+    {{- end }}
+{{- if .Values.commonAnnotations }}
+  annotations:
+    {{- .Values.commonAnnotations | toYaml | nindent 4 }}
+{{- end }}
+spec:
+  group: hoprnet.org
+  names:
+    kind: Hoprd
+    plural: hoprds
+    singular: hoprd
+    shortNames:
+      - hoprd
+  scope: Namespaced
+  versions:
+    - name: v1alpha
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec: # There is only one (required) field named "replicas" specifying how many pods are created by the Operator
+              type: object
+              properties:
+                environment:
+                  type: string
+                  description: 'Name of the hopr environment'
+                  enum:
+                  - monte_rosa
+                version:
+                  type: string
+                  description: 'An specific hoprd version. Should match with a docker tag'
+                announce:
+                  type: boolean
+                  description: 'Run as a Public Relay Node (PRN)'
+                provider:
+                  type: string
+                  description: 'A custom RPC provider to be used for the node to connect to blockchain'
+                defaultStrategy:
+                  type: string
+                  description: 'Default channel strategy to use when the node is started'
+                maxAutoChannels:
+                  type: integer
+                  format: int32
+                  description: 'Maximum number of channels a strategy can open'
+                autoRedeemTickets:
+                  type: boolean
+                  description: 'Enables automatic ticket redemption when received a winning ticket'
+                checkUnrealizedBalance:
+                  type: boolean
+                  description: 'Check unrealized balance in the channel when validating unacknowledged tickets'
+                allowPrivateNodeConnections:
+                  type: boolean
+                  description: 'Allow connections to other nodes running on localhost'
+                testAnnounceLocalAddress:
+                  type: boolean
+                  description: 'For testing local testnets. Announce local addresses'
+                heartbeatInterval:
+                  type: integer
+                  format: int32
+                  description: 'Interval in milliseconds in which the availability of other nodes get measured'
+                heartbeatThreshold:
+                  type: integer
+                  format: int32
+                  description: 'Timeframe in milliseconds after which a heartbeat to another peer is performed, if it has not been seen since'
+                heartbeatVariance:
+                  type: integer
+                  format: int32
+                  description: 'Upper bound for variance applied to heartbeat interval in milliseconds'
+                onChainConfirmations:
+                  type: integer
+                  format: int32
+                  description: 'Number of confirmations required for on-chain transactions'
+                networkQualityThreshold:
+                  type: number
+                  description: 'Minimum acceptable peer connection quality'
+                secret:
+                  type: object
+                  description: The secret containing sensitive data from the Hoprd node
+                  properties:
+                    secretName:
+                      description: The key of the secret to select from.  Must be a valid secret key.
+                      type: string
+                    passwordRefKey:
+                      description: 'Name of secret key that has the password for the node repository'
+                      type: string
+                    apiTokenRefKey:
+                      description: 'Name of secret key that has the API Token for the node repository'
+                      type: string
+                    identityRefKey:
+                      description: 'Name of secret key that has the contents of the node repository identity file'
+                      type: string
+                  required:
+                  - secretName
+                resources:
+                  type: object
+                  description: The secret containing sensitive data from the Hoprd node
+                  properties:
+                    limits:
+                      description: Specify the limit resources for the container
+                      type: object
+                      properties:
+                        cpu:
+                          description: Specify the cpu limit resources for the container
+                          type: string
+                        memory: 
+                          description: Specify the memory limit resources for the container
+                          type: string
+                    requests:
+                      description: Specify the request resources for the container
+                      type: object
+                      properties:
+                        cpu:
+                          description: Specify the cpu limit resources for the container
+                          type: string
+                        memory: 
+                          description: Specify the memory limit resources for the container
+                          type: string
+              required: ["environment", "version", "secret"]

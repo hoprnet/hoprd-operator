@@ -1,0 +1,119 @@
+## @section Common parameters
+##
+
+## @param nameOverride String to partially override common.names.fullname
+##
+nameOverride: ""
+## @param fullnameOverride String to fully override common.names.fullname
+##
+fullnameOverride: ""
+
+## @param commonLabels [object] Labels to add to all deployed objects
+##
+commonLabels: {}
+## @param commonAnnotations [object] Annotations to add to all deployed objects
+##
+commonAnnotations: {}
+
+## @section Hopr Operator Parameters
+##
+
+## @param privateKey Private Key of the Wallet used to make blockchain transactions like: register in network registry or fund nodes.
+##
+privateKey: ""
+
+## @param secretName Name of the secret custoding the private Key of the Wallet used to make blockchain transactions
+##
+secretName: ""
+
+## @param secretKeyName Key name within the Secret
+##
+secretKeyName: PRIVATE_KEY
+
+## @param nodeSelector Object containing node selection constraint.
+## https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#nodeselector
+##
+nodeSelector: {}
+
+## @param resources Resource specification
+##
+resources: {}
+    # We usually recommend not to specify default resources and to leave this as a conscious
+    # choice for the user. This also increases chances charts run on environments with little
+    # resources, such as Minikube. If you do want to specify resources, uncomment the following
+    # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
+    # limits:
+    #   cpu: 100m
+    #   memory: 128Mi
+    # requests:
+    #   cpu: 100m
+    #   memory: 128Mi
+
+## @param tolerations Tolerations specifications
+##
+tolerations: []
+
+## @param affinity Affinity specifications
+##
+affinity: {}
+
+image:
+  ## @param image.registry Docker registry
+  ##
+  registry: gcr.io
+  ## @param image.repository Docker image repository
+  ##
+  repository: hoprassociation/hopr-operator
+  ## @param image.tag Docker image tag
+  ##
+  tag: latest
+  ## @param image.pullPolicy Pull policy as deinfed in 
+  ## ref: http://kubernetes.io/docs/user-guide/images/#pre-pulling-images
+  ##
+  pullPolicy: IfNotPresent
+
+service:
+  ports:
+    ## @param service.ports.name Name of the API service port 
+    ##
+    name: api
+
+## @section Metrics parameters
+##
+metrics:
+  serviceMonitor:
+    ## @param metrics.serviceMonitor.enabled Specify if a ServiceMonitor will be deployed for Hopr Operator
+    ##
+    enabled: false
+    ## @param metrics.serviceMonitor.namespace Namespace in which deploy the service Monitor
+    ##
+    namespace: ""
+    ## @param metrics.serviceMonitor.namespaceSelector Namespaces which will be scrapped for metrics
+    ##
+    namespaceSelector: []
+    ## @param metrics.serviceMonitor.jobLabel The name of the label on the target service to use as the job name in Prometheus
+    ##
+    jobLabel: "hoprd"
+    ## @param metrics.serviceMonitor.honorLabels honorLabels chooses the metric's labels on collisions with target labels
+    ##
+    honorLabels: false
+    ## @param metrics.serviceMonitor.interval Interval at which metrics should be scraped.
+    ## e.g:
+    ## interval: 10s
+    ##
+    interval: ""
+    ## @param metrics.serviceMonitor.scrapeTimeout Timeout after which the scrape is ended
+    ## e.g:
+    ## scrapeTimeout: 10s
+    ##
+    scrapeTimeout: ""
+    ## @param metrics.serviceMonitor.metricRelabelings Specify additional relabeling of metrics
+    ##
+    metricRelabelings: []
+    ## @param metrics.serviceMonitor.relabelings Specify general relabeling
+    ##
+    relabelings: []
+    ## @param metrics.serviceMonitor.selector Hord node instance selector labels
+    ##
+    selector: {}
+
