@@ -1,6 +1,6 @@
 
-crd:
-	kubectl apply -f hoprds.hoprnet.org.yaml
+build:
+	cargo build
 
 run:
 	nohup cargo run &
