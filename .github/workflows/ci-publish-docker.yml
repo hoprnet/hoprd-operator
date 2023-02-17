@@ -1,0 +1,46 @@
+name: 'Publish docker image'
+on:
+  pull_request_target:
+    branches:
+      - master
+    types:
+      - closed
+    paths-ignore:
+      - "charts/**/*"
+jobs:
+  publish-docker:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      - name: Set up Google Cloud Credentials
+        uses: google-github-actions/auth@v0
+        with:
+          credentials_json: ${{ secrets.GOOGLE_HOPRASSOCIATION_CREDENTIALS_REGISTRY }}
+      - name: Set up Google Cloud SDK
+        uses: google-github-actions/setup-gcloud@v0
+        with:
+          project_id: ${{ secrets.GOOGLE_HOPRASSOCIATION_PROJECT }}
+          install_components: beta
+      - name: Google Container authentication
+        run: gcloud auth configure-docker --quiet gcr.io
+      - name: Get package version
+        run: |
+          docker_tag=$(grep -A 1 "hopr_operator" Cargo.lock | grep version | sed 's/.* "//' | sed 's/"//' | tr -d '\n')
+          echo "DOCKER_TAG=${docker_tag}" >> $GITHUB_ENV          
+      - name: Build docker image
+        uses: docker/build-push-action@v3
+        with:
+          push: true
+          tags: |
+            gcr.io/hoprassociation/hopr-operator:${{ env.DOCKER_TAG }}
+            gcr.io/hoprassociation/hopr-operator:latest
+      - name: Tag Docker version
+        run: |
+            git config user.email "noreply@hoprnet.org"
+            git config user.name "HOPR CI robot"
+            git tag ${{ env.DOCKER_TAG }}
+            git push origin ${{ env.DOCKER_TAG }}

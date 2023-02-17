@@ -1,0 +1,34 @@
+name: 'Update README'
+on:
+  pull_request_target:
+    branches:
+      - master
+    paths:
+      - 'charts/values.yaml'
+permissions:
+  contents: write
+jobs:
+  update-readme-metadata:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Install readme-generator-for-helm
+        run: npm install -g @bitnami/readme-generator-for-helm@2.4.2
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          ref: ${{github.event.pull_request.head.ref}}
+          repository: ${{github.event.pull_request.head.repo.full_name}}
+          fetch-depth: 0
+      - name: Execute readme-generator-for-helm
+        run: |
+          readme-generator --values "charts/values.yaml" --readme "charts/README.md" --schema "/tmp/schema.json"
+      - name: Push changes
+        run: |
+          # Push all the changes
+          if git status -s | grep deploy/charts; then
+            git config user.email "noreply@hoprnet.org"
+            git config user.name "HOPR CI robot"
+            git config pull.rebase false
+            git add . && git commit -am "Update parameters README.md" --signoff && git push
+          fi

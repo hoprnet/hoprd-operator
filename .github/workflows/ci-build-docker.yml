@@ -1,0 +1,47 @@
+name: 'Build docker image'
+on:
+  pull_request_target:
+    branches:
+      - master
+    types: 
+      - opened
+      - ready_for_review
+      - synchronize
+      - reopened
+    paths-ignore:
+      - "charts/**/*"
+jobs:
+  build-docker:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          ref: ${{github.event.pull_request.head.ref}}
+          repository: ${{github.event.pull_request.head.repo.full_name}}
+      - name: Set up Google Cloud Credentials
+        uses: google-github-actions/auth@v0
+        with:
+          credentials_json: ${{ secrets.GOOGLE_HOPRASSOCIATION_CREDENTIALS_REGISTRY }}
+      - name: Set up Google Cloud SDK
+        uses: google-github-actions/setup-gcloud@v0
+        with:
+          project_id: hoprassociation
+          install_components: beta                    
+      - name: Check if docker tag exists
+        run: |
+          hopr_operator_version=$(grep -A 1 "hopr_operator" Cargo.lock | grep version | sed 's/.* "//' | sed 's/"//' | tr -d '\n')
+          images=$(gcloud container images  list-tags  gcr.io/hoprassociation/hopr-operator --filter="tags[]=${hopr_operator_version}" 2> /dev/null)
+          echo "gcr images: ${images}"
+          if [ ! "${images}" = "" ]; then
+            echo "The docker image tag '${hopr_operator_version}' already exists. Please bump package.json version"; 
+            exit 1
+          else
+            echo "Building docker image tag '${hopr_operator_version}'"; 
+          fi
+      - name: Build docker image
+        uses: docker/build-push-action@v3
+        with:
+          push: false
+          tags: gcr.io/hoprassociation/hopr-operator:latest
