@@ -2,12 +2,7 @@ name: 'Build helm chart'
 on:
   pull_request_target:
     branches:
-      - master
-    types: 
-      - opened
-      - ready_for_review
-      - synchronize
-      - reopened      
+      - master   
     paths:
       - "charts/**"
 jobs:
