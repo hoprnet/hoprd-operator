@@ -3,6 +3,11 @@ on:
   pull_request_target:
     branches:
       - master
+    types: 
+      - opened
+      - ready_for_review
+      - synchronize
+      - reopened
     paths-ignore:
       - "charts/**/*"
 jobs:
