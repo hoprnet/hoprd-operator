@@ -12,6 +12,7 @@ on:
 jobs:
   validate:
     runs-on: ubuntu-latest
+    if: "!contains(github.event.pusher.name, 'dependabot[bot]')"
 
     steps:
       - name: Checkout
@@ -45,6 +46,8 @@ jobs:
   build:
     needs: validate
     runs-on: ubuntu-latest
+    if: "!contains(github.event.pusher.name, 'dependabot[bot]')"
+
     steps:
       - name: Build container image
         uses: docker/build-push-action@v3
