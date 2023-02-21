@@ -12,7 +12,7 @@ on:
 jobs:
   validate:
     runs-on: ubuntu-latest
-    if: "!contains(github.event.pusher.name, 'dependabot[bot]')"
+    if: "!contains(github.event.pusher.name, 'dependabot')"
 
     steps:
       - name: Checkout
@@ -46,11 +46,11 @@ jobs:
   build:
     needs: validate
     runs-on: ubuntu-latest
-    if: "!contains(github.event.pusher.name, 'dependabot[bot]')"
+    if: "!contains(github.event.pusher.name, 'dependabot')"
 
     steps:
       - name: Build container image
-        uses: docker/build-push-action@v3
+        uses: docker/build-push-action@v4
         with:
           push: false
           tags: gcr.io/hoprassociation/hopr-operator:latest
