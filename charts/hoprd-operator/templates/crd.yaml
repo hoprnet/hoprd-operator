@@ -89,7 +89,7 @@ spec:
                   description: The secret containing sensitive data from the Hoprd node
                   properties:
                     secretName:
-                      description: The key of the secret to select from.  Must be a valid secret key.
+                      description: Name of the secret containing sensitive data for the Hoprd node.
                       type: string
                     passwordRefKey:
                       description: 'Name of secret key that has the password for the node repository'
@@ -100,8 +100,20 @@ spec:
                     identityRefKey:
                       description: 'Name of secret key that has the contents of the node repository identity file'
                       type: string
+                    metricsPasswordRefKey: 
+                      type: string
+                      description: Name of the secret key that has an empty value to be used as password for Prometheus
                   required:
                   - secretName
+                monitoring:
+                  type: object
+                  description: Monitoring configuration
+                  properties:
+                    enabled:
+                      description: Whether to create a ServiceMonitor associated to this hoprd node
+                      type: boolean
+                  required:
+                  - enabled
                 resources:
                   type: object
                   description: The secret containing sensitive data from the Hoprd node
