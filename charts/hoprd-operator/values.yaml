@@ -70,7 +70,7 @@ image:
   ## @param image.pullPolicy Pull policy as deinfed in 
   ## ref: http://kubernetes.io/docs/user-guide/images/#pre-pulling-images
   ##
-  pullPolicy: IfNotPresent
+  pullPolicy: Always
 
 service:
   ports:
