@@ -39,7 +39,7 @@ jobs:
           echo "DOCKER_TAG=${docker_tag}" >> $GITHUB_ENV
 
       - name: Build container image
-        uses: docker/build-push-action@v3
+        uses: docker/build-push-action@v4
         with:
           push: true
           tags: |
