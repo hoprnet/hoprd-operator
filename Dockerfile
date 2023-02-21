@@ -18,15 +18,15 @@ COPY ./src ./src
 RUN rm ./target/release/deps/hopr_operator*
 RUN cargo build --release
 
-FROM scratch
+FROM debian:11.6-slim
 LABEL name="hoprd operator" \
       maintainer="tech@hoprnet.org" \
       vendor="HOPR" \
       summary="Operator managing hoprd instances" \
       description="Automation to introduce a hoprd network into a Kubernetes cluster using a dedicated operator"
-COPY --from=build /hopr_operator/target/release/hopr_operator .
+COPY --from=build /hopr_operator/target/release/hopr_operator /bin/hopr_operator
 
-CMD ["./hopr_operator"]
+ENTRYPOINT ["/bin/hopr_operator"]
 
 # Build Image command
 # docker build -t gcr.io/hoprassociation/hopr-operator:latest .
