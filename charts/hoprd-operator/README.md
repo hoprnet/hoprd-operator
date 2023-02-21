@@ -50,7 +50,7 @@ Chart version `Chart.yaml` should be increased according to [semver](http://semv
 | `image.registry`     | Docker registry                                                                                                  | `gcr.io`                        |
 | `image.repository`   | Docker image repository                                                                                          | `hoprassociation/hopr-operator` |
 | `image.tag`          | Docker image tag                                                                                                 | `latest`                        |
-| `image.pullPolicy`   | Pull policy as deinfed in                                                                                        | `IfNotPresent`                  |
+| `image.pullPolicy`   | Pull policy as deinfed in                                                                                        | `Always`                        |
 | `service.ports.name` | Name of the API service port                                                                                     | `api`                           |
 
 ### Metrics parameters
