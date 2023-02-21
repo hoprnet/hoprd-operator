@@ -1,0 +1,42 @@
+---
+
+name: 'Helm chart'
+
+on:
+  pull_request:
+    paths:
+      - "charts/**"
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Validate Helm chart version
+        run: |
+          helm_chart_version=$(grep '^version:' Chart.yaml | sed 's/.*: /helm-/')
+          if git tag -l | grep ${helm_chart_version} 1> /dev/null; then
+            echo "The Helm chart version '${helm_chart_version}' already exists. Please bump property 'version' on ./charts/Chart.yaml to a new version";
+            exit 1
+          fi
+        working-directory: 'charts/hoprd-operator/'
+
+
+  lint:
+    runs-on: ubuntu-latest
+    needs: validate
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Lint
+        run: |
+          helm dependency update
+          helm lint
+        working-directory: 'charts/hoprd-operator/'
