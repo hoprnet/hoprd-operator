@@ -19,6 +19,7 @@ jobs:
       - name: Validate Helm chart version
         run: |
           helm_chart_version=$(grep '^version:' Chart.yaml | sed 's/.*: /helm-/')
+          echo "The Helm chart version is '${helm_chart_version}'"
           if git tag -l | grep ${helm_chart_version} 1> /dev/null; then
             echo "The Helm chart version '${helm_chart_version}' already exists. Please bump property 'version' on ./charts/Chart.yaml to a new version";
             exit 1
