@@ -1,4 +1,6 @@
-/// Operator Constants
+// Operator Constants
+pub const RECONCILE_FREQUENCY: u64 = 10;
+
 
 // Labels
 pub const LABEL_KUBERNETES_NAME: &str = "app.kubernetes.io/name";
@@ -32,3 +34,4 @@ pub const HOPRD_API_HOST: &str = "HOPRD_API_HOST";
 pub const HOPRD_INIT: &str = "HOPRD_INIT";
 pub const HOPRD_HEALTH_CHECK: &str = "HOPRD_HEALTH_CHECK";
 pub const HOPRD_HEALTH_CHECK_HOST: &str = "HOPRD_HEALTH_CHECK_HOST";
+pub const MONITORING_ENABLED: bool= true;

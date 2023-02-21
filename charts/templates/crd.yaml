@@ -100,12 +100,20 @@ spec:
                     identityRefKey:
                       description: 'Name of secret key that has the contents of the node repository identity file'
                       type: string
-                    metricsPasswordRefKey: Name of the secret key that has an empty value to be used as password for Prometheus
+                    metricsPasswordRefKey: 
+                      type: string
+                      description: Name of the secret key that has an empty value to be used as password for Prometheus
                   required:
                   - secretName
-                enableMonitoring:
-                  type: boolean
-                  description: Whether to create a ServiceMonitor associated to this hoprd node
+                monitoring:
+                  type: object
+                  description: Monitoring configuration
+                  properties:
+                    enabled:
+                      description: Whether to create a ServiceMonitor associated to this hoprd node
+                      type: boolean
+                  required:
+                  - enabled
                 resources:
                   type: object
                   description: The secret containing sensitive data from the Hoprd node

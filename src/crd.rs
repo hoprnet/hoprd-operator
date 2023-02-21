@@ -19,7 +19,7 @@ pub struct HoprdSpec {
     pub environment: String,
     pub version: String,
     pub secret: Secret,
-    pub enable_monitoring: Option<bool>,
+    pub monitoring: Option<Monitoring>,
     pub resources: Option<Resource>,
     pub announce: Option<bool>,
     pub provider: Option<String>,
@@ -64,4 +64,11 @@ pub struct Resource {
 pub struct ResourceTypes {
     pub cpu: String,
     pub memory: String
+}
+
+
+/// Struct to define Pod resources types
+#[derive(Serialize, Debug, Deserialize,  PartialEq, Clone, JsonSchema)]
+pub struct Monitoring {
+    pub enabled: bool
 }
