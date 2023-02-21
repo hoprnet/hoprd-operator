@@ -12,6 +12,7 @@ use crate::crd::Hoprd;
 
 pub mod crd;
 mod hoprd;
+mod servicemonitor;
 mod utils;
 mod finalizer;
 mod constants;
@@ -110,7 +111,10 @@ async fn reconcile(hoprd: Arc<Hoprd>, context: Arc<ContextData>) -> Result<Actio
             finalizer::add(client.clone(), &name, &namespace).await?;
             // Invoke creation of a Kubernetes built-in resource named deployment with `n` hoprd service pods.
             hoprd::create_deployment(client.clone(), &name, &hoprd.spec, &namespace).await?;
-            hoprd::create_service(client, &name, &namespace).await?;
+            hoprd::create_service(client.clone(), &name, &namespace).await?;
+            if hoprd.spec.enable_monitoring.unwrap_or(true) {
+                hoprd::create_service_monitor(client.clone(), &name, &hoprd.spec, &namespace).await?;
+            }
             Ok(Action::requeue(Duration::from_secs(10)))
         }
         HoprdAction::Delete => {
@@ -122,13 +126,15 @@ async fn reconcile(hoprd: Arc<Hoprd>, context: Arc<ContextData>) -> Result<Actio
             // automatically converted into `Error` defined in this crate and the reconciliation is ended
             // with that error.
             // Note: A more advanced implementation would check for the Deployment's existence.
+            if hoprd.spec.enable_monitoring.unwrap_or(true) {
+                hoprd::delete_service_monitor(client.clone(), &name, &namespace).await?;
+            }
             hoprd::delete_service(client.clone(), &name, &namespace).await?;
             hoprd::delete_depoyment(client.clone(), &name, &namespace).await?;
 
-
             // Once the deployment is successfully removed, remove the finalizer to make it possible
             // for Kubernetes to delete the `Hoprd` resource.
-            finalizer::delete(client, &name, &namespace).await?;
+            finalizer::delete(client.clone(), &name, &namespace).await?;
             Ok(Action::await_change()) // Makes no sense to delete after a successful delete, as the resource is gone
         }
         // The resource is already in desired state, do nothing and re-check after 10 seconds

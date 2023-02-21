@@ -9,6 +9,7 @@ spec:
   version: riga
   secret:
     secretName: hoprd-ku5wzs
+  enableMonitoring: true
   # announce: true
   # autoRedeemTickets: true
   # networkQualityThreshold: 0.6

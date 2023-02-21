@@ -9,21 +9,22 @@ use k8s_openapi::apimachinery::pkg::apis::meta::v1::LabelSelector;
 use k8s_openapi::apimachinery::pkg::util::intstr::IntOrString;
 use kube::api::{DeleteParams, ObjectMeta, PostParams};
 use kube::{Api, Client, Error};
-use std::collections::BTreeMap;
-
+use std::collections::{BTreeMap};
+use crate::crd::Secret;
+use crate::servicemonitor::{ServiceMonitorSpec, ServiceMonitorEndpoints, ServiceMonitorEndpointsBasicAuth, ServiceMonitorEndpointsBasicAuthUsername, ServiceMonitorNamespaceSelector, ServiceMonitorSelector, ServiceMonitorEndpointsBasicAuthPassword};
 use crate::{
     constants,
     crd::{HoprdSpec, Resource},
+    servicemonitor::ServiceMonitor,
     utils,
 };
 
-/// Creates a new deployment of `n` pods with the `inanimate/echo-server:latest` docker image inside,
-/// where `n` is the number of `replicas` given.
+/// Creates a new deployment for running the hoprd node,
 ///
 /// # Arguments
 /// - `client` - A Kubernetes client to create the deployment with.
 /// - `name` - Name of the deployment to be created
-/// - `replicas` - Number of pod replicas for the Deployment to contain
+/// - `hoprd_spec` - Details about the hoprd configuration node
 /// - `namespace` - Namespace to create the Kubernetes Deployment in.
 ///
 /// Note: It is assumed the resource does not already exists for simplicity. Returns an `Error` if it does.
@@ -63,7 +64,7 @@ pub async fn create_deployment(
                         resources: build_resource_requirements(&hoprd_spec.resources).await,
                         ..Container::default()
                     }],
-                    volumes: Some(build_volumes(&hoprd_spec).await),
+                    volumes: Some(build_volumes(&hoprd_spec.secret).await),
                     ..PodSpec::default()
                 }),
                 metadata: Some(ObjectMeta {
@@ -83,6 +84,14 @@ pub async fn create_deployment(
         .await
 }
 
+/// Creates a new service for accessing the hoprd node,
+///
+/// # Arguments
+/// - `client` - A Kubernetes client to create the deployment with.
+/// - `name` - Name of the service to be created
+/// - `namespace` - Namespace to create the Kubernetes Deployment in.
+///
+/// Note: It is assumed the resource does not already exists for simplicity. Returns an `Error` if it does.
 pub async fn create_service(client: Client, name: &str, namespace: &str) -> Result<Service, Error> {
     let labels: BTreeMap<String, String> = utils::common_lables(&name.to_owned());
 
@@ -112,6 +121,94 @@ pub async fn create_service(client: Client, name: &str, namespace: &str) -> Resu
     // Create the service defined above
     let service_api: Api<Service> = Api::namespaced(client, namespace);
     service_api.create(&PostParams::default(), &service).await
+}
+
+/// Creates a new serviceMonitor to enable the monitoring with Prometheus of the hoprd node,
+///
+/// # Arguments
+/// - `client` - A Kubernetes client to create the deployment with.
+/// - `name` - Name of the deployment to be created
+/// - `hoprd_spec` - Details about the hoprd configuration node
+/// - `namespace` - Namespace to create the Kubernetes Deployment in.
+///
+/// Note: It is assumed the resource does not already exists for simplicity. Returns an `Error` if it does.
+pub async fn create_service_monitor(client: Client, name: &str, hoprd_spec: &HoprdSpec, namespace: &str) -> Result<ServiceMonitor, Error> {
+    let labels: BTreeMap<String, String> = utils::common_lables(&name.to_owned());
+    let api: Api<ServiceMonitor> = Api::namespaced(client, namespace);
+
+
+    let service_monitor: ServiceMonitor = ServiceMonitor {
+        metadata: ObjectMeta { 
+            labels: Some(labels.clone()),
+             name: Some(name.to_owned()), 
+             namespace: Some(namespace.to_owned()),
+             ..ObjectMeta::default()
+            },
+        spec: ServiceMonitorSpec { 
+            endpoints: vec![ServiceMonitorEndpoints {
+                interval:Some("15s".to_owned()),
+                path: Some("/api/v2/node/metrics".to_owned()),
+                port:Some("api".to_owned()),
+                basic_auth: Some(ServiceMonitorEndpointsBasicAuth{
+                    username:Some(ServiceMonitorEndpointsBasicAuthUsername{
+                        key: hoprd_spec
+                        .secret
+                        .api_token_ref_key
+                        .as_ref()
+                        .unwrap_or(&constants::HOPRD_API_TOKEN.to_owned())
+                        .to_string(),
+                        name: Some(hoprd_spec.secret.secret_name.to_owned()),
+                        optional:Some(false)
+                    }),
+                    password:Some(ServiceMonitorEndpointsBasicAuthPassword {
+                        key: hoprd_spec
+                        .secret
+                        .metrics_password_ref_key
+                        .as_ref()
+                        .unwrap_or(&"METRICS_PASSWORD".to_owned())
+                        .to_string(),
+                        name: Some(hoprd_spec.secret.secret_name.to_owned()),
+                        optional:Some(false)
+                    }),
+                }), 
+                authorization: None,
+                bearer_token_file: None,
+                bearer_token_secret: None,
+                follow_redirects: None,
+                honor_labels: None,
+                honor_timestamps: None,
+                metric_relabelings: None,
+                oauth2: None,
+                params: None,
+                proxy_url: None,
+                relabelings: None,
+                scheme: None,
+                scrape_timeout: None,
+                target_port: None,
+                tls_config: None }],
+            job_label: Some(name.to_owned()),
+            namespace_selector: Some(ServiceMonitorNamespaceSelector {
+                match_names: Some(vec![ namespace.to_owned() ]),
+                any: Some(false)
+            }),
+            selector: ServiceMonitorSelector {
+                match_labels: Some(labels),
+                match_expressions: None
+            },
+            label_limit: None,
+            label_name_length_limit: None,
+            label_value_length_limit: None,
+            pod_target_labels: None,
+            sample_limit: None,
+            target_labels: None,
+            target_limit: None,
+        }
+    };
+
+    // Create the serviceMonitor defined above
+    api.create(&PostParams::default(), &service_monitor).await
+
+
 }
 
 /// Builds the struct ResourceRequirement from Resource specified in the node
@@ -146,7 +243,6 @@ async fn build_resource_requirements(resources: &Option<Resource>) -> Option<Res
 }
 
 /// Builds the struct VolumeMount to be attached into the Container
-///
 async fn build_volume_mounts() -> Vec<VolumeMount> {
     let mut volume_mounts = Vec::with_capacity(2);
     volume_mounts.push(VolumeMount {
@@ -163,16 +259,17 @@ async fn build_volume_mounts() -> Vec<VolumeMount> {
 }
 
 /// Builds the struct Volume to be included as part of the PodSpec
-///
-async fn build_volumes(hoprd_spec: &HoprdSpec) -> Vec<Volume> {
+/// 
+/// # Arguments
+/// - `secret` - Secret struct used to build the volume for HOPRD_IDENTITY path
+async fn build_volumes(secret: &Secret) -> Vec<Volume> {
     let mut volumes = Vec::with_capacity(2);
     volumes.push(Volume {
         name: "hoprd-identity".to_owned(),
         secret: Some(SecretVolumeSource {
-            secret_name: Some(hoprd_spec.secret.secret_name.to_owned()),
+            secret_name: Some(secret.secret_name.to_owned()),
             items: Some(vec![KeyToPath {
-                key: hoprd_spec
-                    .secret
+                key: secret
                     .identity_ref_key
                     .as_ref()
                     .unwrap_or(&"HOPRD_IDENTITY".to_owned())
@@ -194,7 +291,6 @@ async fn build_volumes(hoprd_spec: &HoprdSpec) -> Vec<Volume> {
 }
 
 /// Build the liveness probe struct
-///
 async fn build_liveness_probe() -> Probe {
     return Probe {
         http_get: Some(HTTPGetAction {
@@ -212,7 +308,6 @@ async fn build_liveness_probe() -> Probe {
 }
 
 /// Build the readiness probe struct
-///
 async fn build_readiness_probe() -> Probe {
     return Probe {
         http_get: Some(HTTPGetAction {
@@ -230,7 +325,6 @@ async fn build_readiness_probe() -> Probe {
 }
 
 /// Build struct ContainerPort
-///
 async fn build_ports() -> Vec<ContainerPort> {
     let mut container_ports = Vec::with_capacity(3);
 
@@ -258,28 +352,29 @@ async fn build_ports() -> Vec<ContainerPort> {
 ///Build struct environment variable
 ///
 async fn build_env_vars(hoprd_spec: &HoprdSpec) -> Vec<EnvVar> {
-    let mut env_vars = build_secret_env_var(&hoprd_spec).await;
+    let mut env_vars = build_secret_env_var(&hoprd_spec.secret).await;
     env_vars.extend_from_slice(&build_crd_env_var(&hoprd_spec).await);
     env_vars.extend_from_slice(&build_default_env_var().await);
     return env_vars;
 }
 
 /// Build environment variables from secrets
-///
-async fn build_secret_env_var(hoprd_spec: &HoprdSpec) -> Vec<EnvVar> {
+/// 
+/// # Arguments
+/// - `secret` - Secret struct used to build HOPRD_PASSWORD and HOPRD_API_TOKEN
+async fn build_secret_env_var(secret: &Secret) -> Vec<EnvVar> {
     let mut env_vars = Vec::with_capacity(1);
 
     env_vars.push(EnvVar {
         name: constants::HOPRD_PASSWORD.to_owned(),
         value_from: Some(EnvVarSource {
             secret_key_ref: Some(SecretKeySelector {
-                key: hoprd_spec
-                    .secret
+                key: secret
                     .password_ref_key
                     .as_ref()
                     .unwrap_or(&constants::HOPRD_PASSWORD.to_owned())
                     .to_string(),
-                name: Some(hoprd_spec.secret.secret_name.to_owned()),
+                name: Some(secret.secret_name.to_owned()),
                 ..SecretKeySelector::default()
             }),
             ..EnvVarSource::default()
@@ -291,13 +386,12 @@ async fn build_secret_env_var(hoprd_spec: &HoprdSpec) -> Vec<EnvVar> {
         name: constants::HOPRD_API_TOKEN.to_owned(),
         value_from: Some(EnvVarSource {
             secret_key_ref: Some(SecretKeySelector {
-                key: hoprd_spec
-                    .secret
+                key: secret
                     .api_token_ref_key
                     .as_ref()
                     .unwrap_or(&constants::HOPRD_API_TOKEN.to_owned())
                     .to_string(),
-                name: Some(hoprd_spec.secret.secret_name.to_owned()),
+                name: Some(secret.secret_name.to_owned()),
                 ..SecretKeySelector::default()
             }),
             ..EnvVarSource::default()
@@ -309,6 +403,8 @@ async fn build_secret_env_var(hoprd_spec: &HoprdSpec) -> Vec<EnvVar> {
 
 /// Build environment variables from CRD
 ///
+/// # Arguments
+/// - `hoprd_spec` - Details about the hoprd configuration node
 async fn build_crd_env_var(hoprd_spec: &HoprdSpec) -> Vec<EnvVar> {
     let mut env_vars = Vec::with_capacity(1);
     env_vars.push(EnvVar {
@@ -515,16 +611,30 @@ pub async fn delete_depoyment(client: Client, name: &str, namespace: &str) -> Re
     Ok(())
 }
 
-/// Deletes an existing deployment.
+/// Deletes an existing service.
 ///
 /// # Arguments:
-/// - `client` - A Kubernetes client to delete the Deployment with
-/// - `name` - Name of the deployment to delete
-/// - `namespace` - Namespace the existing deployment resides in
+/// - `client` - A Kubernetes client to delete the Service with
+/// - `name` - Name of the service to delete
+/// - `namespace` - Namespace the existing service resides in
 ///
-/// Note: It is assumed the deployment exists for simplicity. Otherwise returns an Error.
+/// Note: It is assumed the service exists for simplicity. Otherwise returns an Error.
 pub async fn delete_service(client: Client, name: &str, namespace: &str) -> Result<(), Error> {
     let api: Api<Service> = Api::namespaced(client, namespace);
+    api.delete(name, &DeleteParams::default()).await?;
+    Ok(())
+}
+
+/// Deletes an existing serviceMonitor.
+///
+/// # Arguments:
+/// - `client` - A Kubernetes client to delete the ServiceMonitor with
+/// - `name` - Name of the ServiceMonitor to delete
+/// - `namespace` - Namespace the existing ServiceMonitor resides in
+///
+/// Note: It is assumed the ServiceMonitor exists for simplicity. Otherwise returns an Error.
+pub async fn delete_service_monitor(client: Client, name: &str, namespace: &str) -> Result<(), Error> {
+    let api: Api<ServiceMonitor> = Api::namespaced(client, namespace);
     api.delete(name, &DeleteParams::default()).await?;
     Ok(())
 }

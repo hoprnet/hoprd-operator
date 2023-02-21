@@ -19,6 +19,7 @@ pub struct HoprdSpec {
     pub environment: String,
     pub version: String,
     pub secret: Secret,
+    pub enable_monitoring: Option<bool>,
     pub resources: Option<Resource>,
     pub announce: Option<bool>,
     pub provider: Option<String>,
@@ -46,7 +47,9 @@ pub struct Secret {
 
     pub api_token_ref_key: Option<String>,
 
-    pub identity_ref_key: Option<String>
+    pub identity_ref_key: Option<String>,
+
+    pub metrics_password_ref_key: Option<String>
 }
 
 /// Struct to map Pod resources
