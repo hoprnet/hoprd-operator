@@ -16,7 +16,7 @@ COPY ./Cargo.lock ./Cargo.lock
 COPY ./Cargo.toml ./Cargo.toml
 COPY ./src ./src
 
-RUN rustup target install --toolchain $(rustup toolchain list | head -n 1 | awk '{print $1}') $(uname -m)-unknown-linux-musl
+RUN rustup target install $(uname -m)-unknown-linux-musl
 RUN OPENSSL_LIB_DIR=/usr/lib/$(uname -m)-linux-gnu RUSTFLAGS="-C target-feature=+crt-static" cargo build --release --target $(uname -m)-unknown-linux-musl --features vendored
 RUN mv target/$(uname -m)-unknown-linux-musl/release/hopr_operator target/
 
