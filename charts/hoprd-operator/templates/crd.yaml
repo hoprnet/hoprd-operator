@@ -32,11 +32,17 @@ spec:
             spec: # There is only one (required) field named "replicas" specifying how many pods are created by the Operator
               type: object
               properties:
-                environment:
+                environmentName:
                   type: string
                   description: 'Name of the hopr environment'
                   enum:
                   - monte_rosa
+                environmentType:
+                  type: string
+                  description: 'Type of the hopr environment'
+                  enum:
+                  - development
+                  - production
                 version:
                   type: string
                   description: 'An specific hoprd version. Should match with a docker tag'
@@ -138,4 +144,4 @@ spec:
                         memory: 
                           description: Specify the memory limit resources for the container
                           type: string
-              required: ["environment", "version", "secret"]
+              required: ["environmentName", "environmentType", "version"]

@@ -1,6 +1,10 @@
 use kube::CustomResource;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use std::{collections::{BTreeMap}};
+use k8s_openapi::ByteString;
+
+use crate::constants;
 
 /// Struct corresponding to the Specification (`spec`) part of the `Hoprd` resource, directly
 /// reflects context of the `hoprds.hoprnet.org.yaml` file to be found in this repository.
@@ -16,9 +20,10 @@ use serde::{Deserialize, Serialize};
 )]
 #[serde(rename_all = "camelCase")]
 pub struct HoprdSpec {
-    pub environment: String,
+    pub environment_name: String,
+    pub environment_type: String,
     pub version: String,
-    pub secret: Secret,
+    pub secret: Option<Secret>,
     pub monitoring: Option<Monitoring>,
     pub resources: Option<Resource>,
     pub announce: Option<bool>,
@@ -37,7 +42,7 @@ pub struct HoprdSpec {
 }
 
 /// Struct corresponding to the details of the secret which contains the sensitive data to run the node
-#[derive(Serialize, Debug, Deserialize,  PartialEq, Clone, JsonSchema)]
+#[derive(Serialize, Debug, Default, Deserialize,  PartialEq, Clone, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct Secret {
 
@@ -72,3 +77,29 @@ pub struct ResourceTypes {
 pub struct Monitoring {
     pub enabled: bool
 }
+
+
+/// Struct used to fill the contents of a Secret
+#[derive(Serialize, Debug, Deserialize,  PartialEq, Clone, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct SecretContent {
+    pub identity: String,
+    pub password: String,
+    pub api_token: String,
+    pub address: String,
+    pub peer_id: String,
+    pub secret_name: String
+}
+
+impl SecretContent {
+
+    pub fn get_encoded_data(&self) -> BTreeMap<String, ByteString> {
+        let mut data: BTreeMap<String, ByteString> = BTreeMap::new();
+        data.insert(constants::HOPRD_IDENTITY.to_owned(), ByteString(self.identity.to_owned().into_bytes()));
+        data.insert(constants::HOPRD_PASSWORD.to_owned(), ByteString(self.password.to_owned().into_bytes()));
+        data.insert(constants::HOPRD_API_TOKEN.to_owned(), ByteString(self.api_token.to_owned().into_bytes()));
+        data.insert(constants::HOPRD_METRICS_PASSWORD.to_owned(), ByteString("".to_owned().into_bytes()));
+        return data;
+    }
+}
+

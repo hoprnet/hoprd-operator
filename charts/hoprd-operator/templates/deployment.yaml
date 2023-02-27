@@ -46,6 +46,13 @@ spec:
                 key: {{ .Values.secretName }} 
                 name: {{ .Values.secretKeyName }} 
         {{- end }}
+          - name: OPERATOR_INSTANCE_NAME
+            value: {{ include "hopr-operator.name" . }}
+          - name: OPERATOR_INSTANCE_NAMESPACE
+            value: {{ .Release.Namespace | quote }}
+        volumeMounts:
+          - name: hopr-repo-volume
+            mountPath: /app/node_secrets
       serviceAccountName: {{ include "hopr-operator.name" . }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
@@ -59,5 +66,9 @@ spec:
       tolerations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      volumes:
+        - name: hopr-repo-volume
+          persistentVolumeClaim:
+            claimName: {{ include "hopr-operator.fullname" . }}
 
 

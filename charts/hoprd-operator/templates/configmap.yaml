@@ -1,0 +1,48 @@
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "hopr-operator.fullname" . }}
+  namespace: {{ .Release.Namespace | quote }}
+  labels:
+    {{- include "hopr-operator.labels" . | nindent 4 }}
+    {{- if .Values.commonLabels }}
+    {{- .Values.commonLabels | toYaml | nindent 4 }}
+    {{- end }}
+{{- if .Values.commonAnnotations }}
+  annotations:
+    {{- .Values.commonAnnotations | toYaml | nindent 4 }}
+{{- end }}
+data:
+  create-node.sh: |
+    #!/usr/bin/env bash
+    
+    set -x
+    set -Eeuo pipefail
+    export SECRET_NAME="${1}"
+    rm -rf "/app/node_secrets/${SECRET_NAME}"
+    mkdir -p "/app/node_secrets/${SECRET_NAME}"
+    export HOPRD_PASSWORD=$(tr -cd '[:alnum:]' < /dev/urandom | fold -w30 | head -n1)
+    export HOPRD_API_TOKEN=$(echo -n "^"; tr -cd '[:alnum:]' < /dev/urandom | fold -w20 | head -n1| tr -d '[:space:]';echo -n "^")
+
+    node lib/main.cjs --init --api --data "/app/node_secrets/${SECRET_NAME}" --environment ${HOPRD_ENVIRONMENT} --identity "/app/node_secrets/${SECRET_NAME}/.hopr-identity" &
+    export HOPRD_PID=$!
+    checkHoprd="curl -s -o /dev/null -w '%{http_code}' 'http://localhost:3001/api/v2/account/addresses' -H 'x-auth-token: ${HOPRD_API_TOKEN}' -H 'Content-Type: application/json'"
+    while [[ "200" != `eval $checkHoprd` ]];  do
+      echo "Waiting for node to be running"; 
+      sleep 5; 
+    done
+    curl -s 'http://localhost:3001/api/v2/account/addresses' -H "x-auth-token: ${HOPRD_API_TOKEN}" -H "Content-Type: application/json" | jq > "/app/node_secrets/${SECRET_NAME}/addresses.json"
+    kill -9 $HOPRD_PID
+    export HOPRD_PEER_ID=$(jq -r '.hoprAddress' /app/node_secrets/${SECRET_NAME}/addresses.json)
+    export HOPRD_ADDRESS=$(jq -r '.nativeAddress' /app/node_secrets/${SECRET_NAME}/addresses.json)
+    export HOPRD_IDENTITY=$(cat "/app/node_secrets/${SECRET_NAME}/.hopr-identity")
+    jq -n \
+      --arg identity "$HOPRD_IDENTITY" \
+      --arg password "$HOPRD_PASSWORD" \
+      --arg api_token "$HOPRD_API_TOKEN" \
+      --arg peer_id "$HOPRD_PEER_ID" \
+      --arg address "$HOPRD_ADDRESS" \
+      --arg secret_name "$SECRET_NAME" \
+      '$ARGS.named' > "/app/node_secrets/${SECRET_NAME}.json"
+    rm -rf "/app/node_secrets/${SECRET_NAME}"

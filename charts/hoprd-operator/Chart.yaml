@@ -3,6 +3,12 @@ name: hopr-operator
 description: A Helm chart operator for managing Hopr nodes
 type: application
 icon: "https://hoprnet.org/assets/icons/logo.svg"
+dependencies:
+  - condition: reflector.enabled
+    name: reflector
+    repository: https://emberstack.github.io/helm-charts
+    version: 6.1.X
+
 # This is the chart version. This version number should be incremented each time you make changes
 # to the chart and its templates, including the app version.
 version: 0.1.2

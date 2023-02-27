@@ -386,6 +386,7 @@ dependencies = [
  "futures",
  "k8s-openapi",
  "kube",
+ "rand",
  "schemars",
  "serde",
  "serde_json",

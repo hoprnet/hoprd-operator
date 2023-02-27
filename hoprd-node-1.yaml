@@ -5,10 +5,9 @@ metadata:
   name: hoprd-node-1
   namespace: riga
 spec:
-  environment: monte_rosa
+  environmentName: monte_rosa
+  environmentType: production
   version: riga
-  secret:
-    secretName: hoprd-ku5wzs
   monitoring:
     enabled: true
   # announce: true

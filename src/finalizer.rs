@@ -11,7 +11,7 @@ use serde_json::{json, Value};
 /// - `name` - Name of the `Hoprd` resource to modify. Existence is not verified
 /// - `namespace` - Namespace where the `Hoprd` resource with given `name` resides.
 ///
-/// Note: Does not check for resource's existence for simplicity.
+
 pub async fn add(client: Client, name: &str, namespace: &str) -> Result<Hoprd, Error> {
     let api: Api<Hoprd> = Api::namespaced(client, namespace);
     let finalizer: Value = json!({
@@ -32,7 +32,6 @@ pub async fn add(client: Client, name: &str, namespace: &str) -> Result<Hoprd, E
 /// - `name` - Name of the `Hoprd` resource to modify. Existence is not verified
 /// - `namespace` - Namespace where the `Hoprd` resource with given `name` resides.
 ///
-/// Note: Does not check for resource's existence for simplicity.
 pub async fn delete(client: Client, name: &str, namespace: &str) -> Result<Hoprd, Error> {
     let api: Api<Hoprd> = Api::namespaced(client, namespace);
     let finalizer: Value = json!({

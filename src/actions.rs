@@ -11,32 +11,32 @@ use crate::crd::Hoprd;
 use crate::crd::HoprdSpec;
 use crate::crd::Monitoring;
 use crate::finalizer;
-use crate::hoprd;
-use crate::operator::ContextData;
+use crate::hoprd_secret;
+use crate::hoprd_service_monitor;
+use crate::{hoprd_deployment, operator::ContextData, hoprd_service};
 
 
 /// Steps to perform when a creation of hoprd resource is detected
 /// 
 /// # Arguments
 /// - `client`: A K8s client reference
-/// - `name`: The name of the resource
+/// - `hoprd_name`: The name of the resource
 /// - `namespace`: The namespace of the resource
 /// - `hoprd_spec`: Spec about the hoprd resource
-async fn do_action_create_hoprd(client: &Client, name: &String, namespace: &String, hoprd_spec: &HoprdSpec) -> Result<Action, Error> {
-    println!("Creating {name} Hoprd resource");
+async fn do_action_create_hoprd(client: &Client, hoprd_name: &String, namespace: &String, hoprd_spec: &HoprdSpec) -> Result<Action, Error> {
+    println!("[INFO] Starting to create hoprd node {hoprd_name} from namespace {namespace}");
     // Creates a deployment, but applies a finalizer first.
     // Finalizer is applied first, as the operator might be shut down and restarted
     // at any time, leaving subresources in intermediate state. This prevents leaks on
     // the `Hoprd` resource deletion.
-
-    // Apply the finalizer first. If that fails, the `?` operator invokes automatic conversion
-    // of `kube::Error` to the `Error` defined in this crate.
-    finalizer::add(client.clone(), &name, &namespace).await?;
+    finalizer::add(client.clone(), &hoprd_name, &namespace).await?;
     // Invoke creation of a Kubernetes resources
-    hoprd::create_deployment(client.clone(), &name, &hoprd_spec, &namespace).await?;
-    hoprd::create_service(client.clone(), &name, &namespace).await?;
-    if hoprd_spec.monitoring.as_ref().unwrap_or(&Monitoring {enabled: constants::MONITORING_ENABLED}).enabled {
-        hoprd::create_service_monitor(client.clone(), &name, &hoprd_spec, &namespace).await?;
+    let mut spec: HoprdSpec = hoprd_spec.clone();
+    hoprd_secret::create_secret(client.clone(), &hoprd_name, &namespace, &mut spec).await?;
+    hoprd_deployment::create_deployment(client.clone(), &hoprd_name, &namespace, &spec).await?;
+    hoprd_service::create_service(client.clone(), &hoprd_name, &namespace).await?;
+    if spec.monitoring.as_ref().unwrap_or(&Monitoring {enabled: constants::MONITORING_ENABLED}).enabled {
+        hoprd_service_monitor::create_service_monitor(client.clone(), &hoprd_name, &namespace, &spec).await?;
     }
     Ok(Action::requeue(Duration::from_secs(constants::RECONCILE_FREQUENCY)))
 }
@@ -45,31 +45,31 @@ async fn do_action_create_hoprd(client: &Client, name: &String, namespace: &Stri
 /// 
 /// # Arguments
 /// - `client`: A K8s client reference
-/// - `name`: The name of the resource
+/// - `hoprd_name`: The name of the resource
 /// - `namespace`: The namespace of the resource
 /// - `hoprd_spec`: Spec about the hoprd resource
-async fn do_action_delete_hoprd(client: &Client, name: &String, namespace: &String, hoprd_spec: &HoprdSpec)  -> Result<Action, Error> {
+async fn do_action_delete_hoprd(client: &Client, hoprd_name: &String, namespace: &String, hoprd_spec: &HoprdSpec)  -> Result<Action, Error> {
     {
-        println!("Deleting {name} resource Hoprd");
+        println!("[INFO] Starting to delete hoprd node {hoprd_name} from namespace {namespace}");
         // Deletes any subresources related to this `Hoprd` resources. If and only if all subresources
         // are deleted, the finalizer is removed and Kubernetes is free to remove the `Hoprd` resource.
 
+        hoprd_secret::unlock_secret(client.clone(), hoprd_name, hoprd_spec).await?;
         if hoprd_spec.monitoring.as_ref().unwrap_or(&Monitoring {enabled: constants::MONITORING_ENABLED}).enabled {
-            hoprd::delete_service_monitor(client.clone(), &name, &namespace).await?;
+            hoprd_service_monitor::delete_service_monitor(client.clone(), &hoprd_name, &namespace).await?;
         }
-        hoprd::delete_service(client.clone(), &name, &namespace).await?;
-        hoprd::delete_depoyment(client.clone(), &name, &namespace).await?;
+        hoprd_service::delete_service(client.clone(), &hoprd_name, &namespace).await?;
+        hoprd_deployment::delete_depoyment(client.clone(), &hoprd_name, &namespace).await?;
 
         // Once all the resources are successfully removed, remove the finalizer to make it possible
         // for Kubernetes to delete the `Hoprd` resource.
-        finalizer::delete(client.clone(), &name, &namespace).await?;
+        finalizer::delete(client.clone(), &hoprd_name, &namespace).await?;
         Ok(Action::await_change()) // Makes no sense to delete after a successful delete, as the resource is gone
     }
 }
 
 /// Things to do when there is been no change for the resource
 async fn do_action_no_op() -> Result<Action, Error> {
-    println!("No operation for resource Hoprd");
     Ok(Action::requeue(Duration::from_secs(constants::RECONCILE_FREQUENCY)))
 }
 
@@ -140,7 +140,7 @@ pub async fn reconcile(hoprd: Arc<Hoprd>, context: Arc<ContextData>) -> Result<A
 /// - `error`: A reference to the `kube::Error` that occurred during reconciliation.
 /// - `_context`: Unused argument. Context Data "injected" automatically by kube-rs.
 pub fn on_error(hoprd: Arc<Hoprd>, error: &Error, _context: Arc<ContextData>) -> Action {
-    eprintln!("Reconciliation error:\n{:?}.\n{:?}", error, hoprd);
+    eprintln!("[ERROR] Reconciliation error:\n{:?}.\n{:?}", error, hoprd);
     Action::requeue(Duration::from_secs(5))
 }
 
@@ -156,6 +156,14 @@ pub enum Error {
     /// Error in user input or Hoprd resource definition, typically missing fields.
     #[error("Invalid Hoprd CRD: {0}")]
     UserInputError(String),
+
+    /// The secret is in an Unknown status
+    #[error("Invalid Hoprd Secret status: {0}")]
+    SecretStatusError(String),
+
+    /// The Job execution did not complete successfully
+    #[error("Job Execution failed: {0}")]
+    JobExecutionError(String),
 }
 
 /// Action to be taken upon an `Hoprd` resource during reconciliation

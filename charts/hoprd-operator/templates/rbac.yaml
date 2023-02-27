@@ -42,6 +42,16 @@ rules:
   - update
   - patch
 - apiGroups:
+  - "batch"
+  resources:
+  - jobs
+  verbs:
+  - get
+  - create
+  - list
+  - update
+  - patch
+- apiGroups:
   - hoprnet.org
   resources:
   - hoprds
