@@ -11,7 +11,16 @@ A Kubernetes operator built on top of [kube-rs](https://github.com/clux/kube-rs)
 Finally, a custom `Hoprd` resource can be created with `kubectl apply -f hoprd-node-1.yaml`. A new deployment with `Hoprd` node will be created. 
 
 
-- Add new CRD:
+## CRD
+
+Include a given crd into rust code:
 ````
 kopium servicemonitors.monitoring.coreos.com -A > src/service_monitor.rs
 ````
+
+## Container
+Build the hoprd-operator container using in the repo root:
+
+```shell
+docker build -t gcr.io/hoprassociation/hopr-operator:latest .
+```

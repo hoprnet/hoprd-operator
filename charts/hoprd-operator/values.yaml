@@ -83,10 +83,10 @@ image:
   ## @param image.pullPolicy Pull policy as deinfed in 
   ## ref: http://kubernetes.io/docs/user-guide/images/#pre-pulling-images
   ##
-  pullPolicy: Always
+  pullPolicy: IfNotPresent
 
 service:
   ports:
-    ## @param service.ports.name Name of the API service port 
+    ## @param service.ports.name Name of the API service port
     ##
     name: api
