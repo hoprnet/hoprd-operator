@@ -13,7 +13,7 @@ use crate::{
 enum SecretStatus {
     /// The secret details has not been provided within the Hoprd configuration
     NotSpecified,
-    /// The secret has been sepecified but does not exist yet
+    /// The secret has been specified but does not exist yet
     NotExists,
     /// The secret exists and but it is not ready to be used because is not registered in the NetworkRegistry
     NotRegistered,
