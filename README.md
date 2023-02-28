@@ -2,7 +2,7 @@
 
 A Kubernetes operator built on top of [kube-rs](https://github.com/clux/kube-rs) project to handle `hoprd` nodes
 
-## Developing
+## Development
 
 1. Use `kubectl apply -f hoprds.hoprnet.org.yaml` to create the CustomResourceDefinition inside Kubernetes.
 2. Build the project with `cargo build`. If the build fails, make sure `libssl-dev` is available.
