@@ -43,7 +43,7 @@ Chart version `Chart.yaml` should be increased according to [semver](http://semv
 | `privateKey`                   | Private Key of the Wallet used to make blockchain transactions like: register in network registry or fund nodes. | `""`                            |
 | `secretName`                   | Name of the secret custoding the private Key of the Wallet used to make blockchain transactions                  | `""`                            |
 | `secretKeyName`                | Key name within the Secret                                                                                       | `PRIVATE_KEY`                   |
-| `reflector.enabled`            | Install the Helm Chart dependency Reflector. See more info at https://github.com/emberstack/kubernetes-reflector | `true`                          |
+| `replicator.enabled`           | Install the Helm Chart dependency Reflector. See more info at https://github.com/mittwald/kubernetes-replicator  | `true`                          |
 | `persistence.size`             | Size of the persistence Volume                                                                                   | `50Mi`                          |
 | `persistence.storageClassName` | Name of the storage class                                                                                        | `ceph-filesystem`               |
 | `nodeSelector`                 | Object containing node selection constraint.                                                                     | `{}`                            |
