@@ -79,7 +79,7 @@ image:
   repository: hoprassociation/hopr-operator
   ## @param image.tag Docker image tag
   ##
-  tag: latest
+  tag: 0.1.4
   ## @param image.pullPolicy Pull policy as deinfed in 
   ## ref: http://kubernetes.io/docs/user-guide/images/#pre-pulling-images
   ##
