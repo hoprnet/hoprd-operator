@@ -1,5 +1,5 @@
 use k8s_openapi::{api::{core::v1::Secret}};
-use kube::{Api, Client, core::ObjectMeta, api::{PostParams, Patch, PatchParams, ListParams}};
+use kube::{Api, Client, core::ObjectMeta, api::{PostParams, Patch, ListParams}};
 use serde_json::{Value, json};
 use std::{collections::{BTreeMap}};
 use std::env;
@@ -104,55 +104,52 @@ async fn determine_secret_status(client: Client, hoprd_spec: &HoprdSpec) -> Resu
         let secret_name = hoprd_secret.secret_name.to_owned();
 
 
-        match api_secrets.get(&secret_name).await {
-            Ok(secret) => {
-                let empty_map = &BTreeMap::new();
-                let secret_annotations: &BTreeMap<String, String> = secret.metadata.annotations.as_ref().unwrap_or_else(|| empty_map);
-                let secret_labels: &BTreeMap<String, String> = secret.metadata.labels.as_ref().unwrap_or_else(|| empty_map);
-                check_secret_labels(secret_labels, hoprd_spec).unwrap();
-                if secret_annotations.contains_key(constants::ANNOTATION_HOPRD_NETWORK_REGISTRY) {
-                    let network_registry_annotation: bool = secret_annotations.get_key_value(constants::ANNOTATION_HOPRD_NETWORK_REGISTRY).unwrap().1.parse().unwrap();
-                    if ! network_registry_annotation {
-                        println!("[INFO] The secret exists but is not registered");
-                        return Ok(SecretStatus::NotRegistered)
-                    }
-                } else {
+        if let Some(secret) = api_secrets.get_opt(&secret_name).await? {
+            let empty_map = &BTreeMap::new();
+            let secret_annotations: &BTreeMap<String, String> = secret.metadata.annotations.as_ref().unwrap_or_else(|| empty_map);
+            let secret_labels: &BTreeMap<String, String> = secret.metadata.labels.as_ref().unwrap_or_else(|| empty_map);
+            check_secret_labels(secret_labels, hoprd_spec).unwrap();
+            if secret_annotations.contains_key(constants::ANNOTATION_HOPRD_NETWORK_REGISTRY) {
+                let network_registry_annotation: bool = secret_annotations.get_key_value(constants::ANNOTATION_HOPRD_NETWORK_REGISTRY).unwrap().1.parse().unwrap();
+                if ! network_registry_annotation {
                     println!("[INFO] The secret exists but is not registered");
                     return Ok(SecretStatus::NotRegistered)
                 }
-                if secret_annotations.contains_key(constants::ANNOTATION_HOPRD_FUNDED) {
-                    let node_funded_annotation: bool = secret_annotations.get_key_value(constants::ANNOTATION_HOPRD_FUNDED).unwrap().1.parse().unwrap();
-                    if ! node_funded_annotation {
-                        println!("[INFO] The secret exists but is not funded");
-                        return Ok(SecretStatus::NotFunded)
-                    }
-                } else {
+            } else {
+                println!("[INFO] The secret exists but is not registered");
+                return Ok(SecretStatus::NotRegistered)
+            }
+            if secret_annotations.contains_key(constants::ANNOTATION_HOPRD_FUNDED) {
+                let node_funded_annotation: bool = secret_annotations.get_key_value(constants::ANNOTATION_HOPRD_FUNDED).unwrap().1.parse().unwrap();
+                if ! node_funded_annotation {
                     println!("[INFO] The secret exists but is not funded");
                     return Ok(SecretStatus::NotFunded)
                 }
-                if secret_labels.contains_key(constants::LABEL_NODE_LOCKED) {
-                    let node_locked_annotation = secret_labels.get_key_value(constants::LABEL_NODE_LOCKED).unwrap().1.parse().unwrap();
-                    if node_locked_annotation {
-                        let locked_by_annotation: &String = secret_annotations.get_key_value(constants::ANNOTATION_HOPRD_LOCKED_BY).unwrap().1;
-                        let api_hoprd: Api<Hoprd> = Api::namespaced(client.clone(), &operator_namespace);
-                        match api_hoprd.get(&locked_by_annotation).await {
-                            Ok(_locked) => {
-                                println!("[INFO] Secret '{:?}' is already locked by hoprd node '{:?}'", &secret_name, locked_by_annotation);
-                                return Ok(SecretStatus::Locked);
-                            }
-                            Err(_orphan) => {
-                                println!("[WARN] Secret '{:?}' is orphan as hoprd node '{:?}' does not exist anymore", &secret_name, locked_by_annotation);
-                                return Ok(SecretStatus::Orphaned);
-                            }};
-                    }
-                }
-                println!("[INFO] The secret is ready to be used");
-                return Ok(SecretStatus::Ready);
-            },
-            Err(_not_exists) => {
-                println!("[INFO] The secret is specified but does not exists yet");
-                return Ok(SecretStatus::NotExists);
+            } else {
+                println!("[INFO] The secret exists but is not funded");
+                return Ok(SecretStatus::NotFunded)
             }
+            if secret_labels.contains_key(constants::LABEL_NODE_LOCKED) {
+                let node_locked_annotation = secret_labels.get_key_value(constants::LABEL_NODE_LOCKED).unwrap().1.parse().unwrap();
+                if node_locked_annotation {
+                    let locked_by_annotation: &String = secret_annotations.get_key_value(constants::ANNOTATION_HOPRD_LOCKED_BY).unwrap().1;
+                    let api_hoprd: Api<Hoprd> = Api::namespaced(client.clone(), &operator_namespace);
+                    match api_hoprd.get(&locked_by_annotation).await {
+                        Ok(_locked) => {
+                            println!("[INFO] Secret '{:?}' is already locked by hoprd node '{:?}'", &secret_name, locked_by_annotation);
+                            return Ok(SecretStatus::Locked);
+                        }
+                        Err(_orphan) => {
+                            println!("[WARN] Secret '{:?}' is orphan as hoprd node '{:?}' does not exist anymore", &secret_name, locked_by_annotation);
+                            return Ok(SecretStatus::Orphaned);
+                        }};
+                }
+            }
+            println!("[INFO] The secret is ready to be used");
+            return Ok(SecretStatus::Ready);
+        } else {
+            println!("[INFO] The secret is specified but does not exists yet");
+            return Ok(SecretStatus::NotExists);
         };
     };
 }
@@ -170,12 +167,12 @@ pub async fn create_secret(client: Client, hoprd_name: &str, hoprd_namespace: &s
     let operator_namespace = env::var(constants::OPERATOR_INSTANCE_NAMESPACE).unwrap();
     return match determine_secret_status(client.clone(), &hoprd_spec).await? {
         SecretStatus::NotSpecified => do_status_not_specified(client.clone(), &hoprd_name, &operator_namespace, &hoprd_namespace, hoprd_spec).await,
-        SecretStatus::NotExists => do_status_not_exists(client.clone(), &hoprd_name, &operator_namespace, &hoprd_namespace, &hoprd_spec).await,
-        SecretStatus::NotRegistered => do_status_not_registered(client.clone(), &hoprd_name, &operator_namespace, &hoprd_spec).await,
-        SecretStatus::NotFunded => do_status_not_funded(client.clone(), &hoprd_name, &operator_namespace, &hoprd_spec).await,
-        SecretStatus::Locked => do_status_locked(client.clone(), &hoprd_name, &hoprd_namespace, &hoprd_spec).await,
-        SecretStatus::Orphaned => do_status_orphaned(client.clone(), &hoprd_name, &operator_namespace, &hoprd_spec).await,
-        SecretStatus::Ready => do_status_ready(client.clone(), &hoprd_name, &operator_namespace, &hoprd_spec).await
+        SecretStatus::NotExists => do_status_not_exists(client.clone(), &hoprd_name, &operator_namespace, &hoprd_namespace, hoprd_spec).await,
+        SecretStatus::NotRegistered => do_status_not_registered(client.clone(), &hoprd_name, &operator_namespace, hoprd_spec).await,
+        SecretStatus::NotFunded => do_status_not_funded(client.clone(), &hoprd_name, &operator_namespace, hoprd_spec).await,
+        SecretStatus::Locked => do_status_locked(client.clone(), &hoprd_name, &hoprd_namespace, hoprd_spec).await,
+        SecretStatus::Orphaned => do_status_orphaned(client.clone(), &hoprd_name, &operator_namespace, hoprd_spec).await,
+        SecretStatus::Ready => do_status_ready(client.clone(), &hoprd_name, &operator_namespace, hoprd_spec).await
     }
 }
 
@@ -187,12 +184,12 @@ pub async fn create_secret(client: Client, hoprd_name: &str, hoprd_namespace: &s
 /// - `operator_namespace` - Operator namespace
 /// - `hoprd_spec` - Details about the hoprd configuration node
 ///
-pub async fn unlock_secret(client: Client, hoprd_name: &str, hoprd_spec: &HoprdSpec) -> Result<(), Error> {
+pub async fn unlock_secret(client: Client, hoprd_name: &str, hoprd_spec: &mut HoprdSpec) -> Result<(), Error> {
     let operator_namespace = env::var(constants::OPERATOR_INSTANCE_NAMESPACE).unwrap();
     let api: Api<Secret> = Api::namespaced(client.clone(), &operator_namespace);
     if hoprd_spec.secret.as_ref().is_some() {
         let secret_name: String = hoprd_spec.secret.as_ref().unwrap().secret_name.to_owned();
-        utils::update_secret_label(&api, &secret_name, constants::LABEL_NODE_LOCKED, &"false".to_owned()).await?;
+        utils::update_secret_label(&api, &secret_name, constants::LABEL_NODE_LOCKED, &"false".to_string()).await?;
         Ok(println!("[INFO] The secret '{secret_name}' has been unlocked"))
     } else {
         Ok(println!("[WARN] The node '{hoprd_name}' does not have a secret associated"))
@@ -268,7 +265,7 @@ async fn do_status_not_specified(client: Client, hoprd_name: &str, operator_name
 /// - `operator_namespace` - Operator namespace
 /// - `hoprd_namespace` - Working namespace
 /// - `hoprd_spec` - Details about the hoprd configuration node
-async fn do_status_not_exists(client: Client, hoprd_name: &str, operator_namespace: &str, hoprd_namespace: &str, hoprd_spec: &HoprdSpec) -> Result<Secret, Error> {
+async fn do_status_not_exists(client: Client, hoprd_name: &str, operator_namespace: &str, hoprd_namespace: &str, hoprd_spec: &mut HoprdSpec) -> Result<Secret, Error> {
     match hoprd_jobs::execute_job_create_node(client.clone(), &hoprd_name, &operator_namespace, &hoprd_spec).await {
         Ok(_job) => {
             let secret_name: String = hoprd_spec.secret.as_ref().unwrap().secret_name.to_owned();
@@ -293,7 +290,7 @@ async fn do_status_not_exists(client: Client, hoprd_name: &str, operator_namespa
                             utils::update_secret_label(&api, &secret_name, constants::LABEL_NODE_ADDRESS, &secret_content.address).await?;
                             utils::update_secret_label(&api, &secret_name, constants::LABEL_NODE_ENVIRONMENT_NAME, &hoprd_spec.environment_name).await?;
                             utils::update_secret_label(&api, &secret_name, constants::LABEL_NODE_ENVIRONMENT_TYPE, &hoprd_spec.environment_type).await?;
-                            return do_status_not_registered(client.clone(), hoprd_name, hoprd_namespace, hoprd_spec).await;
+                            return do_status_not_registered(client.clone(), hoprd_name, operator_namespace, hoprd_spec).await;
                         },
                         Err(_err) => {
                             println!("[ERROR]: {:?}", _err);
@@ -329,7 +326,7 @@ async fn do_status_not_exists(client: Client, hoprd_name: &str, operator_namespa
 /// - `hoprd_name` - Name of the hoprd node
 /// - `operator_namespace` - Working namespace
 /// - `hoprd_spec` - Details about the hoprd configuration node
-async fn do_status_not_registered(client: Client, hoprd_name: &str, operator_namespace: &str, hoprd_spec: &HoprdSpec) -> Result<Secret, Error> {
+async fn do_status_not_registered(client: Client, hoprd_name: &str, operator_namespace: &str, hoprd_spec: &mut HoprdSpec) -> Result<Secret, Error> {
     
     match hoprd_jobs::execute_job_registering_node(client.clone(), &hoprd_name, &operator_namespace, &hoprd_spec).await {
         Ok(_job) => {
@@ -355,7 +352,7 @@ async fn do_status_not_registered(client: Client, hoprd_name: &str, operator_nam
 /// - `hoprd_name` - Name of the hoprd node
 /// - `operator_namespace` - Working namespace
 /// - `hoprd_spec` - Details about the hoprd configuration node
-async fn do_status_not_funded(client: Client, hoprd_name: &str, operator_namespace: &str, hoprd_spec: &HoprdSpec) -> Result<Secret, Error> {
+async fn do_status_not_funded(client: Client, hoprd_name: &str, operator_namespace: &str, hoprd_spec: &mut HoprdSpec) -> Result<Secret, Error> {
     match hoprd_jobs::execute_job_funding_node(client.clone(), &hoprd_name,  &operator_namespace, &hoprd_spec).await {
         Ok(_job) => {
             let secret_name: String = hoprd_spec.secret.as_ref().unwrap().secret_name.to_owned();
@@ -408,22 +405,11 @@ async fn do_status_orphaned(client: Client, hoprd_name: &str, operator_namespace
 /// - `hoprd_name` - Name of the hoprd node
 /// - `operator_namespace` - Operator namespace
 /// - `hoprd_spec` - Details about the hoprd configuration node
-async fn do_status_ready(client: Client, hoprd_name: &str, operator_namespace: &str, hoprd_spec: &HoprdSpec) -> Result<Secret, Error> {
+async fn do_status_ready(client: Client, hoprd_name: &str, operator_namespace: &str, hoprd_spec: &mut HoprdSpec) -> Result<Secret, Error> {
     let secret_name: String = hoprd_spec.secret.as_ref().unwrap().secret_name.to_owned();
-    let api: Api<Secret> = Api::namespaced(client, operator_namespace);
-    let modifications: Value = json!({
-        "metadata": {
-            "annotations": 
-                { constants::ANNOTATION_HOPRD_LOCKED_BY : hoprd_name },
-            "labels": 
-                { constants::LABEL_NODE_LOCKED : "true" }
-            
-        }
-    });
-
-    // Annotate the current secret to add the locked status
-    let patch: Patch<&Value> = Patch::Merge(&modifications);
-    Ok(api.patch(&secret_name, &PatchParams::default(), &patch).await?)
+    let api_secret: Api<Secret> = Api::namespaced(client, operator_namespace);
+    utils::update_secret_annotations(&api_secret, &secret_name, constants::ANNOTATION_HOPRD_LOCKED_BY, hoprd_name).await?;
+    Ok(utils::update_secret_label(&api_secret, &secret_name, constants::LABEL_NODE_LOCKED, &"true".to_string()).await?)
 }
 
 /// Creates the underlying Kubernetes Secret resource

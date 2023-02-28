@@ -13,7 +13,8 @@ upgrade:
 test: delete-node create-node
 
 delete-node:
-	kubectl apply -f hoprd-node-1.yaml
+	kubectl delete -f hoprd-node-1.yaml
 
 create-node:
-	kubectl delete -f hoprd-node-1.yaml
+	
+	kubectl apply -f hoprd-node-1.yaml

@@ -8,7 +8,7 @@ mod servicemonitor;
 mod operator;
 mod actions;
 mod utils;
-mod finalizer;
+mod hoprd_hoprd;
 mod constants;
 
 #[tokio::main]

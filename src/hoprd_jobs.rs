@@ -171,7 +171,6 @@ async fn build_job_spec(api_secret: &Api<Secret>, hoprd_spec: &HoprdSpec, labels
 /// Create the args command line to register a node
 fn build_create_node_args (secret_name: &String) -> Vec<String> {
     let mut args = Vec::with_capacity(1);
-    //args.push("sleep 60000".to_owned());
     args.push(format!("/app/scripts/create-node.sh {secret_name}"));
     return args;
 }
@@ -179,14 +178,16 @@ fn build_create_node_args (secret_name: &String) -> Vec<String> {
 /// Create the args command line to register a node
 fn build_register_node_args (_secret_name: &String) -> Vec<String> {
     let mut args = Vec::with_capacity(1);
-    args.push("sleep 10".to_owned());
+    args.push("sleep 2".to_owned());
+    println!("[TODO] Substitute by real values");
     return args;
 }
 
 /// Create the args command line to fund a node 
 fn build_funding_args (_secret_name: &String) -> Vec<String> {
     let mut args = Vec::with_capacity(21);
-    args.push("sleep 10".to_owned());
+    args.push("sleep 2".to_owned());
+    println!("[TODO] Substitute by real values");
     // args.push("/app/hoprnet/.cargo/bin/foundry-tool".to_owned());
     // args.push("--environment-name".to_owned());
     // args.push("${HOPRD_ENVIRONMENT}".to_owned());

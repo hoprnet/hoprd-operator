@@ -30,9 +30,7 @@ pub async fn run_operator() {
         .run(actions::reconcile, actions::on_error, context)
         .for_each(|reconciliation_result| async move {
             match reconciliation_result {
-                Ok(hoprd_resource) => {
-                    println!("[INFO] Reconciliation successful for resource: {:?}", hoprd_resource);
-                }
+                Ok(_hoprd_resource) => {}
                 Err(reconciliation_err) => {
                     eprintln!("[ERROR] Reconciliation error: {:?}", reconciliation_err)
                 }

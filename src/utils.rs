@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap};
 use k8s_openapi::{api::core::v1::{ResourceRequirements, Secret}, apimachinery::pkg::api::resource::Quantity};
 use kube::{Api, api::Patch};
 use serde_json::{Value, json};
@@ -56,48 +56,77 @@ pub async fn build_resource_requirements(resources: &Option<HoprdResource>) -> O
 ///
 /// # Arguments
 /// - `api_secret` - The namespaced API for querying Kubernetes
-/// - `name` - Hoprd node name
+/// - `secret_name` - Hoprd node name
 /// - `label_name` - Label name
 ///
-pub async fn get_secret_label(api_secret: &Api<Secret>, name: &str, label_name: &str) -> Option<String> {
-    match api_secret.get_opt(&name).await.unwrap() {
+pub async fn get_secret_label(api_secret: &Api<Secret>, secret_name: &str, label_name: &str) -> Option<String> {
+    match api_secret.get_opt(&secret_name).await.unwrap() {
         Some(secret) => {
-            let empty_annotations = &BTreeMap::new();
-            let hoprd_labels: &BTreeMap<String, String> = secret.metadata.labels.as_ref().unwrap_or_else(|| empty_annotations);
+            let emempty_map = &BTreeMap::new();
+            let hoprd_labels = secret.metadata.labels.as_ref().unwrap_or_else(|| emempty_map);
             if hoprd_labels.contains_key(label_name) {
                 return Some(hoprd_labels.get_key_value(label_name).unwrap().1.parse().unwrap());
             } else {
-                println!("The secret {name} does not contain the label {label_name}.");
+                println!("The secret {secret_name} does not contain the label {label_name}.");
                 None
             }
         }
         None => { 
-            println!("The secret {name} does not exist.");
+            println!("The secret {secret_name} does not exist.");
             None }
     }
 }
 
-pub async fn update_secret_annotations(api: &Api<Secret>, resource_name: &str, annotation_name: &str, annotation_value: &str) -> Result<(), Error> {
-    let annotations_added: Value = json!({
-        "metadata": {
-            "annotations":  
-                { annotation_name : annotation_value }
+pub async fn update_secret_annotations(api_secret: &Api<Secret>, secret_name: &str, annotation_name: &str, annotation_value: &str) -> Result<Secret, Error> {
+    match api_secret.get_opt(&secret_name).await.unwrap() {
+        Some(secret) => {
+            let empty_map = &mut BTreeMap::new();
+            let mut hoprd_annotations: BTreeMap<String,String> = secret.metadata.annotations.as_ref().unwrap_or_else(|| empty_map).clone();
+            if hoprd_annotations.contains_key(annotation_name) {
+                *hoprd_annotations.get_mut(annotation_name).unwrap() = annotation_value.to_string();
+            } else {
+                hoprd_annotations.insert(annotation_name.to_string(), annotation_value.to_string());
+            }
+            let secret_patch_object: Value = json!({
+                "metadata": {
+                    "annotations": hoprd_annotations
+                }
+            });
+            let patch: Patch<&Value> = Patch::Merge(&secret_patch_object);
+            Ok(api_secret.patch(&secret_name, &kube::api::PatchParams::default(), &patch).await?)
         }
-    });
-    if let Some(_secret) = api.get_opt(&resource_name).await? {
-            let patch: Patch<&Value> = Patch::Merge(&annotations_added);
-            api.patch(&resource_name, &kube::api::PatchParams::default(), &patch).await?;
+        None => { 
+            return Err(Error::SecretStatusError(format!("[ERROR] The secret specified {secret_name} does not exist").to_owned()
+            ));
+        }
     }
-    Ok(())
 }
 
-pub async fn update_secret_label(api: &Api<Secret>, resource_name: &str, label_name: &str, label_value: &str) -> Result<Secret, Error> {
-    let annotations_added: Value = json!({
-        "metadata": {
-            "labels": 
-                { label_name : label_value }
+pub async fn update_secret_label(api_secret: &Api<Secret>, secret_name: &str, label_name: &str, label_value: &String) -> Result<Secret, Error> {
+    match api_secret.get_opt(&secret_name).await.unwrap() {
+        Some(secret) => {
+            let empty_map = &mut BTreeMap::new();
+            let mut hoprd_labels: BTreeMap<String,String> = secret.metadata.labels.as_ref().unwrap_or_else(|| empty_map).clone();
+            if hoprd_labels.contains_key(label_name) {
+                *hoprd_labels.get_mut(label_name).unwrap() = label_value.to_string();
+            } else {
+                hoprd_labels.insert(label_name.to_string(), label_value.to_string());
+            }
+
+            let secret_patch_object: Value = json!({
+                "metadata": {
+                    "labels": hoprd_labels
+                }
+            });
+            let patch: Patch<&Value> = Patch::Merge(&secret_patch_object);
+            Ok(api_secret.patch(&secret_name, &kube::api::PatchParams::default(), &patch).await?)
         }
-    });
-    let patch: Patch<&Value> = Patch::Merge(&annotations_added);
-    Ok(api.patch(&resource_name, &kube::api::PatchParams::default(), &patch).await?)
+        None => { 
+            return Err(Error::SecretStatusError(format!("[ERROR] The secret specified {secret_name} does not exist").to_owned()
+            ));
+        }
+    }
+
+
+
 }

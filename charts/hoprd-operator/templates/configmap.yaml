@@ -16,7 +16,7 @@ metadata:
 data:
   create-node.sh: |
     #!/usr/bin/env bash
-    
+
     set -x
     set -Eeuo pipefail
     export SECRET_NAME="${1}"
