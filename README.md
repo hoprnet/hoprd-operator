@@ -13,7 +13,7 @@ Finally, a custom `Hoprd` resource can be created with `kubectl apply -f hoprd-n
 
 ## CRD
 
-Include a given crd into rust code:
+Include a given CRD into the Rust code:
 ````
 kopium servicemonitors.monitoring.coreos.com -A > src/service_monitor.rs
 ````
