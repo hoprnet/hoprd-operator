@@ -178,37 +178,45 @@ fn build_create_node_args (secret_name: &String) -> Vec<String> {
 /// Create the args command line to register a node
 fn build_register_node_args (_secret_name: &String) -> Vec<String> {
     let mut args = Vec::with_capacity(1);
-    args.push("sleep 2".to_owned());
-    println!("[TODO] Substitute by real values");
+    args.push("/app/hoprnet/.cargo/bin/foundry-tool".to_owned());
+    args.push("network-registry".to_owned());
+    args.push("--environment-name".to_owned());
+    args.push("${HOPRD_ENVIRONMENT}".to_owned());
+    args.push("--environment-type".to_owned());
+    args.push("${HOPRD_ENVIRONMENT_TYPE}".to_owned());
+    args.push("--peer-ids".to_owned());
+    args.push("${HOPRD_PEER_ID}".to_owned());
+    args.push("--private-key".to_owned());
+    args.push("${PRIVATE_KEY}".to_owned());
+    args.push("--make-root".to_owned());
+    args.push("\"../contracts\"".to_owned());
     return args;
 }
 
 /// Create the args command line to fund a node 
 fn build_funding_args (_secret_name: &String) -> Vec<String> {
     let mut args = Vec::with_capacity(21);
-    args.push("sleep 2".to_owned());
-    println!("[TODO] Substitute by real values");
-    // args.push("/app/hoprnet/.cargo/bin/foundry-tool".to_owned());
-    // args.push("--environment-name".to_owned());
-    // args.push("${HOPRD_ENVIRONMENT}".to_owned());
-    // args.push("--environment-type".to_owned());
-    // args.push("${HOPRD_ENVIRONMENT_TYPE}".to_owned());
-    // args.push("faucet".to_owned());
-    // args.push("--password".to_owned());
-    // args.push("${HOPRD_PASSWORD}".to_owned());
-    // args.push("--use-local-identities".to_owned());
-    // args.push("--identity-directory".to_owned());
-    // args.push("/app/hoprd-identity".to_owned());
-    // args.push("--address".to_owned());
-    // args.push("${HOPRD_ADDRESS}".to_owned());
-    // args.push("--private-key".to_owned());
-    // args.push("${PRIVATE_KEY}".to_owned());
-    // args.push("--make-root".to_owned());
-    // args.push("\"../contracts\"".to_owned());
-    // args.push("--hopr-amount 10".to_owned());
-    // args.push("10".to_owned());
-    // args.push("--native-amount 1".to_owned());
-    // args.push("1".to_owned());
+    args.push("/app/hoprnet/.cargo/bin/foundry-tool".to_owned());
+    args.push("faucet".to_owned());
+    args.push("--environment-name".to_owned());
+    args.push("${HOPRD_ENVIRONMENT}".to_owned());
+    args.push("--environment-type".to_owned());
+    args.push("${HOPRD_ENVIRONMENT_TYPE}".to_owned());
+    args.push("--password".to_owned());
+    args.push("${HOPRD_PASSWORD}".to_owned());
+    args.push("--use-local-identities".to_owned());
+    args.push("--identity-directory".to_owned());
+    args.push("/app/hoprd-identity".to_owned());
+    args.push("--address".to_owned());
+    args.push("${HOPRD_ADDRESS}".to_owned());
+    args.push("--private-key".to_owned());
+    args.push("${PRIVATE_KEY}".to_owned());
+    args.push("--make-root".to_owned());
+    args.push("\"../contracts\"".to_owned());
+    args.push("--hopr-amount".to_owned());
+    args.push("10".to_owned());
+    args.push("--native-amount".to_owned());
+    args.push("1".to_owned());
     return args;
 }
 
