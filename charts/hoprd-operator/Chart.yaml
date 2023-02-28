@@ -7,10 +7,10 @@ description: A Helm chart operator for managing Hopr nodes
 type: application
 icon: "https://hoprnet.org/assets/icons/logo.svg"
 dependencies:
-  - condition: reflector.enabled
-    name: reflector
-    repository: https://emberstack.github.io/helm-charts
-    version: 6.1.X
+  - condition: replicator.enabled
+    name: kubernetes-replicator
+    repository: https://helm.mittwald.de
+    version: v2.7
 
 # This is the chart version. This version number should be incremented each time you make changes
 # to the chart and its templates, including the app version.

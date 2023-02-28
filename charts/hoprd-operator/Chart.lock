@@ -1,6 +1,6 @@
 dependencies:
-- name: reflector
-  repository: https://emberstack.github.io/helm-charts
-  version: 6.1.47
-digest: sha256:fe13f0b72b32a0f97d913b470328e10783984f700bb0d6e86a7aba9e857f4d4c
-generated: "2023-02-26T02:02:01.972161+01:00"
+- name: kubernetes-replicator
+  repository: https://helm.mittwald.de
+  version: 2.7.3
+digest: sha256:ae7e5b6222145e22b75687bbe181acc2ae25bc976681e8392a9824f80da048bb
+generated: "2023-02-28T18:16:06.191676+01:00"

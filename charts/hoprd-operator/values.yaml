@@ -30,8 +30,8 @@ secretName: ""
 ##
 secretKeyName: PRIVATE_KEY
 
-reflector:
-  ## @param reflector.enabled Install the Helm Chart dependency Reflector. See more info at https://github.com/emberstack/kubernetes-reflector
+replicator:
+  ## @param replicator.enabled Install the Helm Chart dependency Reflector. See more info at https://github.com/mittwald/kubernetes-replicator
   ##
   enabled: true
 

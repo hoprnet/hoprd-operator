@@ -8,9 +8,7 @@ pub const OPERATOR_ENVIRONMENT: &str = "OPERATOR_ENVIRONMENT";
 pub const ANNOTATION_HOPRD_NETWORK_REGISTRY: &str = "hoprds.hoprnet.org/network_registry";
 pub const ANNOTATION_HOPRD_FUNDED: &str = "hoprds.hoprnet.org/funded";
 pub const ANNOTATION_HOPRD_LOCKED_BY: &str = "hoprds.hoprnet.org/locked_by";
-pub const ANNOTATION_REFLECTOR_ENABLED: &str = "reflector.v1.k8s.emberstack.com/reflection-allowed";
-pub const ANNOTATION_REFLECTOR_ALLOWED_NAMESPACES: &str = "reflector.v1.k8s.emberstack.com/reflection-allowed-namespaces";
-pub const ANNOTATION_REFLECTOR_AUTO: &str = "reflector.v1.k8s.emberstack.com/reflection-auto-enabled";
+pub const ANNOTATION_REPLICATOR_NAMESPACES: &str = "replicator.v1.mittwald.de/replicate-to";
 
 // Labels
 pub const LABEL_KUBERNETES_COMPONENT: &str = "app.kubernetes.io/component";

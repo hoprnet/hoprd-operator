@@ -35,3 +35,4 @@ target/
 *.pdb
 
 charts/hoprd-operator/testValues.yaml
+charts/hoprd-operator/charts/kubernetes-replicator-2.7.3.tgz

@@ -422,9 +422,7 @@ async fn do_status_ready(client: Client, hoprd_name: &str, operator_namespace: &
 async fn create_secret_resource(client: Client, operator_namespace: &str, hoprd_namespace: &str, contents: &SecretContent) -> Result<Secret, Error> {
     let labels: BTreeMap<String, String> = utils::common_lables(&contents.secret_name.to_owned());
     let mut annotations: BTreeMap<String, String> = BTreeMap::new();
-    annotations.insert(constants::ANNOTATION_REFLECTOR_ENABLED.to_owned(), "true".to_owned());
-    annotations.insert(constants::ANNOTATION_REFLECTOR_ALLOWED_NAMESPACES.to_owned(), hoprd_namespace.to_owned());
-    annotations.insert(constants::ANNOTATION_REFLECTOR_AUTO.to_owned(), "true".to_owned());
+    annotations.insert(constants::ANNOTATION_REPLICATOR_NAMESPACES.to_owned(), hoprd_namespace.to_owned());
 
     let deployment: Secret = Secret {
         metadata: ObjectMeta {
