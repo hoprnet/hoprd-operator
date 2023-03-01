@@ -2,33 +2,46 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "hopr-operator.fullname" . }}
+  name: {{ include "hopr-operator.fullname" . }}-controller
   namespace: {{ .Release.Namespace | quote }}
   labels:
     {{- include "hopr-operator.labels" . | nindent 4 }}
-    {{- if .Values.commonLabels }}
-    {{- .Values.commonLabels | toYaml | nindent 4 }}
+    {{- if .Values.operator.commonLabels }}
+    {{- .Values.operator.commonLabels | toYaml | nindent 4 }}
     {{- end }}
-{{- if .Values.commonAnnotations }}
+{{- if .Values.operator.commonAnnotations }}
   annotations:
-    {{- .Values.commonAnnotations | toYaml | nindent 4 }}
+    {{- .Values.operator.commonAnnotations | toYaml | nindent 4 }}
 {{- end }}
 spec:
-  replicas: 1
+  replicas: {{ .Values.operator.replicas }}
   selector:
     matchLabels:
-      app.kubernetes.io/name: {{ include "hopr-operator.name" . }}
-      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/component: operator
+      app.kubernetes.io/instance: {{ include "hopr-operator.name" . }}
+      app.kubernetes.io/name: {{ .Release.Name }}
   template:
     metadata:
       labels:
-        app.kubernetes.io/name: {{ include "hopr-operator.name" . }}
-        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/component: operator
+        app.kubernetes.io/instance: {{ include "hopr-operator.name" . }}
+        app.kubernetes.io/name: {{ .Release.Name }}
     spec:
       containers:
       - name: operator
-        image: {{ printf "%s/%s:%s" .Values.image.registry .Values.image.repository .Values.image.tag }}
-        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        image: {{ printf "%s/%s:%s" .Values.operator.image.registry .Values.operator.image.repository .Values.operator.image.tag }}
+        imagePullPolicy: {{ .Values.operator.image.pullPolicy }}
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          seccompProfile: 
+            type: RuntimeDefault
+          capabilities:
+            drop:
+            - ALL
+        {{- if .Values.operator.resources }}
+        resources: {{- toYaml .Values.operator.resources | nindent 12 }}
+        {{- else }}
         resources:
           limits:
             cpu: 100m
@@ -36,20 +49,9 @@ spec:
           requests:
             cpu: 10m
             memory: 1Mi
-        securityContext:
-          allowPrivilegeEscalation: false
-          runAsNonRoot: true
-          readOnlyRootFilesystem: true
-          seccompProfile: 
-            type: RuntimeDefault
-          capabilities:
-            drop:
-            - ALL
-        {{- if .Values.resources }}
-        resources: {{- toYaml .Values.resources | nindent 12 }}
         {{- end }}
         env:
-        {{- if .Values.privateKey }}
+        {{- if .Values.operator.privateKey }}
           - name: PRIVATE_KEY
             valueFrom:
               secretKeyRef:
@@ -59,8 +61,8 @@ spec:
           - name: PRIVATE_KEY
             valueFrom:
               secretKeyRef:
-                key: {{ .Values.secretName }} 
-                name: {{ .Values.secretKeyName }} 
+                key: {{ .Values.operator.secretName }} 
+                name: {{ .Values.operator.secretKeyName }} 
         {{- end }}
           - name: OPERATOR_INSTANCE_NAME
             value: {{ include "hopr-operator.name" . }}
@@ -70,15 +72,15 @@ spec:
           - name: hopr-repo-volume
             mountPath: /app/node_secrets
       serviceAccountName: {{ include "hopr-operator.name" . }}
-      {{- with .Values.nodeSelector }}
+      {{- with .Values.operator.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with .Values.affinity }}
+      {{- with .Values.operator.affinity }}
       affinity:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with .Values.tolerations }}
+      {{- with .Values.operator.tolerations }}
       tolerations:
         {{- toYaml . | nindent 8 }}
       {{- end }}

@@ -5,12 +5,12 @@ metadata:
   namespace: {{ .Release.Namespace | quote }}
   labels:
     {{- include "hopr-operator.labels" . | nindent 4 }}
-    {{- if .Values.commonLabels }}
-    {{- .Values.commonLabels | toYaml | nindent 4 }}
+    {{- if .Values.operator.commonLabels }}
+    {{- .Values.operator.commonLabels | toYaml | nindent 4 }}
     {{- end }}
-{{- if .Values.commonAnnotations }}
+{{- if .Values.operator.commonAnnotations }}
   annotations:
-    {{- .Values.commonAnnotations | toYaml | nindent 4 }}
+    {{- .Values.operator.commonAnnotations | toYaml | nindent 4 }}
 {{- end }}
 spec:
   group: hoprnet.org
@@ -32,6 +32,19 @@ spec:
             spec: # There is only one (required) field named "replicas" specifying how many pods are created by the Operator
               type: object
               properties:
+                ingress:
+                  type: object
+                  description: Properties regarding ingress controller for hoprd node
+                  properties:
+                    enabled:
+                      type: boolean
+                      description: 'Whether to enable or disable the creation of an associated Ingress resource'
+                    ingressClassName:
+                      type: string
+                      description: 'Name of the ingress class to be used in case the node is published'
+                    dnsDomain:
+                      type: string
+                      description: 'Suffix of the DNS domain to be appended to the ingress hostname'
                 environmentName:
                   type: string
                   description: 'Name of the hopr environment'

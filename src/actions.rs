@@ -11,6 +11,7 @@ use crate::crd::Hoprd;
 use crate::crd::HoprdSpec;
 use crate::crd::Monitoring;
 use crate::hoprd_hoprd;
+use crate::hoprd_ingress;
 use crate::hoprd_secret;
 use crate::hoprd_service_monitor;
 use crate::{hoprd_deployment, operator::ContextData, hoprd_service};
@@ -35,6 +36,9 @@ async fn do_action_create_hoprd(client: &Client, hoprd_name: &String, namespace:
     hoprd_secret::create_secret(client.clone(), &hoprd_name, &namespace, &mut spec).await?;
     hoprd_deployment::create_deployment(client.clone(), &hoprd_name, &namespace, &spec).await?;
     hoprd_service::create_service(client.clone(), &hoprd_name, &namespace).await?;
+    if hoprd_spec.ingress.is_some() && hoprd_spec.ingress.as_ref().unwrap().enabled {
+        hoprd_ingress::create_ingress(client.clone(), &hoprd_name, &namespace,&hoprd_spec.ingress.as_ref().unwrap().ingress_class_name, &hoprd_spec.ingress.as_ref().unwrap().dns_domain).await?;
+    }
     if spec.monitoring.as_ref().unwrap_or(&Monitoring {enabled: constants::MONITORING_ENABLED}).enabled {
         hoprd_service_monitor::create_service_monitor(client.clone(), &hoprd_name, &namespace, &spec).await?;
     }
@@ -53,14 +57,15 @@ async fn do_action_delete_hoprd(client: &Client, hoprd_name: &String, namespace:
     println!("[INFO] Starting to delete hoprd node {hoprd_name} from namespace {namespace}");
     // Deletes any subresources related to this `Hoprd` resources. If and only if all subresources
     // are deleted, the finalizer is removed and Kubernetes is free to remove the `Hoprd` resource.
-    let mut spec: HoprdSpec = hoprd_spec.clone();
-    hoprd_secret::unlock_secret(client.clone(), hoprd_name, &mut spec).await?;
+    
     if hoprd_spec.monitoring.as_ref().unwrap_or(&Monitoring {enabled: constants::MONITORING_ENABLED}).enabled {
         hoprd_service_monitor::delete_service_monitor(client.clone(), &hoprd_name, &namespace).await?;
     }
+    hoprd_ingress::delete_ingress(client.clone(), &hoprd_name, &namespace).await?;
     hoprd_service::delete_service(client.clone(), &hoprd_name, &namespace).await?;
     hoprd_deployment::delete_depoyment(client.clone(), &hoprd_name, &namespace).await?;
-
+    let mut spec: HoprdSpec = hoprd_spec.clone();
+    hoprd_secret::unlock_secret(client.clone(), hoprd_name, &namespace,&mut spec).await?;
     // Once all the resources are successfully removed, remove the finalizer to make it possible
     // for Kubernetes to delete the `Hoprd` resource.
     hoprd_hoprd::delete_finalizer(client.clone(), &hoprd_name, &namespace).await?;

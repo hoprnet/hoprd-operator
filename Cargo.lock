@@ -403,10 +403,11 @@ dependencies = [
 
 [[package]]
 name = "hopr_operator"
-version = "0.1.4"
+version = "0.1.5"
 dependencies = [
  "async-recursion",
  "futures",
+ "json-patch",
  "k8s-openapi",
  "kube",
  "openssl-sys",

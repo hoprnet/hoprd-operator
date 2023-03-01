@@ -20,6 +20,7 @@ use crate::constants;
 )]
 #[serde(rename_all = "camelCase")]
 pub struct HoprdSpec {
+    pub ingress: Option<IngressContent>,
     pub environment_name: String,
     pub environment_type: String,
     pub version: String,
@@ -103,3 +104,11 @@ impl SecretContent {
     }
 }
 
+/// Struct to map Pod resources
+#[derive(Serialize, Debug, Deserialize,  PartialEq, Clone, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct IngressContent {
+    pub enabled: bool,
+    pub ingress_class_name: String,
+    pub dns_domain: String
+}

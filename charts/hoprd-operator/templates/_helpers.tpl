@@ -35,9 +35,20 @@ Default labels
 */}}
 {{- define "hopr-operator.labels" -}}
 helm.sh/chart: {{ include "hopr-operator.chart" . }}
-app.kubernetes.io/name: {{ include "hopr-operator.name" . }}
-app.kubernetes.io/instance: {{ .Release.Name }}
+app.kubernetes.io/component: operator
 app.kubernetes.io/managed-by: {{ .Release.Service }}
+app.kubernetes.io/name: {{ .Release.Name }}
+app.kubernetes.io/instance: {{ include "hopr-operator.name" . }}
+
 {{- end }}
 
-
+{{/*
+Default labels
+*/}}
+{{- define "hopr-adminui.labels" -}}
+helm.sh/chart: {{ include "hopr-operator.chart" . }}
+app.kubernetes.io/component: admin
+app.kubernetes.io/managed-by: {{ .Release.Service }}
+app.kubernetes.io/name: {{ .Release.Name }}
+app.kubernetes.io/instance: {{ include "hopr-operator.name" . }}
+{{- end }}

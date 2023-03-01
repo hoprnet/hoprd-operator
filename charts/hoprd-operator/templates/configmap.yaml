@@ -6,12 +6,12 @@ metadata:
   namespace: {{ .Release.Namespace | quote }}
   labels:
     {{- include "hopr-operator.labels" . | nindent 4 }}
-    {{- if .Values.commonLabels }}
-    {{- .Values.commonLabels | toYaml | nindent 4 }}
+    {{- if .Values.operator.commonLabels }}
+    {{- .Values.operator.commonLabels | toYaml | nindent 4 }}
     {{- end }}
-{{- if .Values.commonAnnotations }}
+{{- if .Values.operator.commonAnnotations }}
   annotations:
-    {{- .Values.commonAnnotations | toYaml | nindent 4 }}
+    {{- .Values.operator.commonAnnotations | toYaml | nindent 4 }}
 {{- end }}
 data:
   create-node.sh: |

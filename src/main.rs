@@ -1,14 +1,15 @@
 pub mod crd;
-mod hoprd_service_monitor;
 mod hoprd_deployment;
-mod hoprd_service;
-mod hoprd_secret;
+mod hoprd_hoprd;
+mod hoprd_ingress;
 mod hoprd_jobs;
+mod hoprd_secret;
+mod hoprd_service;
+mod hoprd_service_monitor;
 mod servicemonitor;
 mod operator;
 mod actions;
 mod utils;
-mod hoprd_hoprd;
 mod constants;
 
 #[tokio::main]

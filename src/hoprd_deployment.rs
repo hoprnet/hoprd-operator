@@ -148,7 +148,7 @@ async fn build_volumes(secret: &Secret) -> Vec<Volume> {
 async fn build_liveness_probe() -> Probe {
     return Probe {
         http_get: Some(HTTPGetAction {
-            path: Some("/healthcheck/v2/version".to_owned()),
+            path: Some("/healthcheck/v1/version".to_owned()),
             port: IntOrString::Int(8080),
             ..HTTPGetAction::default()
         }),

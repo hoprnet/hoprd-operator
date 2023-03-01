@@ -10,6 +10,10 @@ spec:
   version: riga
   monitoring:
     enabled: true
+  ingress:
+    enabled: true
+    dnsDomain: stage.hoprtech.net
+    ingressClassName: nginx
   # announce: true
   # autoRedeemTickets: true
   # networkQualityThreshold: 0.6

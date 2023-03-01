@@ -1,0 +1,43 @@
+{{- if .Values.ingress.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "hopr-operator.fullname" . }}-admin
+  namespace: {{ .Release.Namespace | quote }}
+  labels:
+    {{- include "hopr-adminui.labels" . | nindent 4 }}
+    {{- if .Values.adminUI.commonLabels }}
+    {{- .Values.adminUI.commonLabels | toYaml | nindent 4 }}
+    {{- end }}
+  annotations:
+    nginx.ingress.kubernetes.io/server-snippets: |
+        more_set_headers "Content-Security-Policy: upgrade-insecure-requests";
+    {{- if .Values.ingress.annotations }}
+        {{- .Values.ingress.annotations | toYaml | nindent 4 }}
+    {{- end }}
+    {{- if .Values.adminUI.commonAnnotations }}
+        {{- .Values.adminUI.commonAnnotations | toYaml | nindent 4 }}
+    {{- end }}
+spec:
+  ingressClassName: {{ .Values.ingress.ingressClassName | quote }}
+  rules:
+    {{- if .Values.ingress.hostname }}
+    - host: {{ .Values.ingress.hostname }}
+      http:
+        paths:
+          {{- if .Values.ingress.extraPaths }}
+          {{- toYaml .Values.ingress.extraPaths | nindent 10 }}
+          {{- end }}
+          - path: {{ .Values.ingress.path }}
+            pathType: {{ .Values.ingress.pathType }}
+            backend:
+                service:
+                    name: {{ include "hopr-operator.fullname" . }}-admin
+                    port:
+                        name: {{ .Values.service.ports.name }}
+    {{- end }}
+  tls:
+    - hosts:
+        - {{ .Values.ingress.hostname }}
+      secretName: {{ .Values.ingress.hostname }}-tls
+{{- end }}
