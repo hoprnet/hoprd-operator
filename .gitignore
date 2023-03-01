@@ -34,4 +34,5 @@ target/
 # MSVC Windows builds of rustc generate these, which store debugging information
 *.pdb
 
-charts/testValues.yaml
+charts/hoprd-operator/testValues.yaml
+charts/hoprd-operator/charts/kubernetes-replicator-2.7.3.tgz

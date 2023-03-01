@@ -30,6 +30,19 @@ secretName: ""
 ##
 secretKeyName: PRIVATE_KEY
 
+replicator:
+  ## @param replicator.enabled Install the Helm Chart dependency Reflector. See more info at https://github.com/mittwald/kubernetes-replicator
+  ##
+  enabled: true
+
+persistence:
+  ## @param persistence.size Size of the persistence Volume
+  ##
+  size: 50Mi
+  ## @param persistence.storageClassName Name of the storage class
+  ##
+  storageClassName: ceph-filesystem
+
 ## @param nodeSelector Object containing node selection constraint.
 ## https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#nodeselector
 ##
@@ -66,8 +79,8 @@ image:
   repository: hoprassociation/hopr-operator
   ## @param image.tag Docker image tag
   ##
-  tag: 0.1.3
-  ## @param image.pullPolicy Pull policy as deinfed in
+  tag: 0.1.4
+  ## @param image.pullPolicy Pull policy as deinfed in 
   ## ref: http://kubernetes.io/docs/user-guide/images/#pre-pulling-images
   ##
   pullPolicy: IfNotPresent
@@ -77,42 +90,3 @@ service:
     ## @param service.ports.name Name of the API service port
     ##
     name: api
-
-## @section Metrics parameters
-##
-metrics:
-  serviceMonitor:
-    ## @param metrics.serviceMonitor.enabled Specify if a ServiceMonitor will be deployed for Hopr Operator
-    ##
-    enabled: false
-    ## @param metrics.serviceMonitor.namespace Namespace in which deploy the service Monitor
-    ##
-    namespace: ""
-    ## @param metrics.serviceMonitor.namespaceSelector Namespaces which will be scrapped for metrics
-    ##
-    namespaceSelector: []
-    ## @param metrics.serviceMonitor.jobLabel The name of the label on the target service to use as the job name in Prometheus
-    ##
-    jobLabel: "hoprd"
-    ## @param metrics.serviceMonitor.honorLabels honorLabels chooses the metric's labels on collisions with target labels
-    ##
-    honorLabels: false
-    ## @param metrics.serviceMonitor.interval Interval at which metrics should be scraped.
-    ## e.g:
-    ## interval: 10s
-    ##
-    interval: ""
-    ## @param metrics.serviceMonitor.scrapeTimeout Timeout after which the scrape is ended
-    ## e.g:
-    ## scrapeTimeout: 10s
-    ##
-    scrapeTimeout: ""
-    ## @param metrics.serviceMonitor.metricRelabelings Specify additional relabeling of metrics
-    ##
-    metricRelabelings: []
-    ## @param metrics.serviceMonitor.relabelings Specify general relabeling
-    ##
-    relabelings: []
-    ## @param metrics.serviceMonitor.selector Hord node instance selector labels
-    ##
-    selector: {}

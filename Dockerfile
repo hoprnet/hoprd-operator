@@ -31,4 +31,5 @@ LABEL name="hoprd operator" \
       description="Automation to introduce a hoprd network into a Kubernetes cluster using a dedicated operator"
 COPY --from=builder /hopr_operator/target/hopr_operator /bin/hopr_operator
 
+ENV OPERATOR_ENVIRONMENT=production
 ENTRYPOINT ["/bin/hopr_operator"]
