@@ -37,7 +37,7 @@ async fn do_action_create_hoprd(client: &Client, hoprd_name: &String, namespace:
     hoprd_deployment::create_deployment(client.clone(), &hoprd_name, &namespace, &spec).await?;
     hoprd_service::create_service(client.clone(), &hoprd_name, &namespace).await?;
     if hoprd_spec.ingress.is_some() && hoprd_spec.ingress.as_ref().unwrap().enabled {
-        hoprd_ingress::create_ingress(client.clone(), &hoprd_name, &namespace,&hoprd_spec.ingress.as_ref().unwrap().ingress_class_name, &hoprd_spec.ingress.as_ref().unwrap().dns_domain).await?;
+        hoprd_ingress::create_ingress(client.clone(), &hoprd_name, &namespace,&hoprd_spec.ingress.as_ref().unwrap()).await?;
     }
     if spec.monitoring.as_ref().unwrap_or(&Monitoring {enabled: constants::MONITORING_ENABLED}).enabled {
         hoprd_service_monitor::create_service_monitor(client.clone(), &hoprd_name, &namespace, &spec).await?;

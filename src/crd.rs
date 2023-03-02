@@ -110,5 +110,6 @@ impl SecretContent {
 pub struct IngressContent {
     pub enabled: bool,
     pub ingress_class_name: String,
-    pub dns_domain: String
+    pub dns_domain: String,
+    pub annotations: Option<BTreeMap<String, String>>
 }

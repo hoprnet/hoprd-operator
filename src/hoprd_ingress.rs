@@ -3,7 +3,7 @@ use kube::{Api, Client, Error, core::ObjectMeta, api::{PostParams, DeleteParams}
 use std::collections::{BTreeMap};
 
 
-use crate::{utils, constants};
+use crate::{utils, constants, crd::IngressContent};
 
 /// Creates a new Ingress for accessing the hoprd node,
 ///
@@ -11,16 +11,15 @@ use crate::{utils, constants};
 /// - `client` - A Kubernetes client to create the deployment with.
 /// - `service_name` - Name of the service which will be exposed externally in the Ingress
 /// - `namespace` - Namespace to create the Kubernetes Deployment in.
-/// - `ingress_class_name` - Ingress Controller class name
-/// - `dns_domain` - Name of the cluster used to build up the dns
+/// - `ingress` - Ingress Details
 ///
-pub async fn create_ingress(client: Client, service_name: &str, namespace: &str, ingress_class_name: &str, dns_domain: &str) -> Result<Ingress, Error> {
+pub async fn create_ingress(client: Client, service_name: &str, namespace: &str, ingress: &IngressContent) -> Result<Ingress, Error> {
     let labels: BTreeMap<String, String> = utils::common_lables(&service_name.to_owned());
-    let mut annotations: BTreeMap<String, String> = BTreeMap::new();
+    let mut annotations: BTreeMap<String, String> = ingress.annotations.as_ref().unwrap_or(&BTreeMap::new()).clone();
     annotations.insert(constants::ANNOTATION_INGRESS_PROXY_CONNECT_TIMEOUT.to_string(), "3600".to_string());
     annotations.insert(constants::ANNOTATION_INGRESS_PROXY_READ_TIMEOUT.to_string(), "3600".to_string());
     annotations.insert(constants::ANNOTATION_INGRESS_PROXY_SEND_TIMEOUT.to_string(), "3600".to_string());
-    let hostname = format!("{}.{}.{}", service_name, namespace, dns_domain);
+    let hostname = format!("{}.{}.{}", service_name, namespace, ingress.dns_domain);
 
     // Definition of the ingress
     let ingress: Ingress = Ingress {
@@ -32,7 +31,7 @@ pub async fn create_ingress(client: Client, service_name: &str, namespace: &str,
             ..ObjectMeta::default()
         },
         spec: Some(IngressSpec {
-            ingress_class_name: Some(ingress_class_name.to_string()),
+            ingress_class_name: Some(ingress.ingress_class_name.to_string()),
             rules: Some(vec![IngressRule{
                 host: Some(hostname.to_owned()),
                 http: Some(HTTPIngressRuleValue{

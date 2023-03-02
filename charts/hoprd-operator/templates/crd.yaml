@@ -45,6 +45,12 @@ spec:
                     dnsDomain:
                       type: string
                       description: 'Suffix of the DNS domain to be appended to the ingress hostname'
+                    annotations:
+                      type: object
+                      description: 'Object of annotations'
+                      additionalProperties:
+                        type: string
+                  required: ["enabled"]
                 environmentName:
                   type: string
                   description: 'Name of the hopr environment'

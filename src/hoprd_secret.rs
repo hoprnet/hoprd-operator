@@ -275,7 +275,7 @@ async fn do_status_not_exists(client: Client, hoprd_name: &str, operator_namespa
             let secret_name: String = hoprd_spec.secret.as_ref().unwrap().secret_name.to_owned();
             let operator_environment= env::var(constants::OPERATOR_ENVIRONMENT).unwrap();
             let secret_name_path = if operator_environment.eq("production") {
-                format!("/app/node_secrets/{secret_name}.json")
+                format!("/app/node_secrets/{secret_name}/{secret_name}.json")
             } else {
                 let mut path = env::current_dir().as_ref().unwrap().to_str().unwrap().to_owned();
                 path.push_str("/sample_secret_content.json");
