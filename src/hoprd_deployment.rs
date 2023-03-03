@@ -31,6 +31,11 @@ pub async fn create_deployment(
 ) -> Result<Deployment, Error> {
     let mut labels: BTreeMap<String, String> = utils::common_lables(&name.to_owned());
     labels.insert(constants::LABEL_KUBERNETES_COMPONENT.to_owned(), "node".to_owned());
+    let replicas = if hoprd_spec.enabled.unwrap_or(true) {
+        1
+    } else { 
+        0
+    };
 
     // Definition of the deployment. Alternatively, a YAML representation could be used as well.
     let deployment: Deployment = Deployment {
@@ -41,7 +46,7 @@ pub async fn create_deployment(
             ..ObjectMeta::default()
         },
         spec: Some(DeploymentSpec {
-            replicas: Some(1),
+            replicas: Some(replicas),
             selector: LabelSelector {
                 match_expressions: None,
                 match_labels: Some(labels.clone()),
