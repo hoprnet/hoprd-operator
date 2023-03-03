@@ -118,9 +118,10 @@ operator:
 
     ## @param operator.ingress.dnsDomain Name of the DNS suffix domain to be added to Hoprd nodes
     ##
-    dnsDomain:
+    dnsDomain: ""
 
     ## @param operator.ingress.annotations Annotations to be added to ingress resources of Hoprd nodes
+    ## @skip operator.ingress.annotations
     ##
     annotations: {
       cert-manager.io/cluster-issuer: "linode-issuer",
