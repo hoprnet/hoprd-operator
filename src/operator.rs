@@ -7,7 +7,7 @@ use kube::{
 };
 
 use crate::actions;
-use crate::crd::Hoprd;
+use crate::model::Hoprd;
 
 pub async fn run_operator() {
     // First, a Kubernetes client must be obtained using the `kube` crate

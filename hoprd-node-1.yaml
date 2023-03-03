@@ -12,10 +12,6 @@ spec:
     enabled: true
   ingress:
     enabled: true
-    dnsDomain: stage.hoprtech.net
-    ingressClassName: nginx
-    annotations:
-      cert-manager.io/cluster-issuer: linode-issuer
   # announce: true
   # autoRedeemTickets: true
   # networkQualityThreshold: 0.6

@@ -22,5 +22,5 @@ kopium servicemonitors.monitoring.coreos.com -A > src/service_monitor.rs
 Build the hoprd-operator container using in the repo root:
 
 ```shell
-docker build -t gcr.io/hoprassociation/hopr-operator:latest .
+docker build -t gcr.io/hoprassociation/hoprd-operator:latest .
 ```

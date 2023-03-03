@@ -1,4 +1,4 @@
-use crate::crd::Hoprd;
+use crate::model::Hoprd;
 use kube::api::{Patch, PatchParams};
 use kube::{Api, Client, Error};
 use serde_json::{json, Value};

@@ -2,7 +2,7 @@ apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   labels:
-    {{- include "hopr-operator.labels" . | nindent 4 }}
+    {{- include "hoprd-operator.labels" . | nindent 4 }}
     {{- if .Values.operator.commonLabels }}
     {{- .Values.operator.commonLabels | toYaml | nindent 4 }}
     {{- end }}
@@ -10,7 +10,7 @@ metadata:
   annotations:
     {{- .Values.operator.commonAnnotations | toYaml | nindent 4 }}
 {{- end }}
-  name: {{ include "hopr-operator.fullname" . }}
+  name: {{ include "hoprd-operator.fullname" . }}
   namespace: {{ .Release.Namespace | quote }}
 spec:
   accessModes:

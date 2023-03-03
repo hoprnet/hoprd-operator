@@ -1,0 +1,11 @@
+instance:
+  name: "hoprd-operator"
+  namespace: "hoprd"
+ingress:
+  ingress_class_name: "nginx"
+  dns_domain: "stage.hoprtech.net"
+  annotations:
+    cert-manager.io/cluster-issuer: "linode-issuer"
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"

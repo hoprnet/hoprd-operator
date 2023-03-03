@@ -7,8 +7,8 @@ This chart packages all the kubernetes resources needed to install Hopr opreator
 ## Installing
 
 ```console
-$ helm repo add hopr-operator git+https://github.com/hoprnet/hopr-operator@charts?ref=master
-$ helm install hopr-operator hopr-operator/hopr-operator
+$ helm repo add hoprd-operator git+https://github.com/hoprnet/hoprd-operator@charts?ref=master
+$ helm install hoprd-operator hoprd-operator/hoprd-operator
 ```
 
 ## Uninstalling the Chart
@@ -16,7 +16,7 @@ $ helm install hopr-operator hopr-operator/hopr-operator
 To uninstall/delete the release:
 
 ```console
-helm delete hopr-operator
+helm delete hoprd-operator
 ```
 
 The command removes all the Kubernetes components associated with the chart and deletes the release.
@@ -74,7 +74,7 @@ Chart version `Chart.yaml` should be increased according to [semver](http://semv
 | `operator.tolerations`                  | Tolerations specifications to operator deployment                                                                | `[]`                            |
 | `operator.affinity`                     | Affinity specifications to operator deployment                                                                   | `{}`                            |
 | `operator.image.registry`               | Docker registry to operator deployment                                                                           | `gcr.io`                        |
-| `operator.image.repository`             | Docker image repository to operator deployment                                                                   | `hoprassociation/hopr-operator` |
+| `operator.image.repository`             | Docker image repository to operator deployment                                                                   | `hoprassociation/hoprd-operator` |
 | `operator.image.tag`                    | Docker image tag to operator deployment                                                                          | `0.1.4`                         |
 | `operator.image.pullPolicy`             | Pull policy to operator deployment as deinfed in                                                                 | `IfNotPresent`                  |
 

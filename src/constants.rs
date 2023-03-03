@@ -1,7 +1,5 @@
 // Operator Constants
 pub const RECONCILE_FREQUENCY: u64 = 10;
-pub const OPERATOR_INSTANCE_NAME: &str = "OPERATOR_INSTANCE_NAME";
-pub const OPERATOR_INSTANCE_NAMESPACE: &str = "OPERATOR_INSTANCE_NAMESPACE";
 pub const OPERATOR_ENVIRONMENT: &str = "OPERATOR_ENVIRONMENT";
 
 // Annotations
@@ -9,9 +7,6 @@ pub const ANNOTATION_HOPRD_NETWORK_REGISTRY: &str = "hoprds.hoprnet.org/network_
 pub const ANNOTATION_HOPRD_FUNDED: &str = "hoprds.hoprnet.org/funded";
 pub const ANNOTATION_HOPRD_LOCKED_BY: &str = "hoprds.hoprnet.org/locked_by";
 pub const ANNOTATION_REPLICATOR_NAMESPACES: &str = "replicator.v1.mittwald.de/replicate-to";
-pub const ANNOTATION_INGRESS_PROXY_CONNECT_TIMEOUT: &str = "nginx.ingress.kubernetes.io/proxy-connect-timeout";
-pub const ANNOTATION_INGRESS_PROXY_READ_TIMEOUT: &str = "nginx.ingress.kubernetes.io/proxy-read-timeout";
-pub const ANNOTATION_INGRESS_PROXY_SEND_TIMEOUT: &str = "nginx.ingress.kubernetes.io/proxy-send-timeout";
 
 // Labels
 pub const LABEL_KUBERNETES_COMPONENT: &str = "app.kubernetes.io/component";

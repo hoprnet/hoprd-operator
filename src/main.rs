@@ -1,4 +1,4 @@
-pub mod crd;
+pub mod model;
 mod hoprd_deployment;
 mod hoprd_hoprd;
 mod hoprd_ingress;

@@ -27,6 +27,7 @@ async-recursion = "1.0.2"
 # x86_64-unknown-linux-musl using the "vendored" feature below
 openssl-sys = "*"
 json-patch = "0.3"
+serde_yaml = "0.9.17"
 
 [features]
 # Force openssl-sys to staticly link in the openssl library. Necessary when

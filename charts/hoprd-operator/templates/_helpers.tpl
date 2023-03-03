@@ -1,7 +1,7 @@
 {{/*
 Expand the name of the chart.
 */}}
-{{- define "hopr-operator.name" -}}
+{{- define "hoprd-operator.name" -}}
 {{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
@@ -10,7 +10,7 @@ Create a default fully qualified app name.
 We truncate at 63 chars because some Kubernetes name fields are limited to this (by the DNS naming spec).
 If release name contains chart name it will be used as a full name.
 */}}
-{{- define "hopr-operator.fullname" -}}
+{{- define "hoprd-operator.fullname" -}}
 {{- if .Values.fullnameOverride }}
 {{- .Values.fullnameOverride | trunc 63 | trimSuffix "-" }}
 {{- else }}
@@ -26,29 +26,29 @@ If release name contains chart name it will be used as a full name.
 {{/*
 Create chart name and version as used by the chart label.
 */}}
-{{- define "hopr-operator.chart" -}}
+{{- define "hoprd-operator.chart" -}}
 {{- printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
 {{/*
 Default labels
 */}}
-{{- define "hopr-operator.labels" -}}
-helm.sh/chart: {{ include "hopr-operator.chart" . }}
+{{- define "hoprd-operator.labels" -}}
+helm.sh/chart: {{ include "hoprd-operator.chart" . }}
 app.kubernetes.io/component: operator
 app.kubernetes.io/managed-by: {{ .Release.Service }}
 app.kubernetes.io/name: {{ .Release.Name }}
-app.kubernetes.io/instance: {{ include "hopr-operator.name" . }}
+app.kubernetes.io/instance: {{ include "hoprd-operator.name" . }}
 
 {{- end }}
 
 {{/*
 Default labels
 */}}
-{{- define "hopr-adminui.labels" -}}
-helm.sh/chart: {{ include "hopr-operator.chart" . }}
+{{- define "hoprd-adminui.labels" -}}
+helm.sh/chart: {{ include "hoprd-operator.chart" . }}
 app.kubernetes.io/component: admin
 app.kubernetes.io/managed-by: {{ .Release.Service }}
 app.kubernetes.io/name: {{ .Release.Name }}
-app.kubernetes.io/instance: {{ include "hopr-operator.name" . }}
+app.kubernetes.io/instance: {{ include "hoprd-operator.name" . }}
 {{- end }}

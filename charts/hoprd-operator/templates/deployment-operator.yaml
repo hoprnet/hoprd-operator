@@ -2,10 +2,10 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "hopr-operator.fullname" . }}-controller
+  name: {{ include "hoprd-operator.fullname" . }}-controller
   namespace: {{ .Release.Namespace | quote }}
   labels:
-    {{- include "hopr-operator.labels" . | nindent 4 }}
+    {{- include "hoprd-operator.labels" . | nindent 4 }}
     {{- if .Values.operator.commonLabels }}
     {{- .Values.operator.commonLabels | toYaml | nindent 4 }}
     {{- end }}
@@ -18,13 +18,13 @@ spec:
   selector:
     matchLabels:
       app.kubernetes.io/component: operator
-      app.kubernetes.io/instance: {{ include "hopr-operator.name" . }}
+      app.kubernetes.io/instance: {{ include "hoprd-operator.name" . }}
       app.kubernetes.io/name: {{ .Release.Name }}
   template:
     metadata:
       labels:
         app.kubernetes.io/component: operator
-        app.kubernetes.io/instance: {{ include "hopr-operator.name" . }}
+        app.kubernetes.io/instance: {{ include "hoprd-operator.name" . }}
         app.kubernetes.io/name: {{ .Release.Name }}
     spec:
       containers:
@@ -56,7 +56,7 @@ spec:
             valueFrom:
               secretKeyRef:
                 key: PRIVATE_KEY
-                name: {{ include "hopr-operator.name" . }}
+                name: {{ include "hoprd-operator.name" . }}
         {{- else }}
           - name: PRIVATE_KEY
             valueFrom:
@@ -64,14 +64,12 @@ spec:
                 key: {{ .Values.operator.secretName }} 
                 name: {{ .Values.operator.secretKeyName }} 
         {{- end }}
-          - name: OPERATOR_INSTANCE_NAME
-            value: {{ include "hopr-operator.name" . }}
-          - name: OPERATOR_INSTANCE_NAMESPACE
-            value: {{ .Release.Namespace | quote }}
         volumeMounts:
           - name: hopr-repo-volume
             mountPath: /app/node_secrets
-      serviceAccountName: {{ include "hopr-operator.name" . }}
+          - name: hopr-config-volume
+            mountPath: /app/config
+      serviceAccountName: {{ include "hoprd-operator.name" . }}
       {{- with .Values.operator.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
@@ -87,6 +85,9 @@ spec:
       volumes:
         - name: hopr-repo-volume
           persistentVolumeClaim:
-            claimName: {{ include "hopr-operator.fullname" . }}
+            claimName: {{ include "hoprd-operator.fullname" . }}
+        - name: hopr-config-volume
+          configMap:
+            name: {{ include "hoprd-operator.fullname" . }}-config
 
 

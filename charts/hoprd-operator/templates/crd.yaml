@@ -4,7 +4,7 @@ metadata:
   name: hoprds.hoprnet.org
   namespace: {{ .Release.Namespace | quote }}
   labels:
-    {{- include "hopr-operator.labels" . | nindent 4 }}
+    {{- include "hoprd-operator.labels" . | nindent 4 }}
     {{- if .Values.operator.commonLabels }}
     {{- .Values.operator.commonLabels | toYaml | nindent 4 }}
     {{- end }}
@@ -39,17 +39,6 @@ spec:
                     enabled:
                       type: boolean
                       description: 'Whether to enable or disable the creation of an associated Ingress resource'
-                    ingressClassName:
-                      type: string
-                      description: 'Name of the ingress class to be used in case the node is published'
-                    dnsDomain:
-                      type: string
-                      description: 'Suffix of the DNS domain to be appended to the ingress hostname'
-                    annotations:
-                      type: object
-                      description: 'Object of annotations'
-                      additionalProperties:
-                        type: string
                   required: ["enabled"]
                 environmentName:
                   type: string
@@ -62,6 +51,9 @@ spec:
                   enum:
                   - development
                   - production
+                enabled:
+                  type: boolean
+                  description: 'Flag indicating if the node should be started or stopped'
                 version:
                   type: string
                   description: 'An specific hoprd version. Should match with a docker tag'

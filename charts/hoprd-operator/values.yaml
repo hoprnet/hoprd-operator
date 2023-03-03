@@ -111,6 +111,25 @@ operator:
   ##
   commonAnnotations: {}
 
+  ingress:
+    ## @param operator.ingress.ingressClassName Name of the ingress class name to be used by Hoprd nodes
+    ##
+    ingressClassName: nginx
+
+    ## @param operator.ingress.dnsDomain Name of the DNS suffix domain to be added to Hoprd nodes
+    ##
+    dnsDomain:
+
+    ## @param operator.ingress.annotations Annotations to be added to ingress resources of Hoprd nodes
+    ##
+    annotations: {
+      cert-manager.io/cluster-issuer: "linode-issuer",
+      nginx.ingress.kubernetes.io/proxy-connect-timeout: "3600",
+      nginx.ingress.kubernetes.io/proxy-read-timeout: "3600",
+      nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    }
+
+
   persistence:
     ## @param operator.persistence.size Size of the persistence Volume
     ##
@@ -153,11 +172,11 @@ operator:
 
     ## @param operator.image.repository Docker image repository to operator deployment
     ##
-    repository: hoprassociation/hopr-operator
+    repository: hoprassociation/hoprd-operator
 
     ## @param operator.image.tag Docker image tag to operator deployment
     ##
-    tag: 0.1.4
+    tag: 0.1.5
 
     ## @param operator.image.pullPolicy Pull policy to operator deployment as deinfed in 
     ## ref: http://kubernetes.io/docs/user-guide/images/#pre-pulling-images

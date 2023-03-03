@@ -9,10 +9,9 @@ use k8s_openapi::apimachinery::pkg::util::intstr::IntOrString;
 use kube::api::{DeleteParams, ObjectMeta, PostParams};
 use kube::{Api, Client, Error};
 use std::collections::{BTreeMap};
-use crate::crd::Secret;
 use crate::{
     constants,
-    crd::{HoprdSpec},
+    model::{HoprdSpec, Secret},
     utils,
 };
 

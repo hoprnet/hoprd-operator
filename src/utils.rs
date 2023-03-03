@@ -4,7 +4,7 @@ use k8s_openapi::{api::core::v1::{ResourceRequirements, Secret}, apimachinery::p
 use kube::{Api, api::{ Patch, PatchParams}};
 use serde_json::{Value, json};
 
-use crate::{constants, crd::{Resource as HoprdResource}, actions::Error};
+use crate::{constants, model::{Resource as HoprdResource}, actions::Error};
 
 pub fn common_lables(instance_name: &String) -> BTreeMap<String, String> {
     let mut labels: BTreeMap<String, String> = BTreeMap::new();

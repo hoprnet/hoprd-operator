@@ -43,8 +43,8 @@ jobs:
         with:
           push: true
           tags: |
-            gcr.io/hoprassociation/hopr-operator:${{ env.DOCKER_TAG }}
-            gcr.io/hoprassociation/hopr-operator:latest
+            gcr.io/hoprassociation/hoprd-operator:${{ env.DOCKER_TAG }}
+            gcr.io/hoprassociation/hoprd-operator:latest
 
       - name: Tag Docker version
         run: |

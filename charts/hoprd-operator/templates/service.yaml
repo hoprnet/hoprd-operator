@@ -2,10 +2,10 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ include "hopr-operator.fullname" . }}-admin
+  name: {{ include "hoprd-operator.fullname" . }}-admin
   namespace: {{ .Release.Namespace | quote }}
   labels:
-    {{- include "hopr-adminui.labels" . | nindent 4 }}
+    {{- include "hoprd-adminui.labels" . | nindent 4 }}
     {{- if .Values.adminUI.commonLabels }}
     {{- .Values.adminUI.commonLabels | toYaml | nindent 4 }}
     {{- end }}
@@ -42,6 +42,6 @@ spec:
     {{- end }}
   selector:
       app.kubernetes.io/component: admin
-      app.kubernetes.io/instance: {{ include "hopr-operator.name" . }}
+      app.kubernetes.io/instance: {{ include "hoprd-operator.name" . }}
       app.kubernetes.io/name: {{ .Release.Name }}
 {{- end }}

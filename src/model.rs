@@ -3,8 +3,8 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::{collections::{BTreeMap}};
 use k8s_openapi::ByteString;
-
 use crate::constants;
+
 
 /// Struct corresponding to the Specification (`spec`) part of the `Hoprd` resource, directly
 /// reflects context of the `hoprds.hoprnet.org.yaml` file to be found in this repository.
@@ -20,12 +20,13 @@ use crate::constants;
 )]
 #[serde(rename_all = "camelCase")]
 pub struct HoprdSpec {
-    pub ingress: Option<IngressContent>,
+    pub ingress: Option<EnablingFlag>,
     pub environment_name: String,
     pub environment_type: String,
     pub version: String,
+    pub enabled: Option<bool>,
     pub secret: Option<Secret>,
-    pub monitoring: Option<Monitoring>,
+    pub monitoring: Option<EnablingFlag>,
     pub resources: Option<Resource>,
     pub announce: Option<bool>,
     pub provider: Option<String>,
@@ -72,13 +73,10 @@ pub struct ResourceTypes {
     pub memory: String
 }
 
-
-/// Struct to define Pod resources types
 #[derive(Serialize, Debug, Deserialize,  PartialEq, Clone, JsonSchema)]
-pub struct Monitoring {
+pub struct EnablingFlag {
     pub enabled: bool
 }
-
 
 /// Struct used to fill the contents of a Secret
 #[derive(Serialize, Debug, Deserialize,  PartialEq, Clone, JsonSchema)]
@@ -104,11 +102,22 @@ impl SecretContent {
     }
 }
 
-/// Struct to map Pod resources
-#[derive(Serialize, Debug, Deserialize,  PartialEq, Clone, JsonSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct IngressContent {
-    pub enabled: bool,
+#[derive(Serialize, Deserialize, PartialEq, Debug)]
+pub struct OperatorConfig {
+    pub instance: OperatorInstance,
+    pub ingress: IngressConfig
+}
+
+
+#[derive(Serialize, Deserialize, PartialEq, Debug)]
+pub struct OperatorInstance {
+    pub name: String,
+    pub namespace: String
+}
+
+
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
+pub struct IngressConfig {
     pub ingress_class_name: String,
     pub dns_domain: String,
     pub annotations: Option<BTreeMap<String, String>>
