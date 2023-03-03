@@ -200,7 +200,13 @@ async fn build_ports() -> Vec<ContainerPort> {
     });
     container_ports.push(ContainerPort {
         container_port: 9091,
-        name: Some("p2p".to_owned()),
+        name: Some("p2p_tcp".to_owned()),
+        protocol: Some("TCP".to_owned()),
+        ..ContainerPort::default()
+    });
+    container_ports.push(ContainerPort {
+        container_port: 9091,
+        name: Some("p2p_udp".to_owned()),
         protocol: Some("UDP".to_owned()),
         ..ContainerPort::default()
     });

@@ -50,6 +50,7 @@ spec:
                   description: 'Type of the hopr environment'
                   enum:
                   - development
+                  - staging
                   - production
                 enabled:
                   type: boolean
