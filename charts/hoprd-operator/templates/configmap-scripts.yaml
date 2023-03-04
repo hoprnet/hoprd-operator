@@ -45,4 +45,4 @@ data:
       --arg address "$HOPRD_ADDRESS" \
       --arg secret_name "$SECRET_NAME" \
       '$ARGS.named' > "/app/node_secrets/${SECRET_NAME}/${SECRET_NAME}.json"
-    rm -rf "/app/node_secrets/${SECRET_NAME}"
+    

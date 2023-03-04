@@ -186,8 +186,10 @@ pub async fn unlock_secret(context: Arc<ContextData>, hoprd: &Hoprd) -> Result<(
     let api: Api<Secret> = Api::namespaced(client.clone(), &operator_namespace);
     if hoprd.spec.secret.as_ref().is_some() {
         let secret_name: String = hoprd.spec.secret.as_ref().unwrap().secret_name.to_owned();
-        utils::update_secret_label(&api.clone(), &secret_name, constants::LABEL_NODE_LOCKED, &"false".to_string()).await?;
-        utils::delete_secret_annotations(&api.clone(), &secret_name, constants::ANNOTATION_REPLICATOR_NAMESPACES).await?;
+        if let Some(_secret) = api.get_opt(&secret_name).await? {
+            utils::update_secret_label(&api.clone(), &secret_name, constants::LABEL_NODE_LOCKED, &"false".to_string()).await?;
+            utils::delete_secret_annotations(&api.clone(), &secret_name, constants::ANNOTATION_REPLICATOR_NAMESPACES).await?;
+        }
         let api_secrets: Api<Secret> = Api::namespaced(client.clone(), &hoprd.namespace().unwrap());
         if let Some(_secret) = api_secrets.get_opt(&secret_name).await? {
             api_secrets.delete(&secret_name, &DeleteParams::default()).await?;

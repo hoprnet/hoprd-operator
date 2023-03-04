@@ -46,6 +46,10 @@ spec:
                   description: 'Name of the hopr environment'
                   enum:
                   - monte_rosa
+                  - master-staging
+                  - debug-staging
+                  - anvil-localhost
+                  - anvil-localhost2
                 environmentType:
                   type: string
                   description: 'Type of the hopr environment'

@@ -177,15 +177,11 @@ fn build_register_node_args (_secret_name: &String) -> Vec<String> {
     let mut args = Vec::with_capacity(1);
     args.push("sleep 2".to_owned());
     // args.push("/app/hoprnet/.cargo/bin/hopli".to_owned());
-    // args.push("network-registry".to_owned());
+    // args.push("register-in-network-registry".to_owned());
     // args.push("--environment-name".to_owned());
     // args.push("${HOPRD_ENVIRONMENT}".to_owned());
-    // args.push("--environment-type".to_owned());
-    // args.push("${HOPRD_ENVIRONMENT_TYPE}".to_owned());
     // args.push("--peer-ids".to_owned());
     // args.push("${HOPRD_PEER_ID}".to_owned());
-    // args.push("--private-key".to_owned());
-    // args.push("${PRIVATE_KEY}".to_owned());
     // args.push("--make-root".to_owned());
     // args.push("\"../contracts\"".to_owned());
     return args;
@@ -199,17 +195,11 @@ fn build_funding_args (_secret_name: &String) -> Vec<String> {
     // args.push("faucet".to_owned());
     // args.push("--environment-name".to_owned());
     // args.push("${HOPRD_ENVIRONMENT}".to_owned());
-    // args.push("--environment-type".to_owned());
-    // args.push("${HOPRD_ENVIRONMENT_TYPE}".to_owned());
-    // args.push("--password".to_owned());
-    // args.push("${HOPRD_PASSWORD}".to_owned());
     // args.push("--use-local-identities".to_owned());
     // args.push("--identity-directory".to_owned());
     // args.push("/app/hoprd-identity".to_owned());
     // args.push("--address".to_owned());
     // args.push("${HOPRD_ADDRESS}".to_owned());
-    // args.push("--private-key".to_owned());
-    // args.push("${PRIVATE_KEY}".to_owned());
     // args.push("--make-root".to_owned());
     // args.push("\"../contracts\"".to_owned());
     // args.push("--hopr-amount".to_owned());
@@ -306,7 +296,7 @@ async fn build_env_vars(api_secret: &Api<Secret>, hoprd_spec: &HoprdSpec, is_cre
     let secret = hoprd_spec.secret.as_ref().unwrap();   
     if ! is_create_node_job {
         env_vars.push(EnvVar {
-            name: constants::HOPRD_PASSWORD.to_owned(),
+            name: "IDENTITY_PASSWORD".to_owned(),
             value_from: Some(EnvVarSource {
                 secret_key_ref: Some(SecretKeySelector {
                     key: secret
