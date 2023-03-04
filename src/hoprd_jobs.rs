@@ -341,12 +341,6 @@ async fn build_env_vars(api_secret: &Api<Secret>, hoprd_spec: &HoprdSpec, is_cre
     });
 
     env_vars.push(EnvVar {
-        name: constants::HOPRD_ENVIRONMENT_TYPE.to_owned(),
-        value: Some(hoprd_spec.environment_type.to_owned()),
-        ..EnvVar::default()
-    });
-
-    env_vars.push(EnvVar {
         name: constants::HOPR_PRIVATE_KEY.to_owned(),
         value_from: Some(EnvVarSource {
             secret_key_ref: Some(SecretKeySelector {

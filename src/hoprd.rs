@@ -33,7 +33,6 @@ use kube::{
 pub struct HoprdSpec {
     pub ingress: Option<EnablingFlag>,
     pub environment_name: String,
-    pub environment_type: String,
     pub version: String,
     pub enabled: Option<bool>,
     pub secret: Option<Secret>,

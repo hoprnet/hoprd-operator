@@ -49,21 +49,6 @@ fn check_secret_labels(secret_labels: &BTreeMap<String, String>, hoprd_spec: &Ho
                 .to_owned()
         ));
     }
-    if secret_labels.contains_key(constants::LABEL_NODE_ENVIRONMENT_TYPE) {
-        let environment_type_label: String = secret_labels.get_key_value(constants::LABEL_NODE_ENVIRONMENT_TYPE).unwrap().1.parse().unwrap();
-        if ! environment_type_label.eq(&hoprd_spec.environment_type.to_owned()) {
-            return Err(Error::SecretStatusError(
-                format!("[ERROR] The secret specified {secret_name} belongs to '{environment_type_label}' environment type which is different from the specified '{}' environment type", hoprd_spec.environment_type)
-                    .to_owned()
-            ));
-        }
-    } else {
-            return Err(Error::SecretStatusError(
-                format!("[ERROR] The secret specified {secret_name} does not contain label {} which is mandatory", constants::LABEL_NODE_ENVIRONMENT_TYPE)
-                    .to_owned()
-            ));
-    }
-
     Ok(())
 }
 
@@ -75,9 +60,8 @@ fn check_secret_labels(secret_labels: &BTreeMap<String, String>, hoprd_spec: &Ho
 ///
 async fn get_first_secret_ready(client: Client, hoprd_spec: &HoprdSpec, operator_namespace: &str) -> Result<Option<Secret>, Error> {
     let api: Api<Secret> = Api::namespaced(client, operator_namespace);
-    let label_selector: String = format!("{}={},{}={},{}={}",
+    let label_selector: String = format!("{}={},{}={}",
     constants::LABEL_NODE_ENVIRONMENT_NAME, &hoprd_spec.environment_name,
-    constants::LABEL_NODE_ENVIRONMENT_TYPE, &hoprd_spec.environment_type,
     constants::LABEL_NODE_LOCKED, "false");
     let lp = ListParams::default().labels(&label_selector);
     let secrets = api.list(&lp).await?;
@@ -295,7 +279,6 @@ async fn do_status_not_exists(context: Arc<ContextData>, hoprd: &mut Hoprd) -> R
                             utils::update_secret_label(&api, &secret_name, constants::LABEL_NODE_PEER_ID, &secret_content.peer_id).await?;
                             utils::update_secret_label(&api, &secret_name, constants::LABEL_NODE_ADDRESS, &secret_content.address).await?;
                             utils::update_secret_label(&api, &secret_name, constants::LABEL_NODE_ENVIRONMENT_NAME, &hoprd.spec.environment_name).await?;
-                            utils::update_secret_label(&api, &secret_name, constants::LABEL_NODE_ENVIRONMENT_TYPE, &hoprd.spec.environment_type).await?;
                             return do_status_not_registered(context, hoprd).await;
                         },
                         Err(_err) => {
