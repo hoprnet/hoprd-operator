@@ -11,6 +11,8 @@ use crate::constants;
 pub enum HoprdStatusEnum {
     // The node is not yet created
     Initializing,
+    // The node repo is being created
+    Creating,
     // The node is not registered
     RegisteringInNetwork,
     /// The node is not funded
@@ -31,6 +33,7 @@ impl Display for HoprdStatusEnum {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             HoprdStatusEnum::Initializing => write!(f, "Initializing"),
+            HoprdStatusEnum::Creating => write!(f, "Creating"),
             HoprdStatusEnum::RegisteringInNetwork => write!(f, "RegisteringInNetwork"),
             HoprdStatusEnum::Funding => write!(f, "Funding"),
             HoprdStatusEnum::Stopped => write!(f, "Stopped"),
@@ -101,21 +104,21 @@ impl SecretContent {
     }
 }
 
-#[derive(Serialize, Deserialize, PartialEq, Debug, Hash)]
+#[derive(Serialize, Deserialize, PartialEq, Debug, Clone, Hash)]
 pub struct OperatorConfig {
     pub instance: OperatorInstance,
     pub ingress: IngressConfig
 }
 
 
-#[derive(Serialize, Deserialize, PartialEq, Debug, Hash)]
+#[derive(Serialize, Deserialize, PartialEq, Debug, Clone, Hash)]
 pub struct OperatorInstance {
     pub name: String,
     pub namespace: String
 }
 
 
-#[derive(Debug, PartialEq, Serialize, Deserialize, Hash)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Hash)]
 pub struct IngressConfig {
     pub ingress_class_name: String,
     pub dns_domain: String,
