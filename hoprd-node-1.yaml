@@ -5,9 +5,9 @@ metadata:
   name: hoprd-node-1
   namespace: riga
 spec:
-  environmentName: monte_rosa
+  environmentName: master-staging
   environmentType: production
-  version: riga
+  version: 1.93.0-next.10
   monitoring:
     enabled: true
   ingress:
