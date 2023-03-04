@@ -27,6 +27,7 @@ spec:
       storage: true
       schema:
         openAPIV3Schema:
+          description: Schema definition for Hopr Node
           type: object
           properties:
             spec: # There is only one (required) field named "replicas" specifying how many pods are created by the Operator
@@ -157,3 +158,28 @@ spec:
                           description: Specify the memory limit resources for the container
                           type: string
               required: ["environmentName", "environmentType", "version"]
+            status:
+              description: The status object of Hoprd node
+              nullable: true
+              properties:
+                update_timestamp:
+                  type: number
+                  description: Timestamp of the last applied change
+                checksum:
+                  type: string
+                  description: Checksum of the last applied change
+                status:
+                  description: Status of the last applied change
+                  type: string
+                  enum:
+                  - Initializing
+                  - RegisteringInNetwork
+                  - Funding
+                  - Stopped
+                  - Running
+                  - Reloading
+                  - Deleting
+              required: [ "update_timestamp", "checksum", "status"]
+              type: object
+          required:
+          - spec

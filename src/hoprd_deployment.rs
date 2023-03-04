@@ -9,9 +9,10 @@ use k8s_openapi::apimachinery::pkg::util::intstr::IntOrString;
 use kube::api::{DeleteParams, ObjectMeta, PostParams};
 use kube::{Api, Client, Error};
 use std::collections::{BTreeMap};
+use crate::hoprd::HoprdSpec;
 use crate::{
     constants,
-    model::{HoprdSpec, Secret},
+    model::{Secret},
     utils,
 };
 
@@ -200,13 +201,13 @@ async fn build_ports() -> Vec<ContainerPort> {
     });
     container_ports.push(ContainerPort {
         container_port: 9091,
-        name: Some("p2p_tcp".to_owned()),
+        name: Some("p2p-tcp".to_owned()),
         protocol: Some("TCP".to_owned()),
         ..ContainerPort::default()
     });
     container_ports.push(ContainerPort {
         container_port: 9091,
-        name: Some("p2p_udp".to_owned()),
+        name: Some("p2p-udp".to_owned()),
         protocol: Some("UDP".to_owned()),
         ..ContainerPort::default()
     });

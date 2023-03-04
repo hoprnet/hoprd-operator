@@ -6,7 +6,7 @@ use std::env;
 use rand::{distributions::Alphanumeric, Rng};
 use async_recursion::async_recursion;
 use crate::{
-    model::{Hoprd, HoprdSpec, Secret as HoprdSecret, SecretContent, OperatorInstance}, utils, constants, actions::{Error}, hoprd_jobs
+    model::{ Secret as HoprdSecret, SecretContent, OperatorInstance, Error}, utils, constants, hoprd_jobs, hoprd::Hoprd, hoprd::HoprdSpec
 };
 
 /// Action to be taken upon an `Hoprd` resource during reconciliation
@@ -190,7 +190,9 @@ pub async fn unlock_secret(client: Client, hoprd_name: &str, hoprd_namespace: &s
         utils::update_secret_label(&api.clone(), &secret_name, constants::LABEL_NODE_LOCKED, &"false".to_string()).await?;
         utils::delete_secret_annotations(&api.clone(), &secret_name, constants::ANNOTATION_REPLICATOR_NAMESPACES).await?;
         let api_secrets: Api<Secret> = Api::namespaced(client.clone(), &hoprd_namespace);
-        api_secrets.delete(&secret_name, &DeleteParams::default()).await?;
+        if let Some(_secret) = api_secrets.get_opt(&secret_name).await? {
+            api_secrets.delete(&secret_name, &DeleteParams::default()).await?;
+        }
         Ok(println!("[INFO] The secret '{secret_name}' has been unlocked"))
     } else {
         Ok(println!("[WARN] The node '{hoprd_name}' does not have a secret associated"))
@@ -311,8 +313,8 @@ async fn do_status_not_exists(client: Client, hoprd_name: &str, hoprd_namespace:
                 }
             }
         },
-        Err(_err) => {
-            println!("[ERROR]: {:?}", _err);
+        Err(error) => {
+            println!("[ERROR]: {:?}", error);
             return Err(Error::JobExecutionError(
                 format!("The creation node job failed and the node {hoprd_name} cannot be fully configured.")
                     .to_owned()

@@ -1,6 +1,7 @@
 // Operator Constants
 pub const RECONCILE_FREQUENCY: u64 = 10;
 pub const OPERATOR_ENVIRONMENT: &str = "OPERATOR_ENVIRONMENT";
+pub const OPERATOR_FINALIZER: &str = "hoprds.hoprnet.org/finalizer";
 
 // Annotations
 pub const ANNOTATION_HOPRD_NETWORK_REGISTRY: &str = "hoprds.hoprnet.org/network_registry";

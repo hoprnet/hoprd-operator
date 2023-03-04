@@ -8,10 +8,10 @@ use k8s_openapi::api::core::v1::{
 use kube::{Api,  Client, Error, runtime::wait::{await_condition, conditions}};
 use kube::api::{ObjectMeta, PostParams};
 use std::collections::{BTreeMap};
+use crate::hoprd::HoprdSpec;
 use crate::model::{Secret as HoprdSecret, OperatorInstance};
 use crate::{
     constants,
-    model::{HoprdSpec},
     utils,
 };
 use rand::{distributions::Alphanumeric, Rng};
