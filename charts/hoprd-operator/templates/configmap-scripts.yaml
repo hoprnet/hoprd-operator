@@ -45,4 +45,17 @@ data:
       --arg address "$HOPRD_ADDRESS" \
       --arg secret_name "$SECRET_NAME" \
       '$ARGS.named' > "/app/node_secrets/${SECRET_NAME}/${SECRET_NAME}.json"
-    
+  register-node.sh: |
+    #!/usr/bin/env bash
+    set -x
+    set -Eeuo pipefail
+    export PATH=${PATH}:/root/.foundry/bin/
+    export RUST_BACKTRACE=1
+    /bin/hopli register-in-network-registry --environment-name ${HOPRD_ENVIRONMENT} --peer-ids ${HOPRD_PEER_ID} --contracts-root /root/contracts
+  fund-node.sh: |
+    #!/usr/bin/env bash
+    set -x
+    set -Eeuo pipefail
+    export PATH=${PATH}:/root/.foundry/bin/
+    export RUST_BACKTRACE=1
+    hopli faucet --environment-name ${HOPRD_ENVIRONMENT} --use-local-identities --identity-directory /app/hoprd-identity/ --address ${HOPRD_ADDRESS} --contracts-root /root/contracts --hopr-amount 10 --native-amount 1

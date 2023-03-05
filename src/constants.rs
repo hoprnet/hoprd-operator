@@ -21,6 +21,7 @@ pub const LABEL_NODE_LOCKED: &str = "hoprds.hoprnet.org/locked";
 // Kubernetes Specs
 pub const HOPR_DOCKER_REGISTRY: &str = "gcr.io";
 pub const HOPR_DOCKER_IMAGE_NAME: &str = "hoprassociation/hoprd";
+pub const HOPLI_DOCKER_IMAGE_NAME: &str = "hoprassociation/hopli";
 pub const HOPR_PRIVATE_KEY: &str = "PRIVATE_KEY";
 pub const HOPRD_PEER_ID: &str = "HOPRD_PEER_ID";
 pub const HOPRD_ADDRESS: &str = "HOPRD_ADDRESS";

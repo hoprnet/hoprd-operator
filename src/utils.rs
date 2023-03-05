@@ -15,15 +15,6 @@ pub fn common_lables(instance_name: &String) -> BTreeMap<String, String> {
     return labels;
 }
 
-pub fn get_hopr_image_tag(tag: &String) -> String {
-    let mut image = String::from(constants::HOPR_DOCKER_REGISTRY.to_owned());
-    image.push_str("/");
-    image.push_str(constants::HOPR_DOCKER_IMAGE_NAME);
-    image.push_str(":");
-    image.push_str(&tag.to_owned());
-    return image;
-}
-
 /// Builds the struct ResourceRequirement from Resource specified in the node
 ///
 /// # Arguments
@@ -156,7 +147,7 @@ pub async fn update_secret_label(api_secret: &Api<Secret>, secret_name: &str, la
     }
 }
 
-pub async fn update_status(context: Arc<ContextData>, hoprd: &Hoprd, status: HoprdStatusEnum) -> Result<Hoprd, Error> {
+pub async fn update_hoprd_status(context: Arc<ContextData>, hoprd: &Hoprd, status: HoprdStatusEnum) -> Result<Hoprd, Error> {
     let client: Client = context.client.clone();
     let hoprd_name = hoprd.metadata.name.as_ref().unwrap().to_owned();    
     let ev: Event = match status {

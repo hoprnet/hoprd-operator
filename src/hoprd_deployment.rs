@@ -37,6 +37,7 @@ pub async fn create_deployment(
     } else { 
         0
     };
+    let image = format!("{}/{}:{}", constants::HOPR_DOCKER_REGISTRY.to_owned(), constants::HOPR_DOCKER_IMAGE_NAME.to_owned(), &hoprd_spec.version.to_owned());
 
     // Definition of the deployment. Alternatively, a YAML representation could be used as well.
     let deployment: Deployment = Deployment {
@@ -56,7 +57,7 @@ pub async fn create_deployment(
                 spec: Some(PodSpec {
                     containers: vec![Container {
                         name: name.to_owned(),
-                        image: Some(utils::get_hopr_image_tag(&hoprd_spec.version)),
+                        image: Some(image),
                         image_pull_policy: Some("Always".to_owned()),
                         ports: Some(build_ports().await),
                         env: Some(build_env_vars(&hoprd_spec).await),

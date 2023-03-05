@@ -255,7 +255,7 @@ async fn do_status_not_exists(context: Arc<ContextData>, hoprd: &mut Hoprd) -> R
     let client: Client = context.client.clone();
     let operator_instance = &context.config.instance;
     let hoprd_name = &hoprd.name_any();
-    utils::update_status(context.clone(), hoprd, crate::model::HoprdStatusEnum::Creating).await?;
+    utils::update_hoprd_status(context.clone(), hoprd, crate::model::HoprdStatusEnum::Creating).await?;
     match hoprd_jobs::execute_job_create_node(client.clone(), &hoprd_name, &hoprd.spec, operator_instance).await {
         Ok(_job) => {
             let secret_name: String = hoprd.spec.secret.as_ref().unwrap().secret_name.to_owned();
@@ -317,7 +317,7 @@ async fn do_status_not_registered(context: Arc<ContextData>, hoprd: &mut Hoprd) 
     let client: Client = context.client.clone();
     let operator_instance = &context.config.instance;
     let hoprd_name = &hoprd.name_any();
-    utils::update_status(context.clone(), hoprd, crate::model::HoprdStatusEnum::RegisteringInNetwork).await?;
+    utils::update_hoprd_status(context.clone(), hoprd, crate::model::HoprdStatusEnum::RegisteringInNetwork).await?;
     match hoprd_jobs::execute_job_registering_node(client.clone(), &hoprd_name, &hoprd.spec, &operator_instance).await {
         Ok(_job) => {
             let secret_name: String = hoprd.spec.secret.as_ref().unwrap().secret_name.to_owned();
@@ -344,7 +344,7 @@ async fn do_status_not_funded(context: Arc<ContextData>, hoprd: &mut Hoprd) -> R
     let client: Client = context.client.clone();
     let operator_instance = &context.config.instance;
     let hoprd_name = &hoprd.name_any();
-    utils::update_status(context.clone(), hoprd, crate::model::HoprdStatusEnum::Funding).await?;
+    utils::update_hoprd_status(context.clone(), hoprd, crate::model::HoprdStatusEnum::Funding).await?;
     match hoprd_jobs::execute_job_funding_node(client.clone(), &hoprd_name,  &hoprd.spec, &operator_instance).await {
         Ok(_job) => {
             let secret_name: String = hoprd.spec.secret.as_ref().unwrap().secret_name.to_owned();
@@ -402,7 +402,7 @@ async fn do_status_ready(context: Arc<ContextData>, hoprd: &mut Hoprd) -> Result
     let api_secret: Api<Secret> = Api::namespaced(client.clone(), operator_namespace);
     utils::update_secret_annotations(&api_secret, &secret_name, constants::ANNOTATION_HOPRD_LOCKED_BY, hoprd_name).await?;
     utils::update_secret_annotations(&api_secret, &secret_name, constants::ANNOTATION_REPLICATOR_NAMESPACES, hoprd_namespace).await?;
-    utils::update_status(context.clone(), hoprd, crate::model::HoprdStatusEnum::Running).await?;
+    utils::update_hoprd_status(context.clone(), hoprd, crate::model::HoprdStatusEnum::Running).await?;
     Ok(utils::update_secret_label(&api_secret, &secret_name, constants::LABEL_NODE_LOCKED, &"true".to_string()).await?)
 }
 

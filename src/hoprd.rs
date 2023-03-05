@@ -68,7 +68,7 @@ impl Hoprd {
         let client: Client = context.client.clone();
         let hoprd_namespace: String = self.namespace().unwrap();
         let hoprd_name: String= self.name_any();
-        utils::update_status(context.clone(), self, HoprdStatusEnum::Initializing).await.unwrap();
+        utils::update_hoprd_status(context.clone(), self, HoprdStatusEnum::Initializing).await.unwrap();
         println!("[INFO] Starting to create hoprd node {hoprd_name} in namespace {hoprd_namespace}");
 
         self.add_finalizer(client.clone(), &hoprd_name, &hoprd_namespace).await.unwrap();
@@ -93,7 +93,7 @@ impl Hoprd {
         let hoprd_namespace: String = self.namespace().unwrap();
         let hoprd_name: String= self.name_any();
         println!("[INFO] Hoprd node {hoprd_name} in namespace {hoprd_namespace} has been successfully modified");
-        utils::update_status(context.clone(), self, HoprdStatusEnum::Reloading).await.unwrap();
+        utils::update_hoprd_status(context.clone(), self, HoprdStatusEnum::Reloading).await.unwrap();
         Ok(Action::requeue(Duration::from_secs(constants::RECONCILE_FREQUENCY)))
     }
 
@@ -102,7 +102,7 @@ impl Hoprd {
         let hoprd_name = self.name_any();
         let hoprd_namespace = self.namespace().unwrap();
         let client: Client = context.client.clone();
-        utils::update_status(context.clone(), self, HoprdStatusEnum::Deleting).await.unwrap();
+        utils::update_hoprd_status(context.clone(), self, HoprdStatusEnum::Deleting).await.unwrap();
         println!("[INFO] Starting to delete hoprd node {hoprd_name} from namespace {hoprd_namespace}");
         // Deletes any subresources related to this `Hoprd` resources. If and only if all subresources
         // are deleted, the finalizer is removed and Kubernetes is free to remove the `Hoprd` resource.
@@ -115,7 +115,7 @@ impl Hoprd {
         hoprd_secret::unlock_secret(context.clone(), &self).await.unwrap();
         // Once all the resources are successfully removed, remove the finalizer to make it possible
         // for Kubernetes to delete the `Hoprd` resource.
-        utils::update_status(context.clone(), self, HoprdStatusEnum::Deleted).await.unwrap();
+        utils::update_hoprd_status(context.clone(), self, HoprdStatusEnum::Deleted).await.unwrap();
         self.delete_finalizer(client.clone(), &hoprd_name, &hoprd_namespace).await.unwrap();
         println!("[INFO] Hoprd node {hoprd_name} in namespace {hoprd_namespace} has been successfully deleted");
         Ok(Action::await_change()) // Makes no sense to delete after a successful delete, as the resource is gone
