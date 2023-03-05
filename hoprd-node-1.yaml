@@ -10,6 +10,8 @@ spec:
   version: riga
   monitoring:
     enabled: true
+  ingress:
+    enabled: true
   # announce: true
   # autoRedeemTickets: true
   # networkQualityThreshold: 0.6

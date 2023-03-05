@@ -2,16 +2,16 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: {{ include "hopr-operator.fullname" . }}
+  name: {{ include "hoprd-operator.fullname" . }}-scripts
   namespace: {{ .Release.Namespace | quote }}
   labels:
-    {{- include "hopr-operator.labels" . | nindent 4 }}
-    {{- if .Values.commonLabels }}
-    {{- .Values.commonLabels | toYaml | nindent 4 }}
+    {{- include "hoprd-operator.labels" . | nindent 4 }}
+    {{- if .Values.operator.commonLabels }}
+    {{- .Values.operator.commonLabels | toYaml | nindent 4 }}
     {{- end }}
-{{- if .Values.commonAnnotations }}
+{{- if .Values.operator.commonAnnotations }}
   annotations:
-    {{- .Values.commonAnnotations | toYaml | nindent 4 }}
+    {{- .Values.operator.commonAnnotations | toYaml | nindent 4 }}
 {{- end }}
 data:
   create-node.sh: |
@@ -44,5 +44,5 @@ data:
       --arg peer_id "$HOPRD_PEER_ID" \
       --arg address "$HOPRD_ADDRESS" \
       --arg secret_name "$SECRET_NAME" \
-      '$ARGS.named' > "/app/node_secrets/${SECRET_NAME}.json"
+      '$ARGS.named' > "/app/node_secrets/${SECRET_NAME}/${SECRET_NAME}.json"
     rm -rf "/app/node_secrets/${SECRET_NAME}"

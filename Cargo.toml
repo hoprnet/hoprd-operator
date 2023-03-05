@@ -1,6 +1,6 @@
 [package]
 name = "hopr_operator"
-version = "0.1.4"
+version = "0.1.5"
 authors = ["HOPR Association <tech@hoprnet.org>"]
 edition = "2021"
 
@@ -26,6 +26,8 @@ async-recursion = "1.0.2"
 # Add openssl-sys as a direct dependency so it can be cross compiled to
 # x86_64-unknown-linux-musl using the "vendored" feature below
 openssl-sys = "*"
+json-patch = "0.3"
+serde_yaml = "0.9.17"
 
 [features]
 # Force openssl-sys to staticly link in the openssl library. Necessary when

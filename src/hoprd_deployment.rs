@@ -9,10 +9,9 @@ use k8s_openapi::apimachinery::pkg::util::intstr::IntOrString;
 use kube::api::{DeleteParams, ObjectMeta, PostParams};
 use kube::{Api, Client, Error};
 use std::collections::{BTreeMap};
-use crate::crd::Secret;
 use crate::{
     constants,
-    crd::{HoprdSpec},
+    model::{HoprdSpec, Secret},
     utils,
 };
 
@@ -32,6 +31,11 @@ pub async fn create_deployment(
 ) -> Result<Deployment, Error> {
     let mut labels: BTreeMap<String, String> = utils::common_lables(&name.to_owned());
     labels.insert(constants::LABEL_KUBERNETES_COMPONENT.to_owned(), "node".to_owned());
+    let replicas = if hoprd_spec.enabled.unwrap_or(true) {
+        1
+    } else { 
+        0
+    };
 
     // Definition of the deployment. Alternatively, a YAML representation could be used as well.
     let deployment: Deployment = Deployment {
@@ -42,7 +46,7 @@ pub async fn create_deployment(
             ..ObjectMeta::default()
         },
         spec: Some(DeploymentSpec {
-            replicas: Some(1),
+            replicas: Some(replicas),
             selector: LabelSelector {
                 match_expressions: None,
                 match_labels: Some(labels.clone()),
@@ -148,7 +152,7 @@ async fn build_volumes(secret: &Secret) -> Vec<Volume> {
 async fn build_liveness_probe() -> Probe {
     return Probe {
         http_get: Some(HTTPGetAction {
-            path: Some("/healthcheck/v2/version".to_owned()),
+            path: Some("/healthcheck/v1/version".to_owned()),
             port: IntOrString::Int(8080),
             ..HTTPGetAction::default()
         }),
@@ -196,7 +200,13 @@ async fn build_ports() -> Vec<ContainerPort> {
     });
     container_ports.push(ContainerPort {
         container_port: 9091,
-        name: Some("p2p".to_owned()),
+        name: Some("p2p_tcp".to_owned()),
+        protocol: Some("TCP".to_owned()),
+        ..ContainerPort::default()
+    });
+    container_ports.push(ContainerPort {
+        container_port: 9091,
+        name: Some("p2p_udp".to_owned()),
         protocol: Some("UDP".to_owned()),
         ..ContainerPort::default()
     });

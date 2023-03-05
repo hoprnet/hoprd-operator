@@ -8,85 +8,280 @@ nameOverride: ""
 ##
 fullnameOverride: ""
 
-## @param commonLabels [object] Labels to add to all deployed objects
+## @section Replicator Parameters
 ##
-commonLabels: {}
-## @param commonAnnotations [object] Annotations to add to all deployed objects
-##
-commonAnnotations: {}
-
-## @section Hopr Operator Parameters
-##
-
-## @param privateKey Private Key of the Wallet used to make blockchain transactions like: register in network registry or fund nodes.
-##
-privateKey: ""
-
-## @param secretName Name of the secret custoding the private Key of the Wallet used to make blockchain transactions
-##
-secretName: ""
-
-## @param secretKeyName Key name within the Secret
-##
-secretKeyName: PRIVATE_KEY
 
 replicator:
   ## @param replicator.enabled Install the Helm Chart dependency Reflector. See more info at https://github.com/mittwald/kubernetes-replicator
   ##
   enabled: true
 
-persistence:
-  ## @param persistence.size Size of the persistence Volume
-  ##
-  size: 50Mi
-  ## @param persistence.storageClassName Name of the storage class
-  ##
-  storageClassName: ceph-filesystem
-
-## @param nodeSelector Object containing node selection constraint.
-## https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#nodeselector
+## @section Hopr AdminUI Parameters
 ##
-nodeSelector: {}
 
-## @param resources Resource specification
+adminUI:
+
+  ## @param adminUI.enabled Whether to install Hopr Admin UI
+  ##
+  enabled: true
+
+  ## @param adminUI.replicas Replicas for AdminUI deployment
+  ##
+  replicas: 1
+
+  ## @param adminUI.commonLabels [object] Labels to add to AdminUI deployment
+  ##
+  commonLabels: {}
+
+  ## @param adminUI.commonAnnotations [object] Annotations to AdminUI deployment
+  ##
+  commonAnnotations: {}
+
+  ## @param adminUI.nodeSelector Object containing node selection constraint to AdminUI deployment
+  ## https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#nodeselector
+  ##
+  nodeSelector: {}
+
+  ## @param adminUI.resources Resource specification to AdminUI deployment
+  ##
+  resources: {}
+      # We usually recommend not to specify default resources and to leave this as a conscious
+      # choice for the user. This also increases chances charts run on environments with little
+      # resources, such as Minikube. If you do want to specify resources, uncomment the following
+      # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
+      # limits:
+      #   cpu: 100m
+      #   memory: 128Mi
+      # requests:
+      #   cpu: 100m
+      #   memory: 128Mi
+
+  ## @param adminUI.tolerations Tolerations specifications to AdminUI deployment
+  ##
+  tolerations: []
+
+  ## @param adminUI.affinity Affinity specifications to AdminUI deployment
+  ##
+  affinity: {}
+
+  image:
+    ## @param adminUI.image.registry Docker registry to AdminUI deployment
+    ##
+    registry: gcr.io
+
+    ## @param adminUI.image.repository Docker image repository to AdminUI deployment
+    ##
+    repository: hoprassociation/hopr-admin
+
+    ## @param adminUI.image.tag Docker image tag to AdminUI deployment
+    ##
+    tag: riga
+
+    ## @param adminUI.image.pullPolicy Pull policy to AdminUI deployment as deinfed in 
+    ## ref: http://kubernetes.io/docs/user-guide/images/#pre-pulling-images
+    ##
+    pullPolicy: IfNotPresent
+
+
+## @section Hopr Operator Parameters
 ##
-resources: {}
-    # We usually recommend not to specify default resources and to leave this as a conscious
-    # choice for the user. This also increases chances charts run on environments with little
-    # resources, such as Minikube. If you do want to specify resources, uncomment the following
-    # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
-    # limits:
-    #   cpu: 100m
-    #   memory: 128Mi
-    # requests:
-    #   cpu: 100m
-    #   memory: 128Mi
 
-## @param tolerations Tolerations specifications
+operator:
+  ## @param operator.replicas Replicas for operator deployment
+  ##
+  replicas: 1
+
+  ## @param operator.privateKey Private Key of the Wallet used to make blockchain transactions like: register in network registry or fund nodes.
+  ##
+  privateKey: ""
+
+  ## @param operator.secretName Name of the secret custoding the private Key of the Wallet used to make blockchain transactions
+  ##
+  secretName: ""
+
+  ## @param operator.secretKeyName Key name within the Secret
+  ##
+  secretKeyName: PRIVATE_KEY
+
+  ## @param operator.commonLabels [object] Labels to add to all operator related objects
+  ##
+  commonLabels: {}
+
+  ## @param operator.commonAnnotations [object] Annotations to to all operator related objects
+  ##
+  commonAnnotations: {}
+
+  ingress:
+    ## @param operator.ingress.ingressClassName Name of the ingress class name to be used by Hoprd nodes
+    ##
+    ingressClassName: nginx
+
+    ## @param operator.ingress.dnsDomain Name of the DNS suffix domain to be added to Hoprd nodes
+    ##
+    dnsDomain: ""
+
+    ## @param operator.ingress.annotations Annotations to be added to ingress resources of Hoprd nodes
+    ## @skip operator.ingress.annotations
+    ##
+    annotations: {
+      cert-manager.io/cluster-issuer: "linode-issuer",
+      nginx.ingress.kubernetes.io/proxy-connect-timeout: "3600",
+      nginx.ingress.kubernetes.io/proxy-read-timeout: "3600",
+      nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    }
+
+
+  persistence:
+    ## @param operator.persistence.size Size of the persistence Volume
+    ##
+    size: 50Mi
+    ## @param operator.persistence.storageClassName Name of the storage class
+    ##
+    storageClassName: ceph-filesystem
+
+  ## @param operator.nodeSelector Object containing node selection constraint to operator deployment
+  ## https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#nodeselector
+  ##
+  nodeSelector: {}
+
+  ## @param operator.resources Resource specification to operator deployment
+  ##
+  resources: {}
+      # We usually recommend not to specify default resources and to leave this as a conscious
+      # choice for the user. This also increases chances charts run on environments with little
+      # resources, such as Minikube. If you do want to specify resources, uncomment the following
+      # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
+      # limits:
+      #   cpu: 100m
+      #   memory: 128Mi
+      # requests:
+      #   cpu: 100m
+      #   memory: 128Mi
+
+  ## @param operator.tolerations Tolerations specifications to operator deployment
+  ##
+  tolerations: []
+
+  ## @param operator.affinity Affinity specifications to operator deployment
+  ##
+  affinity: {}
+
+  image:
+    ## @param operator.image.registry Docker registry to operator deployment
+    ##
+    registry: gcr.io
+
+    ## @param operator.image.repository Docker image repository to operator deployment
+    ##
+    repository: hoprassociation/hoprd-operator
+
+    ## @param operator.image.tag Docker image tag to operator deployment
+    ##
+    tag: 0.1.5
+
+    ## @param operator.image.pullPolicy Pull policy to operator deployment as deinfed in 
+    ## ref: http://kubernetes.io/docs/user-guide/images/#pre-pulling-images
+    ##
+    pullPolicy: IfNotPresent
+
+## @section Service Parameters
 ##
-tolerations: []
-
-## @param affinity Affinity specifications
-##
-affinity: {}
-
-image:
-  ## @param image.registry Docker registry
-  ##
-  registry: gcr.io
-  ## @param image.repository Docker image repository
-  ##
-  repository: hoprassociation/hopr-operator
-  ## @param image.tag Docker image tag
-  ##
-  tag: 0.1.4
-  ## @param image.pullPolicy Pull policy as deinfed in 
-  ## ref: http://kubernetes.io/docs/user-guide/images/#pre-pulling-images
-  ##
-  pullPolicy: IfNotPresent
 
 service:
+
+  ## @param service.type service type
+  ##
+  type: ClusterIP
   ports:
-    ## @param service.ports.name Name of the API service port
+
+    ## @param service.ports.http service HTTP port number
+    ##  
+    http: 3000
+
+    ## @param service.ports.name service HTTP port name
     ##
-    name: api
+    name: http
+
+
+  nodePorts:
+
+    ## @param service.nodePorts.http Node port for HTTP
+    ## Specify the nodePort value for the LoadBalancer and NodePort service types
+    ## ref: https://kubernetes.io/docs/concepts/services-networking/service/#type-nodeport
+    ## NOTE: choose port between <30000-32767>
+    ##
+    http: ""
+
+  ## @param service.clusterIP service Cluster IP
+  ## e.g.:
+  ## clusterIP: None
+  ##
+  clusterIP: ""
+
+  ## @param service.loadBalancerIP service Load Balancer IP
+  ## ref: https://kubernetes.io/docs/concepts/services-networking/service/#type-loadbalancer
+  ##
+  loadBalancerIP: ""
+
+  ## @param service.loadBalancerSourceRanges [array] service Load Balancer sources
+  ## ref: https://kubernetes.io/docs/tasks/access-application-cluster/configure-cloud-provider-firewall/#restrict-access-for-loadbalancer-service
+  ## e.g:
+  ## loadBalancerSourceRanges:
+  ##   - 10.10.10.0/24
+  ##
+  loadBalancerSourceRanges: []
+
+  ## @param service.externalTrafficPolicy service external traffic policy
+  ## ref: http://kubernetes.io/docs/tasks/access-application-cluster/create-external-load-balancer/#preserving-the-client-source-ip
+  ##
+  externalTrafficPolicy: Cluster
+
+  ## @param service.sessionAffinity Control where client requests go, to the same pod or round-robin
+  ## Values: ClientIP or None
+  ## ref: https://kubernetes.io/docs/user-guide/services/
+  ##
+  sessionAffinity: None
+
+
+## @section Service Parameters
+##
+
+ingress:
+
+  ## @param ingress.enabled Enable ingress record generation
+  ##
+  enabled: false
+
+  ## @param ingress.pathType Ingress path type
+  ##
+  pathType: ImplementationSpecific
+
+  ## @param ingress.ingressClassName IngressClass that will be be used to implement the Ingress
+  ## This is supported in Kubernetes 1.18+ and required if you have more than one IngressClass marked as the default for your cluster.
+  ## ref: https://kubernetes.io/blog/2020/04/02/improvements-to-the-ingress-api-in-kubernetes-1.18/
+  ##
+  ingressClassName: "nginx"
+
+  ## @param ingress.hostname Default host for the ingress record
+  ##
+  hostname: admin.hoprd.cluster.local
+
+  ## @param ingress.path Default path for the ingress record
+  ##
+  path: /
+
+  ## @param ingress.annotations [object] Additional custom annotations for the ingress record
+  ##
+  annotations: {}
+
+  ## @param ingress.extraPaths [array] An array with additional arbitrary paths that may need to be added to the ingress under the main host
+  ## e.g:
+  ## extraPaths:
+  ## - path: /*
+  ##   backend:
+  ##     service:
+  ##       name: other-service
+  ##       port:
+  ##         name: service-port-name
+  ##
+  extraPaths: []

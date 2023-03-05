@@ -1,9 +1,10 @@
 use std::collections::{BTreeMap};
-use k8s_openapi::{api::core::v1::{ResourceRequirements, Secret}, apimachinery::pkg::api::resource::Quantity};
-use kube::{Api, api::Patch};
+use json_patch::{PatchOperation, ReplaceOperation};
+use k8s_openapi::{api::core::v1::{ResourceRequirements, Secret}, apimachinery::pkg::{api::resource::Quantity}};
+use kube::{Api, api::{ Patch, PatchParams}};
 use serde_json::{Value, json};
 
-use crate::{constants, crd::{Resource as HoprdResource}, actions::Error};
+use crate::{constants, model::{Resource as HoprdResource}, actions::Error};
 
 pub fn common_lables(instance_name: &String) -> BTreeMap<String, String> {
     let mut labels: BTreeMap<String, String> = BTreeMap::new();
@@ -93,7 +94,32 @@ pub async fn update_secret_annotations(api_secret: &Api<Secret>, secret_name: &s
                 }
             });
             let patch: Patch<&Value> = Patch::Merge(&secret_patch_object);
-            Ok(api_secret.patch(&secret_name, &kube::api::PatchParams::default(), &patch).await?)
+            Ok(api_secret.patch(&secret_name, &PatchParams::default(), &patch).await?)
+        }
+        None => { 
+            return Err(Error::SecretStatusError(format!("[ERROR] The secret specified {secret_name} does not exist").to_owned()
+            ));
+        }
+    }
+}
+
+pub async fn delete_secret_annotations(api_secret: &Api<Secret>, secret_name: &str, annotation_name: &str) -> Result<Secret, Error> {
+    match api_secret.get_opt(&secret_name).await.unwrap() {
+        Some(secret) => {
+            let empty_map = &mut BTreeMap::new();
+            let mut hoprd_annotations: BTreeMap<String,String> = secret.metadata.annotations.as_ref().unwrap_or_else(|| empty_map).clone();
+            if hoprd_annotations.contains_key(annotation_name) {
+                hoprd_annotations.remove(annotation_name);
+            } else {
+              println!("[WARN] The secret {secret_name} does not contain the annotation {annotation_name}");
+            }
+            let json_patch = json_patch::Patch(vec![PatchOperation::Replace(ReplaceOperation{
+                path: "/metadata/annotations".to_owned(),
+                value: json!(hoprd_annotations)
+            })]);
+            let patch: Patch<&Value> = Patch::Json::<&Value>(json_patch);
+            api_secret.patch(&secret_name, &PatchParams::default(), &patch).await?;
+            Ok(secret)
         }
         None => { 
             return Err(Error::SecretStatusError(format!("[ERROR] The secret specified {secret_name} does not exist").to_owned()
@@ -119,7 +145,7 @@ pub async fn update_secret_label(api_secret: &Api<Secret>, secret_name: &str, la
                 }
             });
             let patch: Patch<&Value> = Patch::Merge(&secret_patch_object);
-            Ok(api_secret.patch(&secret_name, &kube::api::PatchParams::default(), &patch).await?)
+            Ok(api_secret.patch(&secret_name, &PatchParams::default(), &patch).await?)
         }
         None => { 
             return Err(Error::SecretStatusError(format!("[ERROR] The secret specified {secret_name} does not exist").to_owned()
