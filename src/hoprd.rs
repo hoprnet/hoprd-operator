@@ -31,17 +31,24 @@ use kube::{
 #[kube(status = "HoprdStatus", shortname = "hoprd")]
 #[serde(rename_all = "camelCase")]
 pub struct HoprdSpec {
-    pub ingress: Option<EnablingFlag>,
-    pub environment_name: String,
-    pub version: String,
+    pub config: Option<HoprdConfig>,
     pub enabled: Option<bool>,
-    pub secret: Option<Secret>,
+    pub environment_name: String,
+    pub ingress: Option<EnablingFlag>,
     pub monitoring: Option<EnablingFlag>,
     pub resources: Option<DeploymentResource>,
+    pub secret: Option<Secret>,
+    pub version: String,
+
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Default, Clone, JsonSchema, Hash)]
+pub struct HoprdConfig {
     pub announce: Option<bool>,
     pub provider: Option<String>,
     pub default_strategy: Option<String>,
     pub max_auto_channels: Option<i32>,
+    #[serde(rename(deserialize = "autoRedeemTickets"))]
     pub auto_redeem_tickets: Option<bool>,
     pub check_unrealized_balance: Option<bool>,
     pub allow_private_node_connections: Option<bool>,
@@ -90,10 +97,24 @@ impl Hoprd {
 
     // Creates all the related resources
     pub async fn modify(&self, context: Arc<ContextData>) -> Result<Action> {
+        let client: Client = context.client.clone();
         let hoprd_namespace: String = self.namespace().unwrap();
         let hoprd_name: String= self.name_any();
         println!("[INFO] Hoprd node {hoprd_name} in namespace {hoprd_namespace} has been successfully modified");
         utils::update_hoprd_status(context.clone(), self, HoprdStatusEnum::Reloading).await.unwrap();
+        let annotations = utils::get_resource_kinds(client.clone(), utils::ResourceType::Hoprd, utils::ResourceKind::Annotations, &hoprd_name, &hoprd_namespace).await;
+        if annotations.contains_key(constants::ANNOTATION_LAST_CONFIGURATION) {
+            let previous_config_text: String = annotations.get_key_value(constants::ANNOTATION_LAST_CONFIGURATION).unwrap().1.parse().unwrap();
+            match serde_json::from_str::<Hoprd>(&previous_config_text) {
+                Ok(modified_hoprd) => {
+                    self.check_inmutable_fields(&modified_hoprd.spec).unwrap();
+                    hoprd_deployment::modify_deployment(client.clone(), &hoprd_name.to_owned(), &hoprd_namespace.to_owned(), &modified_hoprd.spec.to_owned()).await?;
+                },
+                Err(_err) => {
+                    println!("[ERROR] Could not parse the last applied configuration of Hoprd node {hoprd_name}.");
+                }
+            }
+        }
         Ok(Action::requeue(Duration::from_secs(constants::RECONCILE_FREQUENCY)))
     }
 
@@ -111,7 +132,7 @@ impl Hoprd {
         }
         hoprd_ingress::delete_ingress(client.clone(), &hoprd_name, &hoprd_namespace).await?;
         hoprd_service::delete_service(client.clone(), &hoprd_name, &hoprd_namespace).await?;
-        hoprd_deployment::delete_depoyment(client.clone(), &hoprd_name, &hoprd_namespace).await?;
+        hoprd_deployment::delete_depoyment(client.clone(), &hoprd_name, &hoprd_namespace).await.unwrap();
         hoprd_secret::unlock_secret(context.clone(), &self).await.unwrap();
         // Once all the resources are successfully removed, remove the finalizer to make it possible
         // for Kubernetes to delete the `Hoprd` resource.
@@ -171,6 +192,18 @@ impl Hoprd {
             }
         }
     }
+
+
+    fn check_inmutable_fields(&self, spec: &HoprdSpec) -> Result<(),Error> {
+        if ! self.spec.environment_name.eq(&spec.environment_name) {
+            return Err(Error::HoprdConfigError(format!("Hoprd configuration is invalid, environmentName field cannot be changed on {}.", self.name_any())));
+        }
+        if ! self.spec.secret.eq(&spec.secret) {
+            return Err(Error::HoprdConfigError(format!("Hoprd configuration is invalid, secret field cannot be changed on {}.", self.name_any())));
+        }
+        Ok(())
+    }
+
 }
 
 
