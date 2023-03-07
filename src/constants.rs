@@ -8,6 +8,7 @@ pub const ANNOTATION_HOPRD_NETWORK_REGISTRY: &str = "hoprds.hoprnet.org/network_
 pub const ANNOTATION_HOPRD_FUNDED: &str = "hoprds.hoprnet.org/funded";
 pub const ANNOTATION_HOPRD_LOCKED_BY: &str = "hoprds.hoprnet.org/locked_by";
 pub const ANNOTATION_REPLICATOR_NAMESPACES: &str = "replicator.v1.mittwald.de/replicate-to";
+pub const ANNOTATION_LAST_CONFIGURATION: &str = "kubectl.kubernetes.io/last-applied-configuration";
 
 // Labels
 pub const LABEL_KUBERNETES_COMPONENT: &str = "app.kubernetes.io/component";

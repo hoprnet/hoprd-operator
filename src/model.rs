@@ -26,7 +26,9 @@ pub enum HoprdStatusEnum {
     /// The node is being deleted
     Deleting,
     /// The node is deleted
-    Deleted
+    Deleted,
+    /// The node is not sync
+    Unsync
 }
 
 impl Display for HoprdStatusEnum {
@@ -40,7 +42,8 @@ impl Display for HoprdStatusEnum {
             HoprdStatusEnum::Running => write!(f, "Running"),
             HoprdStatusEnum::Reloading => write!(f, "Reloading"),
             HoprdStatusEnum::Deleting => write!(f, "Deleting"),
-            HoprdStatusEnum::Deleted => write!(f, "Deleted")
+            HoprdStatusEnum::Deleted => write!(f, "Deleted"),
+            HoprdStatusEnum::Unsync => write!(f, "Unsync")
         }
     }
 }
@@ -145,6 +148,10 @@ pub enum Error {
     /// The hoprd is in an Unknown status
     #[error("Invalid Hoprd status: {0}")]
     HoprdStatusError(String),
+
+    /// The hoprd configuration is invalid
+    #[error("Invalid Hoprd configuration: {0}")]
+    HoprdConfigError(String),
 
     /// The Job execution did not complete successfully
     #[error("Job Execution failed: {0}")]

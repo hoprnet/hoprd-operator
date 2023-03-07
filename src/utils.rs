@@ -1,7 +1,7 @@
-use std::{collections::{BTreeMap, hash_map::DefaultHasher}, sync::Arc, hash::{Hash, Hasher}};
+use std::{collections::{BTreeMap, hash_map::DefaultHasher}, sync::Arc, hash::{Hash, Hasher}, fmt::{Display, Formatter, self}};
 use chrono::Utc;
 use json_patch::{PatchOperation, ReplaceOperation};
-use k8s_openapi::{api::core::v1::{ResourceRequirements, Secret}, apimachinery::pkg::{api::resource::Quantity}};
+use k8s_openapi::{api::{core::v1::{ResourceRequirements, Secret}}, apimachinery::pkg::{api::resource::Quantity}};
 use kube::{Api, api::{ Patch, PatchParams}, Client, runtime::events::{Recorder, Event, EventType}};
 use serde_json::{Value, json};
 
@@ -19,7 +19,7 @@ pub fn common_lables(instance_name: &String) -> BTreeMap<String, String> {
 ///
 /// # Arguments
 /// - `resources` - The resources object on the Hoprd record
-pub async fn build_resource_requirements(resources: &Option<DeploymentResource>) -> Option<ResourceRequirements> {
+pub fn build_resource_requirements(resources: &Option<DeploymentResource>) -> Option<ResourceRequirements> {
     let mut value_limits: BTreeMap<String, Quantity> = BTreeMap::new();
     let mut value_requests: BTreeMap<String, Quantity> = BTreeMap::new();
     if resources.is_some() {
@@ -46,30 +46,73 @@ pub async fn build_resource_requirements(resources: &Option<DeploymentResource>)
     });
 }
 
-/// Get the value of a Secret
-///
-/// # Arguments
-/// - `api_secret` - The namespaced API for querying Kubernetes
-/// - `secret_name` - Hoprd node name
-/// - `label_name` - Label name
-///
-pub async fn get_secret_label(api_secret: &Api<Secret>, secret_name: &str, label_name: &str) -> Option<String> {
-    match api_secret.get_opt(&secret_name).await.unwrap() {
-        Some(secret) => {
-            let emempty_map = &BTreeMap::new();
-            let hoprd_labels = secret.metadata.labels.as_ref().unwrap_or_else(|| emempty_map);
-            if hoprd_labels.contains_key(label_name) {
-                return Some(hoprd_labels.get_key_value(label_name).unwrap().1.parse().unwrap());
-            } else {
-                println!("The secret {secret_name} does not contain the label {label_name}.");
-                None
-            }
+pub enum ResourceType {
+    Secret,
+    Hoprd
+}
+
+impl Display for ResourceType {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        match self {
+            ResourceType::Secret => write!(f, "Secret"),
+            ResourceType::Hoprd => write!(f, "Hoprd")
         }
-        None => { 
-            println!("The secret {secret_name} does not exist.");
-            None }
     }
 }
+#[derive( PartialEq, Clone)]
+pub enum ResourceKind {
+    Labels,
+    Annotations
+}
+
+impl Display for ResourceKind {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        match self {
+            ResourceKind::Labels => write!(f, "Labels"),
+            ResourceKind::Annotations => write!(f, "Annotations")
+        }
+    }
+}
+
+
+pub async fn get_resource_kinds(client: Client, resource_type: ResourceType, resource_kind: ResourceKind, resource_name: &str, resource_namespace: &str) -> BTreeMap<String, String> {
+    let empty_map: &BTreeMap<String, String> = &BTreeMap::new();
+    match resource_type {
+        ResourceType::Secret => { 
+            let api_secret: Api<Secret> = Api::namespaced(client.clone(), &resource_namespace);
+            match api_secret.get_opt(&resource_name).await.unwrap() {
+                Some(secret) => { 
+                    if resource_kind.eq(&ResourceKind::Labels) {
+                        secret.metadata.labels.as_ref().unwrap_or_else(|| empty_map).clone()
+                    } else {
+                        secret.metadata.annotations.as_ref().unwrap_or_else(|| empty_map).clone()
+                    }
+                }
+                None => {
+                    println!("The secret {resource_name} does not exist.");
+                    empty_map.clone()
+                }
+            }
+        } 
+        ResourceType::Hoprd => { 
+            let api_hoprd: Api<Hoprd> = Api::namespaced(client.clone(), &resource_namespace);
+            match api_hoprd.get_opt(&resource_name).await.unwrap() {
+                Some(hoprd) => { 
+                    if resource_kind.eq(&ResourceKind::Labels) {
+                        hoprd.metadata.labels.as_ref().unwrap_or_else(|| empty_map).clone()
+                    } else {
+                        hoprd.metadata.annotations.as_ref().unwrap_or_else(|| empty_map).clone()
+                    }
+                }
+                None => {
+                    println!("The hoprd {resource_name} does not exist.");
+                    empty_map.clone()
+                }
+            }
+        }
+    }
+}
+
 
 pub async fn update_secret_annotations(api_secret: &Api<Secret>, secret_name: &str, annotation_name: &str, annotation_value: &str) -> Result<Secret, Error> {
     match api_secret.get_opt(&secret_name).await.unwrap() {
@@ -212,6 +255,13 @@ pub async fn update_hoprd_status(context: Arc<ContextData>, hoprd: &Hoprd, statu
                     reason: "Deleted".to_string(),
                     note: Some(format!("Hoprd node `{hoprd_name}` is deleted")),
                     action: "Node deletion finished".to_string(),
+                    secondary: None,
+                },
+        HoprdStatusEnum::Unsync => Event {
+                    type_: EventType::Normal,
+                    reason: "Unsync".to_string(),
+                    note: Some(format!("Hoprd node `{hoprd_name}` is not sync")),
+                    action: "Node sync failed".to_string(),
                     secondary: None,
                 }
 
