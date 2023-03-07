@@ -19,7 +19,7 @@ create-node:
 	kubectl apply -f hoprd-node-1.yaml
 
 docker-build:
-	docker buildx build -t gcr.io/hoprassociation/hoprd-operator:latest --progress plain --platform linux/amd64,linux/arm64 .
+	docker build -t gcr.io/hoprassociation/hoprd-operator:latest --progress plain .
 
 docker-push:
-	docker buildx --platform linux/amd64,linux/arm64 push gcr.io/hoprassociation/hoprd-operator:latest
+	docker push gcr.io/hoprassociation/hoprd-operator:latest
