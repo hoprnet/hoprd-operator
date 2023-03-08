@@ -67,11 +67,11 @@ Chart version `Chart.yaml` should be increased according to [semver](http://semv
 | `operator.secretKeyName`                | Key name within the Secret                                                                                       | `PRIVATE_KEY`                    |
 | `operator.commonLabels`                 | Labels to add to all operator related objects                                                                    | `{}`                             |
 | `operator.commonAnnotations`            | Annotations to to all operator related objects                                                                   | `{}`                             |
-| `operator.ingress.ingressClassName`     | Name of the ingress class name to be used by Hoprd nodes                                                         | `nginx`                          |
+| `operator.ingress.ingressClassName`     | Name of the ingress class name to be used by Hoprd nodes                                                         | `""`                             |
 | `operator.ingress.dnsDomain`            | Name of the DNS suffix domain to be added to Hoprd nodes                                                         | `""`                             |
-| `operator.ingress.annotations`          | Annotations to be added to ingress resources of Hoprd nodes                                                      | `undefined`                      |
+| `operator.ingress.annotations`          | Annotations to be added to ingress resources of Hoprd nodes                                                      | `{}`                             |
 | `operator.persistence.size`             | Size of the persistence Volume                                                                                   | `50Mi`                           |
-| `operator.persistence.storageClassName` | Name of the storage class                                                                                        | `ceph-filesystem`                |
+| `operator.persistence.storageClassName` | Name of the storage class                                                                                        | `""`                             |
 | `operator.nodeSelector`                 | Object containing node selection constraint to operator deployment                                               | `{}`                             |
 | `operator.resources`                    | Resource specification to operator deployment                                                                    | `{}`                             |
 | `operator.tolerations`                  | Tolerations specifications to operator deployment                                                                | `[]`                             |
@@ -101,7 +101,7 @@ Chart version `Chart.yaml` should be increased according to [semver](http://semv
 | -------------------------- | ----------------------------------------------------------------------------------------------------- | --------------------------- |
 | `ingress.enabled`          | Enable ingress record generation                                                                      | `false`                     |
 | `ingress.pathType`         | Ingress path type                                                                                     | `ImplementationSpecific`    |
-| `ingress.ingressClassName` | IngressClass that will be be used to implement the Ingress                                            | `nginx`                     |
+| `ingress.ingressClassName` | IngressClass that will be be used to implement the Ingress                                            | `""`                        |
 | `ingress.hostname`         | Default host for the ingress record                                                                   | `admin.hoprd.cluster.local` |
 | `ingress.path`             | Default path for the ingress record                                                                   | `/`                         |
 | `ingress.annotations`      | Additional custom annotations for the ingress record                                                  | `{}`                        |

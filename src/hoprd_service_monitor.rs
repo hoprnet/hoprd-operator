@@ -10,7 +10,7 @@ use kube::{Client, Api};
 use crate::servicemonitor::{ServiceMonitorSpec, ServiceMonitorEndpoints, ServiceMonitorEndpointsBasicAuth, ServiceMonitorEndpointsBasicAuthUsername, ServiceMonitorNamespaceSelector, ServiceMonitorSelector, ServiceMonitorEndpointsBasicAuthPassword};
 use crate::{
     constants,
-    model::{HoprdSpec },
+    hoprd::HoprdSpec,
     servicemonitor::ServiceMonitor,
     utils,
 };

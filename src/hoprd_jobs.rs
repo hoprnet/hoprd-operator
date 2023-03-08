@@ -2,16 +2,15 @@ use k8s_openapi::api::batch::v1::{Job, JobSpec};
 use k8s_openapi::api::core::v1::{
     Container, EnvVar, EnvVarSource, KeyToPath, 
     PodSpec, PodTemplateSpec, SecretKeySelector, SecretVolumeSource,
-     Volume, VolumeMount, PersistentVolumeClaimVolumeSource, ConfigMapVolumeSource, Secret,
+     Volume, VolumeMount, PersistentVolumeClaimVolumeSource, ConfigMapVolumeSource
 };
-
 use kube::{Api,  Client, Error, runtime::wait::{await_condition, conditions}};
 use kube::api::{ObjectMeta, PostParams};
 use std::collections::{BTreeMap};
+use crate::hoprd::HoprdSpec;
 use crate::model::{Secret as HoprdSecret, OperatorInstance};
 use crate::{
     constants,
-    model::{HoprdSpec},
     utils,
 };
 use rand::{distributions::Alphanumeric, Rng};
@@ -25,29 +24,24 @@ use rand::{distributions::Alphanumeric, Rng};
 /// - `hoprd_spec` - Details about the hoprd configuration node
 ///
 pub async fn execute_job_create_node(client: Client, hoprd_name: &str, hoprd_spec: &HoprdSpec, operator_instance: &OperatorInstance) -> Result<Job, Error> {
+    let random_string: String = rand::thread_rng().sample_iter(&Alphanumeric).take(5).map(char::from).collect();
+    let job_name: String = format!("job-create-{}-{}",&hoprd_name.to_owned(),&random_string.to_ascii_lowercase());
+    let namespace: String = operator_instance.namespace.to_owned();
     let mut labels: BTreeMap<String, String> = utils::common_lables(&hoprd_name.to_owned());
     labels.insert(constants::LABEL_KUBERNETES_COMPONENT.to_owned(), "create-node".to_owned());
-    let api_secret: Api<Secret> = Api::namespaced(client.clone(), &operator_instance.namespace);
-    let mut job_name = String::from("job-create-");
-    job_name.push_str(&hoprd_name.to_owned());
-    job_name.push_str("-");
-    let random_string: String = rand::thread_rng().sample_iter(&Alphanumeric).take(5).map(char::from).collect();
-    job_name.push_str(&random_string.to_ascii_lowercase());
+    let secret = hoprd_spec.secret.as_ref().unwrap();
 
+
+    let command_args: Vec<String> = vec![format!("/app/scripts/create-node.sh {}", secret.secret_name.to_owned())];
+    let env_vars: Vec<EnvVar> = build_env_vars(client.clone(), &hoprd_spec, &true, &operator_instance).await;
+    let image: String = format!("{}/{}:{}", constants::HOPR_DOCKER_REGISTRY.to_owned(), constants::HOPR_DOCKER_IMAGE_NAME.to_owned(), &hoprd_spec.version.to_owned());
+    let volume_mounts: Vec<VolumeMount> = build_volume_mounts(&true).await;
+    let volumes: Vec<Volume> = build_volumes(secret, &true, &operator_instance.name.to_owned()).await;
     // Definition of the Job
-    let create_node_job: Job = Job {
-        metadata: ObjectMeta {
-            name: Some(job_name.to_owned()),
-            namespace: Some(operator_instance.namespace.to_owned()),
-            labels: Some(labels.clone()),
-            ..ObjectMeta::default()
-        },
-        spec: Some(build_job_spec(&api_secret, hoprd_spec, labels, build_create_node_args, &true, &operator_instance).await),
-        ..Job::default()
-    };
+    let create_node_job: Job = build_job(job_name.to_owned(), namespace, image, labels, command_args, env_vars, volume_mounts, volumes);
 
     // Create the Job defined above
-    println!("[INFO] Launching job '{}'", &job_name);
+    println!("[INFO] Launching job '{}'", &job_name.to_owned());
     let api: Api<Job> = Api::namespaced(client.clone(), &operator_instance.namespace);
     api.create(&PostParams::default(), &create_node_job).await?;
     return Ok(await_condition(api, &job_name.to_owned(), conditions::is_job_completed()).await.unwrap().unwrap())
@@ -62,26 +56,21 @@ pub async fn execute_job_create_node(client: Client, hoprd_name: &str, hoprd_spe
 /// - `hoprd_spec` - Details about the hoprd configuration node
 ///
 pub async fn execute_job_registering_node(client: Client, hoprd_name: &str, hoprd_spec: &HoprdSpec, operator_instance: &OperatorInstance) -> Result<Job, Error> {
-    let mut labels: BTreeMap<String, String> = utils::common_lables(&hoprd_name.to_owned());
-    labels.insert(constants::LABEL_KUBERNETES_COMPONENT.to_owned(), "register-node".to_owned());
-    let api_secret: Api<Secret> = Api::namespaced(client.clone(), &operator_instance.namespace);
-    let mut job_name = String::from("job-register-");
-    job_name.push_str(&hoprd_name.to_owned());
-    job_name.push_str("-");
     let random_string: String = rand::thread_rng().sample_iter(&Alphanumeric).take(5).map(char::from).collect();
-    job_name.push_str(&random_string.to_lowercase());
-    
+    let job_name: String = format!("job-register-{}-{}",&hoprd_name.to_owned(),&random_string.to_ascii_lowercase());
+    let namespace: String = operator_instance.namespace.to_owned();
+    let mut labels: BTreeMap<String, String> = utils::common_lables(&hoprd_name.to_owned());
+    labels.insert(constants::LABEL_KUBERNETES_COMPONENT.to_owned(), "registe-node".to_owned());
+    let secret = hoprd_spec.secret.as_ref().unwrap();
+    let command_args = vec!["/app/scripts/register-node.sh".to_owned()];
+    let env_vars: Vec<EnvVar> = build_env_vars(client.clone(), &hoprd_spec, &false, &operator_instance).await;
+    let image = format!("{}/{}:{}", constants::HOPR_DOCKER_REGISTRY.to_owned(), constants::HOPLI_DOCKER_IMAGE_NAME.to_owned(), &hoprd_spec.version.to_owned());
+   
+    let volume_mounts: Vec<VolumeMount> = build_volume_mounts(&false).await;
+    let volumes: Vec<Volume> = build_volumes(secret, &false, &operator_instance.name.to_owned()).await;
     // Definition of the Job
-    let registering_job: Job = Job {
-        metadata: ObjectMeta {
-            name: Some(job_name.to_owned()),
-            namespace: Some(operator_instance.namespace.to_owned()),
-            labels: Some(labels.clone()),
-            ..ObjectMeta::default()
-        },
-        spec: Some(build_job_spec(&api_secret, hoprd_spec, labels, build_register_node_args, &false, &operator_instance).await),
-        ..Job::default()
-    };
+    let registering_job: Job = build_job(job_name.to_owned(), namespace, image, labels, command_args, env_vars, volume_mounts, volumes);
+
     // Create the Job defined above
     println!("[INFO] Launching job '{}'", &job_name);
     let api: Api<Job> = Api::namespaced(client.clone(), &operator_instance.namespace.to_owned());
@@ -98,26 +87,20 @@ pub async fn execute_job_registering_node(client: Client, hoprd_name: &str, hopr
 /// - `hoprd_spec` - Details about the hoprd configuration node
 ///
 pub async fn execute_job_funding_node(client: Client, hoprd_name: &str, hoprd_spec: &HoprdSpec, operator_instance: &OperatorInstance) -> Result<Job, Error> {
+    let random_string: String = rand::thread_rng().sample_iter(&Alphanumeric).take(5).map(char::from).collect();
+    let job_name: String = format!("job-fund-{}-{}",&hoprd_name.to_owned(),&random_string.to_ascii_lowercase());
+    let namespace: String = operator_instance.namespace.to_owned();
     let mut labels: BTreeMap<String, String> = utils::common_lables(&hoprd_name.to_owned());
     labels.insert(constants::LABEL_KUBERNETES_COMPONENT.to_owned(), "fund-node".to_owned());
-    let api_secret: Api<Secret> = Api::namespaced(client.clone(), &operator_instance.namespace);
-    let mut job_name = String::from("job-fund-");
-    job_name.push_str(&hoprd_name.to_owned());
-    job_name.push_str("-");
-    let random_string: String = rand::thread_rng().sample_iter(&Alphanumeric).take(5).map(char::from).collect();
-    job_name.push_str(&random_string.to_lowercase());
-
+    let secret = hoprd_spec.secret.as_ref().unwrap();
+    let command_args = vec!["/app/scripts/fund-node.sh".to_owned()];
+    let env_vars: Vec<EnvVar> = build_env_vars(client.clone(), &hoprd_spec, &false, &operator_instance).await;
+    let image = format!("{}/{}:{}", constants::HOPR_DOCKER_REGISTRY.to_owned(), constants::HOPLI_DOCKER_IMAGE_NAME.to_owned(), &hoprd_spec.version.to_owned());
+   
+    let volume_mounts: Vec<VolumeMount> = build_volume_mounts(&false).await;
+    let volumes: Vec<Volume> = build_volumes(secret, &false, &operator_instance.name.to_owned()).await;
     // Definition of the Job
-    let funding_job: Job = Job {
-        metadata: ObjectMeta {
-            name: Some(job_name.to_owned()),
-            namespace: Some(operator_instance.namespace.to_owned()),
-            labels: Some(labels.clone()),
-            ..ObjectMeta::default()
-        },
-        spec: Some(build_job_spec(&api_secret, hoprd_spec, labels, build_funding_args, &false, &operator_instance).await),
-        ..Job::default()
-    };
+    let funding_job: Job = build_job(job_name.to_owned(), namespace, image, labels, command_args, env_vars, volume_mounts, volumes);
 
     // Create the Job defined above
     println!("[INFO] Launching job '{}'", &job_name);
@@ -135,23 +118,29 @@ pub async fn execute_job_funding_node(client: Client, hoprd_name: &str, hoprd_sp
 /// - `command_args` - Function which return the command to be executed within the Job
 /// - `is_create_node_job` - Whether to job is create node
 /// 
-async fn build_job_spec(api_secret: &Api<Secret>, hoprd_spec: &HoprdSpec, labels: BTreeMap<String, String>, command_args: fn(secret_name: &String) -> Vec<String>, is_create_node_job: &bool, operator_instance: &OperatorInstance) -> JobSpec {
-
-    let job_spec: JobSpec = JobSpec {
+fn build_job(job_name: String, namespace: String, image: String, labels: BTreeMap<String, String>, command_args: Vec<String>, env_vars: Vec<EnvVar>, volume_mounts: Vec<VolumeMount>, volumes: Vec<Volume>) -> Job {
+    Job {
+        metadata: ObjectMeta {
+            name: Some(job_name),
+            namespace: Some(namespace),
+            labels: Some(labels.clone()),
+            ..ObjectMeta::default()
+        },
+        spec: Some(JobSpec {
             template: PodTemplateSpec {
                 spec: Some(PodSpec {
                     containers: vec![Container {
                         name: "hoprd".to_owned(),
-                        image: Some(utils::get_hopr_image_tag(&hoprd_spec.version)),
+                        image: Some(image),
                         image_pull_policy: Some("Always".to_owned()),
                         command: Some(vec!["/bin/bash".to_owned(), "-c".to_owned()]),
-                        args: Some(command_args(&hoprd_spec.secret.as_ref().unwrap().secret_name.to_owned())),
-                        env: Some(build_env_vars(&api_secret, &hoprd_spec, &is_create_node_job, &operator_instance.name).await),
-                        volume_mounts: Some(build_volume_mounts(&is_create_node_job).await),
-                        resources: utils::build_resource_requirements(&hoprd_spec.resources).await,
+                        args: Some(command_args),
+                        env: Some(env_vars),
+                        volume_mounts: Some(volume_mounts),
+                        resources: utils::build_resource_requirements(&None),
                         ..Container::default()
                     }],
-                    volumes: Some(build_volumes(&hoprd_spec.secret.as_ref().unwrap(), &is_create_node_job, &operator_instance.name).await),
+                    volumes: Some(volumes),
                     restart_policy: Some("Never".to_owned()),
                     ..PodSpec::default()
                 }),
@@ -161,62 +150,10 @@ async fn build_job_spec(api_secret: &Api<Secret>, hoprd_spec: &HoprdSpec, labels
                 }),
             },
             ..JobSpec::default()
-        };
-    return job_spec;
-}
-
-/// Create the args command line to register a node
-fn build_create_node_args (secret_name: &String) -> Vec<String> {
-    let mut args = Vec::with_capacity(1);
-    args.push(format!("/app/scripts/create-node.sh {secret_name}"));
-    return args;
-}
-
-/// Create the args command line to register a node
-fn build_register_node_args (_secret_name: &String) -> Vec<String> {
-    let mut args = Vec::with_capacity(1);
-    args.push("sleep 2".to_owned());
-    // args.push("/app/hoprnet/.cargo/bin/hopli".to_owned());
-    // args.push("network-registry".to_owned());
-    // args.push("--environment-name".to_owned());
-    // args.push("${HOPRD_ENVIRONMENT}".to_owned());
-    // args.push("--environment-type".to_owned());
-    // args.push("${HOPRD_ENVIRONMENT_TYPE}".to_owned());
-    // args.push("--peer-ids".to_owned());
-    // args.push("${HOPRD_PEER_ID}".to_owned());
-    // args.push("--private-key".to_owned());
-    // args.push("${PRIVATE_KEY}".to_owned());
-    // args.push("--make-root".to_owned());
-    // args.push("\"../contracts\"".to_owned());
-    return args;
-}
-
-/// Create the args command line to fund a node 
-fn build_funding_args (_secret_name: &String) -> Vec<String> {
-    let mut args = Vec::with_capacity(21);
-    args.push("sleep 2".to_owned());
-    // args.push("/app/hoprnet/.cargo/bin/hopli".to_owned());
-    // args.push("faucet".to_owned());
-    // args.push("--environment-name".to_owned());
-    // args.push("${HOPRD_ENVIRONMENT}".to_owned());
-    // args.push("--environment-type".to_owned());
-    // args.push("${HOPRD_ENVIRONMENT_TYPE}".to_owned());
-    // args.push("--password".to_owned());
-    // args.push("${HOPRD_PASSWORD}".to_owned());
-    // args.push("--use-local-identities".to_owned());
-    // args.push("--identity-directory".to_owned());
-    // args.push("/app/hoprd-identity".to_owned());
-    // args.push("--address".to_owned());
-    // args.push("${HOPRD_ADDRESS}".to_owned());
-    // args.push("--private-key".to_owned());
-    // args.push("${PRIVATE_KEY}".to_owned());
-    // args.push("--make-root".to_owned());
-    // args.push("\"../contracts\"".to_owned());
-    // args.push("--hopr-amount".to_owned());
-    // args.push("10".to_owned());
-    // args.push("--native-amount".to_owned());
-    // args.push("1".to_owned());
-    return args;
+        }),
+        ..Job::default()
+    }
+   
 }
 
 /// Builds the struct VolumeMount to be attached into the Container
@@ -231,11 +168,6 @@ async fn build_volume_mounts(is_create_node_job: &bool) -> Vec<VolumeMount> {
             mount_path: "/app/node_secrets".to_owned(),
             ..VolumeMount::default()
         });
-        volume_mounts.push(VolumeMount {
-            name: "hopr-script-volume".to_owned(),
-            mount_path: "/app/scripts".to_owned(),
-            ..VolumeMount::default()
-        });
     } else {
         volume_mounts.push(VolumeMount {
             name: "hoprd-identity".to_owned(),
@@ -243,6 +175,11 @@ async fn build_volume_mounts(is_create_node_job: &bool) -> Vec<VolumeMount> {
             ..VolumeMount::default()
         });
     }
+        volume_mounts.push(VolumeMount {
+            name: "hopr-script-volume".to_owned(),
+            mount_path: "/app/scripts".to_owned(),
+            ..VolumeMount::default()
+        });
     return volume_mounts;
 }
 
@@ -255,25 +192,12 @@ async fn build_volumes(secret: &HoprdSecret, is_create_node_job: &bool, operator
     let mut volumes = Vec::with_capacity(2);
 
     if is_create_node_job.to_owned() {
-        let configmap_name = format!("{operator_name}-scripts");
+        
         volumes.push(Volume {
             name: "hopr-repo-volume".to_owned(),
             persistent_volume_claim: Some(PersistentVolumeClaimVolumeSource {
                 claim_name: operator_name.to_owned(),
                 read_only: Some(false)
-            }),
-            ..Volume::default()
-        });
-        volumes.push(Volume {
-            name: "hopr-script-volume".to_owned(),
-            config_map: Some(ConfigMapVolumeSource {
-                name: Some(configmap_name.to_owned()),
-                items: Some(vec![ KeyToPath{
-                    key: "create-node.sh".to_owned(),
-                    mode: Some(0o550),
-                    path: "create-node.sh".to_owned()
-                }]),
-                ..ConfigMapVolumeSource::default()
             }),
             ..Volume::default()
         });
@@ -296,17 +220,27 @@ async fn build_volumes(secret: &HoprdSecret, is_create_node_job: &bool, operator
             ..Volume::default()
         });
     }
+    let configmap_name = format!("{operator_name}-scripts");
+        volumes.push(Volume {
+            name: "hopr-script-volume".to_owned(),
+            config_map: Some(ConfigMapVolumeSource {
+                name: Some(configmap_name.to_owned()),
+                default_mode: Some(0o550),
+                ..ConfigMapVolumeSource::default()
+            }),
+            ..Volume::default()
+        });
     return volumes;
 }
 
 ///Build struct environment variable
 ///
-async fn build_env_vars(api_secret: &Api<Secret>, hoprd_spec: &HoprdSpec, is_create_node_job: &bool, operator_name: &str) -> Vec<EnvVar> {
-    let mut env_vars = Vec::with_capacity(1);
-    let secret = hoprd_spec.secret.as_ref().unwrap();   
+pub async fn build_env_vars(client: Client, hoprd_spec: &HoprdSpec, is_create_node_job: &bool, operator_instance: &OperatorInstance) -> Vec<EnvVar> {
+    let mut env_vars = Vec::with_capacity(2); 
+    let secret = hoprd_spec.secret.as_ref().unwrap();
     if ! is_create_node_job {
         env_vars.push(EnvVar {
-            name: constants::HOPRD_PASSWORD.to_owned(),
+            name: "IDENTITY_PASSWORD".to_owned(),
             value_from: Some(EnvVarSource {
                 secret_key_ref: Some(SecretKeySelector {
                     key: secret
@@ -321,27 +255,23 @@ async fn build_env_vars(api_secret: &Api<Secret>, hoprd_spec: &HoprdSpec, is_cre
             }),
             ..EnvVar::default()
         });
-
-        match utils::get_secret_label(api_secret, &secret.secret_name.to_owned(), constants::LABEL_NODE_ADDRESS).await {
-            Some(node_address) => {
-                env_vars.push(EnvVar {
-                    name: constants::HOPRD_ADDRESS.to_owned(),
-                    value: Some(node_address.to_owned()),
-                    ..EnvVar::default()
-                });
-            },
-            None => {}
+        let labels = utils::get_resource_kinds(client, utils::ResourceType::Secret, utils::ResourceKind::Labels, &secret.secret_name.to_owned(), &operator_instance.namespace).await;
+        if labels.contains_key(constants::LABEL_NODE_ADDRESS) {
+            let node_address: String = labels.get_key_value(constants::LABEL_NODE_ADDRESS).unwrap().1.parse().unwrap();
+            env_vars.push(EnvVar {
+                name: constants::HOPRD_ADDRESS.to_owned(),
+                value: Some(node_address.to_owned()),
+                ..EnvVar::default()
+            });
         }
-    
-        match utils::get_secret_label(api_secret, &secret.secret_name.to_owned(), constants::LABEL_NODE_PEER_ID).await {
-            Some(node_peer_id) => {
-                env_vars.push(EnvVar {
-                    name: constants::HOPRD_PEER_ID.to_owned(),
-                    value: Some(node_peer_id.to_owned()),
-                    ..EnvVar::default()
-                });
-            },
-            None => {}
+
+        if labels.contains_key(constants::LABEL_NODE_PEER_ID) {
+            let node_peer_id: String = labels.get_key_value(constants::LABEL_NODE_PEER_ID).unwrap().1.parse().unwrap();
+            env_vars.push(EnvVar {
+                name: constants::HOPRD_PEER_ID.to_owned(),
+                value: Some(node_peer_id.to_owned()),
+                ..EnvVar::default()
+            });
         }
     }
     env_vars.push(EnvVar {
@@ -351,17 +281,11 @@ async fn build_env_vars(api_secret: &Api<Secret>, hoprd_spec: &HoprdSpec, is_cre
     });
 
     env_vars.push(EnvVar {
-        name: constants::HOPRD_ENVIRONMENT_TYPE.to_owned(),
-        value: Some(hoprd_spec.environment_type.to_owned()),
-        ..EnvVar::default()
-    });
-
-    env_vars.push(EnvVar {
         name: constants::HOPR_PRIVATE_KEY.to_owned(),
         value_from: Some(EnvVarSource {
             secret_key_ref: Some(SecretKeySelector {
                 key: constants::HOPR_PRIVATE_KEY.to_owned(),
-                name: Some(operator_name.to_owned()),
+                name: Some(operator_instance.name.to_owned()),
                 ..SecretKeySelector::default()
             }),
             ..EnvVarSource::default()

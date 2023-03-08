@@ -21,6 +21,26 @@ rules:
   verbs:
   - get
 - apiGroups:
+  - "events.k8s.io"
+  resources:
+  - events
+  verbs:
+  - create
+- apiGroups:
+  - "monitoring.coreos.com"
+  resources:
+  - servicemonitors
+  verbs:
+  - create
+  - get
+- apiGroups:
+  - "networking.k8s.io"
+  resources:
+  - ingresses
+  verbs:
+  - create
+  - get
+- apiGroups:
   - ""
   resources:
   - secrets
@@ -51,6 +71,7 @@ rules:
   - list
   - update
   - patch
+  - watch
 - apiGroups:
   - hoprnet.org
   resources:

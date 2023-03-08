@@ -12,7 +12,7 @@ on:
 jobs:
   validate:
     runs-on: ubuntu-latest
-    if: "!contains(github.event.pusher.name, 'dependabot')"
+    if: ${{ github.actor != 'dependabot[bot]' }}
 
     steps:
       - name: Checkout
