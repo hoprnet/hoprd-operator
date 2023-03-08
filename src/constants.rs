@@ -1,12 +1,14 @@
 // Operator Constants
 pub const RECONCILE_FREQUENCY: u64 = 10;
 pub const OPERATOR_ENVIRONMENT: &str = "OPERATOR_ENVIRONMENT";
+pub const OPERATOR_FINALIZER: &str = "hoprds.hoprnet.org/finalizer";
 
 // Annotations
 pub const ANNOTATION_HOPRD_NETWORK_REGISTRY: &str = "hoprds.hoprnet.org/network_registry";
 pub const ANNOTATION_HOPRD_FUNDED: &str = "hoprds.hoprnet.org/funded";
 pub const ANNOTATION_HOPRD_LOCKED_BY: &str = "hoprds.hoprnet.org/locked_by";
 pub const ANNOTATION_REPLICATOR_NAMESPACES: &str = "replicator.v1.mittwald.de/replicate-to";
+pub const ANNOTATION_LAST_CONFIGURATION: &str = "kubectl.kubernetes.io/last-applied-configuration";
 
 // Labels
 pub const LABEL_KUBERNETES_COMPONENT: &str = "app.kubernetes.io/component";
@@ -15,17 +17,16 @@ pub const LABEL_KUBERNETES_INSTANCE: &str = "app.kubernetes.io/instance";
 pub const LABEL_NODE_PEER_ID: &str = "hoprds.hoprnet.org/peerId";
 pub const LABEL_NODE_ADDRESS: &str = "hoprds.hoprnet.org/address";
 pub const LABEL_NODE_ENVIRONMENT_NAME: &str = "hoprds.hoprnet.org/environmentName";
-pub const LABEL_NODE_ENVIRONMENT_TYPE: &str = "hoprds.hoprnet.org/environmentType";
 pub const LABEL_NODE_LOCKED: &str = "hoprds.hoprnet.org/locked";
 
 // Kubernetes Specs
 pub const HOPR_DOCKER_REGISTRY: &str = "gcr.io";
 pub const HOPR_DOCKER_IMAGE_NAME: &str = "hoprassociation/hoprd";
+pub const HOPLI_DOCKER_IMAGE_NAME: &str = "hoprassociation/hopli";
 pub const HOPR_PRIVATE_KEY: &str = "PRIVATE_KEY";
 pub const HOPRD_PEER_ID: &str = "HOPRD_PEER_ID";
 pub const HOPRD_ADDRESS: &str = "HOPRD_ADDRESS";
 pub const HOPRD_METRICS_PASSWORD: &str = "HOPRD_METRICS_PASSWORD";
-pub const HOPRD_ENVIRONMENT_TYPE: &str = "HOPRD_ENVIRONMENT_TYPE";
 
 // HOPRD Arguments
 pub const HOPRD_PASSWORD: &str = "HOPRD_PASSWORD";
