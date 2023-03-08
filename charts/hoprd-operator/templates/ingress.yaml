@@ -10,8 +10,6 @@ metadata:
     {{- .Values.adminUI.commonLabels | toYaml | nindent 4 }}
     {{- end }}
   annotations:
-    nginx.ingress.kubernetes.io/server-snippets: |
-        more_set_headers "Content-Security-Policy: upgrade-insecure-requests";
     {{- if .Values.ingress.annotations }}
         {{- .Values.ingress.annotations | toYaml | nindent 4 }}
     {{- end }}

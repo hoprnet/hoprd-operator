@@ -17,3 +17,9 @@ delete-node:
 
 create-node:
 	kubectl apply -f hoprd-node-1.yaml
+
+docker-build:
+	docker build -t gcr.io/hoprassociation/hoprd-operator:latest --progress plain .
+
+docker-push:
+	docker push gcr.io/hoprassociation/hoprd-operator:latest
