@@ -27,11 +27,72 @@ spec:
       storage: true
       schema:
         openAPIV3Schema:
+          description: Schema definition for Hopr Node
           type: object
           properties:
             spec: # There is only one (required) field named "replicas" specifying how many pods are created by the Operator
               type: object
               properties:
+                config:
+                  type: object
+                  description: Specific hoprd configuration
+                  properties:
+                    announce:
+                      type: boolean
+                      description: 'Run as a Public Relay Node (PRN)'
+                    provider:
+                      type: string
+                      description: 'A custom RPC provider to be used for the node to connect to blockchain'
+                    defaultStrategy:
+                      type: string
+                      description: 'Default channel strategy to use when the node is started'
+                    maxAutoChannels:
+                      type: integer
+                      format: int32
+                      description: 'Maximum number of channels a strategy can open'
+                    autoRedeemTickets:
+                      type: boolean
+                      description: 'Enables automatic ticket redemption when received a winning ticket'
+                    checkUnrealizedBalance:
+                      type: boolean
+                      description: 'Check unrealized balance in the channel when validating unacknowledged tickets'
+                    allowPrivateNodeConnections:
+                      type: boolean
+                      description: 'Allow connections to other nodes running on localhost'
+                    testAnnounceLocalAddress:
+                      type: boolean
+                      description: 'For testing local testnets. Announce local addresses'
+                    heartbeatInterval:
+                      type: integer
+                      format: int32
+                      description: 'Interval in milliseconds in which the availability of other nodes get measured'
+                    heartbeatThreshold:
+                      type: integer
+                      format: int32
+                      description: 'Timeframe in milliseconds after which a heartbeat to another peer is performed, if it has not been seen since'
+                    heartbeatVariance:
+                      type: integer
+                      format: int32
+                      description: 'Upper bound for variance applied to heartbeat interval in milliseconds'
+                    onChainConfirmations:
+                      type: integer
+                      format: int32
+                      description: 'Number of confirmations required for on-chain transactions'
+                    networkQualityThreshold:
+                      type: number
+                      description: 'Minimum acceptable peer connection quality'
+                enabled:
+                  type: boolean
+                  description: 'Flag indicating if the node should be started or stopped'
+                environmentName:
+                  type: string
+                  description: 'Name of the hopr environment'
+                  enum:
+                  - monte_rosa
+                  - master-staging
+                  - debug-staging
+                  - anvil-localhost
+                  - anvil-localhost2
                 ingress:
                   type: object
                   description: Properties regarding ingress controller for hoprd node
@@ -40,89 +101,6 @@ spec:
                       type: boolean
                       description: 'Whether to enable or disable the creation of an associated Ingress resource'
                   required: ["enabled"]
-                environmentName:
-                  type: string
-                  description: 'Name of the hopr environment'
-                  enum:
-                  - monte_rosa
-                environmentType:
-                  type: string
-                  description: 'Type of the hopr environment'
-                  enum:
-                  - development
-                  - staging
-                  - production
-                enabled:
-                  type: boolean
-                  description: 'Flag indicating if the node should be started or stopped'
-                version:
-                  type: string
-                  description: 'An specific hoprd version. Should match with a docker tag'
-                announce:
-                  type: boolean
-                  description: 'Run as a Public Relay Node (PRN)'
-                provider:
-                  type: string
-                  description: 'A custom RPC provider to be used for the node to connect to blockchain'
-                defaultStrategy:
-                  type: string
-                  description: 'Default channel strategy to use when the node is started'
-                maxAutoChannels:
-                  type: integer
-                  format: int32
-                  description: 'Maximum number of channels a strategy can open'
-                autoRedeemTickets:
-                  type: boolean
-                  description: 'Enables automatic ticket redemption when received a winning ticket'
-                checkUnrealizedBalance:
-                  type: boolean
-                  description: 'Check unrealized balance in the channel when validating unacknowledged tickets'
-                allowPrivateNodeConnections:
-                  type: boolean
-                  description: 'Allow connections to other nodes running on localhost'
-                testAnnounceLocalAddress:
-                  type: boolean
-                  description: 'For testing local testnets. Announce local addresses'
-                heartbeatInterval:
-                  type: integer
-                  format: int32
-                  description: 'Interval in milliseconds in which the availability of other nodes get measured'
-                heartbeatThreshold:
-                  type: integer
-                  format: int32
-                  description: 'Timeframe in milliseconds after which a heartbeat to another peer is performed, if it has not been seen since'
-                heartbeatVariance:
-                  type: integer
-                  format: int32
-                  description: 'Upper bound for variance applied to heartbeat interval in milliseconds'
-                onChainConfirmations:
-                  type: integer
-                  format: int32
-                  description: 'Number of confirmations required for on-chain transactions'
-                networkQualityThreshold:
-                  type: number
-                  description: 'Minimum acceptable peer connection quality'
-                secret:
-                  type: object
-                  description: The secret containing sensitive data from the Hoprd node
-                  properties:
-                    secretName:
-                      description: Name of the secret containing sensitive data for the Hoprd node.
-                      type: string
-                    passwordRefKey:
-                      description: 'Name of secret key that has the password for the node repository'
-                      type: string
-                    apiTokenRefKey:
-                      description: 'Name of secret key that has the API Token for the node repository'
-                      type: string
-                    identityRefKey:
-                      description: 'Name of secret key that has the contents of the node repository identity file'
-                      type: string
-                    metricsPasswordRefKey: 
-                      type: string
-                      description: Name of the secret key that has an empty value to be used as password for Prometheus
-                  required:
-                  - secretName
                 monitoring:
                   type: object
                   description: Monitoring configuration
@@ -156,4 +134,55 @@ spec:
                         memory: 
                           description: Specify the memory limit resources for the container
                           type: string
-              required: ["environmentName", "environmentType", "version"]
+                secret:
+                  type: object
+                  description: The secret containing sensitive data from the Hoprd node
+                  properties:
+                    secretName:
+                      description: Name of the secret containing sensitive data for the Hoprd node.
+                      type: string
+                    passwordRefKey:
+                      description: 'Name of secret key that has the password for the node repository'
+                      type: string
+                    apiTokenRefKey:
+                      description: 'Name of secret key that has the API Token for the node repository'
+                      type: string
+                    identityRefKey:
+                      description: 'Name of secret key that has the contents of the node repository identity file'
+                      type: string
+                    metricsPasswordRefKey: 
+                      type: string
+                      description: Name of the secret key that has an empty value to be used as password for Prometheus
+                  required:
+                  - secretName
+                version:
+                  type: string
+                  description: 'An specific hoprd version. Should match with a docker tag'
+              required: ["environmentName", "version"]
+            status:
+              description: The status object of Hoprd node
+              nullable: true
+              properties:
+                update_timestamp:
+                  type: number
+                  description: Timestamp of the last applied change
+                checksum:
+                  type: string
+                  description: Checksum of the last applied change
+                status:
+                  description: Status of the last applied change
+                  type: string
+                  enum:
+                  - Initializing
+                  - Creating
+                  - RegisteringInNetwork
+                  - Funding
+                  - Stopped
+                  - Running
+                  - Reloading
+                  - Deleting
+                  - Unsync
+              required: [ "update_timestamp", "checksum", "status"]
+              type: object
+          required:
+          - spec

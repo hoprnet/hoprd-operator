@@ -114,7 +114,7 @@ operator:
   ingress:
     ## @param operator.ingress.ingressClassName Name of the ingress class name to be used by Hoprd nodes
     ##
-    ingressClassName: nginx
+    ingressClassName: ""
 
     ## @param operator.ingress.dnsDomain Name of the DNS suffix domain to be added to Hoprd nodes
     ##
@@ -123,12 +123,7 @@ operator:
     ## @param operator.ingress.annotations Annotations to be added to ingress resources of Hoprd nodes
     ## @skip operator.ingress.annotations
     ##
-    annotations: {
-      cert-manager.io/cluster-issuer: "linode-issuer",
-      nginx.ingress.kubernetes.io/proxy-connect-timeout: "3600",
-      nginx.ingress.kubernetes.io/proxy-read-timeout: "3600",
-      nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
-    }
+    annotations: {}
 
 
   persistence:
@@ -137,7 +132,7 @@ operator:
     size: 50Mi
     ## @param operator.persistence.storageClassName Name of the storage class
     ##
-    storageClassName: ceph-filesystem
+    storageClassName: ""
 
   ## @param operator.nodeSelector Object containing node selection constraint to operator deployment
   ## https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#nodeselector
@@ -260,7 +255,7 @@ ingress:
   ## This is supported in Kubernetes 1.18+ and required if you have more than one IngressClass marked as the default for your cluster.
   ## ref: https://kubernetes.io/blog/2020/04/02/improvements-to-the-ingress-api-in-kubernetes-1.18/
   ##
-  ingressClassName: "nginx"
+  ingressClassName: ""
 
   ## @param ingress.hostname Default host for the ingress record
   ##

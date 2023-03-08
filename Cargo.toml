@@ -9,7 +9,7 @@ tokio = { version = "1.25", features = [
     "macros",
     "rt-multi-thread",
 ] }
-kube = { version = "0.79", default-features = true, features = [
+kube = { version = "0.80", default-features = true, features = [
     "derive",
     "runtime",
 ] }
@@ -27,7 +27,8 @@ async-recursion = "1.0.2"
 # x86_64-unknown-linux-musl using the "vendored" feature below
 openssl-sys = "*"
 json-patch = "0.3"
-serde_yaml = "0.9.17"
+serde_yaml = "0.9.19"
+chrono = "0.4.23"
 
 [features]
 # Force openssl-sys to staticly link in the openssl library. Necessary when
