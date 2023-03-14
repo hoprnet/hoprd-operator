@@ -28,7 +28,7 @@ async-recursion = "1.0.2"
 openssl-sys = "*"
 json-patch = "0.3"
 serde_yaml = "0.9.19"
-chrono = "0.4.23"
+chrono = "0.4.24"
 
 [features]
 # Force openssl-sys to staticly link in the openssl library. Necessary when
