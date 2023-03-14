@@ -56,4 +56,4 @@ jobs:
             git config user.email "noreply@hoprnet.org"
             git config user.name "HOPR CI robot"
             git tag helm-${{ env.HELM_CHART_VERSION }}
-            git push origin ${{ env.HELM_CHART_VERSION }}
+            git push origin helm-${{ env.HELM_CHART_VERSION }}
