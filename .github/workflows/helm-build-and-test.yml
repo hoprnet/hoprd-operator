@@ -41,12 +41,14 @@ jobs:
       - name: Artifact Registry authentication
         run: gcloud auth application-default print-access-token | helm registry login -u oauth2accesstoken --password-stdin https://europe-west3-docker.pkg.dev
 
-      - name: helm package
+      - name: Helm Package
         run: |
+          helm repo add mittwald https://helm.mittwald.de
+          helm repo update
           helm dependency build
           helm package . --version ${{ env.HELM_CHART_VERSION }}
         working-directory: 'charts/hoprd-operator/'
-      - name: helm push
+      - name: Helm Publish
         run: |
           helm push hoprd-operator-${{ env.HELM_CHART_VERSION }}.tgz oci://europe-west3-docker.pkg.dev/${{ secrets.GOOGLE_HOPRASSOCIATION_PROJECT }}/helm-hoprd-operator
         working-directory: 'charts/hoprd-operator/'
