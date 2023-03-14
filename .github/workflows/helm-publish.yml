@@ -21,8 +21,8 @@ jobs:
 
       - name: Get Helm chart version
         run: |
-          helm_chart_version=$(grep '^version:' Chart.yaml | sed 's/.*: //')
-          echo "HELM_CHART_VERSION=helm-${helm_chart_version}" >> $GITHUB_ENV
+          HELM_CHART_VERSION=$(grep '^version:' Chart.yaml | sed 's/.*: //')
+          echo "HELM_CHART_VERSION=helm-${HELM_CHART_VERSION}" >> $GITHUB_ENV
         working-directory: 'charts/hoprd-operator/'
 
       - name: Tag Helm version

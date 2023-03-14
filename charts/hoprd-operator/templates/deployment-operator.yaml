@@ -29,7 +29,7 @@ spec:
     spec:
       containers:
       - name: operator
-        image: {{ printf "%s/%s:%s" .Values.operator.image.registry .Values.operator.image.repository .Values.operator.image.tag }}
+        image: "{{ .Values.operator.image.registry }}/{{ .Values.operator.image.repository }}:{{ default .Chart.AppVersion .Values.operator.image.tag }}"
         imagePullPolicy: {{ .Values.operator.image.pullPolicy }}
         securityContext:
           allowPrivilegeEscalation: false

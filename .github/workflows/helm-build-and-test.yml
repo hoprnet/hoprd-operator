@@ -18,14 +18,35 @@ jobs:
 
       - name: Validate Helm chart version
         run: |
-          helm_chart_version=$(grep '^version:' Chart.yaml | sed 's/.*: /helm-/')
-          echo "The Helm chart version is '${helm_chart_version}'"
-          if git tag -l | grep ${helm_chart_version} 1> /dev/null; then
-            echo "The Helm chart version '${helm_chart_version}' already exists. Please bump property 'version' on ./charts/Chart.yaml to a new version";
+          HELM_CHART_VERSION=$(grep '^version:' Chart.yaml | sed 's/.*: /helm-/')
+          echo "HELM_CHART_VERSION=${HELM_CHART_VERSION}" >> $GITHUB_ENV
+          echo "The Helm chart version is '${HELM_CHART_VERSION}'"
+          if git tag -l | grep ${HELM_CHART_VERSION} 1> /dev/null; then
+            echo "The Helm chart version '${HELM_CHART_VERSION}' already exists. Please bump property 'version' on ./charts/Chart.yaml to a new version";
             exit 1
           fi
         working-directory: 'charts/hoprd-operator/'
 
+      - name: Set up Google Cloud Credentials
+        uses: google-github-actions/auth@v1
+        with:
+          credentials_json: ${{ secrets.GOOGLE_HOPRASSOCIATION_CREDENTIALS_REGISTRY }}
+
+      - name: Set up Google Cloud SDK
+        uses: google-github-actions/setup-gcloud@v1
+        with:
+          project_id: ${{ secrets.GOOGLE_HOPRASSOCIATION_PROJECT }}
+          install_components: beta
+
+      - name: Artifact Registry authentication
+        run: gcloud auth application-default print-access-token | helm registry login -u oauth2accesstoken --password-stdin https://europe-west3-docker.pkg.dev
+
+      - name: helm package
+        run: |
+          helm package . --version ${{ env.HELM_CHART_VERSION }}
+      - name: helm push
+        run: |
+          helm push hoprd-operator-${{ env.HELM_CHART_VERSION }}.tgz oci://europe-west3-docker.pkg.dev/${{ secrets.GOOGLE_HOPRASSOCIATION_PROJECT }}/helm-hoprd-operator
 
   lint:
     runs-on: ubuntu-latest
