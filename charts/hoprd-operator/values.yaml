@@ -172,7 +172,7 @@ operator:
 
     ## @param operator.image.tag Docker image tag to operator deployment
     ##
-    tag: 0.1.5
+    tag: ""
 
     ## @param operator.image.pullPolicy Pull policy to operator deployment as deinfed in 
     ## ref: http://kubernetes.io/docs/user-guide/images/#pre-pulling-images

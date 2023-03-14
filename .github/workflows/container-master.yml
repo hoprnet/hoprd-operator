@@ -1,6 +1,6 @@
 ---
 
-name: 'Container'
+name: 'Container merge'
 
 on:
   push:

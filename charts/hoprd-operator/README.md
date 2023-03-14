@@ -78,7 +78,7 @@ Chart version `Chart.yaml` should be increased according to [semver](http://semv
 | `operator.affinity`                     | Affinity specifications to operator deployment                                                                   | `{}`                             |
 | `operator.image.registry`               | Docker registry to operator deployment                                                                           | `gcr.io`                         |
 | `operator.image.repository`             | Docker image repository to operator deployment                                                                   | `hoprassociation/hoprd-operator` |
-| `operator.image.tag`                    | Docker image tag to operator deployment                                                                          | `0.1.5`                          |
+| `operator.image.tag`                    | Docker image tag to operator deployment                                                                          | `""`                             |
 | `operator.image.pullPolicy`             | Pull policy to operator deployment as deinfed in                                                                 | `IfNotPresent`                   |
 
 ### Service Parameters
