@@ -1,6 +1,6 @@
 ---
 
-name: 'Helm chart'
+name: 'Helm chart readme'
 
 on:
   pull_request:

@@ -1,6 +1,6 @@
 ---
 
-name: 'Helm chart'
+name: 'Helm chart publish'
 
 on:
   push:

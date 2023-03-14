@@ -1,6 +1,6 @@
 ---
 
-name: 'Helm chart'
+name: 'Helm chart build'
 
 on:
   pull_request:
@@ -44,9 +44,11 @@ jobs:
       - name: helm package
         run: |
           helm package . --version ${{ env.HELM_CHART_VERSION }}
+        working-directory: 'charts/hoprd-operator/'
       - name: helm push
         run: |
           helm push hoprd-operator-${{ env.HELM_CHART_VERSION }}.tgz oci://europe-west3-docker.pkg.dev/${{ secrets.GOOGLE_HOPRASSOCIATION_PROJECT }}/helm-hoprd-operator
+        working-directory: 'charts/hoprd-operator/'
 
   lint:
     runs-on: ubuntu-latest
