@@ -43,6 +43,7 @@ jobs:
 
       - name: helm package
         run: |
+          helm dependency build
           helm package . --version ${{ env.HELM_CHART_VERSION }}
         working-directory: 'charts/hoprd-operator/'
       - name: helm push
