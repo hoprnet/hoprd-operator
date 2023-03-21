@@ -61,8 +61,8 @@ spec:
           - name: PRIVATE_KEY
             valueFrom:
               secretKeyRef:
-                key: {{ .Values.operator.secretName }} 
-                name: {{ .Values.operator.secretKeyName }} 
+                key: {{ .Values.operator.secretKeyName }} 
+                name: {{ .Values.operator.secretName }} 
         {{- end }}
         volumeMounts:
           - name: hopr-repo-volume
