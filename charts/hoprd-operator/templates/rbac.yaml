@@ -33,6 +33,7 @@ rules:
   verbs:
   - create
   - get
+  - delete
 - apiGroups:
   - "networking.k8s.io"
   resources:
@@ -40,6 +41,7 @@ rules:
   verbs:
   - create
   - get
+  - delete
 - apiGroups:
   - ""
   resources:
@@ -51,6 +53,7 @@ rules:
   - list
   - update
   - patch
+  - delete
 - apiGroups:
   - "apps"
   resources:
@@ -61,6 +64,7 @@ rules:
   - list
   - update
   - patch
+  - delete
 - apiGroups:
   - "batch"
   resources:
@@ -78,7 +82,6 @@ rules:
   - hoprds
   verbs:
   - get
-  - create
   - list
   - watch
   - update
