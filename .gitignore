@@ -35,4 +35,3 @@ target/
 *.pdb
 
 charts/hoprd-operator/testValues.yaml
-charts/hoprd-operator/charts/*.tgz
