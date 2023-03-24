@@ -5,6 +5,9 @@ build:
 run:
 	nohup cargo run &
 
+install:
+	helm install --namespace hoprd --create-namespace -f ./charts/hoprd-operator/testValues.yaml hoprd-operator ./charts/hoprd-operator/
+
 upgrade:
 	helm upgrade --namespace hoprd --create-namespace -f ./charts/hoprd-operator/testValues.yaml hoprd-operator ./charts/hoprd-operator/
 	sleep 3

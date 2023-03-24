@@ -1,5 +1,6 @@
 
 use futures::StreamExt;
+use k8s_openapi::api::{apps::v1::Deployment, networking::v1::Ingress, core::v1::Service};
 use kube::{
     api::{Api, ListParams},
     client::Client,
@@ -14,7 +15,7 @@ use serde::{ Serialize};
 use std::{sync::Arc, collections::hash_map::DefaultHasher, hash::{Hash, Hasher}, env};
 use tokio::{sync::RwLock, time::Duration};
 
-use crate::{ constants::{self}, hoprd::{Hoprd, HoprdSpec}, model::OperatorConfig};
+use crate::{ constants::{self}, hoprd::{Hoprd, HoprdSpec}, model::OperatorConfig, servicemonitor::ServiceMonitor};
 
 /// Action to be taken upon an `Hoprd` resource during reconciliation
 enum HoprdAction {
@@ -142,15 +143,28 @@ impl ContextData {
 pub async fn run() {
     let client: Client = Client::try_default().await.expect("Failed to create kube Client");
     let owned_api: Api<Hoprd> = Api::<Hoprd>::all(client.clone());
+    let deployment = Api::<Deployment>::all(client.clone());
+    let service = Api::<Service>::all(client.clone());
+    let service_monitor = Api::<ServiceMonitor>::all(client.clone());
+    let ingress = Api::<Ingress>::all(client.clone());
+
     let context_data: Arc<ContextData> = Arc::new(ContextData::new(client.clone()).await);
     Controller::new(owned_api, ListParams::default())
+        .owns(deployment, ListParams::default())
+        .owns(service, ListParams::default())
+        .owns(service_monitor, ListParams::default())
+        .owns(ingress, ListParams::default())
         .shutdown_on_signal()
         .run(reconciler, on_error, context_data)
         .for_each(|reconciliation_result| async move {
             match reconciliation_result {
                 Ok(_hoprd_resource) => {}
                 Err(reconciliation_err) => {
-                    eprintln!("[ERROR] Reconciliation error: {:?}", reconciliation_err)
+                    let err_string = reconciliation_err.to_string();
+                    if !err_string.contains("that was not found in local store") {
+                        // https://github.com/kube-rs/kube/issues/712
+                            eprintln!("[ERROR] Reconciliation error: {:?}", err_string)
+                    }
                 }
             }
         })

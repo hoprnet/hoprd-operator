@@ -4,16 +4,18 @@ use k8s_openapi::api::core::v1::{
     PodSpec, PodTemplateSpec, Probe, SecretKeySelector, SecretVolumeSource,
      Volume, VolumeMount,
 };
-use k8s_openapi::apimachinery::pkg::apis::meta::v1::LabelSelector;
+use k8s_openapi::apimachinery::pkg::apis::meta::v1::{LabelSelector, OwnerReference};
 use k8s_openapi::apimachinery::pkg::util::intstr::IntOrString;
 use kube::api::{DeleteParams, ObjectMeta, PostParams, Patch, PatchParams};
+use kube::runtime::wait::{await_condition, conditions};
 use kube::{Api, Client};
 use serde_json::json;
 use std::collections::{BTreeMap};
 use crate::hoprd::{HoprdSpec};
+use crate::model::Error;
 use crate::{
     constants,
-    model::{Secret, Error},
+    model::{Secret},
     utils,
 };
 
@@ -25,12 +27,7 @@ use crate::{
 /// - `namespace` - Namespace to create the Kubernetes Deployment in.
 /// - `hoprd_spec` - Details about the hoprd configuration node
 ///
-pub async fn create_deployment(
-    client: Client,
-    name: &str,
-    namespace: &str,
-    hoprd_spec: &HoprdSpec
-) -> Result<Deployment, kube::Error> {
+pub async fn create_deployment(client: Client, name: &str, namespace: &str, hoprd_spec: &HoprdSpec, owner_references: Option<Vec<OwnerReference>>) -> Result<Deployment, kube::Error> {
     let mut labels: BTreeMap<String, String> = utils::common_lables(&name.to_owned());
     labels.insert(constants::LABEL_KUBERNETES_COMPONENT.to_owned(), "node".to_owned());
 
@@ -40,6 +37,7 @@ pub async fn create_deployment(
             name: Some(name.to_owned()),
             namespace: Some(namespace.to_owned()),
             labels: Some(labels.clone()),
+            owner_references,
             ..ObjectMeta::default()
         },
         spec: Some(build_deployment_spec(labels, hoprd_spec).await),
@@ -109,8 +107,10 @@ pub async fn modify_deployment(client: Client, deployment_name: &str, namespace:
 ///
 pub async fn delete_depoyment(client: Client, name: &str, namespace: &str) -> Result<(), Error> {
     let api: Api<Deployment> = Api::namespaced(client, namespace);
-    if let Some(_secret) = api.get_opt(&name).await? {
+    if let Some(deployment) = api.get_opt(&name).await? {
+        let uid = deployment.metadata.uid.unwrap();        
         api.delete(name, &DeleteParams::default()).await?;
+        await_condition(api, &name.to_owned(), conditions::is_deleted(&uid)).await.unwrap();
         Ok(println!("[INFO] Deployment successfully deleted"))
     } else {
         Ok(println!("[INFO] Deployment {name} in namespace {namespace} about to delete not found"))

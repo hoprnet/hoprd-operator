@@ -58,4 +58,4 @@ data:
     set -Eeuo pipefail
     export PATH=${PATH}:/root/.foundry/bin/
     export RUST_BACKTRACE=1
-    hopli faucet --environment-name ${HOPRD_ENVIRONMENT} --use-local-identities --identity-directory /app/hoprd-identity/ --address ${HOPRD_ADDRESS} --contracts-root /root/contracts --hopr-amount 10 --native-amount 1
+    hopli faucet --environment-name ${HOPRD_ENVIRONMENT} --use-local-identities --identity-directory /app/hoprd-identity/ --address ${HOPRD_ADDRESS} --contracts-root /root/contracts --hopr-amount 10 --native-amount 0.1

@@ -1,9 +1,11 @@
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration};
 
 use crate::{constants, hoprd_service_monitor, hoprd_ingress, hoprd_deployment, hoprd_secret, hoprd_service, utils};
 use crate::controller::ContextData;
 use crate::model::{HoprdStatusEnum, EnablingFlag, Secret, DeploymentResource, Error};
+use k8s_openapi::apimachinery::pkg::apis::meta::v1::OwnerReference;
+use kube::Resource;
 use schemars::JsonSchema;
 use serde::{Serialize, Deserialize};
 use serde_json::{json};
@@ -77,18 +79,18 @@ impl Hoprd {
         let hoprd_name: String= self.name_any();
         utils::update_hoprd_status(context.clone(), self, HoprdStatusEnum::Initializing).await.unwrap();
         println!("[INFO] Starting to create hoprd node {hoprd_name} in namespace {hoprd_namespace}");
-
+        let owner_reference: Option<Vec<OwnerReference>> = Some(vec![self.controller_owner_ref(&()).unwrap()]);
         self.add_finalizer(client.clone(), &hoprd_name, &hoprd_namespace).await.unwrap();
         // Invoke creation of a Kubernetes resources
         let mut hoprd: Hoprd = self.clone();
         hoprd_secret::create_secret(context.clone(), &mut hoprd).await.unwrap();
-        hoprd_deployment::create_deployment(client.clone(), &hoprd_name, &hoprd_namespace, &hoprd.spec).await?;
-        hoprd_service::create_service(client.clone(), &hoprd_name, &hoprd_namespace).await?;
-        if self.spec.ingress.is_some() && self.spec.ingress.as_ref().unwrap().enabled {
-            hoprd_ingress::create_ingress(client.clone(), &hoprd_name, &hoprd_namespace,&context.config.ingress).await?;
+        hoprd_deployment::create_deployment(client.clone(), &hoprd_name, &hoprd_namespace, &hoprd.spec, owner_reference.to_owned()).await?;
+        hoprd_service::create_service(client.clone(), &hoprd_name, &hoprd_namespace, owner_reference.to_owned()).await?;
+        if hoprd.spec.ingress.as_ref().unwrap_or(&EnablingFlag {enabled: constants::FLAG_ENABLED}).enabled {
+            hoprd_ingress::create_ingress(client.clone(), &hoprd_name, &hoprd_namespace,&context.config.ingress, owner_reference.to_owned()).await?;
         }
-        if hoprd.spec.monitoring.as_ref().unwrap_or(&EnablingFlag {enabled: constants::MONITORING_ENABLED}).enabled {
-            hoprd_service_monitor::create_service_monitor(client.clone(), &hoprd_name, &hoprd_namespace, &hoprd.spec).await?;
+        if hoprd.spec.monitoring.as_ref().unwrap_or(&EnablingFlag {enabled: constants::FLAG_ENABLED}).enabled {
+            hoprd_service_monitor::create_service_monitor(client.clone(), &hoprd_name, &hoprd_namespace, &hoprd.spec, owner_reference.to_owned()).await?;
         }
         println!("[INFO] Hoprd node {hoprd_name} in namespace {hoprd_namespace} has been successfully created");
         Ok(Action::requeue(Duration::from_secs(constants::RECONCILE_FREQUENCY)))
@@ -127,12 +129,14 @@ impl Hoprd {
         println!("[INFO] Starting to delete hoprd node {hoprd_name} from namespace {hoprd_namespace}");
         // Deletes any subresources related to this `Hoprd` resources. If and only if all subresources
         // are deleted, the finalizer is removed and Kubernetes is free to remove the `Hoprd` resource.
-        if self.spec.monitoring.as_ref().unwrap_or(&EnablingFlag {enabled: constants::MONITORING_ENABLED}).enabled {
+        if self.spec.monitoring.as_ref().unwrap_or(&EnablingFlag {enabled: constants::FLAG_ENABLED}).enabled {
             hoprd_service_monitor::delete_service_monitor(client.clone(), &hoprd_name, &hoprd_namespace).await?;
         }
-        hoprd_ingress::delete_ingress(client.clone(), &hoprd_name, &hoprd_namespace).await?;
+        if self.spec.ingress.as_ref().unwrap_or(&EnablingFlag {enabled: constants::FLAG_ENABLED}).enabled {
+            hoprd_ingress::delete_ingress(client.clone(), &hoprd_name, &hoprd_namespace).await?;
+        }
         hoprd_service::delete_service(client.clone(), &hoprd_name, &hoprd_namespace).await?;
-        hoprd_deployment::delete_depoyment(client.clone(), &hoprd_name, &hoprd_namespace).await.unwrap();
+        hoprd_deployment::delete_depoyment(client.clone(), &hoprd_name, &hoprd_namespace).await.unwrap();  
         hoprd_secret::unlock_secret(context.clone(), &self).await.unwrap();
         // Once all the resources are successfully removed, remove the finalizer to make it possible
         // for Kubernetes to delete the `Hoprd` resource.
@@ -175,8 +179,8 @@ impl Hoprd {
     /// - `hoprd_name` - Name of the `Hoprd` resource to modify. Existence is not verified
     /// - `hoprd_namespace` - Namespace where the `Hoprd` resource with given `name` resides.
     ///
-    async fn delete_finalizer(&self, client: Client, hoprd_name: &str, hoprd_namespace: &str) -> Result<Hoprd, Error> {
-        //sleep(Duration::from_secs(2)).await;
+    async fn delete_finalizer(&self, client: Client, hoprd_name: &str, hoprd_namespace: &str) -> Result<(), Error> {
+        //sleep(Duration::from_secs(5));
         let api: Api<Hoprd> = Api::namespaced(client.clone(), &hoprd_namespace.to_owned());
         let pp = PatchParams::default();
         let patch = json!({
@@ -185,7 +189,7 @@ impl Hoprd {
             }
         });
         match api.patch(&hoprd_name, &pp, &Patch::Merge(patch)).await {
-            Ok(hopr) => Ok(hopr),
+            Ok(_hopr) => Ok(()),
             Err(error) => {
                 println!("[ERROR]: {:?}", error);
                 return Err(Error::HoprdStatusError(format!("Could not delete finalizer on {hoprd_name}.").to_owned()));

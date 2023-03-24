@@ -10,16 +10,6 @@ metadata:
 spec:
   environment: monte_rosa
   version: riga
----
-apiVersion: hoprnet.org/v1alpha
-kind: Hoprd
-metadata:
-  name: hoprd-node-2
-  namespace: {{ .Release.Namespace }}
-spec:
-  environment: monte_rosa
-  version: bratislava
-  announce: true
 EOF
 
 

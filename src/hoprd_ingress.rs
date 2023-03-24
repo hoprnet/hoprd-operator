@@ -1,5 +1,5 @@
-use k8s_openapi::{api::{networking::v1::{Ingress, IngressSpec, IngressRule, HTTPIngressRuleValue, HTTPIngressPath, IngressBackend, IngressServiceBackend, ServiceBackendPort, IngressTLS}}};
-use kube::{Api, Client, Error, core::ObjectMeta, api::{PostParams, DeleteParams}};
+use k8s_openapi::{api::{networking::v1::{Ingress, IngressSpec, IngressRule, HTTPIngressRuleValue, HTTPIngressPath, IngressBackend, IngressServiceBackend, ServiceBackendPort, IngressTLS}}, apimachinery::pkg::apis::meta::v1::OwnerReference};
+use kube::{Api, Client, Error, core::ObjectMeta, api::{PostParams, DeleteParams}, runtime::wait::{conditions, await_condition}};
 use std::collections::{BTreeMap};
 
 
@@ -13,7 +13,7 @@ use crate::{utils, model::IngressConfig};
 /// - `namespace` - Namespace to create the Kubernetes Deployment in.
 /// - `ingress` - Ingress Details
 ///
-pub async fn create_ingress(client: Client, service_name: &str, namespace: &str, ingress_config: &IngressConfig) -> Result<Ingress, Error> {
+pub async fn create_ingress(client: Client, service_name: &str, namespace: &str, ingress_config: &IngressConfig, owner_references: Option<Vec<OwnerReference>>) -> Result<Ingress, Error> {
     let labels: BTreeMap<String, String> = utils::common_lables(&service_name.to_owned());
     let annotations: BTreeMap<String, String> = ingress_config.annotations.as_ref().unwrap_or(&BTreeMap::new()).clone();
 
@@ -26,6 +26,7 @@ pub async fn create_ingress(client: Client, service_name: &str, namespace: &str,
             namespace: Some(namespace.to_owned()),
             labels: Some(labels.clone()),
             annotations: Some(annotations),
+            owner_references,
             ..ObjectMeta::default()
         },
         spec: Some(IngressSpec {
@@ -74,8 +75,10 @@ pub async fn create_ingress(client: Client, service_name: &str, namespace: &str,
 ///
 pub async fn delete_ingress(client: Client, name: &str, namespace: &str) -> Result<(), Error> {
     let api: Api<Ingress> = Api::namespaced(client, namespace);
-    if let Some(_ingress) = api.get_opt(&name).await? {
+    if let Some(ingress) = api.get_opt(&name).await? {
+        let uid = ingress.metadata.uid.unwrap();
         api.delete(name, &DeleteParams::default()).await?;
+        await_condition(api, &name.to_owned(), conditions::is_deleted(&uid)).await.unwrap();
         Ok(println!("[INFO] Ingress successfully deleted"))
     } else {
         Ok(println!("[INFO] Ingress {name} in namespace {namespace} about to delete not found"))

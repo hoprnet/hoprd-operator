@@ -102,7 +102,7 @@ pub struct ServiceMonitorEndpoints {
     pub scrape_timeout: Option<String>,
     /// Name or number of the target port of the Pod behind the Service, the port must be specified with container port property. Mutually exclusive with port.
     #[serde(default, skip_serializing_if = "Option::is_none", rename = "targetPort")]
-    pub target_port: Option<String>,
+    pub target_port: Option<i64>,
     /// TLS configuration to use when scraping the endpoint
     #[serde(default, skip_serializing_if = "Option::is_none", rename = "tlsConfig")]
     pub tls_config: Option<ServiceMonitorEndpointsTlsConfig>,

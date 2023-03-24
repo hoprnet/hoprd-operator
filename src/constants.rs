@@ -22,11 +22,11 @@ pub const LABEL_NODE_LOCKED: &str = "hoprds.hoprnet.org/locked";
 // Kubernetes Specs
 pub const HOPR_DOCKER_REGISTRY: &str = "gcr.io";
 pub const HOPR_DOCKER_IMAGE_NAME: &str = "hoprassociation/hoprd";
-pub const HOPLI_DOCKER_IMAGE_NAME: &str = "hoprassociation/hopli";
 pub const HOPR_PRIVATE_KEY: &str = "PRIVATE_KEY";
 pub const HOPRD_PEER_ID: &str = "HOPRD_PEER_ID";
 pub const HOPRD_ADDRESS: &str = "HOPRD_ADDRESS";
 pub const HOPRD_METRICS_PASSWORD: &str = "HOPRD_METRICS_PASSWORD";
+pub const HOPLI_ETHERSCAN_API_KEY: &str = "ETHERSCAN_API_KEY";
 
 // HOPRD Arguments
 pub const HOPRD_PASSWORD: &str = "HOPRD_PASSWORD";
@@ -52,4 +52,4 @@ pub const HOPRD_API_HOST: &str = "HOPRD_API_HOST";
 pub const HOPRD_INIT: &str = "HOPRD_INIT";
 pub const HOPRD_HEALTH_CHECK: &str = "HOPRD_HEALTH_CHECK";
 pub const HOPRD_HEALTH_CHECK_HOST: &str = "HOPRD_HEALTH_CHECK_HOST";
-pub const MONITORING_ENABLED: bool= true;
+pub const FLAG_ENABLED: bool= true;
