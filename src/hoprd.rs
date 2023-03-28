@@ -87,10 +87,10 @@ impl Hoprd {
         let secret = hoprd_secret::create_secret(context.clone(), &mut hoprd).await.unwrap();
         hoprd_deployment::create_deployment(client.clone(), &self,  secret).await?;
         hoprd_service::create_service(client.clone(), &hoprd_name, &hoprd_namespace, owner_reference.to_owned()).await?;
-        if hoprd.spec.ingress.as_ref().unwrap_or(&EnablingFlag {enabled: constants::FEATURE_ENABLED}).enabled {
+        if hoprd.spec.ingress.as_ref().unwrap_or(&EnablingFlag {enabled: constants::ENABLED}).enabled {
             hoprd_ingress::create_ingress(client.clone(), &hoprd_name, &hoprd_namespace,&context.config.ingress, owner_reference.to_owned()).await?;
         }
-        if hoprd.spec.monitoring.as_ref().unwrap_or(&EnablingFlag {enabled: constants::FEATURE_ENABLED}).enabled {
+        if hoprd.spec.monitoring.as_ref().unwrap_or(&EnablingFlag {enabled: constants::ENABLED}).enabled {
             hoprd_service_monitor::create_service_monitor(client.clone(), &hoprd_name, &hoprd_namespace, &hoprd.spec, owner_reference.to_owned()).await?;
         }
         println!("[INFO] Hoprd node {hoprd_name} in namespace {hoprd_namespace} has been successfully created");
@@ -133,10 +133,10 @@ impl Hoprd {
         println!("[INFO] Starting to delete hoprd node {hoprd_name} from namespace {hoprd_namespace}");
         // Deletes any subresources related to this `Hoprd` resources. If and only if all subresources
         // are deleted, the finalizer is removed and Kubernetes is free to remove the `Hoprd` resource.
-        if self.spec.monitoring.as_ref().unwrap_or(&EnablingFlag {enabled: constants::FEATURE_ENABLED}).enabled {
+        if self.spec.monitoring.as_ref().unwrap_or(&EnablingFlag {enabled: constants::ENABLED}).enabled {
             hoprd_service_monitor::delete_service_monitor(client.clone(), &hoprd_name, &hoprd_namespace).await?;
         }
-        if self.spec.ingress.as_ref().unwrap_or(&EnablingFlag {enabled: constants::FEATURE_ENABLED}).enabled {
+        if self.spec.ingress.as_ref().unwrap_or(&EnablingFlag {enabled: constants::ENABLED}).enabled {
             hoprd_ingress::delete_ingress(client.clone(), &hoprd_name, &hoprd_namespace).await?;
         }
         hoprd_service::delete_service(client.clone(), &hoprd_name, &hoprd_namespace).await?;
