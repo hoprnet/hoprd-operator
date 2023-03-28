@@ -6,7 +6,6 @@ pub const OPERATOR_FINALIZER: &str = "hoprds.hoprnet.org/finalizer";
 // Annotations
 pub const ANNOTATION_HOPRD_NETWORK_REGISTRY: &str = "hoprds.hoprnet.org/network_registry";
 pub const ANNOTATION_HOPRD_FUNDED: &str = "hoprds.hoprnet.org/funded";
-pub const ANNOTATION_HOPRD_LOCKED_BY: &str = "hoprds.hoprnet.org/locked_by";
 pub const ANNOTATION_REPLICATOR_NAMESPACES: &str = "replicator.v1.mittwald.de/replicate-to";
 pub const ANNOTATION_LAST_CONFIGURATION: &str = "kubectl.kubernetes.io/last-applied-configuration";
 
@@ -18,6 +17,9 @@ pub const LABEL_NODE_PEER_ID: &str = "hoprds.hoprnet.org/peerId";
 pub const LABEL_NODE_ADDRESS: &str = "hoprds.hoprnet.org/address";
 pub const LABEL_NODE_ENVIRONMENT_NAME: &str = "hoprds.hoprnet.org/environmentName";
 pub const LABEL_NODE_LOCKED: &str = "hoprds.hoprnet.org/locked";
+
+// FINALIZERS
+pub const FINALIZER_SECRET: &str = "hoprds.hoprnet.org/secret";
 
 // Kubernetes Specs
 pub const HOPR_DOCKER_REGISTRY: &str = "gcr.io";

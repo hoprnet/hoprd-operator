@@ -22,8 +22,6 @@ spec:
   #   requests:
   #     cpu: 750m
   #     memory: 256Mi
-  secret:
-    secretName: hoprd-node-1
   version: riga
 
 

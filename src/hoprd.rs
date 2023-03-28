@@ -1,9 +1,10 @@
 use std::sync::Arc;
+use std::thread::sleep;
 use std::time::{Duration};
 
 use crate::{constants, hoprd_service_monitor, hoprd_ingress, hoprd_deployment, hoprd_secret, hoprd_service, utils};
 use crate::controller::ContextData;
-use crate::model::{HoprdStatusEnum, EnablingFlag, Secret, DeploymentResource, Error};
+use crate::model::{HoprdStatusEnum, EnablingFlag, Secret as HoprdSecret, DeploymentResource, Error};
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::OwnerReference;
 use kube::Resource;
 use schemars::JsonSchema;
@@ -39,7 +40,7 @@ pub struct HoprdSpec {
     pub ingress: Option<EnablingFlag>,
     pub monitoring: Option<EnablingFlag>,
     pub resources: Option<DeploymentResource>,
-    pub secret: Option<Secret>,
+    pub secret: Option<HoprdSecret>,
     pub version: String,
 
 }
@@ -83,8 +84,8 @@ impl Hoprd {
         self.add_finalizer(client.clone(), &hoprd_name, &hoprd_namespace).await.unwrap();
         // Invoke creation of a Kubernetes resources
         let mut hoprd: Hoprd = self.clone();
-        hoprd_secret::create_secret(context.clone(), &mut hoprd).await.unwrap();
-        hoprd_deployment::create_deployment(client.clone(), &hoprd_name, &hoprd_namespace, &hoprd.spec, owner_reference.to_owned()).await?;
+        let secret = hoprd_secret::create_secret(context.clone(), &mut hoprd).await.unwrap();
+        hoprd_deployment::create_deployment(client.clone(), &self,  secret).await?;
         hoprd_service::create_service(client.clone(), &hoprd_name, &hoprd_namespace, owner_reference.to_owned()).await?;
         if hoprd.spec.ingress.as_ref().unwrap_or(&EnablingFlag {enabled: constants::FLAG_ENABLED}).enabled {
             hoprd_ingress::create_ingress(client.clone(), &hoprd_name, &hoprd_namespace,&context.config.ingress, owner_reference.to_owned()).await?;
@@ -110,7 +111,10 @@ impl Hoprd {
             match serde_json::from_str::<Hoprd>(&previous_config_text) {
                 Ok(modified_hoprd) => {
                     self.check_inmutable_fields(&modified_hoprd.spec).unwrap();
-                    hoprd_deployment::modify_deployment(client.clone(), &hoprd_name.to_owned(), &hoprd_namespace.to_owned(), &modified_hoprd.spec.to_owned()).await?;
+                    let operator_namespace = &context.config.instance.namespace.to_owned();
+                    let secret = hoprd_secret::get_secret_used_by(client.clone(), &self.spec.environment_name, &hoprd_name, operator_namespace).await.unwrap().unwrap();
+                    let hoprd_secret = self.spec.secret.as_ref().unwrap_or(&HoprdSecret { secret_name: secret.name_any(), ..HoprdSecret::default() }).to_owned();
+                    hoprd_deployment::modify_deployment(client.clone(), &hoprd_name.to_owned(), &hoprd_namespace.to_owned(), &modified_hoprd.spec.to_owned(), hoprd_secret).await?;
                 },
                 Err(_err) => {
                     println!("[ERROR] Could not parse the last applied configuration of Hoprd node {hoprd_name}.");
@@ -180,7 +184,7 @@ impl Hoprd {
     /// - `hoprd_namespace` - Namespace where the `Hoprd` resource with given `name` resides.
     ///
     async fn delete_finalizer(&self, client: Client, hoprd_name: &str, hoprd_namespace: &str) -> Result<(), Error> {
-        //sleep(Duration::from_secs(5));
+        sleep(Duration::from_secs(5));
         let api: Api<Hoprd> = Api::namespaced(client.clone(), &hoprd_namespace.to_owned());
         let pp = PatchParams::default();
         let patch = json!({
