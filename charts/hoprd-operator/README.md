@@ -68,6 +68,8 @@ Chart version `Chart.yaml` should be increased according to [semver](http://semv
 | `operator.hopli.registry`               | Docker registry to hopli image                                                                                   | `europe-west3-docker.pkg.dev`         |
 | `operator.hopli.repository`             | Docker image to hopli binary                                                                                     | `hoprassociation/docker-images/hopli` |
 | `operator.hopli.tag`                    | Docker image tag to hopli image                                                                                  | `latest`                              |
+| `operator.tokenAmount.hopr`             | Hopr token amount to fund nodes                                                                                  | `10`                                  |
+| `operator.tokenAmount.native`           | Native(xDAI) token amount to fund nodes                                                                          | `0.01`                                |
 | `operator.commonLabels`                 | Labels to add to all operator related objects                                                                    | `{}`                                  |
 | `operator.commonAnnotations`            | Annotations to to all operator related objects                                                                   | `{}`                                  |
 | `operator.ingress.ingressClassName`     | Name of the ingress class name to be used by Hoprd nodes                                                         | `""`                                  |
