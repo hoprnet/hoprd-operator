@@ -407,6 +407,7 @@ async fn create_secret_resource(client: Client, operator_namespace: &str, conten
     labels.insert(constants::LABEL_NODE_PEER_ID.to_owned(), contents.peer_id.to_owned());
     labels.insert(constants::LABEL_NODE_ADDRESS.to_owned(), contents.address.to_owned());
     labels.insert(constants::LABEL_NODE_ENVIRONMENT_NAME.to_owned(), environment_name.to_owned());
+    labels.insert(constants::LABEL_NODE_LOCKED.to_owned(), "false".to_owned());
 
 
     let deployment: Secret = Secret {

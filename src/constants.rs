@@ -54,4 +54,4 @@ pub const HOPRD_API_HOST: &str = "HOPRD_API_HOST";
 pub const HOPRD_INIT: &str = "HOPRD_INIT";
 pub const HOPRD_HEALTH_CHECK: &str = "HOPRD_HEALTH_CHECK";
 pub const HOPRD_HEALTH_CHECK_HOST: &str = "HOPRD_HEALTH_CHECK_HOST";
-pub const FLAG_ENABLED: bool= true;
+pub const FEATURE_ENABLED: bool= true;

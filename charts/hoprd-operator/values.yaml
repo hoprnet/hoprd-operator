@@ -116,6 +116,14 @@ operator:
     ##
     tag: latest
 
+  tokenAmount:
+    ## @param operator.tokenAmount.hopr Hopr token amount to fund nodes
+    ##
+    hopr: 10
+    ## @param operator.tokenAmount.native Native(xDAI) token amount to fund nodes
+    ##
+    native: 0.01
+
   ## @param operator.commonLabels [object] Labels to add to all operator related objects
   ##
   commonLabels: {}
