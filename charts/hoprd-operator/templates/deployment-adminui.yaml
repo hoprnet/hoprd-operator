@@ -80,9 +80,6 @@ spec:
             value: {{ include "hoprd-operator.name" . }}
           - name: OPERATOR_INSTANCE_NAMESPACE
             value: {{ .Release.Namespace | quote }}
-        volumeMounts:
-          - name: hopr-repo-volume
-            mountPath: /app/node_secrets
       serviceAccountName: {{ include "hoprd-operator.fullname" . }}
       {{- with .Values.adminUI.nodeSelector }}
       nodeSelector:
@@ -96,8 +93,4 @@ spec:
       tolerations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      volumes:
-        - name: hopr-repo-volume
-          persistentVolumeClaim:
-            claimName: {{ include "hoprd-operator.fullname" . }}
 {{- end }}
