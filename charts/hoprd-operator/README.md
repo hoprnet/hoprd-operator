@@ -42,20 +42,27 @@ Chart version `Chart.yaml` should be increased according to [semver](http://semv
 
 ### Hopr AdminUI Parameters
 
-| Name                        | Description                                                       | Value                        |
-| --------------------------- | ----------------------------------------------------------------- | ---------------------------- |
-| `adminUI.enabled`           | Whether to install Hopr Admin UI                                  | `true`                       |
-| `adminUI.replicas`          | Replicas for AdminUI deployment                                   | `1`                          |
-| `adminUI.commonLabels`      | Labels to add to AdminUI deployment                               | `{}`                         |
-| `adminUI.commonAnnotations` | Annotations to AdminUI deployment                                 | `{}`                         |
-| `adminUI.nodeSelector`      | Object containing node selection constraint to AdminUI deployment | `{}`                         |
-| `adminUI.resources`         | Resource specification to AdminUI deployment                      | `{}`                         |
-| `adminUI.tolerations`       | Tolerations specifications to AdminUI deployment                  | `[]`                         |
-| `adminUI.affinity`          | Affinity specifications to AdminUI deployment                     | `{}`                         |
-| `adminUI.image.registry`    | Docker registry to AdminUI deployment                             | `gcr.io`                     |
-| `adminUI.image.repository`  | Docker image repository to AdminUI deployment                     | `hoprassociation/hopr-admin` |
-| `adminUI.image.tag`         | Docker image tag to AdminUI deployment                            | `latest`                     |
-| `adminUI.image.pullPolicy`  | Pull policy to AdminUI deployment as deinfed in                   | `IfNotPresent`               |
+| Name                               | Description                                                                                           | Value                        |
+| ---------------------------------- | ----------------------------------------------------------------------------------------------------- | ---------------------------- |
+| `adminUI.enabled`                  | Whether to install Hopr Admin UI                                                                      | `true`                       |
+| `adminUI.replicas`                 | Replicas for AdminUI deployment                                                                       | `1`                          |
+| `adminUI.commonLabels`             | Labels to add to AdminUI deployment                                                                   | `{}`                         |
+| `adminUI.commonAnnotations`        | Annotations to AdminUI deployment                                                                     | `{}`                         |
+| `adminUI.nodeSelector`             | Object containing node selection constraint to AdminUI deployment                                     | `{}`                         |
+| `adminUI.resources`                | Resource specification to AdminUI deployment                                                          | `{}`                         |
+| `adminUI.tolerations`              | Tolerations specifications to AdminUI deployment                                                      | `[]`                         |
+| `adminUI.affinity`                 | Affinity specifications to AdminUI deployment                                                         | `{}`                         |
+| `adminUI.image.registry`           | Docker registry to AdminUI deployment                                                                 | `gcr.io`                     |
+| `adminUI.image.repository`         | Docker image repository to AdminUI deployment                                                         | `hoprassociation/hopr-admin` |
+| `adminUI.image.tag`                | Docker image tag to AdminUI deployment                                                                | `latest`                     |
+| `adminUI.image.pullPolicy`         | Pull policy to AdminUI deployment as deinfed in                                                       | `IfNotPresent`               |
+| `adminUI.ingress.enabled`          | Enable ingress record generation                                                                      | `false`                      |
+| `adminUI.ingress.pathType`         | Ingress path type                                                                                     | `ImplementationSpecific`     |
+| `adminUI.ingress.ingressClassName` | IngressClass that will be be used to implement the Ingress                                            | `""`                         |
+| `adminUI.ingress.hostname`         | Default host for the ingress record                                                                   | `admin.hoprd.cluster.local`  |
+| `adminUI.ingress.path`             | Default path for the ingress record                                                                   | `/`                          |
+| `adminUI.ingress.annotations`      | Additional custom annotations for the ingress record                                                  | `{}`                         |
+| `adminUI.ingress.extraPaths`       | An array with additional arbitrary paths that may need to be added to the ingress under the main host | `[]`                         |
 
 ### Hopr Operator Parameters
 
@@ -99,15 +106,3 @@ Chart version `Chart.yaml` should be increased according to [semver](http://semv
 | `service.loadBalancerSourceRanges` | service Load Balancer sources                                    | `[]`        |
 | `service.externalTrafficPolicy`    | service external traffic policy                                  | `Cluster`   |
 | `service.sessionAffinity`          | Control where client requests go, to the same pod or round-robin | `None`      |
-
-### Service Parameters
-
-| Name                       | Description                                                                                           | Value                       |
-| -------------------------- | ----------------------------------------------------------------------------------------------------- | --------------------------- |
-| `ingress.enabled`          | Enable ingress record generation                                                                      | `false`                     |
-| `ingress.pathType`         | Ingress path type                                                                                     | `ImplementationSpecific`    |
-| `ingress.ingressClassName` | IngressClass that will be be used to implement the Ingress                                            | `""`                        |
-| `ingress.hostname`         | Default host for the ingress record                                                                   | `admin.hoprd.cluster.local` |
-| `ingress.path`             | Default path for the ingress record                                                                   | `/`                         |
-| `ingress.annotations`      | Additional custom annotations for the ingress record                                                  | `{}`                        |
-| `ingress.extraPaths`       | An array with additional arbitrary paths that may need to be added to the ingress under the main host | `[]`                        |
