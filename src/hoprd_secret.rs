@@ -1,6 +1,6 @@
-use k8s_openapi::{api::{core::v1::Secret}};
-use kube::{Api, Client, core::ObjectMeta, api::{PostParams, Patch, ListParams, PatchParams, DeleteParams}, ResourceExt};
-use serde_json::{Value, json};
+use k8s_openapi::{api::{core::v1::Secret}, apimachinery::pkg::apis::meta::v1::OwnerReference};
+use kube::{Api, Client, core::ObjectMeta, api::{PostParams, Patch, ListParams, PatchParams, DeleteParams}, ResourceExt, Resource};
+use serde_json::{json};
 use std::{collections::{BTreeMap}, sync::Arc};
 use std::env;
 use rand::{distributions::Alphanumeric, Rng};
@@ -21,8 +21,6 @@ enum SecretStatus {
     NotFunded,
     /// The secret exists and it is currently being used by other existing node
     Locked,
-    /// The secret exists and it is locked but the associated node does not exist anymore
-    Orphaned,
     /// The secret exists and it is ready to be used
     Ready
 }
@@ -58,17 +56,38 @@ fn check_secret_labels(secret_labels: &BTreeMap<String, String>, hoprd_spec: &Ho
 /// - `client` - A Kubernetes client.
 /// - `hoprd_spec` - Details about the hoprd configuration node
 ///
-async fn get_first_secret_ready(client: Client, hoprd_spec: &HoprdSpec, operator_namespace: &str) -> Result<Option<Secret>, Error> {
+async fn get_first_secret_ready(client: Client, environment_name: &str, operator_namespace: &str) -> Result<Option<Secret>, Error> {
     let api: Api<Secret> = Api::namespaced(client, operator_namespace);
     let label_selector: String = format!("{}={},{}={}",
-    constants::LABEL_NODE_ENVIRONMENT_NAME, &hoprd_spec.environment_name,
+    constants::LABEL_NODE_ENVIRONMENT_NAME, environment_name,
     constants::LABEL_NODE_LOCKED, "false");
     let lp = ListParams::default().labels(&label_selector);
     let secrets = api.list(&lp).await?;
-    match secrets.items.first() {
-        Some(first_secret) => { return Ok(Some(first_secret.clone()));}
-        None => { Ok(None)}
-    }
+    Ok(secrets.items.first().map(|secret| secret.to_owned()))
+}
+
+/// Gets the first secret that is ready to be used
+///
+/// # Arguments
+/// - `client` - A Kubernetes client.
+/// - `hoprd_spec` - Details about the hoprd configuration node
+///
+pub async fn get_secret_used_by(client: Client, environment_name: &str, hoprd_name: &str, operator_namespace: &str) -> Result<Option<Secret>, Error> {
+    let api: Api<Secret> = Api::namespaced(client, operator_namespace);
+    let label_selector: String = format!("{}={},{}={}",
+    constants::LABEL_NODE_ENVIRONMENT_NAME, environment_name,
+    constants::LABEL_NODE_LOCKED, "true");
+    let lp = ListParams::default().labels(&label_selector);
+    let secrets = api.list(&lp).await?;
+    let secret = secrets
+        .iter()
+        .find(|secret| { 
+            let empty_references = &Vec::new();
+            let reference = secret.metadata.owner_references.as_ref().unwrap_or(empty_references).first();
+            reference.is_some() && reference.unwrap().name == hoprd_name
+        })
+        .map(|secret| secret.to_owned());
+    Ok(secret)
 }
 
 /// Evaluates the status of the secret based on `SecretStatus` to determine later which actions need to be taken
@@ -79,7 +98,7 @@ async fn get_first_secret_ready(client: Client, hoprd_spec: &HoprdSpec, operator
 ///
 async fn determine_secret_status(context: Arc<ContextData>, hoprd: &Hoprd) -> Result<SecretStatus,Error> {
     return if hoprd.spec.secret.is_none() {
-        println!("[INFO] The secret has not been specified in the hoprd_spec");
+        println!("[INFO] The secret has not been specified");
         Ok(SecretStatus::NotSpecified)
     } else {
         let client: Client = context.client.clone();
@@ -107,27 +126,17 @@ async fn determine_secret_status(context: Arc<ContextData>, hoprd: &Hoprd) -> Re
             if secret_annotations.contains_key(constants::ANNOTATION_HOPRD_FUNDED) {
                 let node_funded_annotation: bool = secret_annotations.get_key_value(constants::ANNOTATION_HOPRD_FUNDED).unwrap().1.parse().unwrap();
                 if ! node_funded_annotation {
-                    println!("[INFO] The secret exists but is not funded");
+                    println!("[INFO] The secret {secret_name} exists but is not funded");
                     return Ok(SecretStatus::NotFunded)
                 }
             } else {
-                println!("[INFO] The secret exists but is not funded");
+                println!("[INFO] The secret {secret_name} exists but is not funded");
                 return Ok(SecretStatus::NotFunded)
             }
             if secret_labels.contains_key(constants::LABEL_NODE_LOCKED) {
                 let node_locked_annotation = secret_labels.get_key_value(constants::LABEL_NODE_LOCKED).unwrap().1.parse().unwrap();
                 if node_locked_annotation {
-                    let locked_by_annotation: &String = secret_annotations.get_key_value(constants::ANNOTATION_HOPRD_LOCKED_BY).unwrap().1;
-                    let api_hoprd: Api<Hoprd> = Api::namespaced(client.clone(), &operator_namespace);
-                    match api_hoprd.get(&locked_by_annotation).await {
-                        Ok(_locked) => {
-                            println!("[INFO] Secret '{:?}' is already locked by hoprd node '{:?}'", &secret_name, locked_by_annotation);
-                            return Ok(SecretStatus::Locked);
-                        }
-                        Err(_orphan) => {
-                            println!("[WARN] Secret '{:?}' is orphan as hoprd node '{:?}' does not exist anymore", &secret_name, locked_by_annotation);
-                            return Ok(SecretStatus::Orphaned);
-                        }};
+                    return Ok(SecretStatus::Locked);
                 }
             }
             println!("[INFO] The secret is ready to be used");
@@ -153,7 +162,6 @@ pub async fn create_secret(context: Arc<ContextData>, hoprd: &mut Hoprd) -> Resu
         SecretStatus::NotRegistered => do_status_not_registered(context.clone(), hoprd).await,
         SecretStatus::NotFunded => do_status_not_funded(context.clone(), hoprd).await,
         SecretStatus::Locked => do_status_locked(hoprd).await,
-        SecretStatus::Orphaned => do_status_orphaned(context.clone(), hoprd).await,
         SecretStatus::Ready => do_status_ready(context.clone(), hoprd).await
     }
 }
@@ -168,19 +176,30 @@ pub async fn unlock_secret(context: Arc<ContextData>, hoprd: &Hoprd) -> Result<(
     let client: Client = context.client.clone();
     let operator_namespace = &context.config.instance.namespace.to_owned();
     let api: Api<Secret> = Api::namespaced(client.clone(), &operator_namespace);
-    if hoprd.spec.secret.as_ref().is_some() {
-        let secret_name: String = hoprd.spec.secret.as_ref().unwrap().secret_name.to_owned();
-        if let Some(_secret) = api.get_opt(&secret_name).await? {
-            utils::update_secret_label(&api.clone(), &secret_name, constants::LABEL_NODE_LOCKED, &"false".to_string()).await?;
-            utils::delete_secret_annotations(&api.clone(), &secret_name, constants::ANNOTATION_REPLICATOR_NAMESPACES).await?;
-        }
+    if let Some(secret) = get_secret_used_by(client.clone(), &hoprd.spec.environment_name, &hoprd.name_any(), operator_namespace).await? {
+        let secret_name = &secret.metadata.name.unwrap();
+        utils::update_secret_label(&api.clone(), &secret_name, constants::LABEL_NODE_LOCKED, &"false".to_string()).await?;
+        utils::delete_secret_annotations(&api.clone(), &secret_name, constants::ANNOTATION_REPLICATOR_NAMESPACES).await?;
+
+        let patch = Patch::Merge(json!({
+                    "metadata": {
+                        "ownerReferences": []
+                    }
+            }));
+        let _secret = match api.patch(secret_name, &PatchParams::default(), &patch).await {
+            Ok(secret) => Ok(secret),
+            Err(error) => {
+                println!("[ERROR]: {:?}", error);
+                Err(Error::HoprdStatusError(format!("Could not delete secret owned references for '{secret_name}'.").to_owned()))
+            }
+        };
         let api_secrets: Api<Secret> = Api::namespaced(client.clone(), &hoprd.namespace().unwrap());
         if let Some(_secret) = api_secrets.get_opt(&secret_name).await? {
             api_secrets.delete(&secret_name, &DeleteParams::default()).await?;
         }
         Ok(println!("[INFO] The secret '{secret_name}' has been unlocked"))
     } else {
-        Ok(println!("[WARN] The node '{}' does not have a secret associated", hoprd.name_any()))
+        Ok(println!("[WARN] The hoprd node did not own a secret '{:?}' ", &hoprd.name_any()))
     }
 }
 
@@ -192,22 +211,12 @@ pub async fn unlock_secret(context: Arc<ContextData>, hoprd: &Hoprd) -> Result<(
 async fn do_status_not_specified(context: Arc<ContextData>, hoprd: &mut Hoprd) -> Result<Secret, Error> {
     let client: Client = context.client.clone();
     let operator_namespace = &context.config.instance.namespace.to_owned();
-    let hoprd_name = &hoprd.name_any();
-    let hoprd_namespace = &hoprd.namespace().unwrap();
-    match get_first_secret_ready(client.clone(), &hoprd.spec, operator_namespace).await {
+    match get_first_secret_ready(client.clone(), &hoprd.spec.environment_name, operator_namespace).await {
         Ok(secret) => { 
             match secret {
                 Some(secret) => {
                     let secret_name = secret.metadata.name.unwrap();
-                    let patch = Patch::Merge(json!({
-                        "spec": {
-                            "secret": 
-                                { "secretName" : secret_name }
-                        }
-                    }));
                     hoprd.spec.secret = Some(HoprdSecret { secret_name: secret_name.to_owned(), ..HoprdSecret::default() });
-                    let hoprd_api: Api<Hoprd> = Api::namespaced(client.clone(), hoprd_namespace);                    
-                    hoprd_api.patch(&hoprd_name, &PatchParams::default(), &patch).await?;
                     return create_secret(context, hoprd).await;
                 }
                 None => {
@@ -216,16 +225,7 @@ async fn do_status_not_specified(context: Arc<ContextData>, hoprd: &mut Hoprd) -
                     secret_name.push_str(&hoprd.spec.environment_name.replace("_", "-"));
                     secret_name.push_str(&"-");
                     secret_name.push_str(&random_string.to_lowercase());
-                    let config_added: Value = json!({
-                        "spec": {
-                            "secret": 
-                                { "secretName" : secret_name }
-                        }
-                    });
                     hoprd.spec.secret = Some(HoprdSecret { secret_name: secret_name.to_owned(), ..HoprdSecret::default() });
-                    let patch: Patch<&Value> = Patch::Merge(&config_added);
-                    let hoprd_api: Api<Hoprd> = Api::namespaced(client.clone(), hoprd_namespace);
-                    hoprd_api.patch(&hoprd_name, &PatchParams::default(), &patch).await?;
                     return do_status_not_exists(context, hoprd).await;
                 }
             }
@@ -251,12 +251,12 @@ async fn do_status_not_specified(context: Arc<ContextData>, hoprd: &mut Hoprd) -
 /// # Arguments
 /// - `context` - Operator context
 /// - `hoprd` - Details about the hoprd configuration node
-async fn do_status_not_exists(context: Arc<ContextData>, hoprd: &mut Hoprd) -> Result<Secret, Error> {
+async fn do_status_not_exists(context: Arc<ContextData>, hoprd: &Hoprd) -> Result<Secret, Error> {
     let client: Client = context.client.clone();
     let operator_instance = &context.config.instance;
     let hoprd_name = &hoprd.name_any();
     utils::update_hoprd_status(context.clone(), hoprd, crate::model::HoprdStatusEnum::Creating).await?;
-    match hoprd_jobs::execute_job_create_node(client.clone(), &hoprd_name, &hoprd.spec, operator_instance).await {
+    match hoprd_jobs::execute_job_create_node(client.clone(), &hoprd_name, &hoprd.spec, &context.config).await {
         Ok(_job) => {
             let secret_name: String = hoprd.spec.secret.as_ref().unwrap().secret_name.to_owned();
             let operator_environment= env::var(constants::OPERATOR_ENVIRONMENT).unwrap();
@@ -273,12 +273,8 @@ async fn do_status_not_exists(context: Arc<ContextData>, hoprd: &mut Hoprd) -> R
                     if operator_environment.eq("development") {
                         secret_content.secret_name = secret_name.to_owned()
                     }
-                    match create_secret_resource(client.clone(), &operator_instance.namespace, &secret_content).await {
+                    match create_secret_resource(client.clone(), &operator_instance.namespace, &secret_content, &hoprd.spec.environment_name).await {
                         Ok(_secret) => {
-                            let api: Api<Secret> = Api::namespaced(client.clone(), &operator_instance.namespace);
-                            utils::update_secret_label(&api, &secret_name, constants::LABEL_NODE_PEER_ID, &secret_content.peer_id).await?;
-                            utils::update_secret_label(&api, &secret_name, constants::LABEL_NODE_ADDRESS, &secret_content.address).await?;
-                            utils::update_secret_label(&api, &secret_name, constants::LABEL_NODE_ENVIRONMENT_NAME, &hoprd.spec.environment_name).await?;
                             return do_status_not_registered(context, hoprd).await;
                         },
                         Err(_err) => {
@@ -313,15 +309,14 @@ async fn do_status_not_exists(context: Arc<ContextData>, hoprd: &mut Hoprd) -> R
 /// # Arguments
 /// - `context` - Operator context
 /// - `hoprd` - Details about the hoprd configuration node
-async fn do_status_not_registered(context: Arc<ContextData>, hoprd: &mut Hoprd) -> Result<Secret, Error> {
+async fn do_status_not_registered(context: Arc<ContextData>, hoprd: &Hoprd) -> Result<Secret, Error> {
     let client: Client = context.client.clone();
-    let operator_instance = &context.config.instance;
     let hoprd_name = &hoprd.name_any();
     utils::update_hoprd_status(context.clone(), hoprd, crate::model::HoprdStatusEnum::RegisteringInNetwork).await?;
-    match hoprd_jobs::execute_job_registering_node(client.clone(), &hoprd_name, &hoprd.spec, &operator_instance).await {
+    match hoprd_jobs::execute_job_registering_node(client.clone(), &hoprd_name, &hoprd.spec, &context.config).await {
         Ok(_job) => {
             let secret_name: String = hoprd.spec.secret.as_ref().unwrap().secret_name.to_owned();
-            let api: Api<Secret> = Api::namespaced(client.clone(), &operator_instance.namespace);
+            let api: Api<Secret> = Api::namespaced(client.clone(), &context.config.instance.namespace);
             utils::update_secret_annotations(&api, &secret_name,constants::ANNOTATION_HOPRD_NETWORK_REGISTRY, "true").await?;
             do_status_not_funded(context, hoprd).await
         },
@@ -340,15 +335,14 @@ async fn do_status_not_registered(context: Arc<ContextData>, hoprd: &mut Hoprd) 
 /// # Arguments
 /// - `context` - Operator context
 /// - `hoprd` - Details about the hoprd configuration node
-async fn do_status_not_funded(context: Arc<ContextData>, hoprd: &mut Hoprd) -> Result<Secret, Error> {
+async fn do_status_not_funded(context: Arc<ContextData>, hoprd: &Hoprd) -> Result<Secret, Error> {
     let client: Client = context.client.clone();
-    let operator_instance = &context.config.instance;
     let hoprd_name = &hoprd.name_any();
     utils::update_hoprd_status(context.clone(), hoprd, crate::model::HoprdStatusEnum::Funding).await?;
-    match hoprd_jobs::execute_job_funding_node(client.clone(), &hoprd_name,  &hoprd.spec, &operator_instance).await {
+    match hoprd_jobs::execute_job_funding_node(client.clone(), &hoprd_name,  &hoprd.spec, &context.config).await {
         Ok(_job) => {
             let secret_name: String = hoprd.spec.secret.as_ref().unwrap().secret_name.to_owned();
-            let api: Api<Secret> = Api::namespaced(client.clone(), &operator_instance.namespace);
+            let api: Api<Secret> = Api::namespaced(client.clone(), &context.config.instance.namespace);
             utils::update_secret_annotations(&api, &secret_name,constants::ANNOTATION_HOPRD_FUNDED, "true").await?;
             return do_status_ready(context, hoprd).await;
         },
@@ -365,7 +359,7 @@ async fn do_status_not_funded(context: Arc<ContextData>, hoprd: &mut Hoprd) -> R
 ///
 /// # Arguments
 /// - `hoprd` - Details about the hoprd configuration node
-async fn do_status_locked(hoprd: &mut Hoprd) -> Result<Secret, Error> {
+async fn do_status_locked(hoprd: &Hoprd) -> Result<Secret, Error> {
     let secret_name: String = hoprd.spec.secret.as_ref().unwrap().secret_name.to_owned();
     return Err(Error::SecretStatusError(
         format!("The secret {secret_name} in namespace {} is already locked by other hoprd node. See details above.", hoprd.namespace().unwrap())
@@ -373,37 +367,33 @@ async fn do_status_locked(hoprd: &mut Hoprd) -> Result<Secret, Error> {
     ));
 }
 
-/// The secret exists and is orphaned as the associated node does not exist anymore. It will update the lockBy annotation of the secret with this new node
-///
-/// # Arguments
-/// - `context` - Operator context
-/// - `hoprd` - Details about the hoprd configuration node
-async fn do_status_orphaned(context: Arc<ContextData>, hoprd: &mut Hoprd) -> Result<Secret, Error> {
-    let client: Client = context.client.clone();
-    let operator_namespace = &&context.config.instance.namespace;
-    let hoprd_name = &hoprd.name_any();
-    let secret_name: String = hoprd.spec.secret.as_ref().unwrap().secret_name.to_owned();
-    let api: Api<Secret> = Api::namespaced(client.clone(), operator_namespace);
-    utils::update_secret_annotations(&api, &secret_name, &constants::ANNOTATION_HOPRD_LOCKED_BY, &hoprd_name).await?;
-    Ok(api.get(&secret_name).await?)
-}
-
 /// The secret exists and is ready to be used by the hoprd node. It will create the annotations and labels for locking the secret
 ///
 /// # Arguments
 /// - `context` - Operator context
 /// - `hoprd` - Details about the hoprd configuration node
-async fn do_status_ready(context: Arc<ContextData>, hoprd: &mut Hoprd) -> Result<Secret, Error> {
+async fn do_status_ready(context: Arc<ContextData>, hoprd: &Hoprd) -> Result<Secret, Error> {
     let client: Client = context.client.clone();
     let operator_namespace = &&context.config.instance.namespace;
-    let hoprd_name = &hoprd.name_any();
     let hoprd_namespace = &hoprd.namespace().unwrap();
     let secret_name: String = hoprd.spec.secret.as_ref().unwrap().secret_name.to_owned();
     let api_secret: Api<Secret> = Api::namespaced(client.clone(), operator_namespace);
-    utils::update_secret_annotations(&api_secret, &secret_name, constants::ANNOTATION_HOPRD_LOCKED_BY, hoprd_name).await?;
     utils::update_secret_annotations(&api_secret, &secret_name, constants::ANNOTATION_REPLICATOR_NAMESPACES, hoprd_namespace).await?;
     utils::update_hoprd_status(context.clone(), hoprd, crate::model::HoprdStatusEnum::Running).await?;
-    Ok(utils::update_secret_label(&api_secret, &secret_name, constants::LABEL_NODE_LOCKED, &"true".to_string()).await?)
+    utils::update_secret_label(&api_secret, &secret_name, constants::LABEL_NODE_LOCKED, &"true".to_string()).await?;
+    let owner_reference: Option<Vec<OwnerReference>> = Some(vec![hoprd.controller_owner_ref(&()).unwrap()]);
+    let patch = Patch::Merge(json!({
+                "metadata": {
+                    "ownerReferences": owner_reference 
+                }
+        }));
+    match api_secret.patch(&secret_name, &PatchParams::default(), &patch).await {
+        Ok(secret) => Ok(secret),
+        Err(error) => {
+            println!("[ERROR]: {:?}", error);
+            Err(Error::HoprdStatusError(format!("Could not update secret owned references for '{secret_name}'.").to_owned()))
+        }
+    }
 }
 
 /// Creates the underlying Kubernetes Secret resource
@@ -412,14 +402,20 @@ async fn do_status_ready(context: Arc<ContextData>, hoprd: &mut Hoprd) -> Result
 /// - `client` - A Kubernetes client.
 /// - `operator_namespace` - Operator namespace
 /// - `contents` - Details about the secrets
-async fn create_secret_resource(client: Client, operator_namespace: &str, contents: &SecretContent) -> Result<Secret, Error> {
-    let labels: BTreeMap<String, String> = utils::common_lables(&contents.secret_name.to_owned());
+async fn create_secret_resource(client: Client, operator_namespace: &str, contents: &SecretContent, environment_name: &str) -> Result<Secret, Error> {
+    let mut labels: BTreeMap<String, String> = utils::common_lables(&contents.secret_name.to_owned());
+    labels.insert(constants::LABEL_NODE_PEER_ID.to_owned(), contents.peer_id.to_owned());
+    labels.insert(constants::LABEL_NODE_ADDRESS.to_owned(), contents.address.to_owned());
+    labels.insert(constants::LABEL_NODE_ENVIRONMENT_NAME.to_owned(), environment_name.to_owned());
+    labels.insert(constants::LABEL_NODE_LOCKED.to_owned(), "false".to_owned());
+
 
     let deployment: Secret = Secret {
         metadata: ObjectMeta {
             name: Some(contents.secret_name.to_owned()),
             namespace: Some(operator_namespace.to_owned()),
             labels: Some(labels.clone()),
+            finalizers: Some(vec![constants::FINALIZER_SECRET.to_owned()]),
             ..ObjectMeta::default()
         },
         data: Some(contents.get_encoded_data()),

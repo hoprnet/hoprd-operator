@@ -139,8 +139,8 @@ pub async fn update_secret_annotations(api_secret: &Api<Secret>, secret_name: &s
     }
 }
 
-pub async fn delete_secret_annotations(api_secret: &Api<Secret>, secret_name: &str, annotation_name: &str) -> Result<Secret, Error> {
-    match api_secret.get_opt(&secret_name).await.unwrap() {
+pub async fn delete_secret_annotations(api: &Api<Secret>, secret_name: &str, annotation_name: &str) -> Result<Secret, Error> {
+    match api.get_opt(&secret_name).await.unwrap() {
         Some(secret) => {
             let empty_map = &mut BTreeMap::new();
             let mut hoprd_annotations: BTreeMap<String,String> = secret.metadata.annotations.as_ref().unwrap_or_else(|| empty_map).clone();
@@ -154,7 +154,7 @@ pub async fn delete_secret_annotations(api_secret: &Api<Secret>, secret_name: &s
                 value: json!(hoprd_annotations)
             })]);
             let patch: Patch<&Value> = Patch::Json::<&Value>(json_patch);
-            api_secret.patch(&secret_name, &PatchParams::default(), &patch).await?;
+            api.patch(&secret_name, &PatchParams::default(), &patch).await?;
             Ok(secret)
         }
         None => { 

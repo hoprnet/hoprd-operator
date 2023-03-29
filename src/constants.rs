@@ -6,7 +6,6 @@ pub const OPERATOR_FINALIZER: &str = "hoprds.hoprnet.org/finalizer";
 // Annotations
 pub const ANNOTATION_HOPRD_NETWORK_REGISTRY: &str = "hoprds.hoprnet.org/network_registry";
 pub const ANNOTATION_HOPRD_FUNDED: &str = "hoprds.hoprnet.org/funded";
-pub const ANNOTATION_HOPRD_LOCKED_BY: &str = "hoprds.hoprnet.org/locked_by";
 pub const ANNOTATION_REPLICATOR_NAMESPACES: &str = "replicator.v1.mittwald.de/replicate-to";
 pub const ANNOTATION_LAST_CONFIGURATION: &str = "kubectl.kubernetes.io/last-applied-configuration";
 
@@ -19,14 +18,17 @@ pub const LABEL_NODE_ADDRESS: &str = "hoprds.hoprnet.org/address";
 pub const LABEL_NODE_ENVIRONMENT_NAME: &str = "hoprds.hoprnet.org/environmentName";
 pub const LABEL_NODE_LOCKED: &str = "hoprds.hoprnet.org/locked";
 
+// FINALIZERS
+pub const FINALIZER_SECRET: &str = "hoprds.hoprnet.org/secret";
+
 // Kubernetes Specs
 pub const HOPR_DOCKER_REGISTRY: &str = "gcr.io";
 pub const HOPR_DOCKER_IMAGE_NAME: &str = "hoprassociation/hoprd";
-pub const HOPLI_DOCKER_IMAGE_NAME: &str = "hoprassociation/hopli";
 pub const HOPR_PRIVATE_KEY: &str = "PRIVATE_KEY";
 pub const HOPRD_PEER_ID: &str = "HOPRD_PEER_ID";
 pub const HOPRD_ADDRESS: &str = "HOPRD_ADDRESS";
 pub const HOPRD_METRICS_PASSWORD: &str = "HOPRD_METRICS_PASSWORD";
+pub const HOPLI_ETHERSCAN_API_KEY: &str = "ETHERSCAN_API_KEY";
 
 // HOPRD Arguments
 pub const HOPRD_PASSWORD: &str = "HOPRD_PASSWORD";
@@ -52,4 +54,4 @@ pub const HOPRD_API_HOST: &str = "HOPRD_API_HOST";
 pub const HOPRD_INIT: &str = "HOPRD_INIT";
 pub const HOPRD_HEALTH_CHECK: &str = "HOPRD_HEALTH_CHECK";
 pub const HOPRD_HEALTH_CHECK_HOST: &str = "HOPRD_HEALTH_CHECK_HOST";
-pub const MONITORING_ENABLED: bool= true;
+pub const ENABLED: bool= true;

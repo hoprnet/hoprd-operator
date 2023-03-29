@@ -2,18 +2,20 @@ use k8s_openapi::api::apps::v1::{Deployment, DeploymentSpec};
 use k8s_openapi::api::core::v1::{
     Container, ContainerPort, EmptyDirVolumeSource, EnvVar, EnvVarSource, HTTPGetAction, KeyToPath,
     PodSpec, PodTemplateSpec, Probe, SecretKeySelector, SecretVolumeSource,
-     Volume, VolumeMount,
+     Volume, VolumeMount, Secret,
 };
-use k8s_openapi::apimachinery::pkg::apis::meta::v1::LabelSelector;
+use k8s_openapi::apimachinery::pkg::apis::meta::v1::{LabelSelector, OwnerReference};
 use k8s_openapi::apimachinery::pkg::util::intstr::IntOrString;
 use kube::api::{DeleteParams, ObjectMeta, PostParams, Patch, PatchParams};
-use kube::{Api, Client};
+use kube::runtime::wait::{await_condition, conditions};
+use kube::{Api, Client, ResourceExt, Resource};
 use serde_json::json;
 use std::collections::{BTreeMap};
-use crate::hoprd::{HoprdSpec};
+use crate::model::Error;
 use crate::{
     constants,
-    model::{Secret, Error},
+    hoprd::{ Hoprd, HoprdSpec},
+    model::{Secret as HoprdSecret},
     utils,
 };
 
@@ -21,18 +23,24 @@ use crate::{
 ///
 /// # Arguments
 /// - `client` - A Kubernetes client to create the deployment with.
-/// - `name` - Name of the deployment to be created
-/// - `namespace` - Namespace to create the Kubernetes Deployment in.
-/// - `hoprd_spec` - Details about the hoprd configuration node
+/// - `hoprd` - Details about the hoprd configuration node
 ///
-pub async fn create_deployment(
-    client: Client,
-    name: &str,
-    namespace: &str,
-    hoprd_spec: &HoprdSpec
-) -> Result<Deployment, kube::Error> {
+pub async fn create_deployment(client: Client, hoprd: &Hoprd, secret: Secret) -> Result<Deployment, kube::Error> {
+    let namespace: String = hoprd.namespace().unwrap();
+    let name: String= hoprd.name_any();
+    let owner_references: Option<Vec<OwnerReference>> = Some(vec![hoprd.controller_owner_ref(&()).unwrap()]);
+    let hoprd_secret = hoprd.spec.secret.as_ref().unwrap_or(&HoprdSecret { secret_name: secret.name_any(), ..HoprdSecret::default() }).to_owned();
+    let node_address = secret.labels().get(constants::LABEL_NODE_ADDRESS).unwrap().to_owned();
+    let node_peer_id = secret.labels().get(constants::LABEL_NODE_PEER_ID).unwrap().to_owned();
+    let node_environment_name = secret.labels().get(constants::LABEL_NODE_ENVIRONMENT_NAME).unwrap().to_owned();
+
+
     let mut labels: BTreeMap<String, String> = utils::common_lables(&name.to_owned());
     labels.insert(constants::LABEL_KUBERNETES_COMPONENT.to_owned(), "node".to_owned());
+    labels.insert(constants::LABEL_NODE_ADDRESS.to_owned(), node_address);
+    labels.insert(constants::LABEL_NODE_PEER_ID.to_owned(), node_peer_id);
+    labels.insert(constants::LABEL_NODE_ENVIRONMENT_NAME.to_owned(), node_environment_name);
+
 
     // Definition of the deployment. Alternatively, a YAML representation could be used as well.
     let deployment: Deployment = Deployment {
@@ -40,18 +48,19 @@ pub async fn create_deployment(
             name: Some(name.to_owned()),
             namespace: Some(namespace.to_owned()),
             labels: Some(labels.clone()),
+            owner_references,
             ..ObjectMeta::default()
         },
-        spec: Some(build_deployment_spec(labels, hoprd_spec).await),
+        spec: Some(build_deployment_spec(labels, &hoprd.spec, hoprd_secret).await),
         ..Deployment::default()
     };
 
     // Create the deployment defined above
-    let api: Api<Deployment> = Api::namespaced(client, namespace);
+    let api: Api<Deployment> = Api::namespaced(client.clone(), &namespace);
     api.create(&PostParams::default(), &deployment).await
 }
 
-pub async fn build_deployment_spec(labels: BTreeMap<String, String>, hoprd_spec: &HoprdSpec) -> DeploymentSpec{
+pub async fn build_deployment_spec(labels: BTreeMap<String, String>, hoprd_spec: &HoprdSpec, hoprd_secret: HoprdSecret) -> DeploymentSpec{
     let image = format!("{}/{}:{}", constants::HOPR_DOCKER_REGISTRY.to_owned(), constants::HOPR_DOCKER_IMAGE_NAME.to_owned(), &hoprd_spec.version.to_owned());
     let replicas: i32 = if hoprd_spec.enabled.unwrap_or(true) { 1 } else { 0 };
 
@@ -68,14 +77,14 @@ pub async fn build_deployment_spec(labels: BTreeMap<String, String>, hoprd_spec:
                         image: Some(image),
                         image_pull_policy: Some("Always".to_owned()),
                         ports: Some(build_ports().await),
-                        env: Some(build_env_vars(&hoprd_spec)),
+                        env: Some(build_env_vars(&hoprd_spec, &hoprd_secret)),
                         liveness_probe: Some(build_liveness_probe().await),
                         readiness_probe: Some(build_readiness_probe().await),
                         volume_mounts: Some(build_volume_mounts().await),
                         resources: utils::build_resource_requirements(&hoprd_spec.resources),
                         ..Container::default()
                     }],
-                    volumes: Some(build_volumes(&hoprd_spec.secret.as_ref().unwrap()).await),
+                    volumes: Some(build_volumes(&hoprd_secret).await),
                     ..PodSpec::default()
                 }),
                 metadata: Some(ObjectMeta {
@@ -87,12 +96,12 @@ pub async fn build_deployment_spec(labels: BTreeMap<String, String>, hoprd_spec:
         }
 }
 
-pub async fn modify_deployment(client: Client, deployment_name: &str, namespace: &str, hoprd_spec: &HoprdSpec) -> Result<Deployment, kube::Error> {
+pub async fn modify_deployment(client: Client, deployment_name: &str, namespace: &str, hoprd_spec: &HoprdSpec, hoprd_secret: HoprdSecret) -> Result<Deployment, kube::Error> {
 
     
     let mut labels: BTreeMap<String, String> = utils::common_lables(&deployment_name.to_owned());
     labels.insert(constants::LABEL_KUBERNETES_COMPONENT.to_owned(), "node".to_owned());
-    let spec = build_deployment_spec(labels, hoprd_spec).await;
+    let spec = build_deployment_spec(labels, hoprd_spec, hoprd_secret).await;
     let change_set =json!({ "spec": spec });
     let patch = &Patch::Merge(change_set);
 
@@ -109,8 +118,10 @@ pub async fn modify_deployment(client: Client, deployment_name: &str, namespace:
 ///
 pub async fn delete_depoyment(client: Client, name: &str, namespace: &str) -> Result<(), Error> {
     let api: Api<Deployment> = Api::namespaced(client, namespace);
-    if let Some(_secret) = api.get_opt(&name).await? {
+    if let Some(deployment) = api.get_opt(&name).await? {
+        let uid = deployment.metadata.uid.unwrap();        
         api.delete(name, &DeleteParams::default()).await?;
+        await_condition(api, &name.to_owned(), conditions::is_deleted(&uid)).await.unwrap();
         Ok(println!("[INFO] Deployment successfully deleted"))
     } else {
         Ok(println!("[INFO] Deployment {name} in namespace {namespace} about to delete not found"))
@@ -137,7 +148,7 @@ async fn build_volume_mounts() -> Vec<VolumeMount> {
 /// 
 /// # Arguments
 /// - `secret` - Secret struct used to build the volume for HOPRD_IDENTITY path
-async fn build_volumes(secret: &Secret) -> Vec<Volume> {
+async fn build_volumes(secret: &HoprdSecret) -> Vec<Volume> {
     let mut volumes = Vec::with_capacity(2);
     volumes.push(Volume {
         name: "hoprd-identity".to_owned(),
@@ -232,8 +243,8 @@ async fn build_ports() -> Vec<ContainerPort> {
 
 ///Build struct environment variable
 ///
-fn build_env_vars(hoprd_spec: &HoprdSpec) -> Vec<EnvVar> {
-    let mut env_vars = build_secret_env_var(&hoprd_spec.secret.as_ref().unwrap());
+fn build_env_vars(hoprd_spec: &HoprdSpec, secret: &HoprdSecret) -> Vec<EnvVar> {
+    let mut env_vars = build_secret_env_var(secret);
     env_vars.extend_from_slice(&build_crd_env_var(&hoprd_spec));
     env_vars.extend_from_slice(&build_default_env_var());
     return env_vars;
@@ -243,7 +254,7 @@ fn build_env_vars(hoprd_spec: &HoprdSpec) -> Vec<EnvVar> {
 /// 
 /// # Arguments
 /// - `secret` - Secret struct used to build HOPRD_PASSWORD and HOPRD_API_TOKEN
-fn build_secret_env_var(secret: &Secret) -> Vec<EnvVar> {
+fn build_secret_env_var(secret: &HoprdSecret) -> Vec<EnvVar> {
     let mut env_vars = Vec::with_capacity(2);
 
     env_vars.push(EnvVar {
