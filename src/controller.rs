@@ -165,7 +165,7 @@ pub async fn run() {
                     let err_string = reconciliation_err.to_string();
                     if !err_string.contains("that was not found in local store") {
                         // https://github.com/kube-rs/kube/issues/712
-                            eprintln!("[ERROR] Reconciliation error: {:?}", err_string)
+                            eprintln!("[ERROR] Reconciliation error: {:?}", reconciliation_err)
                     }
                 }
             }
