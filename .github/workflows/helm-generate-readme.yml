@@ -8,7 +8,9 @@ on:
       - master
     paths:
       - 'charts/hoprd-operator/values.yaml'
-
+concurrency:
+  group: ${{ github.head_ref }}
+  cancel-in-progress: true
 jobs:
   generate-readme:
     runs-on: ubuntu-latest
