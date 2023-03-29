@@ -55,6 +55,7 @@ rules:
   - list
   - update
   - patch
+  - watch
   - delete
 - apiGroups:
   - "apps"
