@@ -8,7 +8,7 @@ use kube::{Api,  Client, Error, runtime::wait::{await_condition, conditions}};
 use kube::api::{ObjectMeta, PostParams};
 use std::collections::{BTreeMap};
 use crate::hoprd::HoprdSpec;
-use crate::model::{Secret as HoprdSecret, OperatorInstance};
+use crate::model::{Secret as HoprdSecret, OperatorInstance, OperatorConfig};
 use crate::{
     constants,
     utils,
@@ -23,26 +23,26 @@ use rand::{distributions::Alphanumeric, Rng};
 /// - `operator_namespace` - Operator namespace
 /// - `hoprd_spec` - Details about the hoprd configuration node
 ///
-pub async fn execute_job_create_node(client: Client, hoprd_name: &str, hoprd_spec: &HoprdSpec, operator_instance: &OperatorInstance) -> Result<Job, Error> {
+pub async fn execute_job_create_node(client: Client, hoprd_name: &str, hoprd_spec: &HoprdSpec, operator_config: &OperatorConfig) -> Result<Job, Error> {
     let random_string: String = rand::thread_rng().sample_iter(&Alphanumeric).take(5).map(char::from).collect();
     let job_name: String = format!("job-create-{}-{}",&hoprd_name.to_owned(),&random_string.to_ascii_lowercase());
-    let namespace: String = operator_instance.namespace.to_owned();
+    let namespace: String = operator_config.instance.namespace.to_owned();
     let mut labels: BTreeMap<String, String> = utils::common_lables(&hoprd_name.to_owned());
     labels.insert(constants::LABEL_KUBERNETES_COMPONENT.to_owned(), "create-node".to_owned());
     let secret = hoprd_spec.secret.as_ref().unwrap();
 
 
     let command_args: Vec<String> = vec![format!("/app/scripts/create-node.sh {}", secret.secret_name.to_owned())];
-    let env_vars: Vec<EnvVar> = build_env_vars(client.clone(), &hoprd_spec, &true, &operator_instance).await;
+    let env_vars: Vec<EnvVar> = build_env_vars(client.clone(), &hoprd_spec, &true, &operator_config.instance).await;
     let image: String = format!("{}/{}:{}", constants::HOPR_DOCKER_REGISTRY.to_owned(), constants::HOPR_DOCKER_IMAGE_NAME.to_owned(), &hoprd_spec.version.to_owned());
     let volume_mounts: Vec<VolumeMount> = build_volume_mounts(&true).await;
-    let volumes: Vec<Volume> = build_volumes(secret, &true, &operator_instance.name.to_owned()).await;
+    let volumes: Vec<Volume> = build_volumes(secret, &true, &operator_config.instance.name.to_owned()).await;
     // Definition of the Job
     let create_node_job: Job = build_job(job_name.to_owned(), namespace, image, labels, command_args, env_vars, volume_mounts, volumes);
 
     // Create the Job defined above
     println!("[INFO] Launching job '{}'", &job_name.to_owned());
-    let api: Api<Job> = Api::namespaced(client.clone(), &operator_instance.namespace);
+    let api: Api<Job> = Api::namespaced(client.clone(), &operator_config.instance.namespace);
     api.create(&PostParams::default(), &create_node_job).await?;
     return Ok(await_condition(api, &job_name.to_owned(), conditions::is_job_completed()).await.unwrap().unwrap())
 }
@@ -55,25 +55,24 @@ pub async fn execute_job_create_node(client: Client, hoprd_name: &str, hoprd_spe
 /// - `operator_namespace` - Operator namespace
 /// - `hoprd_spec` - Details about the hoprd configuration node
 ///
-pub async fn execute_job_registering_node(client: Client, hoprd_name: &str, hoprd_spec: &HoprdSpec, operator_instance: &OperatorInstance) -> Result<Job, Error> {
+pub async fn execute_job_registering_node(client: Client, hoprd_name: &str, hoprd_spec: &HoprdSpec, operator_config: &OperatorConfig) -> Result<Job, Error> {
     let random_string: String = rand::thread_rng().sample_iter(&Alphanumeric).take(5).map(char::from).collect();
     let job_name: String = format!("job-register-{}-{}",&hoprd_name.to_owned(),&random_string.to_ascii_lowercase());
-    let namespace: String = operator_instance.namespace.to_owned();
+    let namespace: String = operator_config.instance.namespace.to_owned();
     let mut labels: BTreeMap<String, String> = utils::common_lables(&hoprd_name.to_owned());
     labels.insert(constants::LABEL_KUBERNETES_COMPONENT.to_owned(), "registe-node".to_owned());
     let secret = hoprd_spec.secret.as_ref().unwrap();
     let command_args = vec!["/app/scripts/register-node.sh".to_owned()];
-    let env_vars: Vec<EnvVar> = build_env_vars(client.clone(), &hoprd_spec, &false, &operator_instance).await;
-    let image = format!("{}/{}:{}", constants::HOPR_DOCKER_REGISTRY.to_owned(), constants::HOPLI_DOCKER_IMAGE_NAME.to_owned(), &hoprd_spec.version.to_owned());
+    let env_vars: Vec<EnvVar> = build_env_vars(client.clone(), &hoprd_spec, &false, &operator_config.instance).await;
    
     let volume_mounts: Vec<VolumeMount> = build_volume_mounts(&false).await;
-    let volumes: Vec<Volume> = build_volumes(secret, &false, &operator_instance.name.to_owned()).await;
+    let volumes: Vec<Volume> = build_volumes(secret, &false, &operator_config.instance.name.to_owned()).await;
     // Definition of the Job
-    let registering_job: Job = build_job(job_name.to_owned(), namespace, image, labels, command_args, env_vars, volume_mounts, volumes);
+    let registering_job: Job = build_job(job_name.to_owned(), namespace, operator_config.hopli_image.to_owned(), labels, command_args, env_vars, volume_mounts, volumes);
 
     // Create the Job defined above
     println!("[INFO] Launching job '{}'", &job_name);
-    let api: Api<Job> = Api::namespaced(client.clone(), &operator_instance.namespace.to_owned());
+    let api: Api<Job> = Api::namespaced(client.clone(), &operator_config.instance.namespace.to_owned());
     api.create(&PostParams::default(), &registering_job).await?;
     return Ok(await_condition(api, &job_name.to_owned(), conditions::is_job_completed()).await.unwrap().unwrap())
 }
@@ -86,25 +85,25 @@ pub async fn execute_job_registering_node(client: Client, hoprd_name: &str, hopr
 /// - `operator_namespace` - Operator namespace
 /// - `hoprd_spec` - Details about the hoprd configuration node
 ///
-pub async fn execute_job_funding_node(client: Client, hoprd_name: &str, hoprd_spec: &HoprdSpec, operator_instance: &OperatorInstance) -> Result<Job, Error> {
+pub async fn execute_job_funding_node(client: Client, hoprd_name: &str, hoprd_spec: &HoprdSpec, operator_config: &OperatorConfig) -> Result<Job, Error> {
     let random_string: String = rand::thread_rng().sample_iter(&Alphanumeric).take(5).map(char::from).collect();
     let job_name: String = format!("job-fund-{}-{}",&hoprd_name.to_owned(),&random_string.to_ascii_lowercase());
-    let namespace: String = operator_instance.namespace.to_owned();
+    let namespace: String = operator_config.instance.namespace.to_owned();
     let mut labels: BTreeMap<String, String> = utils::common_lables(&hoprd_name.to_owned());
     labels.insert(constants::LABEL_KUBERNETES_COMPONENT.to_owned(), "fund-node".to_owned());
     let secret = hoprd_spec.secret.as_ref().unwrap();
     let command_args = vec!["/app/scripts/fund-node.sh".to_owned()];
-    let env_vars: Vec<EnvVar> = build_env_vars(client.clone(), &hoprd_spec, &false, &operator_instance).await;
-    let image = format!("{}/{}:{}", constants::HOPR_DOCKER_REGISTRY.to_owned(), constants::HOPLI_DOCKER_IMAGE_NAME.to_owned(), &hoprd_spec.version.to_owned());
+    let env_vars: Vec<EnvVar> = build_env_vars(client.clone(), &hoprd_spec, &false, &operator_config.instance).await;
+
    
     let volume_mounts: Vec<VolumeMount> = build_volume_mounts(&false).await;
-    let volumes: Vec<Volume> = build_volumes(secret, &false, &operator_instance.name.to_owned()).await;
+    let volumes: Vec<Volume> = build_volumes(secret, &false, &operator_config.instance.name.to_owned()).await;
     // Definition of the Job
-    let funding_job: Job = build_job(job_name.to_owned(), namespace, image, labels, command_args, env_vars, volume_mounts, volumes);
+    let funding_job: Job = build_job(job_name.to_owned(), namespace, operator_config.hopli_image.to_owned(), labels, command_args, env_vars, volume_mounts, volumes);
 
     // Create the Job defined above
     println!("[INFO] Launching job '{}'", &job_name);
-    let api: Api<Job> = Api::namespaced(client.clone(), &operator_instance.namespace.to_owned());
+    let api: Api<Job> = Api::namespaced(client.clone(), &operator_config.instance.namespace.to_owned());
     api.create(&PostParams::default(), &funding_job).await?;
     return Ok(await_condition(api, &job_name.to_owned(), conditions::is_job_completed()).await.unwrap().unwrap())
 }
@@ -292,5 +291,12 @@ pub async fn build_env_vars(client: Client, hoprd_spec: &HoprdSpec, is_create_no
         }),
         ..EnvVar::default()
     });
+
+    env_vars.push(EnvVar {
+        name: constants::HOPLI_ETHERSCAN_API_KEY.to_owned(),
+        value: Some("DummyValue".to_owned()),
+        ..EnvVar::default()
+    });
+
     return env_vars;
 }

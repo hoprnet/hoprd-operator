@@ -83,7 +83,7 @@ spec:
         volumeMounts:
           - name: hopr-repo-volume
             mountPath: /app/node_secrets
-      serviceAccountName: {{ include "hoprd-operator.name" . }}
+      serviceAccountName: {{ include "hoprd-operator.fullname" . }}
       {{- with .Values.adminUI.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}

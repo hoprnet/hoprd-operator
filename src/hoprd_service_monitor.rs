@@ -2,9 +2,11 @@
 
 use std::collections::BTreeMap;
 
+use k8s_openapi::apimachinery::pkg::apis::meta::v1::OwnerReference;
 use kube::api::{DeleteParams, PostParams};
 use kube::core::ObjectMeta;
 use kube::Error;
+use kube::runtime::wait::{await_condition, conditions};
 use kube::{Client, Api};
 
 use crate::servicemonitor::{ServiceMonitorSpec, ServiceMonitorEndpoints, ServiceMonitorEndpointsBasicAuth, ServiceMonitorEndpointsBasicAuthUsername, ServiceMonitorNamespaceSelector, ServiceMonitorSelector, ServiceMonitorEndpointsBasicAuthPassword};
@@ -24,7 +26,7 @@ use crate::{
 /// - `namespace` - Namespace to create the Kubernetes Deployment in.
 /// - `hoprd_spec` - Details about the hoprd configuration node
 ///
-pub async fn create_service_monitor(client: Client, name: &str, namespace: &str, hoprd_spec: &HoprdSpec) -> Result<ServiceMonitor, Error> {
+pub async fn create_service_monitor(client: Client, name: &str, namespace: &str, hoprd_spec: &HoprdSpec, owner_references: Option<Vec<OwnerReference>>) -> Result<ServiceMonitor, Error> {
     let labels: BTreeMap<String, String> = utils::common_lables(&name.to_owned());
     let api: Api<ServiceMonitor> = Api::namespaced(client, namespace);
 
@@ -34,6 +36,7 @@ pub async fn create_service_monitor(client: Client, name: &str, namespace: &str,
             labels: Some(labels.clone()),
              name: Some(name.to_owned()), 
              namespace: Some(namespace.to_owned()),
+            owner_references,
              ..ObjectMeta::default()
             },
         spec: ServiceMonitorSpec { 
@@ -109,8 +112,10 @@ pub async fn create_service_monitor(client: Client, name: &str, namespace: &str,
 ///
 pub async fn delete_service_monitor(client: Client, name: &str, namespace: &str) -> Result<(), Error> {
     let api: Api<ServiceMonitor> = Api::namespaced(client, namespace);
-    if let Some(_secret) = api.get_opt(&name).await? {
+    if let Some(service_monitor) = api.get_opt(&name).await? {
+        let uid = service_monitor.metadata.uid.unwrap();
         api.delete(name, &DeleteParams::default()).await?;
+        await_condition(api, &name.to_owned(), conditions::is_deleted(&uid)).await.unwrap();
         Ok(println!("[INFO] ServiceMonitor successfully deleted"))
     } else {
         Ok(println!("[INFO] ServiceMonitor {name} in namespace {namespace} about to delete not found"))

@@ -1,5 +1,5 @@
-use k8s_openapi::{api::core::v1::{ Service, ServicePort, ServiceSpec }, apimachinery::pkg::util::intstr::IntOrString};
-use kube::{Api, Client, Error, core::ObjectMeta, api::{PostParams, DeleteParams}};
+use k8s_openapi::{api::core::v1::{ Service, ServicePort, ServiceSpec }, apimachinery::pkg::{util::intstr::IntOrString, apis::meta::v1::OwnerReference}};
+use kube::{Api, Client, Error, core::ObjectMeta, api::{PostParams, DeleteParams}, runtime::wait::{await_condition, conditions}};
 use std::collections::{BTreeMap};
 
 
@@ -12,7 +12,7 @@ use crate::{utils};
 /// - `name` - Name of the service to be created
 /// - `namespace` - Namespace to create the Kubernetes Deployment in.
 ///
-pub async fn create_service(client: Client, name: &str, namespace: &str) -> Result<Service, Error> {
+pub async fn create_service(client: Client, name: &str, namespace: &str, owner_references: Option<Vec<OwnerReference>>) -> Result<Service, Error> {
     let labels: BTreeMap<String, String> = utils::common_lables(&name.to_owned());
 
     // Definition of the service. Alternatively, a YAML representation could be used as well.
@@ -21,6 +21,7 @@ pub async fn create_service(client: Client, name: &str, namespace: &str) -> Resu
             name: Some(name.to_owned()),
             namespace: Some(namespace.to_owned()),
             labels: Some(labels.clone()),
+            owner_references,
             ..ObjectMeta::default()
         },
         spec: Some(ServiceSpec {
@@ -52,8 +53,10 @@ pub async fn create_service(client: Client, name: &str, namespace: &str) -> Resu
 ///
 pub async fn delete_service(client: Client, name: &str, namespace: &str) -> Result<(), Error> {
     let api: Api<Service> = Api::namespaced(client, namespace);
-    if let Some(_secret) = api.get_opt(&name).await? {
+    if let Some(service) = api.get_opt(&name).await? {
+        let uid = service.metadata.uid.unwrap();        
         api.delete(name, &DeleteParams::default()).await?;
+        await_condition(api, &name.to_owned(), conditions::is_deleted(&uid)).await.unwrap();
         Ok(println!("[INFO] Service successfully deleted"))
     } else {
         Ok(println!("[INFO] Service {name} in namespace {namespace} about to delete not found"))

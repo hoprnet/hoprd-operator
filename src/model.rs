@@ -110,7 +110,8 @@ impl SecretContent {
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone, Hash)]
 pub struct OperatorConfig {
     pub instance: OperatorInstance,
-    pub ingress: IngressConfig
+    pub ingress: IngressConfig,
+    pub hopli_image: String
 }
 
 

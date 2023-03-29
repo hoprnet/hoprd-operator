@@ -75,7 +75,7 @@ adminUI:
 
     ## @param adminUI.image.tag Docker image tag to AdminUI deployment
     ##
-    tag: riga
+    tag: latest
 
     ## @param adminUI.image.pullPolicy Pull policy to AdminUI deployment as deinfed in 
     ## ref: http://kubernetes.io/docs/user-guide/images/#pre-pulling-images
@@ -102,6 +102,27 @@ operator:
   ## @param operator.secretKeyName Key name within the Secret
   ##
   secretKeyName: PRIVATE_KEY
+
+  hopli:
+    ## @param operator.hopli.registry Docker registry to hopli image
+    ##
+    registry: europe-west3-docker.pkg.dev
+
+    ## @param operator.hopli.repository Docker image to hopli binary
+    ##
+    repository: hoprassociation/docker-images/hopli
+
+    ## @param operator.hopli.tag Docker image tag to hopli image
+    ##
+    tag: latest
+
+  tokenAmount:
+    ## @param operator.tokenAmount.hopr Hopr token amount to fund nodes
+    ##
+    hopr: 10
+    ## @param operator.tokenAmount.native Native(xDAI) token amount to fund nodes
+    ##
+    native: 0.01
 
   ## @param operator.commonLabels [object] Labels to add to all operator related objects
   ##
