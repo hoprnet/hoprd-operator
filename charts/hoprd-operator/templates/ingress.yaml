@@ -1,4 +1,4 @@
-{{- if .Values.ingress.enabled }}
+{{- if .Values.adminUI.ingress.enabled }}
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -10,24 +10,24 @@ metadata:
     {{- .Values.adminUI.commonLabels | toYaml | nindent 4 }}
     {{- end }}
   annotations:
-    {{- if .Values.ingress.annotations }}
-        {{- .Values.ingress.annotations | toYaml | nindent 4 }}
+    {{- if .Values.adminUI.ingress.annotations }}
+        {{- .Values.adminUI.ingress.annotations | toYaml | nindent 4 }}
     {{- end }}
     {{- if .Values.adminUI.commonAnnotations }}
         {{- .Values.adminUI.commonAnnotations | toYaml | nindent 4 }}
     {{- end }}
 spec:
-  ingressClassName: {{ .Values.ingress.ingressClassName | quote }}
+  ingressClassName: {{ .Values.adminUI.ingress.ingressClassName | quote }}
   rules:
-    {{- if .Values.ingress.hostname }}
-    - host: {{ .Values.ingress.hostname }}
+    {{- if .Values.adminUI.ingress.hostname }}
+    - host: {{ .Values.adminUI.ingress.hostname }}
       http:
         paths:
-          {{- if .Values.ingress.extraPaths }}
-          {{- toYaml .Values.ingress.extraPaths | nindent 10 }}
+          {{- if .Values.adminUI.ingress.extraPaths }}
+          {{- toYaml .Values.adminUI.ingress.extraPaths | nindent 10 }}
           {{- end }}
-          - path: {{ .Values.ingress.path }}
-            pathType: {{ .Values.ingress.pathType }}
+          - path: {{ .Values.adminUI.ingress.path }}
+            pathType: {{ .Values.adminUI.ingress.pathType }}
             backend:
                 service:
                     name: {{ include "hoprd-operator.fullname" . }}-admin
@@ -36,6 +36,6 @@ spec:
     {{- end }}
   tls:
     - hosts:
-        - {{ .Values.ingress.hostname }}
-      secretName: {{ .Values.ingress.hostname }}-tls
+        - {{ .Values.adminUI.ingress.hostname }}
+      secretName: {{ .Values.adminUI.ingress.hostname }}-tls
 {{- end }}

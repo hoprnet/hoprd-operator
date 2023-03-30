@@ -82,6 +82,46 @@ adminUI:
     ##
     pullPolicy: IfNotPresent
 
+  ingress:
+
+    ## @param adminUI.ingress.enabled Enable ingress record generation
+    ##
+    enabled: false
+
+    ## @param adminUI.ingress.pathType Ingress path type
+    ##
+    pathType: ImplementationSpecific
+
+    ## @param adminUI.ingress.ingressClassName IngressClass that will be be used to implement the Ingress
+    ## This is supported in Kubernetes 1.18+ and required if you have more than one IngressClass marked as the default for your cluster.
+    ## ref: https://kubernetes.io/blog/2020/04/02/improvements-to-the-ingress-api-in-kubernetes-1.18/
+    ##
+    ingressClassName: ""
+
+    ## @param adminUI.ingress.hostname Default host for the ingress record
+    ##
+    hostname: admin.hoprd.cluster.local
+
+    ## @param adminUI.ingress.path Default path for the ingress record
+    ##
+    path: /
+
+    ## @param adminUI.ingress.annotations [object] Additional custom annotations for the ingress record
+    ##
+    annotations: {}
+
+    ## @param adminUI.ingress.extraPaths [array] An array with additional arbitrary paths that may need to be added to the ingress under the main host
+    ## e.g:
+    ## extraPaths:
+    ## - path: /*
+    ##   backend:
+    ##     service:
+    ##       name: other-service
+    ##       port:
+    ##         name: service-port-name
+    ##
+    extraPaths: []
+
 
 ## @section Hopr Operator Parameters
 ##
@@ -259,45 +299,5 @@ service:
   sessionAffinity: None
 
 
-## @section Service Parameters
-##
 
-ingress:
 
-  ## @param ingress.enabled Enable ingress record generation
-  ##
-  enabled: false
-
-  ## @param ingress.pathType Ingress path type
-  ##
-  pathType: ImplementationSpecific
-
-  ## @param ingress.ingressClassName IngressClass that will be be used to implement the Ingress
-  ## This is supported in Kubernetes 1.18+ and required if you have more than one IngressClass marked as the default for your cluster.
-  ## ref: https://kubernetes.io/blog/2020/04/02/improvements-to-the-ingress-api-in-kubernetes-1.18/
-  ##
-  ingressClassName: ""
-
-  ## @param ingress.hostname Default host for the ingress record
-  ##
-  hostname: admin.hoprd.cluster.local
-
-  ## @param ingress.path Default path for the ingress record
-  ##
-  path: /
-
-  ## @param ingress.annotations [object] Additional custom annotations for the ingress record
-  ##
-  annotations: {}
-
-  ## @param ingress.extraPaths [array] An array with additional arbitrary paths that may need to be added to the ingress under the main host
-  ## e.g:
-  ## extraPaths:
-  ## - path: /*
-  ##   backend:
-  ##     service:
-  ##       name: other-service
-  ##       port:
-  ##         name: service-port-name
-  ##
-  extraPaths: []

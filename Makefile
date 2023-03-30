@@ -8,6 +8,10 @@ run:
 install:
 	helm install --namespace hoprd --create-namespace -f ./charts/hoprd-operator/testValues.yaml hoprd-operator ./charts/hoprd-operator/
 
+uninstall:
+	helm uninstall --namespace hoprd hoprd-operator
+	kubectl delete sa -n hoprd hoprd-operator hoprd-operator-kubernetes-replicator
+
 upgrade:
 	helm upgrade --namespace hoprd --create-namespace -f ./charts/hoprd-operator/testValues.yaml hoprd-operator ./charts/hoprd-operator/
 	sleep 3
@@ -22,7 +26,7 @@ create-node:
 	kubectl apply -f hoprd-node-1.yaml
 
 docker-build:
-	docker build -t gcr.io/hoprassociation/hoprd-operator:latest --progress plain .
+	docker build -t gcr.io/hoprassociation/hoprd-operator:latest --platform linux/amd64 --progress plain .
 
 docker-push:
 	docker push gcr.io/hoprassociation/hoprd-operator:latest
