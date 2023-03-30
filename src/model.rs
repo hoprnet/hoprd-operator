@@ -118,7 +118,8 @@ pub struct OperatorConfig {
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone, Hash)]
 pub struct OperatorInstance {
     pub name: String,
-    pub namespace: String
+    pub namespace: String,
+    pub secret_name: String
 }
 
 

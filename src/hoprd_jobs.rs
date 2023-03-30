@@ -284,7 +284,7 @@ pub async fn build_env_vars(client: Client, hoprd_spec: &HoprdSpec, is_create_no
         value_from: Some(EnvVarSource {
             secret_key_ref: Some(SecretKeySelector {
                 key: constants::HOPR_PRIVATE_KEY.to_owned(),
-                name: Some(operator_instance.name.to_owned()),
+                name: Some(operator_instance.secret_name.to_owned()),
                 ..SecretKeySelector::default()
             }),
             ..EnvVarSource::default()

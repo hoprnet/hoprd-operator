@@ -1,6 +1,7 @@
 instance:
   name: "hoprd-operator"
   namespace: "hoprd"
+  secret_name: "hoprd-operator-wallet"
 ingress:
   ingress_class_name: "nginx"
   dns_domain: "stage.hoprtech.net"
