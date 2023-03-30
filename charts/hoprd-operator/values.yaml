@@ -131,6 +131,10 @@ operator:
   ##
   replicas: 1
 
+  ## @param operator.strategy Strategy for operator deployment
+  ##
+  strategy: "Recreate"
+
   ## @param operator.privateKey Private Key of the Wallet used to make blockchain transactions like: register in network registry or fund nodes.
   ##
   privateKey: ""
