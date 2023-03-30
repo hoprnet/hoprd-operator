@@ -18,6 +18,11 @@ data:
     instance:
       name: {{ include "hoprd-operator.fullname" . | quote }}
       namespace: {{ .Release.Namespace | quote }}
+    {{- if .Values.operator.secretName }}
+      secret_name: "{{- .Values.operator.secretName }}"
+    {{- else }}
+      secret_name: "{{ include "hoprd-operator.fullname" . }}"
+    {{- end }}
     ingress:
       ingress_class_name: "{{- .Values.operator.ingress.ingressClassName }}"
       dns_domain: "{{- .Values.operator.ingress.dnsDomain }}"
