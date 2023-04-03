@@ -1,5 +1,5 @@
-use k8s_openapi::{api::{core::v1::Secret}, apimachinery::pkg::apis::meta::v1::OwnerReference};
-use kube::{Api, Client, api::{ Patch, ListParams, PatchParams, DeleteParams}, ResourceExt, Resource};
+use k8s_openapi::{api::{core::v1::Secret}, apimachinery::pkg::apis::meta::v1::OwnerReference, ByteString};
+use kube::{Api, Client, api::{ Patch, ListParams, PatchParams, DeleteParams, PostParams}, ResourceExt, Resource, core::ObjectMeta};
 use serde_json::{json};
 use std::{collections::{BTreeMap}, sync::Arc};
 
@@ -253,20 +253,12 @@ async fn do_status_not_specified(context: Arc<ContextData>, hoprd: &mut Hoprd) -
 /// - `hoprd` - Details about the hoprd configuration node
 async fn do_status_not_exists(context: Arc<ContextData>, hoprd: &Hoprd) -> Result<Secret, Error> {
     let client: Client = context.client.clone();
-    let hoprd_name = &hoprd.name_any();
+    let operator_instance = &context.config.instance;
     utils::update_hoprd_status(context.clone(), hoprd, crate::model::HoprdStatusEnum::Creating).await?;
-    match hoprd_jobs::execute_job_create_node(client.clone(), &hoprd_name, &hoprd.spec, &context.config).await {
-        Ok(_job) => {
-            do_status_not_registered(context, hoprd).await
-        },
-        Err(error) => {
-            println!("[ERROR]: {:?}", error);
-            return Err(Error::JobExecutionError(
-                format!("The creation node job failed and the node {hoprd_name} cannot be fully configured.")
-                    .to_owned()
-            ));
-        }
-    }
+    let secret = create_secret_resource(client.clone(), &operator_instance.namespace, &hoprd.spec.secret.as_ref().unwrap().secret_name, &hoprd.spec.environment_name).await.unwrap();
+    let owner_reference: Option<Vec<OwnerReference>> = Some(vec![secret.controller_owner_ref(&()).unwrap()]);
+    hoprd_jobs::execute_job_create_node(client.clone(), &hoprd,  &context.config, owner_reference).await?;
+    do_status_not_registered(context, hoprd).await
 }
 
 /// The secret exists but can not be used yet as it is not registered. Before using it will trigger a Job to register the node
@@ -276,23 +268,14 @@ async fn do_status_not_exists(context: Arc<ContextData>, hoprd: &Hoprd) -> Resul
 /// - `hoprd` - Details about the hoprd configuration node
 async fn do_status_not_registered(context: Arc<ContextData>, hoprd: &Hoprd) -> Result<Secret, Error> {
     let client: Client = context.client.clone();
-    let hoprd_name = &hoprd.name_any();
+    let secret_name: String = hoprd.spec.secret.as_ref().unwrap().secret_name.to_owned();
+    let api: Api<Secret> = Api::namespaced(client.clone(), &context.config.instance.namespace);
+    let secret = api.get(&secret_name).await.unwrap();
+    let owner_reference: Option<Vec<OwnerReference>> = Some(vec![secret.controller_owner_ref(&()).unwrap()]);
     utils::update_hoprd_status(context.clone(), hoprd, crate::model::HoprdStatusEnum::RegisteringInNetwork).await?;
-    match hoprd_jobs::execute_job_registering_node(client.clone(), &hoprd_name, &hoprd.spec, &context.config).await {
-        Ok(_job) => {
-            let secret_name: String = hoprd.spec.secret.as_ref().unwrap().secret_name.to_owned();
-            let api: Api<Secret> = Api::namespaced(client.clone(), &context.config.instance.namespace);
-            utils::update_secret_annotations(&api, &secret_name,constants::ANNOTATION_HOPRD_NETWORK_REGISTRY, "true").await?;
-            do_status_not_funded(context, hoprd).await
-        },
-        Err(_err) => {
-            println!("[ERROR]: {:?}", _err);
-            return Err(Error::JobExecutionError(
-                format!("The registration node job failed and the node {hoprd_name} cannot be fully configured.")
-                    .to_owned()
-            ));
-        }
-    }
+    hoprd_jobs::execute_job_registering_node(client.clone(), &hoprd, &context.config, owner_reference).await?;
+    utils::update_secret_annotations(&api, &secret_name,constants::ANNOTATION_HOPRD_NETWORK_REGISTRY, "true").await?;
+    do_status_not_funded(context, hoprd).await
 }
 
 /// The secret exists but can not be used yet as it is not funded. Before using it will trigger a Job to fund the node
@@ -302,22 +285,16 @@ async fn do_status_not_registered(context: Arc<ContextData>, hoprd: &Hoprd) -> R
 /// - `hoprd` - Details about the hoprd configuration node
 async fn do_status_not_funded(context: Arc<ContextData>, hoprd: &Hoprd) -> Result<Secret, Error> {
     let client: Client = context.client.clone();
-    let hoprd_name = &hoprd.name_any();
+    let secret_name: String = hoprd.spec.secret.as_ref().unwrap().secret_name.to_owned();
+    let api: Api<Secret> = Api::namespaced(client.clone(), &context.config.instance.namespace);
+    let secret = api.get(&secret_name).await.unwrap();
+    let owner_reference: Option<Vec<OwnerReference>> = Some(vec![secret.controller_owner_ref(&()).unwrap()]);
     utils::update_hoprd_status(context.clone(), hoprd, crate::model::HoprdStatusEnum::Funding).await?;
-    match hoprd_jobs::execute_job_funding_node(client.clone(), &hoprd_name,  &hoprd.spec, &context.config).await {
-        Ok(_job) => {
-            let secret_name: String = hoprd.spec.secret.as_ref().unwrap().secret_name.to_owned();
-            let api: Api<Secret> = Api::namespaced(client.clone(), &context.config.instance.namespace);
-            utils::update_secret_annotations(&api, &secret_name,constants::ANNOTATION_HOPRD_FUNDED, "true").await?;
-            return do_status_ready(context, hoprd).await;
-        },
-        Err(_err) => {
-            return Err(Error::JobExecutionError(
-                format!("The funding job failed and the node {hoprd_name} cannot be fully configured.")
-                    .to_owned()
-            ));
-        }
-    }
+    hoprd_jobs::execute_job_funding_node(client.clone(), &hoprd, &context.config, owner_reference).await?;
+    let secret_name: String = hoprd.spec.secret.as_ref().unwrap().secret_name.to_owned();
+    let api: Api<Secret> = Api::namespaced(client.clone(), &context.config.instance.namespace);
+    utils::update_secret_annotations(&api, &secret_name,constants::ANNOTATION_HOPRD_FUNDED, "true").await?;
+    return do_status_ready(context, hoprd).await;
 }
 
 /// The secret exists but it is locked by other node. It will raise an error specifying that the secret reference needs to be updated to an other secret or just remove it to create a new one.
@@ -359,4 +336,36 @@ async fn do_status_ready(context: Arc<ContextData>, hoprd: &Hoprd) -> Result<Sec
             Err(Error::HoprdStatusError(format!("Could not update secret owned references for '{secret_name}'.").to_owned()))
         }
     }
+}
+
+/// Creates the underlying Kubernetes Secret resource
+///
+/// # Arguments
+/// - `client` - A Kubernetes client.
+/// - `operator_namespace` - Operator namespace
+/// - `secret_name` - Name of the secret
+/// - `environment_name` - Name of the environment
+async fn create_secret_resource(client: Client, operator_namespace: &str, secret_name: &str, environment_name: &str) -> Result<Secret, Error> {
+    let mut labels: BTreeMap<String, String> = utils::common_lables(&secret_name.to_owned());
+    labels.insert(constants::LABEL_NODE_ENVIRONMENT_NAME.to_owned(), environment_name.to_owned());
+    labels.insert(constants::LABEL_NODE_LOCKED.to_owned(), "false".to_owned());
+    let mut data: BTreeMap<String, ByteString> = BTreeMap::new();
+    data.insert(constants::HOPRD_METRICS_PASSWORD.to_owned(), ByteString("".to_owned().into_bytes()));
+
+    let deployment: Secret = Secret {
+        metadata: ObjectMeta {
+            name: Some(secret_name.to_owned()),
+            namespace: Some(operator_namespace.to_owned()),
+            labels: Some(labels.clone()),
+            finalizers: Some(vec![constants::FINALIZER_SECRET.to_owned()]),
+            ..ObjectMeta::default()
+        },
+        data: Some(data),
+        type_: Some("Opaque".to_owned()),
+        ..Secret::default()
+    };
+
+    // Create the secret defined above
+    let api: Api<Secret> = Api::namespaced(client, operator_namespace);
+    Ok(api.create(&PostParams::default(), &deployment).await?)
 }

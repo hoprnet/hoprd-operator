@@ -1,6 +1,6 @@
 
 use futures::StreamExt;
-use k8s_openapi::api::{apps::v1::Deployment, networking::v1::Ingress, core::v1::{Service, Secret}};
+use k8s_openapi::api::{apps::v1::Deployment, networking::v1::Ingress, core::v1::{Service, Secret}, batch::v1::Job};
 use kube::{
     api::{Api, ListParams},
     client::Client,
@@ -143,6 +143,7 @@ impl ContextData {
 pub async fn run() {
     let client: Client = Client::try_default().await.expect("Failed to create kube Client");
     let owned_api: Api<Hoprd> = Api::<Hoprd>::all(client.clone());
+    let job = Api::<Job>::all(client.clone());
     let deployment = Api::<Deployment>::all(client.clone());
     let secret = Api::<Secret>::all(client.clone());
     let service = Api::<Service>::all(client.clone());
@@ -151,6 +152,7 @@ pub async fn run() {
 
     let context_data: Arc<ContextData> = Arc::new(ContextData::new(client.clone()).await);
     Controller::new(owned_api, ListParams::default())
+        .owns(job, ListParams::default())
         .owns(deployment, ListParams::default())
         .owns(secret, ListParams::default())
         .owns(service, ListParams::default())

@@ -83,29 +83,6 @@ pub struct EnablingFlag {
     pub enabled: bool
 }
 
-/// Struct used to fill the contents of a Secret
-#[derive(Serialize, Debug, Deserialize,  PartialEq, Clone, JsonSchema, Hash)]
-#[serde(deny_unknown_fields)]
-pub struct SecretContent {
-    pub identity: String,
-    pub password: String,
-    pub api_token: String,
-    pub address: String,
-    pub peer_id: String,
-    pub secret_name: String
-}
-
-impl SecretContent {
-
-    pub fn get_encoded_data(&self) -> BTreeMap<String, ByteString> {
-        let mut data: BTreeMap<String, ByteString> = BTreeMap::new();
-        data.insert(constants::HOPRD_IDENTITY.to_owned(), ByteString(self.identity.to_owned().into_bytes()));
-        data.insert(constants::HOPRD_PASSWORD.to_owned(), ByteString(self.password.to_owned().into_bytes()));
-        data.insert(constants::HOPRD_API_TOKEN.to_owned(), ByteString(self.api_token.to_owned().into_bytes()));
-        data.insert(constants::HOPRD_METRICS_PASSWORD.to_owned(), ByteString("".to_owned().into_bytes()));
-        return data;
-    }
-}
 
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone, Hash)]
 pub struct OperatorConfig {
