@@ -2,7 +2,7 @@ use k8s_openapi::api::batch::v1::{Job, JobSpec};
 use k8s_openapi::api::core::v1::{
     Container, EnvVar, EnvVarSource, KeyToPath, 
     PodSpec, PodTemplateSpec, SecretKeySelector, SecretVolumeSource,
-     Volume, VolumeMount, PersistentVolumeClaimVolumeSource, ConfigMapVolumeSource
+     Volume, VolumeMount, ConfigMapVolumeSource, EmptyDirVolumeSource
 };
 use kube::{Api,  Client, Error, runtime::wait::{await_condition, conditions}};
 use kube::api::{ObjectMeta, PostParams};
@@ -32,13 +32,70 @@ pub async fn execute_job_create_node(client: Client, hoprd_name: &str, hoprd_spe
     let secret = hoprd_spec.secret.as_ref().unwrap();
 
 
-    let command_args: Vec<String> = vec![format!("/app/scripts/create-node.sh {}", secret.secret_name.to_owned())];
-    let env_vars: Vec<EnvVar> = build_env_vars(client.clone(), &hoprd_spec, &true, &operator_config.instance).await;
-    let image: String = format!("{}/{}:{}", constants::HOPR_DOCKER_REGISTRY.to_owned(), constants::HOPR_DOCKER_IMAGE_NAME.to_owned(), &hoprd_spec.version.to_owned());
+    let create_node_args: Vec<String> = vec!["/app/scripts/create-node.sh".to_owned()];
+    let create_secret_args: Vec<String> = vec!["/app/scripts/create-secret.sh".to_owned()];
+    let mut env_vars: Vec<EnvVar> = build_env_vars(client.clone(), &hoprd_spec, &true, &operator_config.instance).await;
+    env_vars.push(EnvVar {
+        name: constants::SECRET_NAME.to_owned(),
+        value: Some(secret.secret_name.to_owned()),
+        ..EnvVar::default()
+    });
+    let image_hopli: String = format!("{}/{}:{}", constants::HOPR_DOCKER_REGISTRY.to_owned(), constants::HOPR_DOCKER_IMAGE_NAME.to_owned(), &hoprd_spec.version.to_owned());
+    let image_kubectl: String = "registry.hub.docker.com/bitnami/kubectl:1.24".to_owned();
     let volume_mounts: Vec<VolumeMount> = build_volume_mounts(&true).await;
     let volumes: Vec<Volume> = build_volumes(secret, &true, &operator_config.instance.name.to_owned()).await;
     // Definition of the Job
-    let create_node_job: Job = build_job(job_name.to_owned(), namespace, image, labels, command_args, env_vars, volume_mounts, volumes);
+    let create_node_job: Job = Job {
+        metadata: ObjectMeta {
+            name: Some(job_name.to_owned()),
+            namespace: Some(namespace),
+            labels: Some(labels.clone()),
+            ..ObjectMeta::default()
+        },
+        spec: Some(JobSpec {
+            parallelism: Some(1),
+            completions: Some(1),
+            backoff_limit: Some(1),
+            active_deadline_seconds: Some(300),
+            ttl_seconds_after_finished: Some(60*60*24*7),
+            template: PodTemplateSpec {
+                spec: Some(PodSpec {
+                    init_containers: Some(vec![Container {
+                        name: "hopli".to_owned(),
+                        image: Some(image_hopli),
+                        image_pull_policy: Some("Always".to_owned()),
+                        command: Some(vec!["/bin/bash".to_owned(), "-c".to_owned()]),
+                        args: Some(create_node_args),
+                        env: Some(env_vars.to_owned()),
+                        volume_mounts: Some(volume_mounts.to_owned()),
+                        resources: utils::build_resource_requirements(&None),
+                        ..Container::default()
+                    }]),
+                    containers: vec![Container {
+                        name: "kubectl".to_owned(),
+                        image: Some(image_kubectl),
+                        image_pull_policy: Some("Always".to_owned()),
+                        command: Some(vec!["/bin/bash".to_owned(), "-c".to_owned()]),
+                        args: Some(create_secret_args),
+                        env: Some(env_vars),
+                        volume_mounts: Some(volume_mounts),
+                        resources: utils::build_resource_requirements(&None),
+                        ..Container::default()
+                    }],
+                    service_account_name: Some(operator_config.instance.name.to_owned()),
+                    volumes: Some(volumes),
+                    restart_policy: Some("Never".to_owned()),
+                    ..PodSpec::default()
+                }),
+                metadata: Some(ObjectMeta {
+                    labels: Some(labels),
+                    ..ObjectMeta::default()
+                }),
+            },
+            ..JobSpec::default()
+        }),
+        ..Job::default()
+    };
 
     // Create the Job defined above
     println!("[INFO] Launching job '{}'", &job_name.to_owned());
@@ -126,10 +183,15 @@ fn build_job(job_name: String, namespace: String, image: String, labels: BTreeMa
             ..ObjectMeta::default()
         },
         spec: Some(JobSpec {
+            parallelism: Some(1),
+            completions: Some(1),
+            backoff_limit: Some(1),
+            active_deadline_seconds: Some(300),
+            ttl_seconds_after_finished: Some(60*60*24*7),
             template: PodTemplateSpec {
                 spec: Some(PodSpec {
                     containers: vec![Container {
-                        name: "hoprd".to_owned(),
+                        name: "hopli".to_owned(),
                         image: Some(image),
                         image_pull_policy: Some("Always".to_owned()),
                         command: Some(vec!["/bin/bash".to_owned(), "-c".to_owned()]),
@@ -194,10 +256,7 @@ async fn build_volumes(secret: &HoprdSecret, is_create_node_job: &bool, operator
         
         volumes.push(Volume {
             name: "hopr-repo-volume".to_owned(),
-            persistent_volume_claim: Some(PersistentVolumeClaimVolumeSource {
-                claim_name: operator_name.to_owned(),
-                read_only: Some(false)
-            }),
+            empty_dir: Some(EmptyDirVolumeSource::default()),
             ..Volume::default()
         });
     } else {
@@ -272,6 +331,12 @@ pub async fn build_env_vars(client: Client, hoprd_spec: &HoprdSpec, is_create_no
                 ..EnvVar::default()
             });
         }
+    } else {
+        env_vars.push(EnvVar {
+            name: constants::OPERATOR_INSTANCE_NAMESPACE.to_owned(),
+            value: Some(operator_instance.namespace.to_owned()),
+            ..EnvVar::default()
+        });
     }
     env_vars.push(EnvVar {
         name: constants::HOPRD_ENVIRONMENT.to_owned(),

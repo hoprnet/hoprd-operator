@@ -1,12 +1,12 @@
 use k8s_openapi::{api::{core::v1::Secret}, apimachinery::pkg::apis::meta::v1::OwnerReference};
-use kube::{Api, Client, core::ObjectMeta, api::{PostParams, Patch, ListParams, PatchParams, DeleteParams}, ResourceExt, Resource};
+use kube::{Api, Client, api::{ Patch, ListParams, PatchParams, DeleteParams}, ResourceExt, Resource};
 use serde_json::{json};
 use std::{collections::{BTreeMap}, sync::Arc};
-use std::env;
+
 use rand::{distributions::Alphanumeric, Rng};
 use async_recursion::async_recursion;
 use crate::{
-    model::{ Secret as HoprdSecret, SecretContent, Error}, utils, constants, hoprd_jobs, hoprd::Hoprd, hoprd::HoprdSpec, controller::ContextData
+    model::{ Secret as HoprdSecret, Error}, utils, constants, hoprd_jobs, hoprd::Hoprd, hoprd::HoprdSpec, controller::ContextData
 };
 
 /// Action to be taken upon an `Hoprd` resource during reconciliation
@@ -253,46 +253,11 @@ async fn do_status_not_specified(context: Arc<ContextData>, hoprd: &mut Hoprd) -
 /// - `hoprd` - Details about the hoprd configuration node
 async fn do_status_not_exists(context: Arc<ContextData>, hoprd: &Hoprd) -> Result<Secret, Error> {
     let client: Client = context.client.clone();
-    let operator_instance = &context.config.instance;
     let hoprd_name = &hoprd.name_any();
     utils::update_hoprd_status(context.clone(), hoprd, crate::model::HoprdStatusEnum::Creating).await?;
     match hoprd_jobs::execute_job_create_node(client.clone(), &hoprd_name, &hoprd.spec, &context.config).await {
         Ok(_job) => {
-            let secret_name: String = hoprd.spec.secret.as_ref().unwrap().secret_name.to_owned();
-            let operator_environment= env::var(constants::OPERATOR_ENVIRONMENT).unwrap();
-            let secret_name_path = if operator_environment.eq("production") {
-                format!("/app/node_secrets/{secret_name}/{secret_name}.json")
-            } else {
-                let mut path = env::current_dir().as_ref().unwrap().to_str().unwrap().to_owned();
-                path.push_str("/sample_secret_content.json");
-                path.as_str().to_owned()
-            };
-            let secret_text_content = std::fs::read_to_string(&secret_name_path).unwrap();
-            match serde_json::from_str::<SecretContent>(&secret_text_content) {
-                Ok(mut secret_content) => {
-                    if operator_environment.eq("development") {
-                        secret_content.secret_name = secret_name.to_owned()
-                    }
-                    match create_secret_resource(client.clone(), &operator_instance.namespace, &secret_content, &hoprd.spec.environment_name).await {
-                        Ok(_secret) => {
-                            return do_status_not_registered(context, hoprd).await;
-                        },
-                        Err(_err) => {
-                            println!("[ERROR]: {:?}", _err);
-                            return Err(Error::JobExecutionError(
-                                format!("Could not create the secret with this content: {secret_text_content}.")
-                                    .to_owned()
-                            ));
-                        }
-                    }
-                },
-                Err(_err) => {
-                    return Err(Error::JobExecutionError(
-                        format!("Could not parse the content of the Job output: {secret_text_content}.")
-                            .to_owned()
-                    ));
-                }
-            }
+            do_status_not_registered(context, hoprd).await
         },
         Err(error) => {
             println!("[ERROR]: {:?}", error);
@@ -394,36 +359,4 @@ async fn do_status_ready(context: Arc<ContextData>, hoprd: &Hoprd) -> Result<Sec
             Err(Error::HoprdStatusError(format!("Could not update secret owned references for '{secret_name}'.").to_owned()))
         }
     }
-}
-
-/// Creates the underlying Kubernetes Secret resource
-///
-/// # Arguments
-/// - `client` - A Kubernetes client.
-/// - `operator_namespace` - Operator namespace
-/// - `contents` - Details about the secrets
-async fn create_secret_resource(client: Client, operator_namespace: &str, contents: &SecretContent, environment_name: &str) -> Result<Secret, Error> {
-    let mut labels: BTreeMap<String, String> = utils::common_lables(&contents.secret_name.to_owned());
-    labels.insert(constants::LABEL_NODE_PEER_ID.to_owned(), contents.peer_id.to_owned());
-    labels.insert(constants::LABEL_NODE_ADDRESS.to_owned(), contents.address.to_owned());
-    labels.insert(constants::LABEL_NODE_ENVIRONMENT_NAME.to_owned(), environment_name.to_owned());
-    labels.insert(constants::LABEL_NODE_LOCKED.to_owned(), "false".to_owned());
-
-
-    let deployment: Secret = Secret {
-        metadata: ObjectMeta {
-            name: Some(contents.secret_name.to_owned()),
-            namespace: Some(operator_namespace.to_owned()),
-            labels: Some(labels.clone()),
-            finalizers: Some(vec![constants::FINALIZER_SECRET.to_owned()]),
-            ..ObjectMeta::default()
-        },
-        data: Some(contents.get_encoded_data()),
-        type_: Some("Opaque".to_owned()),
-        ..Secret::default()
-    };
-
-    // Create the secret defined above
-    let api: Api<Secret> = Api::namespaced(client, operator_namespace);
-    Ok(api.create(&PostParams::default(), &deployment).await?)
 }

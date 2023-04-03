@@ -67,8 +67,6 @@ spec:
                 name: {{ .Values.operator.secretName }} 
         {{- end }}
         volumeMounts:
-          - name: hopr-repo-volume
-            mountPath: /app/node_secrets
           - name: hopr-config-volume
             mountPath: /app/config
       serviceAccountName: {{ include "hoprd-operator.fullname" . }}
@@ -85,9 +83,6 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       volumes:
-        - name: hopr-repo-volume
-          persistentVolumeClaim:
-            claimName: {{ include "hoprd-operator.fullname" . }}
         - name: hopr-config-volume
           configMap:
             name: {{ include "hoprd-operator.fullname" . }}-config

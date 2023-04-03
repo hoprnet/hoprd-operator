@@ -19,12 +19,11 @@ data:
 
     set -x
     set -Eeuo pipefail
-    export SECRET_NAME="${1}"
+
     rm -rf "/app/node_secrets/${SECRET_NAME}"
     mkdir -p "/app/node_secrets/${SECRET_NAME}"
     export HOPRD_PASSWORD=$(tr -cd '[:alnum:]' < /dev/urandom | fold -w30 | head -n1)
     export HOPRD_API_TOKEN=$(echo -n "^"; tr -cd '[:alnum:]' < /dev/urandom | fold -w20 | head -n1| tr -d '[:space:]';echo -n "^")
-
     node lib/main.cjs --init --api --data "/app/node_secrets/${SECRET_NAME}" --environment ${HOPRD_ENVIRONMENT} --identity "/app/node_secrets/${SECRET_NAME}/.hopr-identity" &
     export HOPRD_PID=$!
     checkHoprd="curl -s -o /dev/null -w '%{http_code}' 'http://localhost:3001/api/v2/account/addresses' -H 'x-auth-token: ${HOPRD_API_TOKEN}' -H 'Content-Type: application/json'"
@@ -34,28 +33,42 @@ data:
     done
     curl -s 'http://localhost:3001/api/v2/account/addresses' -H "x-auth-token: ${HOPRD_API_TOKEN}" -H "Content-Type: application/json" | jq > "/app/node_secrets/${SECRET_NAME}/addresses.json"
     kill -9 $HOPRD_PID
-    export HOPRD_PEER_ID=$(jq -r '.hoprAddress' /app/node_secrets/${SECRET_NAME}/addresses.json)
-    export HOPRD_ADDRESS=$(jq -r '.nativeAddress' /app/node_secrets/${SECRET_NAME}/addresses.json)
     export HOPRD_IDENTITY=$(cat "/app/node_secrets/${SECRET_NAME}/.hopr-identity")
-    jq -n \
-      --arg identity "$HOPRD_IDENTITY" \
-      --arg password "$HOPRD_PASSWORD" \
-      --arg api_token "$HOPRD_API_TOKEN" \
-      --arg peer_id "$HOPRD_PEER_ID" \
-      --arg address "$HOPRD_ADDRESS" \
-      --arg secret_name "$SECRET_NAME" \
-      '$ARGS.named' > "/app/node_secrets/${SECRET_NAME}/${SECRET_NAME}.json"
-  register-node.sh: |
+    echo "HOPRD_IDENTITY=${HOPRD_IDENTITY}" > /app/node_secrets/${SECRET_NAME}/data.txt
+    echo "HOPRD_PASSWORD=${HOPRD_PASSWORD}" >> /app/node_secrets/${SECRET_NAME}/data.txt
+    echo "HOPRD_API_TOKEN=${HOPRD_API_TOKEN}" >> /app/node_secrets/${SECRET_NAME}/data.txt
+    echo "HOPRD_METRICS_PASSWORD=" >> /app/node_secrets/${SECRET_NAME}/data.txt
+  create-secret.sh: |
     #!/usr/bin/env bash
+
     set -x
     set -Eeuo pipefail
+
+    export HOPRD_PEER_ID=$(jq -r '.hoprAddress' /app/node_secrets/${SECRET_NAME}/addresses.json)
+    export HOPRD_ADDRESS=$(jq -r '.nativeAddress' /app/node_secrets/${SECRET_NAME}/addresses.json)
+    kubectl create secret generic -n ${OPERATOR_INSTANCE_NAMESPACE} ${SECRET_NAME} --from-env-file=/app/node_secrets/${SECRET_NAME}/data.txt
+    kubectl label secret -n ${OPERATOR_INSTANCE_NAMESPACE} ${SECRET_NAME} app.kubernetes.io/instance=${SECRET_NAME}
+    kubectl label secret -n ${OPERATOR_INSTANCE_NAMESPACE} ${SECRET_NAME} app.kubernetes.io/name=hoprd
+    kubectl label secret -n ${OPERATOR_INSTANCE_NAMESPACE} ${SECRET_NAME} hoprds.hoprnet.org/locked=false
+    kubectl label secret -n ${OPERATOR_INSTANCE_NAMESPACE} ${SECRET_NAME} hoprds.hoprnet.org/environmentName=${HOPRD_ENVIRONMENT}
+    kubectl label secret -n ${OPERATOR_INSTANCE_NAMESPACE} ${SECRET_NAME} hoprds.hoprnet.org/peerId=${HOPRD_PEER_ID}
+    kubectl label secret -n ${OPERATOR_INSTANCE_NAMESPACE} ${SECRET_NAME} hoprds.hoprnet.org/address=${HOPRD_ADDRESS}
+    kubectl patch secret -n ${OPERATOR_INSTANCE_NAMESPACE} ${SECRET_NAME} --type merge --patch '{"metadata":{"finalizers":["hoprds.hoprnet.org/finalizer"]}}'
+  register-node.sh: |
+    #!/usr/bin/env bash
+
+    set -x
+    set -Eeuo pipefail
+
     export PATH=${PATH}:/root/.foundry/bin/
     export RUST_BACKTRACE=1
     /bin/hopli register-in-network-registry --environment-name ${HOPRD_ENVIRONMENT} --peer-ids ${HOPRD_PEER_ID} --contracts-root /root/contracts
   fund-node.sh: |
     #!/usr/bin/env bash
+
     set -x
     set -Eeuo pipefail
+
     export PATH=${PATH}:/root/.foundry/bin/
     export RUST_BACKTRACE=1
     hopli faucet --environment-name ${HOPRD_ENVIRONMENT} --use-local-identities --identity-directory /app/hoprd-identity/ --address ${HOPRD_ADDRESS} --contracts-root /root/contracts --hopr-amount {{- printf " %f" .Values.operator.tokenAmount.hopr }} --native-amount {{- printf " %f" .Values.operator.tokenAmount.native }}

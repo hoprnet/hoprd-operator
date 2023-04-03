@@ -112,9 +112,13 @@ impl Hoprd {
                 Ok(modified_hoprd) => {
                     self.check_inmutable_fields(&modified_hoprd.spec).unwrap();
                     let operator_namespace = &context.config.instance.namespace.to_owned();
-                    let secret = hoprd_secret::get_secret_used_by(client.clone(), &self.spec.environment_name, &hoprd_name, operator_namespace).await.unwrap().unwrap();
-                    let hoprd_secret = self.spec.secret.as_ref().unwrap_or(&HoprdSecret { secret_name: secret.name_any(), ..HoprdSecret::default() }).to_owned();
-                    hoprd_deployment::modify_deployment(client.clone(), &hoprd_name.to_owned(), &hoprd_namespace.to_owned(), &modified_hoprd.spec.to_owned(), hoprd_secret).await?;
+                    let secret = hoprd_secret::get_secret_used_by(client.clone(), &self.spec.environment_name, &hoprd_name, operator_namespace).await.unwrap();
+                    if secret.is_some() {
+                        let hoprd_secret = self.spec.secret.as_ref().unwrap_or(&HoprdSecret { secret_name: secret.unwrap().name_any(), ..HoprdSecret::default() }).to_owned();
+                        hoprd_deployment::modify_deployment(client.clone(), &hoprd_name.to_owned(), &hoprd_namespace.to_owned(), &modified_hoprd.spec.to_owned(), hoprd_secret).await?;
+                    } else {
+                        println!("[WARN] Hoprd node {hoprd_name} doees not have a linked secret and is inconsistent");
+                    }
                 },
                 Err(_err) => {
                     println!("[ERROR] Could not parse the last applied configuration of Hoprd node {hoprd_name}.");

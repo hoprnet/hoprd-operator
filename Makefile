@@ -10,8 +10,6 @@ install:
 
 uninstall:
 	helm uninstall --namespace hoprd hoprd-operator
-	kubectl delete sa -n hoprd hoprd-operator hoprd-operator-kubernetes-replicator
-	kubectl delete crds hoprds.hoprnet.org
 
 upgrade:
 	helm upgrade --namespace hoprd --create-namespace -f ./charts/hoprd-operator/testValues.yaml hoprd-operator ./charts/hoprd-operator/

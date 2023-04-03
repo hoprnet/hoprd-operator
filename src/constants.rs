@@ -2,6 +2,8 @@
 pub const RECONCILE_FREQUENCY: u64 = 10;
 pub const OPERATOR_ENVIRONMENT: &str = "OPERATOR_ENVIRONMENT";
 pub const OPERATOR_FINALIZER: &str = "hoprds.hoprnet.org/finalizer";
+pub const OPERATOR_INSTANCE_NAMESPACE: &str = "OPERATOR_INSTANCE_NAMESPACE";
+pub const SECRET_NAME: &str = "SECRET_NAME";
 
 // Annotations
 pub const ANNOTATION_HOPRD_NETWORK_REGISTRY: &str = "hoprds.hoprnet.org/network_registry";
@@ -17,9 +19,6 @@ pub const LABEL_NODE_PEER_ID: &str = "hoprds.hoprnet.org/peerId";
 pub const LABEL_NODE_ADDRESS: &str = "hoprds.hoprnet.org/address";
 pub const LABEL_NODE_ENVIRONMENT_NAME: &str = "hoprds.hoprnet.org/environmentName";
 pub const LABEL_NODE_LOCKED: &str = "hoprds.hoprnet.org/locked";
-
-// FINALIZERS
-pub const FINALIZER_SECRET: &str = "hoprds.hoprnet.org/secret";
 
 // Kubernetes Specs
 pub const HOPR_DOCKER_REGISTRY: &str = "gcr.io";
