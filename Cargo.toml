@@ -27,7 +27,7 @@ async-recursion = "1.0.4"
 # Add openssl-sys as a direct dependency so it can be cross compiled to
 # x86_64-unknown-linux-musl using the "vendored" feature below
 openssl-sys = "*"
-json-patch = "0.3"
+json-patch = "1.0"
 serde_yaml = "0.9.19"
 chrono = "0.4.24"
 
