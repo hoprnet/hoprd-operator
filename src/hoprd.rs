@@ -2,8 +2,7 @@ use std::sync::Arc;
 use std::thread::sleep;
 use std::time::Duration;
 
-use crate::{constants, hoprd_service_monitor, hoprd_ingress, hoprd_deployment, hoprd_secret, hoprd_service, utils};
-use crate::controller::ContextData;
+use crate::{constants, hoprd_service_monitor, hoprd_ingress, hoprd_deployment, hoprd_secret, hoprd_service, utils, context_data::ContextData};
 use crate::model::{HoprdStatusEnum, EnablingFlag, Secret as HoprdSecret, DeploymentResource, Error};
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::OwnerReference;
 use kube::Resource;

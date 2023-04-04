@@ -6,7 +6,7 @@ use std::{collections::{BTreeMap}, sync::Arc};
 use rand::{distributions::Alphanumeric, Rng};
 use async_recursion::async_recursion;
 use crate::{
-    model::{ Secret as HoprdSecret, Error}, utils, constants, hoprd_jobs, hoprd::Hoprd, hoprd::HoprdSpec, controller::ContextData
+    model::{ Secret as HoprdSecret, Error}, utils, constants, hoprd_jobs, hoprd::Hoprd, hoprd::HoprdSpec, context_data::ContextData
 };
 
 /// Action to be taken upon an `Hoprd` resource during reconciliation

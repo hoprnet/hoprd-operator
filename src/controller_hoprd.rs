@@ -5,17 +5,15 @@ use kube::{
     api::{Api, ListParams},
     client::Client,
     runtime::{
-        controller::{Action, Controller},
-        events::{ Recorder, Reporter}
+        controller::{Action, Controller}
     },
-    Resource, Result, Error,
+    Resource, Result, Error
 };
 
-use serde::{ Serialize};
-use std::{sync::Arc, collections::hash_map::DefaultHasher, hash::{Hash, Hasher}, env};
-use tokio::{sync::RwLock, time::Duration};
+use std::{sync::Arc, collections::hash_map::DefaultHasher, hash::{Hash, Hasher}};
+use tokio::{ time::Duration};
 
-use crate::{ constants::{self}, hoprd::{Hoprd, HoprdSpec}, model::OperatorConfig, servicemonitor::ServiceMonitor};
+use crate::{ constants::{self}, hoprd::{Hoprd, HoprdSpec}, servicemonitor::ServiceMonitor, context_data::ContextData};
 
 /// Action to be taken upon an `Hoprd` resource during reconciliation
 enum HoprdAction {
@@ -85,63 +83,9 @@ pub fn on_error(hoprd: Arc<Hoprd>, error: &Error, _context: Arc<ContextData>) ->
     Action::requeue(Duration::from_secs(constants::RECONCILE_FREQUENCY))
 }
 
-#[derive(Clone, Serialize)]
-pub struct State {
-    #[serde(skip)]
-    pub reporter: Reporter,
-}
-impl Default for State {
-    fn default() -> Self {
-        Self {
-            reporter: Reporter::from("hopr-operator-controller"),
-        }
-    }
-}
-impl State {
-    pub fn recorder(&self, client: Client, hoprd: &Hoprd) -> Recorder {
-        Recorder::new(client, self.reporter.clone(), hoprd.object_ref(&()))
-    }
-}
-
-
-#[derive(Clone)]
-pub struct ContextData {
-    /// Kubernetes client to make Kubernetes API requests with. Required for K8S resource management.
-    pub client: Client,
-    /// In memory state
-    pub state: Arc<RwLock<State>>,
-
-    pub config: OperatorConfig
-}
-
-/// State wrapper around the controller outputs for the web server
-impl ContextData {
-
-    // Create a Controller Context that can update State
-    pub async fn new(client: Client) -> Self {
-        let operator_environment= env::var(constants::OPERATOR_ENVIRONMENT).unwrap();
-        let config_path = if operator_environment.eq("production") {
-            let path = "/app/config/config.yaml".to_owned();
-            path
-        } else {
-            let mut path = env::current_dir().as_ref().unwrap().to_str().unwrap().to_owned();
-            path.push_str("/sample_config.yaml");
-            path
-        };
-        let config_file = std::fs::File::open(&config_path).expect("Could not open config file.");
-        let config: OperatorConfig = serde_yaml::from_reader(config_file).expect("Could not read contents of config file.");
-
-        ContextData {
-            client,
-            state: Arc::new(RwLock::new(State::default())),
-            config: config
-        }
-    }
-}
 
 /// Initialize the controller
-pub async fn run() {
-    let client: Client = Client::try_default().await.expect("Failed to create kube Client");
+pub async fn run(client: Client, context_data: Arc<ContextData>) {
     let owned_api: Api<Hoprd> = Api::<Hoprd>::all(client.clone());
     let job = Api::<Job>::all(client.clone());
     let deployment = Api::<Deployment>::all(client.clone());
@@ -150,7 +94,6 @@ pub async fn run() {
     let service_monitor = Api::<ServiceMonitor>::all(client.clone());
     let ingress = Api::<Ingress>::all(client.clone());
 
-    let context_data: Arc<ContextData> = Arc::new(ContextData::new(client.clone()).await);
     Controller::new(owned_api, ListParams::default())
         .owns(job, ListParams::default())
         .owns(deployment, ListParams::default())
