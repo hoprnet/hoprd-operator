@@ -33,17 +33,17 @@ enum SecretStatus {
 ///
 fn check_secret_labels(secret_labels: &BTreeMap<String, String>, hoprd_spec: &HoprdSpec) -> Result<(),Error> {
     let secret_name: String = hoprd_spec.secret.as_ref().unwrap().secret_name.to_owned();
-    if secret_labels.contains_key(constants::LABEL_NODE_ENVIRONMENT_NAME) {
-        let environment_name_label: String = secret_labels.get_key_value(constants::LABEL_NODE_ENVIRONMENT_NAME).unwrap().1.parse().unwrap();
-        if ! environment_name_label.eq(&hoprd_spec.environment_name.to_owned()) {
+    if secret_labels.contains_key(constants::LABEL_NODE_NETWORK) {
+        let network_label: String = secret_labels.get_key_value(constants::LABEL_NODE_NETWORK).unwrap().1.parse().unwrap();
+        if ! network_label.eq(&hoprd_spec.network.to_owned()) {
             return Err(Error::SecretStatusError(
-                format!("[ERROR] The secret specified {secret_name} belongs to '{environment_name_label}' environment which is different from the specified '{}' environment", hoprd_spec.environment_name)
+                format!("[ERROR] The secret specified {secret_name} belongs to '{network_label}' network which is different from the specified '{}' network", hoprd_spec.network)
                     .to_owned()
             ));
         }
     } else {
         return Err(Error::SecretStatusError(
-            format!("[ERROR] The secret specified {secret_name} does not contain label {} which is mandatory", constants::LABEL_NODE_ENVIRONMENT_NAME)
+            format!("[ERROR] The secret specified {secret_name} does not contain label {} which is mandatory", constants::LABEL_NODE_NETWORK)
                 .to_owned()
         ));
     }
@@ -56,10 +56,10 @@ fn check_secret_labels(secret_labels: &BTreeMap<String, String>, hoprd_spec: &Ho
 /// - `client` - A Kubernetes client.
 /// - `hoprd_spec` - Details about the hoprd configuration node
 ///
-async fn get_first_secret_ready(client: Client, environment_name: &str, operator_namespace: &str) -> Result<Option<Secret>, Error> {
+async fn get_first_secret_ready(client: Client, network: &str, operator_namespace: &str) -> Result<Option<Secret>, Error> {
     let api: Api<Secret> = Api::namespaced(client, operator_namespace);
     let label_selector: String = format!("{}={},{}={}",
-    constants::LABEL_NODE_ENVIRONMENT_NAME, environment_name,
+    constants::LABEL_NODE_NETWORK, network,
     constants::LABEL_NODE_LOCKED, "false");
     let lp = ListParams::default().labels(&label_selector);
     let secrets = api.list(&lp).await?;
@@ -72,10 +72,10 @@ async fn get_first_secret_ready(client: Client, environment_name: &str, operator
 /// - `client` - A Kubernetes client.
 /// - `hoprd_spec` - Details about the hoprd configuration node
 ///
-pub async fn get_secret_used_by(client: Client, environment_name: &str, hoprd_name: &str, operator_namespace: &str) -> Result<Option<Secret>, Error> {
+pub async fn get_secret_used_by(client: Client, network: &str, hoprd_name: &str, operator_namespace: &str) -> Result<Option<Secret>, Error> {
     let api: Api<Secret> = Api::namespaced(client, operator_namespace);
     let label_selector: String = format!("{}={},{}={}",
-    constants::LABEL_NODE_ENVIRONMENT_NAME, environment_name,
+    constants::LABEL_NODE_NETWORK, network,
     constants::LABEL_NODE_LOCKED, "true");
     let lp = ListParams::default().labels(&label_selector);
     let secrets = api.list(&lp).await?;
@@ -176,7 +176,7 @@ pub async fn unlock_secret(context: Arc<ContextData>, hoprd: &Hoprd) -> Result<(
     let client: Client = context.client.clone();
     let operator_namespace = &context.config.instance.namespace.to_owned();
     let api: Api<Secret> = Api::namespaced(client.clone(), &operator_namespace);
-    if let Some(secret) = get_secret_used_by(client.clone(), &hoprd.spec.environment_name, &hoprd.name_any(), operator_namespace).await? {
+    if let Some(secret) = get_secret_used_by(client.clone(), &hoprd.spec.network, &hoprd.name_any(), operator_namespace).await? {
         let secret_name = &secret.metadata.name.unwrap();
         utils::update_secret_label(&api.clone(), &secret_name, constants::LABEL_NODE_LOCKED, &"false".to_string()).await?;
         utils::delete_secret_annotations(&api.clone(), &secret_name, constants::ANNOTATION_REPLICATOR_NAMESPACES).await?;
@@ -211,7 +211,7 @@ pub async fn unlock_secret(context: Arc<ContextData>, hoprd: &Hoprd) -> Result<(
 async fn do_status_not_specified(context: Arc<ContextData>, hoprd: &mut Hoprd) -> Result<Secret, Error> {
     let client: Client = context.client.clone();
     let operator_namespace = &context.config.instance.namespace.to_owned();
-    match get_first_secret_ready(client.clone(), &hoprd.spec.environment_name, operator_namespace).await {
+    match get_first_secret_ready(client.clone(), &hoprd.spec.network, operator_namespace).await {
         Ok(secret) => { 
             match secret {
                 Some(secret) => {
@@ -222,7 +222,7 @@ async fn do_status_not_specified(context: Arc<ContextData>, hoprd: &mut Hoprd) -
                 None => {
                     let random_string: String = rand::thread_rng().sample_iter(&Alphanumeric).take(5).map(char::from).collect();
                     let mut secret_name = String::from("hoprd-node-");
-                    secret_name.push_str(&hoprd.spec.environment_name.replace("_", "-"));
+                    secret_name.push_str(&hoprd.spec.network.replace("_", "-"));
                     secret_name.push_str(&"-");
                     secret_name.push_str(&random_string.to_lowercase());
                     hoprd.spec.secret = Some(HoprdSecret { secret_name: secret_name.to_owned(), ..HoprdSecret::default() });
@@ -255,7 +255,7 @@ async fn do_status_not_exists(context: Arc<ContextData>, hoprd: &Hoprd) -> Resul
     let client: Client = context.client.clone();
     let operator_instance = &context.config.instance;
     utils::update_hoprd_status(context.clone(), hoprd, crate::model::HoprdStatusEnum::Creating).await?;
-    let secret = create_secret_resource(client.clone(), &operator_instance.namespace, &hoprd.spec.secret.as_ref().unwrap().secret_name, &hoprd.spec.environment_name).await.unwrap();
+    let secret = create_secret_resource(client.clone(), &operator_instance.namespace, &hoprd.spec.secret.as_ref().unwrap().secret_name, &hoprd.spec.network).await.unwrap();
     let owner_reference: Option<Vec<OwnerReference>> = Some(vec![secret.controller_owner_ref(&()).unwrap()]);
     hoprd_jobs::execute_job_create_node(client.clone(), &hoprd,  &context.config, owner_reference).await?;
     do_status_not_registered(context, hoprd).await
@@ -344,10 +344,10 @@ async fn do_status_ready(context: Arc<ContextData>, hoprd: &Hoprd) -> Result<Sec
 /// - `client` - A Kubernetes client.
 /// - `operator_namespace` - Operator namespace
 /// - `secret_name` - Name of the secret
-/// - `environment_name` - Name of the environment
-async fn create_secret_resource(client: Client, operator_namespace: &str, secret_name: &str, environment_name: &str) -> Result<Secret, Error> {
+/// - `network` - Name of the network
+async fn create_secret_resource(client: Client, operator_namespace: &str, secret_name: &str, network: &str) -> Result<Secret, Error> {
     let mut labels: BTreeMap<String, String> = utils::common_lables(&secret_name.to_owned());
-    labels.insert(constants::LABEL_NODE_ENVIRONMENT_NAME.to_owned(), environment_name.to_owned());
+    labels.insert(constants::LABEL_NODE_NETWORK.to_owned(), network.to_owned());
     labels.insert(constants::LABEL_NODE_LOCKED.to_owned(), "false".to_owned());
     let mut data: BTreeMap<String, ByteString> = BTreeMap::new();
     data.insert(constants::HOPRD_METRICS_PASSWORD.to_owned(), ByteString("".to_owned().into_bytes()));

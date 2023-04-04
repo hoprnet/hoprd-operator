@@ -5,12 +5,13 @@ metadata:
   name: hoprd-node-1
   namespace: riga
 spec:
+  network: monte_rosa
+  version: riga
   config:
     autoRedeemTickets: true
     announce: false
   #   networkQualityThreshold: 0.6
-  enabled: true
-  environmentName: monte_rosa
+  enabled: true 
   ingress:
     enabled: true
   monitoring:
@@ -22,6 +23,3 @@ spec:
   #   requests:
   #     cpu: 750m
   #     memory: 256Mi
-  version: riga
-
-

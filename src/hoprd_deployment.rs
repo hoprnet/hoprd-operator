@@ -32,14 +32,14 @@ pub async fn create_deployment(client: Client, hoprd: &Hoprd, secret: Secret) ->
     let hoprd_secret = hoprd.spec.secret.as_ref().unwrap_or(&HoprdSecret { secret_name: secret.name_any(), ..HoprdSecret::default() }).to_owned();
     let node_address = secret.labels().get(constants::LABEL_NODE_ADDRESS).unwrap().to_owned();
     let node_peer_id = secret.labels().get(constants::LABEL_NODE_PEER_ID).unwrap().to_owned();
-    let node_environment_name = secret.labels().get(constants::LABEL_NODE_ENVIRONMENT_NAME).unwrap().to_owned();
+    let node_network = secret.labels().get(constants::LABEL_NODE_NETWORK).unwrap().to_owned();
 
 
     let mut labels: BTreeMap<String, String> = utils::common_lables(&name.to_owned());
     labels.insert(constants::LABEL_KUBERNETES_COMPONENT.to_owned(), "node".to_owned());
     labels.insert(constants::LABEL_NODE_ADDRESS.to_owned(), node_address);
     labels.insert(constants::LABEL_NODE_PEER_ID.to_owned(), node_peer_id);
-    labels.insert(constants::LABEL_NODE_ENVIRONMENT_NAME.to_owned(), node_environment_name);
+    labels.insert(constants::LABEL_NODE_NETWORK.to_owned(), node_network);
 
 
     // Definition of the deployment. Alternatively, a YAML representation could be used as well.
@@ -301,7 +301,7 @@ fn build_crd_env_var(hoprd_spec: &HoprdSpec) -> Vec<EnvVar> {
     let mut env_vars = Vec::with_capacity(1);
     env_vars.push(EnvVar {
         name: constants::HOPRD_ENVIRONMENT.to_owned(),
-        value: Some(hoprd_spec.environment_name.to_owned()),
+        value: Some(hoprd_spec.network.to_owned()),
         ..EnvVar::default()
     });
 

@@ -18,14 +18,20 @@ upgrade:
 
 test: delete-node create-node
 
-delete-node:
-	kubectl delete -f hoprd-node-1.yaml
-
 create-node:
 	kubectl apply -f hoprd-node-1.yaml
+
+delete-node:
+	kubectl delete -f hoprd-node-1.yaml
 
 docker-build:
 	docker build -t gcr.io/hoprassociation/hoprd-operator:latest --platform linux/amd64 --progress plain .
 
 docker-push:
 	docker push gcr.io/hoprassociation/hoprd-operator:latest
+
+create-cluster:
+	kubectl apply -f cluster-hoprd.yaml
+
+delete-cluster:
+	kubectl delete -f cluster-hoprd.yaml

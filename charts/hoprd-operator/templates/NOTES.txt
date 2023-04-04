@@ -8,7 +8,7 @@ metadata:
   name: hoprd-node-1
   namespace: {{ .Release.Namespace }}
 spec:
-  environment: monte_rosa
+  network: monte_rosa
   version: riga
 EOF
 

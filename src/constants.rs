@@ -18,7 +18,7 @@ pub const LABEL_KUBERNETES_NAME: &str = "app.kubernetes.io/name";
 pub const LABEL_KUBERNETES_INSTANCE: &str = "app.kubernetes.io/instance";
 pub const LABEL_NODE_PEER_ID: &str = "hoprds.hoprnet.org/peerId";
 pub const LABEL_NODE_ADDRESS: &str = "hoprds.hoprnet.org/address";
-pub const LABEL_NODE_ENVIRONMENT_NAME: &str = "hoprds.hoprnet.org/environmentName";
+pub const LABEL_NODE_NETWORK: &str = "hoprds.hoprnet.org/network";
 pub const LABEL_NODE_LOCKED: &str = "hoprds.hoprnet.org/locked";
 
 // FINALIZERS

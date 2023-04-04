@@ -6,7 +6,7 @@ use kube::{Api, api::{ Patch, PatchParams}, Client, runtime::events::{Recorder, 
 use serde_json::{Value, json};
 
 
-use crate::{constants, model::{DeploymentResource, HoprdStatusEnum, Error}, context_data::ContextData, hoprd::{Hoprd, HoprdStatus}};
+use crate::{constants, model::{DeploymentResource, HoprdStatusEnum, Error}, context_data::ContextData, hoprd::{Hoprd, HoprdStatus}, cluster::ClusterHoprd};
 
 pub fn common_lables(instance_name: &String) -> BTreeMap<String, String> {
     let mut labels: BTreeMap<String, String> = BTreeMap::new();
@@ -48,14 +48,16 @@ pub fn build_resource_requirements(resources: &Option<DeploymentResource>) -> Op
 
 pub enum ResourceType {
     Secret,
-    Hoprd
+    Hoprd,
+    ClusterHoprd
 }
 
 impl Display for ResourceType {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         match self {
             ResourceType::Secret => write!(f, "Secret"),
-            ResourceType::Hoprd => write!(f, "Hoprd")
+            ResourceType::Hoprd => write!(f, "Hoprd"),
+            ResourceType::ClusterHoprd => write!(f, "ClusterHoprd")
         }
     }
 }
@@ -106,6 +108,22 @@ pub async fn get_resource_kinds(client: Client, resource_type: ResourceType, res
                 }
                 None => {
                     println!("The hoprd {resource_name} does not exist.");
+                    empty_map.clone()
+                }
+            }
+        }
+        ResourceType::ClusterHoprd => { 
+            let api_cluster_hoprd: Api<ClusterHoprd> = Api::namespaced(client.clone(), &resource_namespace);
+            match api_cluster_hoprd.get_opt(&resource_name).await.unwrap() {
+                Some(hoprd) => { 
+                    if resource_kind.eq(&ResourceKind::Labels) {
+                        hoprd.metadata.labels.as_ref().unwrap_or_else(|| empty_map).clone()
+                    } else {
+                        hoprd.metadata.annotations.as_ref().unwrap_or_else(|| empty_map).clone()
+                    }
+                }
+                None => {
+                    println!("The cluster hoprd {resource_name} does not exist.");
                     empty_map.clone()
                 }
             }
@@ -197,76 +215,76 @@ pub async fn update_hoprd_status(context: Arc<ContextData>, hoprd: &Hoprd, statu
         HoprdStatusEnum::Initializing => Event {
                     type_: EventType::Normal,
                     reason: "Initializing".to_string(),
-                    note: Some(format!("Initializing Hoprd node `{hoprd_name}`")),
+                    note: Some("Initializing Hoprd node".to_owned()),
                     action: "Starting the process of creating a new node".to_string(),
                     secondary: None,
                 },
         HoprdStatusEnum::Creating => Event {
                     type_: EventType::Normal,
                     reason: "Creating".to_string(),
-                    note: Some(format!("Creating Hoprd node repository and secrets`{hoprd_name}`")),
+                    note: Some("Creating Hoprd node repository and secrets".to_owned()),
                     action: "Node secrets are being created".to_string(),
                     secondary: None,
                 },
         HoprdStatusEnum::RegisteringInNetwork => Event {
                     type_: EventType::Normal,
                     reason: "RegisteringInNetwork".to_string(),
-                    note: Some(format!("Hoprd node `{hoprd_name}` created but not registered yet")),
+                    note: Some("Hoprd node created but not registered yet".to_owned()),
                     action: "Node is registering into the Network registry".to_string(),
                     secondary: None,
                 },
         HoprdStatusEnum::Funding => Event {
                     type_: EventType::Normal,
                     reason: "Funding".to_string(),
-                    note: Some(format!("Hoprd node `{hoprd_name}` created and registered but not funded yet")),
+                    note: Some("Hoprd node created and registered but not funded yet".to_owned()),
                     action: "Node is being funded with mHopr and xDAI".to_string(),
                     secondary: None,
                 },
         HoprdStatusEnum::Stopped => Event {
                     type_: EventType::Normal,
                     reason: "Stopped".to_string(),
-                    note: Some(format!("Hoprd node `{hoprd_name}` is stopped")),
+                    note: Some("Hoprd node is stopped".to_owned()),
                     action: "Node has stopped".to_string(),
                     secondary: None,
                 },
         HoprdStatusEnum::Running => Event {
                     type_: EventType::Normal,
                     reason: "Running".to_string(),
-                    note: Some(format!("Hoprd node `{hoprd_name}` is running")),
+                    note: Some("Hoprd node is running".to_owned()),
                     action: "Node has started".to_string(),
                     secondary: None,
                 },
         HoprdStatusEnum::Reloading => Event {
                     type_: EventType::Normal,
                     reason: "Reloading".to_string(),
-                    note: Some(format!("Hoprd node `{hoprd_name}` configuration change detected")),
+                    note: Some("Hoprd node configuration change detected".to_owned()),
                     action: "Node reconfigured".to_string(),
                     secondary: None,
                 },
         HoprdStatusEnum::Deleting => Event {
                     type_: EventType::Normal,
                     reason: "Deleting".to_string(),
-                    note: Some(format!("Hoprd node `{hoprd_name}` is being deleted")),
+                    note: Some("Hoprd node is being deleted".to_owned()),
                     action: "Node deletion started".to_string(),
                     secondary: None,
                 },
         HoprdStatusEnum::Deleted => Event {
                     type_: EventType::Normal,
                     reason: "Deleted".to_string(),
-                    note: Some(format!("Hoprd node `{hoprd_name}` is deleted")),
+                    note: Some("Hoprd node is deleted".to_owned()),
                     action: "Node deletion finished".to_string(),
                     secondary: None,
                 },
-        HoprdStatusEnum::Unsync => Event {
-                    type_: EventType::Normal,
-                    reason: "Unsync".to_string(),
-                    note: Some(format!("Hoprd node `{hoprd_name}` is not sync")),
+        HoprdStatusEnum::OutOfSync => Event {
+                    type_: EventType::Warning,
+                    reason: "Out of sync".to_string(),
+                    note: Some("Hoprd node is not sync".to_owned()),
                     action: "Node sync failed".to_string(),
                     secondary: None,
                 }
 
     };
-    let recorder: Recorder = context.state.read().await.recorder(client.clone(), hoprd);
+    let recorder: Recorder = context.state.read().await.generate_hoprd_event(client.clone(), hoprd);
     recorder.publish(ev).await?;
     let hoprd_namespace = hoprd.metadata.namespace.as_ref().unwrap().to_owned();
 
@@ -290,7 +308,7 @@ pub async fn update_hoprd_status(context: Arc<ContextData>, hoprd: &Hoprd, statu
             Ok(hopr) => Ok(hopr),
             Err(error) => {
                 println!("[ERROR]: {:?}", error);
-                return Err(Error::HoprdStatusError(format!("Could not update status on {hoprd_name}.").to_owned()));
+                return Err(Error::HoprdStatusError(format!("Could not update status on node {hoprd_name}.")));
             }
         }
     }

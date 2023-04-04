@@ -4,7 +4,7 @@ use tokio::{sync::RwLock};
 use kube::{Client, runtime::events::{Reporter, Recorder}, Resource};
 use serde::Serialize;
 
-use crate::{model::OperatorConfig, constants, hoprd::Hoprd};
+use crate::{model::OperatorConfig, constants, hoprd::Hoprd, cluster::ClusterHoprd};
 
 
 
@@ -57,7 +57,11 @@ impl Default for State {
     }
 }
 impl State {
-    pub fn recorder(&self, client: Client, hoprd: &Hoprd) -> Recorder {
+    pub fn generate_hoprd_event(&self, client: Client, hoprd: &Hoprd) -> Recorder {
         Recorder::new(client, self.reporter.clone(), hoprd.object_ref(&()))
+    }
+
+    pub fn generate_cluster_hoprd_event(&self, client: Client, cluster_hoprd: &ClusterHoprd) -> Recorder {
+        Recorder::new(client, self.reporter.clone(), cluster_hoprd.object_ref(&()))
     }
 }

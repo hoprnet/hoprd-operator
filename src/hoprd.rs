@@ -35,7 +35,7 @@ use kube::{
 pub struct HoprdSpec {
     pub config: Option<HoprdConfig>,
     pub enabled: Option<bool>,
-    pub environment_name: String,
+    pub network: String,
     pub ingress: Option<EnablingFlag>,
     pub monitoring: Option<EnablingFlag>,
     pub resources: Option<DeploymentResource>,
@@ -118,7 +118,7 @@ impl Hoprd {
                 Ok(modified_hoprd) => {
                     self.check_inmutable_fields(&modified_hoprd.spec).unwrap();
                     let operator_namespace = &context.config.instance.namespace.to_owned();
-                    let secret = hoprd_secret::get_secret_used_by(client.clone(), &self.spec.environment_name, &hoprd_name, operator_namespace).await.unwrap();
+                    let secret = hoprd_secret::get_secret_used_by(client.clone(), &self.spec.network, &hoprd_name, operator_namespace).await.unwrap();
                     if secret.is_some() {
                         let hoprd_secret = self.spec.secret.as_ref().unwrap_or(&HoprdSecret { secret_name: secret.unwrap().name_any(), ..HoprdSecret::default() }).to_owned();
                         hoprd_deployment::modify_deployment(client.clone(), &hoprd_name.to_owned(), &hoprd_namespace.to_owned(), &modified_hoprd.spec.to_owned(), hoprd_secret).await?;
@@ -213,8 +213,8 @@ impl Hoprd {
 
 
     fn check_inmutable_fields(&self, spec: &HoprdSpec) -> Result<(),Error> {
-        if ! self.spec.environment_name.eq(&spec.environment_name) {
-            return Err(Error::HoprdConfigError(format!("Hoprd configuration is invalid, environmentName field cannot be changed on {}.", self.name_any())));
+        if ! self.spec.network.eq(&spec.network) {
+            return Err(Error::HoprdConfigError(format!("Hoprd configuration is invalid, network field cannot be changed on {}.", self.name_any())));
         }
         if ! self.spec.secret.eq(&spec.secret) {
             return Err(Error::HoprdConfigError(format!("Hoprd configuration is invalid, secret field cannot be changed on {}.", self.name_any())));

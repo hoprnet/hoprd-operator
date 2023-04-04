@@ -24,7 +24,7 @@ pub enum HoprdStatusEnum {
     /// The node is deleted
     Deleted,
     /// The node is not sync
-    Unsync
+    OutOfSync
 }
 
 impl Display for HoprdStatusEnum {
@@ -39,7 +39,37 @@ impl Display for HoprdStatusEnum {
             HoprdStatusEnum::Reloading => write!(f, "Reloading"),
             HoprdStatusEnum::Deleting => write!(f, "Deleting"),
             HoprdStatusEnum::Deleted => write!(f, "Deleted"),
-            HoprdStatusEnum::Unsync => write!(f, "Unsync")
+            HoprdStatusEnum::OutOfSync => write!(f, "OutOfSync")
+        }
+    }
+}
+
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone, JsonSchema, Copy)]
+pub enum ClusterHoprdStatusEnum {
+    // The HoprdCluster is initializing the nodes
+    Initializing,
+    // The HoprdCluster is synching with its nodes
+    Synching,
+    // The HoprdCluster is synchronized with its nodes
+    InSync,
+    /// The HoprdCluster is being deleted
+    Deleting,
+    /// The HoprdCluster is deleted
+    Deleted,
+    /// The HoprdCluster is not synchronized with its nodes
+    OutOfSync
+}
+
+impl Display for ClusterHoprdStatusEnum {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            ClusterHoprdStatusEnum::Initializing => write!(f, "Initializing"),
+            ClusterHoprdStatusEnum::Synching => write!(f, "Synching"),
+            ClusterHoprdStatusEnum::InSync => write!(f, "InSync"),
+            ClusterHoprdStatusEnum::Deleting => write!(f, "Deleting"),
+            ClusterHoprdStatusEnum::Deleted => write!(f, "Deleted"),
+            ClusterHoprdStatusEnum::OutOfSync => write!(f, "OutOfSync")
         }
     }
 }

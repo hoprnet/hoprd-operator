@@ -1,0 +1,177 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: clusterhoprds.hoprnet.org
+  namespace: {{ .Release.Namespace | quote }}
+  labels:
+    {{- include "hoprd-operator.labels" . | nindent 4 }}
+    {{- if .Values.operator.commonLabels }}
+    {{- .Values.operator.commonLabels | toYaml | nindent 4 }}
+    {{- end }}
+{{- if .Values.operator.commonAnnotations }}
+  annotations:
+    {{- .Values.operator.commonAnnotations | toYaml | nindent 4 }}
+{{- end }}
+spec:
+  group: hoprnet.org
+  names:
+    kind: ClusterHoprd
+    plural: clusterhoprds
+    singular: clusterhoprd
+    shortNames:
+      - clusterhoprd
+  scope: Namespaced
+  versions:
+    - name: v1alpha
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          description: Schema definition for ClusterHoprd Node
+          type: object
+          properties:
+            spec:
+              type: object
+              properties:
+                network:
+                  type: string
+                  description: 'Name of the hoprd network'
+                  enum:
+                  - monte_rosa
+                  - monte_rosa_2_0
+                  - monte_rosa_3_0
+                  - mont_blanc
+                ingress:
+                  type: object
+                  description: Properties regarding ingress controller
+                  properties:
+                    enabled:
+                      type: boolean
+                      description: 'Whether to enable or disable the creation of an associated Ingress resource'
+                  required: ["enabled"]
+                monitoring:
+                  type: object
+                  description: Monitoring configuration
+                  properties:
+                    enabled:
+                      description: Whether to create a ServiceMonitor associated to nodes
+                      type: boolean
+                  required:
+                  - enabled
+                nodes:
+                  type: array
+                  description: Array of node configurations
+                  items:
+                    type: object
+                    properties:
+                      name:
+                        type: string
+                        description: Name for this configuration
+                      replicas:
+                        type: number
+                        description: Number of instances for this configuration
+                      config:
+                        type: object
+                        description: Node configuration
+                        properties:
+                          announce:
+                            type: boolean
+                            description: 'Run as a Public Relay Node (PRN)'
+                          provider:
+                            type: string
+                            description: 'A custom RPC provider to be used for the node to connect to blockchain'
+                          defaultStrategy:
+                            type: string
+                            description: 'Default channel strategy to use when the node is started'
+                          maxAutoChannels:
+                            type: integer
+                            format: int32
+                            description: 'Maximum number of channels a strategy can open'
+                          autoRedeemTickets:
+                            type: boolean
+                            description: 'Enables automatic ticket redemption when received a winning ticket'
+                          checkUnrealizedBalance:
+                            type: boolean
+                            description: 'Check unrealized balance in the channel when validating unacknowledged tickets'
+                          allowPrivateNodeConnections:
+                            type: boolean
+                            description: 'Allow connections to other nodes running on localhost'
+                          testAnnounceLocalAddress:
+                            type: boolean
+                            description: 'For testing local testnets. Announce local addresses'
+                          heartbeatInterval:
+                            type: integer
+                            format: int32
+                            description: 'Interval in milliseconds in which the availability of other nodes get measured'
+                          heartbeatThreshold:
+                            type: integer
+                            format: int32
+                            description: 'Timeframe in milliseconds after which a heartbeat to another peer is performed, if it has not been seen since'
+                          heartbeatVariance:
+                            type: integer
+                            format: int32
+                            description: 'Upper bound for variance applied to heartbeat interval in milliseconds'
+                          onChainConfirmations:
+                            type: integer
+                            format: int32
+                            description: 'Number of confirmations required for on-chain transactions'
+                          networkQualityThreshold:
+                            type: number
+                            description: 'Minimum acceptable peer connection quality'
+
+                      enabled:
+                        type: boolean
+                        description: 'Flag indicating if the node should be started or stopped'
+                      resources:
+                        type: object
+                        description: The secret containing sensitive data from the Hoprd node
+                        properties:
+                          limits:
+                            description: Specify the limit resources for the container
+                            type: object
+                            properties:
+                              cpu:
+                                description: Specify the cpu limit resources for the container
+                                type: string
+                              memory: 
+                                description: Specify the memory limit resources for the container
+                                type: string
+                          requests:
+                            description: Specify the request resources for the container
+                            type: object
+                            properties:
+                              cpu:
+                                description: Specify the cpu limit resources for the container
+                                type: string
+                              memory: 
+                                description: Specify the memory limit resources for the container
+                                type: string
+
+                      version:
+                        type: string
+                        description: 'An specific hoprd version. Should match with a docker tag'
+                    required: ["name", "replicas", "version"]
+              required: ["network","nodes"]
+            status:
+              description: The status object of ClusterHord node
+              nullable: true
+              properties:
+                update_timestamp:
+                  type: number
+                  description: Timestamp of the last applied change
+                checksum:
+                  type: string
+                  description: Checksum of the last applied change
+                status:
+                  description: Status of the last applied change
+                  type: string
+                  enum:
+                  - Initializing
+                  - Synching
+                  - InSync
+                  - Deleting
+                  - OutOfSync
+              required: [ "update_timestamp", "checksum", "status"]
+              type: object
+          required:
+          - spec

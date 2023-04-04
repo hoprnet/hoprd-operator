@@ -360,7 +360,7 @@ pub async fn build_env_vars(client: Client, hoprd_spec: &HoprdSpec, is_create_no
     }
     env_vars.push(EnvVar {
         name: constants::HOPRD_ENVIRONMENT.to_owned(),
-        value: Some(hoprd_spec.environment_name.to_owned()),
+        value: Some(hoprd_spec.network.to_owned()),
         ..EnvVar::default()
     });
 
