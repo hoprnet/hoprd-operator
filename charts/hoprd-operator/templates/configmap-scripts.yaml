@@ -17,7 +17,6 @@ data:
   create-node.sh: |
     #!/usr/bin/env bash
 
-    set -x
     set -Eeuo pipefail
 
     rm -rf "/app/node_secrets/${SECRET_NAME}"
@@ -42,7 +41,6 @@ data:
   create-secret.sh: |
     #!/usr/bin/env bash
 
-    set -x
     set -Eeuo pipefail
 
     export HOPRD_PEER_ID=$(jq -r '.hoprAddress' /app/node_secrets/${SECRET_NAME}/addresses.json)
@@ -57,7 +55,6 @@ data:
   register-node.sh: |
     #!/usr/bin/env bash
 
-    set -x
     set -Eeuo pipefail
 
     export PATH=${PATH}:/root/.foundry/bin/
@@ -66,7 +63,6 @@ data:
   fund-node.sh: |
     #!/usr/bin/env bash
 
-    set -x
     set -Eeuo pipefail
 
     export PATH=${PATH}:/root/.foundry/bin/
