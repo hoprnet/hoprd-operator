@@ -6,15 +6,13 @@ run:
 	nohup cargo run &
 
 install:
-	helm install --namespace hoprd --create-namespace -f ./charts/hoprd-operator/testValues.yaml hoprd-operator ./charts/hoprd-operator/
+	helm install --namespace hoprd --create-namespace -f ./charts/hoprd-operator/values-testing.yaml hoprd-operator ./charts/hoprd-operator/
 
 uninstall:
 	helm uninstall --namespace hoprd hoprd-operator
-	kubectl delete sa -n hoprd hoprd-operator hoprd-operator-kubernetes-replicator
-	kubectl delete crds hoprds.hoprnet.org
 
 upgrade:
-	helm upgrade --namespace hoprd --create-namespace -f ./charts/hoprd-operator/testValues.yaml hoprd-operator ./charts/hoprd-operator/
+	helm upgrade --namespace hoprd --create-namespace -f ./charts/hoprd-operator/values-testing.yaml hoprd-operator ./charts/hoprd-operator/
 	sleep 3
 	kubectl delete deployment -n hoprd hoprd-operator-controller
 

@@ -6,7 +6,7 @@ use kube::{Api, api::{ Patch, PatchParams}, Client, runtime::events::{Recorder, 
 use serde_json::{Value, json};
 
 
-use crate::{constants, model::{DeploymentResource, HoprdStatusEnum, Error}, controller::ContextData, hoprd::{Hoprd, HoprdStatus}};
+use crate::{constants, model::{DeploymentResource, HoprdStatusEnum, Error}, context_data::ContextData, hoprd::{Hoprd, HoprdStatus}};
 
 pub fn common_lables(instance_name: &String) -> BTreeMap<String, String> {
     let mut labels: BTreeMap<String, String> = BTreeMap::new();

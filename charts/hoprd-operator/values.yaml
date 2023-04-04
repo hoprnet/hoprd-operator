@@ -190,15 +190,6 @@ operator:
     ##
     annotations: {}
 
-
-  persistence:
-    ## @param operator.persistence.size Size of the persistence Volume
-    ##
-    size: 50Mi
-    ## @param operator.persistence.storageClassName Name of the storage class
-    ##
-    storageClassName: ""
-
   ## @param operator.nodeSelector Object containing node selection constraint to operator deployment
   ## https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#nodeselector
   ##

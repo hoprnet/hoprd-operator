@@ -2,13 +2,16 @@ use k8s_openapi::api::batch::v1::{Job, JobSpec};
 use k8s_openapi::api::core::v1::{
     Container, EnvVar, EnvVarSource, KeyToPath, 
     PodSpec, PodTemplateSpec, SecretKeySelector, SecretVolumeSource,
-     Volume, VolumeMount, PersistentVolumeClaimVolumeSource, ConfigMapVolumeSource
+     Volume, VolumeMount, ConfigMapVolumeSource, EmptyDirVolumeSource
 };
-use kube::{Api,  Client, Error, runtime::wait::{await_condition, conditions}};
+use k8s_openapi::apimachinery::pkg::apis::meta::v1::OwnerReference;
+use kube::{ResourceExt};
+use kube::{Api,  Client, runtime::wait::{await_condition, conditions}};
 use kube::api::{ObjectMeta, PostParams};
 use std::collections::{BTreeMap};
+use crate::hoprd::Hoprd;
 use crate::hoprd::HoprdSpec;
-use crate::model::{Secret as HoprdSecret, OperatorInstance, OperatorConfig};
+use crate::model::{Secret as HoprdSecret, Error, OperatorInstance, OperatorConfig};
 use crate::{
     constants,
     utils,
@@ -19,93 +22,167 @@ use rand::{distributions::Alphanumeric, Rng};
 ///
 /// # Arguments
 /// - `client` - A Kubernetes client.
-/// - `hoprd_name` - Name of the hoprd node
-/// - `operator_namespace` - Operator namespace
-/// - `hoprd_spec` - Details about the hoprd configuration node
+/// - `hoprd` - Details about the hoprd configuration node
+/// - `operator_config` - Information regarding Operator configuration
 ///
-pub async fn execute_job_create_node(client: Client, hoprd_name: &str, hoprd_spec: &HoprdSpec, operator_config: &OperatorConfig) -> Result<Job, Error> {
+pub async fn execute_job_create_node(client: Client, hoprd: &Hoprd, operator_config: &OperatorConfig, owner_references: Option<Vec<OwnerReference>>) -> Result<(), Error> {
+    let hoprd_name = &hoprd.name_any();
     let random_string: String = rand::thread_rng().sample_iter(&Alphanumeric).take(5).map(char::from).collect();
     let job_name: String = format!("job-create-{}-{}",&hoprd_name.to_owned(),&random_string.to_ascii_lowercase());
     let namespace: String = operator_config.instance.namespace.to_owned();
     let mut labels: BTreeMap<String, String> = utils::common_lables(&hoprd_name.to_owned());
     labels.insert(constants::LABEL_KUBERNETES_COMPONENT.to_owned(), "create-node".to_owned());
-    let secret = hoprd_spec.secret.as_ref().unwrap();
+    let secret = hoprd.spec.secret.as_ref().unwrap();
 
 
-    let command_args: Vec<String> = vec![format!("/app/scripts/create-node.sh {}", secret.secret_name.to_owned())];
-    let env_vars: Vec<EnvVar> = build_env_vars(client.clone(), &hoprd_spec, &true, &operator_config.instance).await;
-    let image: String = format!("{}/{}:{}", constants::HOPR_DOCKER_REGISTRY.to_owned(), constants::HOPR_DOCKER_IMAGE_NAME.to_owned(), &hoprd_spec.version.to_owned());
+    let create_node_args: Vec<String> = vec!["/app/scripts/create-node.sh".to_owned()];
+    let create_secret_args: Vec<String> = vec!["/app/scripts/create-secret.sh".to_owned()];
+    let mut env_vars: Vec<EnvVar> = build_env_vars(client.clone(), &hoprd.spec, &true, &operator_config.instance).await;
+    env_vars.push(EnvVar {
+        name: constants::SECRET_NAME.to_owned(),
+        value: Some(secret.secret_name.to_owned()),
+        ..EnvVar::default()
+    });
+    let image_hopli: String = format!("{}/{}:{}", constants::HOPR_DOCKER_REGISTRY.to_owned(), constants::HOPR_DOCKER_IMAGE_NAME.to_owned(), &hoprd.spec.version.to_owned());
     let volume_mounts: Vec<VolumeMount> = build_volume_mounts(&true).await;
     let volumes: Vec<Volume> = build_volumes(secret, &true, &operator_config.instance.name.to_owned()).await;
     // Definition of the Job
-    let create_node_job: Job = build_job(job_name.to_owned(), namespace, image, labels, command_args, env_vars, volume_mounts, volumes);
+    let create_node_job: Job = Job {
+        metadata: ObjectMeta {
+            name: Some(job_name.to_owned()),
+            namespace: Some(namespace),
+            owner_references,
+            labels: Some(labels.clone()),
+            ..ObjectMeta::default()
+        },
+        spec: Some(JobSpec {
+            parallelism: Some(1),
+            completions: Some(1),
+            backoff_limit: Some(1),
+            active_deadline_seconds: Some(constants::OPERATOR_JOB_TIMEOUT.try_into().unwrap()),
+            template: PodTemplateSpec {
+                spec: Some(PodSpec {
+                    init_containers: Some(vec![Container {
+                        name: "hopli".to_owned(),
+                        image: Some(image_hopli),
+                        image_pull_policy: Some("Always".to_owned()),
+                        command: Some(vec!["/bin/bash".to_owned(), "-c".to_owned()]),
+                        args: Some(create_node_args),
+                        env: Some(env_vars.to_owned()),
+                        volume_mounts: Some(volume_mounts.to_owned()),
+                        resources: utils::build_resource_requirements(&None),
+                        ..Container::default()
+                    }]),
+                    containers: vec![Container {
+                        name: "kubectl".to_owned(),
+                        image: Some("registry.hub.docker.com/bitnami/kubectl:1.24".to_owned()),
+                        image_pull_policy: Some("Always".to_owned()),
+                        command: Some(vec!["/bin/bash".to_owned(), "-c".to_owned()]),
+                        args: Some(create_secret_args),
+                        env: Some(env_vars),
+                        volume_mounts: Some(volume_mounts),
+                        resources: utils::build_resource_requirements(&None),
+                        ..Container::default()
+                    }],
+                    service_account_name: Some(operator_config.instance.name.to_owned()),
+                    volumes: Some(volumes),
+                    restart_policy: Some("Never".to_owned()),
+                    ..PodSpec::default()
+                }),
+                metadata: Some(ObjectMeta {
+                    labels: Some(labels),
+                    ..ObjectMeta::default()
+                }),
+            },
+            ..JobSpec::default()
+        }),
+        ..Job::default()
+    };
 
     // Create the Job defined above
     println!("[INFO] Launching job '{}'", &job_name.to_owned());
     let api: Api<Job> = Api::namespaced(client.clone(), &operator_config.instance.namespace);
     api.create(&PostParams::default(), &create_node_job).await?;
-    return Ok(await_condition(api, &job_name.to_owned(), conditions::is_job_completed()).await.unwrap().unwrap())
+    let job_completed = await_condition(api, &job_name, conditions::is_job_completed());
+    match tokio::time::timeout(std::time::Duration::from_secs(constants::OPERATOR_JOB_TIMEOUT), job_completed).await {
+        Ok(_) => Ok(()),
+        Err(_error) => {
+            Err(Error::JobExecutionError(format!("The creation node job failed and the node {hoprd_name} cannot be fully configured.").to_owned()))
+        }
+    }
 }
 
 /// Creates a new Job for registering hoprd node in Network Registry
 ///
 /// # Arguments
 /// - `client` - A Kubernetes client.
-/// - `hoprd_name` - Name of the hoprd node
-/// - `operator_namespace` - Operator namespace
-/// - `hoprd_spec` - Details about the hoprd configuration node
+/// - `hoprd` - Details about the hoprd configuration node
+/// - `operator_config` - Information regarding Operator configuration
 ///
-pub async fn execute_job_registering_node(client: Client, hoprd_name: &str, hoprd_spec: &HoprdSpec, operator_config: &OperatorConfig) -> Result<Job, Error> {
+pub async fn execute_job_registering_node(client: Client, hoprd: &Hoprd, operator_config: &OperatorConfig, owner_references: Option<Vec<OwnerReference>>) -> Result<(), Error> {
+    let hoprd_name = &hoprd.name_any();
     let random_string: String = rand::thread_rng().sample_iter(&Alphanumeric).take(5).map(char::from).collect();
     let job_name: String = format!("job-register-{}-{}",&hoprd_name.to_owned(),&random_string.to_ascii_lowercase());
     let namespace: String = operator_config.instance.namespace.to_owned();
     let mut labels: BTreeMap<String, String> = utils::common_lables(&hoprd_name.to_owned());
     labels.insert(constants::LABEL_KUBERNETES_COMPONENT.to_owned(), "registe-node".to_owned());
-    let secret = hoprd_spec.secret.as_ref().unwrap();
+    let secret = hoprd.spec.secret.as_ref().unwrap();
     let command_args = vec!["/app/scripts/register-node.sh".to_owned()];
-    let env_vars: Vec<EnvVar> = build_env_vars(client.clone(), &hoprd_spec, &false, &operator_config.instance).await;
+    let env_vars: Vec<EnvVar> = build_env_vars(client.clone(), &hoprd.spec, &false, &operator_config.instance).await;
    
     let volume_mounts: Vec<VolumeMount> = build_volume_mounts(&false).await;
     let volumes: Vec<Volume> = build_volumes(secret, &false, &operator_config.instance.name.to_owned()).await;
     // Definition of the Job
-    let registering_job: Job = build_job(job_name.to_owned(), namespace, operator_config.hopli_image.to_owned(), labels, command_args, env_vars, volume_mounts, volumes);
+    let registering_job: Job = build_job(job_name.to_owned(), namespace, owner_references, operator_config.hopli_image.to_owned(), labels, command_args, env_vars, volume_mounts, volumes);
 
     // Create the Job defined above
     println!("[INFO] Launching job '{}'", &job_name);
     let api: Api<Job> = Api::namespaced(client.clone(), &operator_config.instance.namespace.to_owned());
     api.create(&PostParams::default(), &registering_job).await?;
-    return Ok(await_condition(api, &job_name.to_owned(), conditions::is_job_completed()).await.unwrap().unwrap())
+    let job_completed = await_condition(api, &job_name, conditions::is_job_completed());
+    match tokio::time::timeout(std::time::Duration::from_secs(constants::OPERATOR_JOB_TIMEOUT), job_completed).await {
+        Ok(_) => Ok(()),
+        Err(_error) => {
+            Err(Error::JobExecutionError(format!("The registration node job failed and the node {hoprd_name} cannot be fully configured.").to_owned()))
+        }
+    }
 }
 
 /// Creates a new Job for funding hoprd node
 ///
 /// # Arguments
 /// - `client` - A Kubernetes client.
-/// - `hoprd_name` - Name of the hoprd node
-/// - `operator_namespace` - Operator namespace
-/// - `hoprd_spec` - Details about the hoprd configuration node
+/// - `hoprd` - Details about the hoprd configuration node
+/// - `operator_config` - Information regarding Operator configuration
 ///
-pub async fn execute_job_funding_node(client: Client, hoprd_name: &str, hoprd_spec: &HoprdSpec, operator_config: &OperatorConfig) -> Result<Job, Error> {
+pub async fn execute_job_funding_node(client: Client, hoprd: &Hoprd, operator_config: &OperatorConfig, owner_references: Option<Vec<OwnerReference>>) -> Result<(), Error> {
+    let hoprd_name = &hoprd.name_any();
     let random_string: String = rand::thread_rng().sample_iter(&Alphanumeric).take(5).map(char::from).collect();
     let job_name: String = format!("job-fund-{}-{}",&hoprd_name.to_owned(),&random_string.to_ascii_lowercase());
     let namespace: String = operator_config.instance.namespace.to_owned();
     let mut labels: BTreeMap<String, String> = utils::common_lables(&hoprd_name.to_owned());
     labels.insert(constants::LABEL_KUBERNETES_COMPONENT.to_owned(), "fund-node".to_owned());
-    let secret = hoprd_spec.secret.as_ref().unwrap();
+    let secret = hoprd.spec.secret.as_ref().unwrap();
     let command_args = vec!["/app/scripts/fund-node.sh".to_owned()];
-    let env_vars: Vec<EnvVar> = build_env_vars(client.clone(), &hoprd_spec, &false, &operator_config.instance).await;
+    let env_vars: Vec<EnvVar> = build_env_vars(client.clone(), &hoprd.spec, &false, &operator_config.instance).await;
 
    
     let volume_mounts: Vec<VolumeMount> = build_volume_mounts(&false).await;
     let volumes: Vec<Volume> = build_volumes(secret, &false, &operator_config.instance.name.to_owned()).await;
     // Definition of the Job
-    let funding_job: Job = build_job(job_name.to_owned(), namespace, operator_config.hopli_image.to_owned(), labels, command_args, env_vars, volume_mounts, volumes);
+    let funding_job: Job = build_job(job_name.to_owned(), namespace, owner_references, operator_config.hopli_image.to_owned(), labels, command_args, env_vars, volume_mounts, volumes);
 
     // Create the Job defined above
     println!("[INFO] Launching job '{}'", &job_name);
     let api: Api<Job> = Api::namespaced(client.clone(), &operator_config.instance.namespace.to_owned());
     api.create(&PostParams::default(), &funding_job).await?;
-    return Ok(await_condition(api, &job_name.to_owned(), conditions::is_job_completed()).await.unwrap().unwrap())
+    let job_completed = await_condition(api, &job_name, conditions::is_job_completed());
+    match tokio::time::timeout(std::time::Duration::from_secs(constants::OPERATOR_JOB_TIMEOUT), job_completed).await {
+        Ok(_) => Ok(()),
+        Err(_error) => {
+            Err(Error::JobExecutionError(format!("The funding job failed and the node {hoprd_name} cannot be fully configured.").to_owned()))
+        }
+    }
 }
 
 /// Builds the Job Spec which is similar to all jobs
@@ -117,19 +194,24 @@ pub async fn execute_job_funding_node(client: Client, hoprd_name: &str, hoprd_sp
 /// - `command_args` - Function which return the command to be executed within the Job
 /// - `is_create_node_job` - Whether to job is create node
 /// 
-fn build_job(job_name: String, namespace: String, image: String, labels: BTreeMap<String, String>, command_args: Vec<String>, env_vars: Vec<EnvVar>, volume_mounts: Vec<VolumeMount>, volumes: Vec<Volume>) -> Job {
+fn build_job(job_name: String, namespace: String, owner_references: Option<Vec<OwnerReference>>, image: String, labels: BTreeMap<String, String>, command_args: Vec<String>, env_vars: Vec<EnvVar>, volume_mounts: Vec<VolumeMount>, volumes: Vec<Volume>) -> Job {
     Job {
         metadata: ObjectMeta {
             name: Some(job_name),
             namespace: Some(namespace),
             labels: Some(labels.clone()),
+            owner_references: owner_references.to_owned(),
             ..ObjectMeta::default()
         },
         spec: Some(JobSpec {
+            parallelism: Some(1),
+            completions: Some(1),
+            backoff_limit: Some(1),
+            active_deadline_seconds: Some(constants::OPERATOR_JOB_TIMEOUT.try_into().unwrap()),
             template: PodTemplateSpec {
                 spec: Some(PodSpec {
                     containers: vec![Container {
-                        name: "hoprd".to_owned(),
+                        name: "hopli".to_owned(),
                         image: Some(image),
                         image_pull_policy: Some("Always".to_owned()),
                         command: Some(vec!["/bin/bash".to_owned(), "-c".to_owned()]),
@@ -194,10 +276,7 @@ async fn build_volumes(secret: &HoprdSecret, is_create_node_job: &bool, operator
         
         volumes.push(Volume {
             name: "hopr-repo-volume".to_owned(),
-            persistent_volume_claim: Some(PersistentVolumeClaimVolumeSource {
-                claim_name: operator_name.to_owned(),
-                read_only: Some(false)
-            }),
+            empty_dir: Some(EmptyDirVolumeSource::default()),
             ..Volume::default()
         });
     } else {
@@ -272,6 +351,12 @@ pub async fn build_env_vars(client: Client, hoprd_spec: &HoprdSpec, is_create_no
                 ..EnvVar::default()
             });
         }
+    } else {
+        env_vars.push(EnvVar {
+            name: constants::OPERATOR_INSTANCE_NAMESPACE.to_owned(),
+            value: Some(operator_instance.namespace.to_owned()),
+            ..EnvVar::default()
+        });
     }
     env_vars.push(EnvVar {
         name: constants::HOPRD_ENVIRONMENT.to_owned(),

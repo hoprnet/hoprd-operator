@@ -2,6 +2,9 @@
 pub const RECONCILE_FREQUENCY: u64 = 10;
 pub const OPERATOR_ENVIRONMENT: &str = "OPERATOR_ENVIRONMENT";
 pub const OPERATOR_FINALIZER: &str = "hoprds.hoprnet.org/finalizer";
+pub const OPERATOR_JOB_TIMEOUT: u64 = 300;
+pub const OPERATOR_INSTANCE_NAMESPACE: &str = "OPERATOR_INSTANCE_NAMESPACE";
+pub const SECRET_NAME: &str = "SECRET_NAME";
 
 // Annotations
 pub const ANNOTATION_HOPRD_NETWORK_REGISTRY: &str = "hoprds.hoprnet.org/network_registry";

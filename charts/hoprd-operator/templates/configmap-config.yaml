@@ -27,6 +27,6 @@ data:
       ingress_class_name: "{{- .Values.operator.ingress.ingressClassName }}"
       dns_domain: "{{- .Values.operator.ingress.dnsDomain }}"
       annotations: {{- .Values.operator.ingress.annotations | toYaml | nindent 8 }}
-    hopli_image: {{ .Values.operator.hopli.registry }}/{{ .Values.operator.hopli.repository }}:{{ .Values.operator.hopli.tag | quote }}
+    hopli_image: {{ printf "%s/%s:%s" .Values.operator.hopli.registry .Values.operator.hopli.repository .Values.operator.hopli.tag | quote }}
 
     
