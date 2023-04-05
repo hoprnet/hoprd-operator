@@ -270,7 +270,8 @@ async fn do_status_not_specified(context: Arc<ContextData>, hoprd: &mut Hoprd) -
 async fn do_status_not_exists(context: Arc<ContextData>, hoprd: &Hoprd) -> Result<Secret, Error> {
     let client: Client = context.client.clone();
     let operator_instance = &context.config.instance;
-    utils::update_hoprd_status(context.clone(), hoprd, crate::model::HoprdStatusEnum::Creating).await?;
+    hoprd.create_event(context.clone(), crate::model::HoprdStatusEnum::Creating).await?;
+    hoprd.update_status(context.clone(), crate::model::HoprdStatusEnum::Creating).await?;
     let secret = create_secret_resource(client.clone(), &operator_instance.namespace, &hoprd.spec.secret.as_ref().unwrap().secret_name, &hoprd.spec.network).await.unwrap();
     let owner_reference: Option<Vec<OwnerReference>> = Some(vec![secret.controller_owner_ref(&()).unwrap()]);
     hoprd_jobs::execute_job_create_node(client.clone(), &hoprd,  &context.config, owner_reference).await?;
@@ -288,7 +289,8 @@ async fn do_status_not_registered(context: Arc<ContextData>, hoprd: &Hoprd) -> R
     let api: Api<Secret> = Api::namespaced(client.clone(), &context.config.instance.namespace);
     let secret = api.get(&secret_name).await.unwrap();
     let owner_reference: Option<Vec<OwnerReference>> = Some(vec![secret.controller_owner_ref(&()).unwrap()]);
-    utils::update_hoprd_status(context.clone(), hoprd, crate::model::HoprdStatusEnum::RegisteringInNetwork).await?;
+    hoprd.create_event(context.clone(), crate::model::HoprdStatusEnum::RegisteringInNetwork).await?;
+    hoprd.update_status(context.clone(), crate::model::HoprdStatusEnum::RegisteringInNetwork).await?;
     hoprd_jobs::execute_job_registering_node(client.clone(), &hoprd, &context.config, owner_reference).await?;
     utils::update_secret_annotations(&api, &secret_name,constants::ANNOTATION_HOPRD_NETWORK_REGISTRY, "true").await?;
     do_status_not_funded(context, hoprd).await
@@ -305,7 +307,8 @@ async fn do_status_not_funded(context: Arc<ContextData>, hoprd: &Hoprd) -> Resul
     let api: Api<Secret> = Api::namespaced(client.clone(), &context.config.instance.namespace);
     let secret = api.get(&secret_name).await.unwrap();
     let owner_reference: Option<Vec<OwnerReference>> = Some(vec![secret.controller_owner_ref(&()).unwrap()]);
-    utils::update_hoprd_status(context.clone(), hoprd, crate::model::HoprdStatusEnum::Funding).await?;
+    hoprd.create_event(context.clone(), crate::model::HoprdStatusEnum::Funding).await?;
+    hoprd.update_status(context.clone(), crate::model::HoprdStatusEnum::Funding).await?;
     hoprd_jobs::execute_job_funding_node(client.clone(), &hoprd, &context.config, owner_reference).await?;
     let secret_name: String = hoprd.spec.secret.as_ref().unwrap().secret_name.to_owned();
     let api: Api<Secret> = Api::namespaced(client.clone(), &context.config.instance.namespace);
@@ -337,14 +340,15 @@ async fn do_status_ready(context: Arc<ContextData>, hoprd: &Hoprd) -> Result<Sec
     let secret_name: String = hoprd.spec.secret.as_ref().unwrap().secret_name.to_owned();
     let api_secret: Api<Secret> = Api::namespaced(client.clone(), operator_namespace);
     utils::update_secret_annotations(&api_secret, &secret_name, constants::ANNOTATION_REPLICATOR_NAMESPACES, hoprd_namespace).await?;
-    utils::update_hoprd_status(context.clone(), hoprd, crate::model::HoprdStatusEnum::Running).await?;
+    hoprd.create_event(context.clone(), crate::model::HoprdStatusEnum::Running).await?;
+    hoprd.update_status(context.clone(), crate::model::HoprdStatusEnum::Running).await?;
     utils::update_secret_label(&api_secret, &secret_name, constants::LABEL_NODE_LOCKED, &"true".to_string()).await?;
     let owner_reference: Option<Vec<OwnerReference>> = Some(vec![hoprd.controller_owner_ref(&()).unwrap()]);
     let patch = Patch::Merge(json!({
                 "metadata": {
                     "ownerReferences": owner_reference 
                 }
-        }));
+    }));
     match api_secret.patch(&secret_name, &PatchParams::default(), &patch).await {
         Ok(secret) => Ok(secret),
         Err(error) => {

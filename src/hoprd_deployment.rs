@@ -122,7 +122,7 @@ pub async fn delete_depoyment(client: Client, name: &str, namespace: &str) -> Re
         let uid = deployment.metadata.uid.unwrap();        
         api.delete(name, &DeleteParams::default()).await?;
         await_condition(api, &name.to_owned(), conditions::is_deleted(&uid)).await.unwrap();
-        Ok(println!("[INFO] Deployment successfully deleted"))
+        Ok(println!("[INFO] Deployment {name} successfully deleted"))
     } else {
         Ok(println!("[INFO] Deployment {name} in namespace {namespace} about to delete not found"))
     }

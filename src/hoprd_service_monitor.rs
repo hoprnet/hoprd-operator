@@ -116,7 +116,7 @@ pub async fn delete_service_monitor(client: Client, name: &str, namespace: &str)
         let uid = service_monitor.metadata.uid.unwrap();
         api.delete(name, &DeleteParams::default()).await?;
         await_condition(api, &name.to_owned(), conditions::is_deleted(&uid)).await.unwrap();
-        Ok(println!("[INFO] ServiceMonitor successfully deleted"))
+        Ok(println!("[INFO] ServiceMonitor {name} successfully deleted"))
     } else {
         Ok(println!("[INFO] ServiceMonitor {name} in namespace {namespace} about to delete not found"))
     }

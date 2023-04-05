@@ -79,7 +79,7 @@ pub async fn delete_ingress(client: Client, name: &str, namespace: &str) -> Resu
         let uid = ingress.metadata.uid.unwrap();
         api.delete(name, &DeleteParams::default()).await?;
         await_condition(api, &name.to_owned(), conditions::is_deleted(&uid)).await.unwrap();
-        Ok(println!("[INFO] Ingress successfully deleted"))
+        Ok(println!("[INFO] Ingress {name} successfully deleted"))
     } else {
         Ok(println!("[INFO] Ingress {name} in namespace {namespace} about to delete not found"))
     }
