@@ -78,7 +78,7 @@ impl Hoprd {
         let hoprd_namespace: String = self.namespace().unwrap();
         let hoprd_name: String= self.name_any();
         utils::update_hoprd_status(context.clone(), self, HoprdStatusEnum::Initializing).await.unwrap();
-        println!("[INFO] Starting to create hoprd node {hoprd_name} in namespace {hoprd_namespace}");
+        println!("[INFO] Starting to create Hoprd node {hoprd_name} in namespace {hoprd_namespace}");
         let owner_reference: Option<Vec<OwnerReference>> = Some(vec![self.controller_owner_ref(&()).unwrap()]);
         self.add_finalizer(client.clone(), &hoprd_name, &hoprd_namespace).await.unwrap();
         // Invoke creation of a Kubernetes resources
@@ -140,7 +140,7 @@ impl Hoprd {
         let hoprd_namespace = self.namespace().unwrap();
         let client: Client = context.client.clone();
         utils::update_hoprd_status(context.clone(), self, HoprdStatusEnum::Deleting).await.unwrap();
-        println!("[INFO] Starting to delete hoprd node {hoprd_name} from namespace {hoprd_namespace}");
+        println!("[INFO] Starting to delete Hoprd node {hoprd_name} from namespace {hoprd_namespace}");
         // Deletes any subresources related to this `Hoprd` resources. If and only if all subresources
         // are deleted, the finalizer is removed and Kubernetes is free to remove the `Hoprd` resource.
         if self.spec.monitoring.as_ref().unwrap_or(&EnablingFlag {enabled: constants::ENABLED}).enabled {

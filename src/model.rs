@@ -55,8 +55,6 @@ pub enum ClusterHoprdStatusEnum {
     InSync,
     /// The HoprdCluster is being deleted
     Deleting,
-    /// The HoprdCluster is deleted
-    Deleted,
     /// The HoprdCluster is not synchronized with its nodes
     OutOfSync
 }
@@ -68,7 +66,6 @@ impl Display for ClusterHoprdStatusEnum {
             ClusterHoprdStatusEnum::Synching => write!(f, "Synching"),
             ClusterHoprdStatusEnum::InSync => write!(f, "InSync"),
             ClusterHoprdStatusEnum::Deleting => write!(f, "Deleting"),
-            ClusterHoprdStatusEnum::Deleted => write!(f, "Deleted"),
             ClusterHoprdStatusEnum::OutOfSync => write!(f, "OutOfSync")
         }
     }
@@ -157,6 +154,10 @@ pub enum Error {
     /// The hoprd configuration is invalid
     #[error("Invalid Hoprd configuration: {0}")]
     HoprdConfigError(String),
+
+    /// The hoprd configuration is invalid
+    #[error("ClusterHoprd synch error: {0}")]
+    ClusterHoprdSynchError(String),
 
     /// The Job execution did not complete successfully
     #[error("Job Execution failed: {0}")]

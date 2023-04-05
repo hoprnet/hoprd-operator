@@ -6,7 +6,7 @@ use std::{collections::{BTreeMap}, sync::Arc};
 use rand::{distributions::Alphanumeric, Rng};
 use async_recursion::async_recursion;
 use crate::{
-    model::{ Secret as HoprdSecret, Error}, utils, constants, hoprd_jobs, hoprd::Hoprd, hoprd::HoprdSpec, context_data::ContextData
+    model::{ Secret as HoprdSecret, Error, OperatorInstance}, utils, constants, hoprd_jobs, hoprd::Hoprd, hoprd::HoprdSpec, context_data::ContextData
 };
 
 /// Action to be taken upon an `Hoprd` resource during reconciliation
@@ -90,6 +90,21 @@ pub async fn get_secret_used_by(client: Client, network: &str, hoprd_name: &str,
     Ok(secret)
 }
 
+/// Gets the wallet secret linked to the hoprd-operator
+///
+/// # Arguments
+/// - `client` - A Kubernetes client.
+/// - `operator_instance` - Info about operator instance
+///
+pub async fn get_wallet_secret(client: Client, operator_instance: &OperatorInstance) -> Result<Secret, Error> {
+    let api: Api<Secret> = Api::namespaced(client, &operator_instance.namespace);
+    if let Some(wallet_secret) = api.get_opt(&operator_instance.name).await? {
+        Ok(wallet_secret)
+    } else {
+        Err(Error::SecretStatusError("[ERROR] Could not get wallet secret".to_owned()))
+    }
+}
+
 /// Evaluates the status of the secret based on `SecretStatus` to determine later which actions need to be taken
 ///
 /// # Arguments
@@ -139,7 +154,7 @@ async fn determine_secret_status(context: Arc<ContextData>, hoprd: &Hoprd) -> Re
                     return Ok(SecretStatus::Locked);
                 }
             }
-            println!("[INFO] The secret is ready to be used");
+            println!("[INFO] The secret {secret_name} is ready to be used");
             return Ok(SecretStatus::Ready);
         } else {
             println!("[INFO] The secret is specified but does not exists yet");
@@ -180,10 +195,11 @@ pub async fn unlock_secret(context: Arc<ContextData>, hoprd: &Hoprd) -> Result<(
         let secret_name = &secret.metadata.name.unwrap();
         utils::update_secret_label(&api.clone(), &secret_name, constants::LABEL_NODE_LOCKED, &"false".to_string()).await?;
         utils::delete_secret_annotations(&api.clone(), &secret_name, constants::ANNOTATION_REPLICATOR_NAMESPACES).await?;
-
+        let wallet_secret = get_wallet_secret(client.clone(), &context.config.instance).await.unwrap();
+        let owner_references: Option<Vec<OwnerReference>> = Some(vec![wallet_secret.controller_owner_ref(&()).unwrap()]);
         let patch = Patch::Merge(json!({
                     "metadata": {
-                        "ownerReferences": []
+                        "ownerReferences": owner_references
                     }
             }));
         let _secret = match api.patch(secret_name, &PatchParams::default(), &patch).await {
