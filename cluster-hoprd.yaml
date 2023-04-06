@@ -2,8 +2,10 @@
 apiVersion: hoprnet.org/v1alpha
 kind: ClusterHoprd
 metadata:
-  name: hoprd-node-pr-1234
-  namespace: riga
+  name: monte-rosa-pr-1234
+  labels:
+    hoprds.hoprnet.org/pullRequest: "1234"
+  namespace:  monte-rosa
 spec:
   network: monte_rosa
   ingress:
@@ -13,16 +15,8 @@ spec:
   nodes:
     - name: default
       replicas: 2
-      version: riga
+      version: bratislava
       enabled: true 
       config:
         autoRedeemTickets: true
         announce: false
-      #   networkQualityThreshold: 0.6
-      # resources:
-      #   limits:
-      #     cpu: 1200m
-      #     memory: 2Gi
-      #   requests:
-      #     cpu: 750m
-      #     memory: 256Mi

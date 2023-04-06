@@ -207,15 +207,19 @@ impl Hoprd {
                 "finalizers": null
             }
         });
-        match api.patch(&hoprd_name, &pp, &Patch::Merge(patch)).await {
-            Ok(_hopr) => Ok(()),
-            Err(error) => {
-                println!("[ERROR]: {:?}", error);
-                return Err(Error::HoprdStatusError(format!("Could not delete finalizer on {hoprd_name}.").to_owned()));
+        if let Some(_) = api.get_opt(&hoprd_name).await? {
+            match api.patch(&hoprd_name, &pp, &Patch::Merge(patch)).await {
+                Ok(_hopr) => Ok(()),
+                Err(error) => {
+                    println!("[ERROR]: {:?}", error);
+                    return Err(Error::HoprdStatusError(format!("Could not delete finalizer on {hoprd_name}.").to_owned()));
+                }
             }
+        } else {
+            println!("[INFO] Hoprd node {hoprd_name} has already been deleted");
+            Ok(())
         }
     }
-
 
     fn check_inmutable_fields(&self, spec: &HoprdSpec) -> Result<(),Error> {
         if ! self.spec.network.eq(&spec.network) {
@@ -308,7 +312,6 @@ impl Hoprd {
         Ok(recorder.publish(ev).await?)
 
     }
-
 
     pub async fn update_status(&self, context: Arc<ContextData>, status: HoprdStatusEnum) -> Result<(), Error> {
         let client: Client = context.client.clone();

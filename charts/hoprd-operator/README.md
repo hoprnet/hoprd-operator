@@ -83,8 +83,6 @@ Chart version `Chart.yaml` should be increased according to [semver](http://semv
 | `operator.ingress.ingressClassName`     | Name of the ingress class name to be used by Hoprd nodes                                                         | `""`                                  |
 | `operator.ingress.dnsDomain`            | Name of the DNS suffix domain to be added to Hoprd nodes                                                         | `""`                                  |
 | `operator.ingress.annotations`          | Annotations to be added to ingress resources of Hoprd nodes                                                      | `{}`                                  |
-| `operator.persistence.size`             | Size of the persistence Volume                                                                                   | `50Mi`                                |
-| `operator.persistence.storageClassName` | Name of the storage class                                                                                        | `""`                                  |
 | `operator.nodeSelector`                 | Object containing node selection constraint to operator deployment                                               | `{}`                                  |
 | `operator.resources`                    | Resource specification to operator deployment                                                                    | `{}`                                  |
 | `operator.tolerations`                  | Tolerations specifications to operator deployment                                                                | `[]`                                  |

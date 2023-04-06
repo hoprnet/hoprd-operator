@@ -111,7 +111,7 @@ impl SecretManager {
     /// Evaluates the status of the secret based on `SecretStatus` to determine later which actions need to be taken
     async fn determine_secret_status(&self) -> Result<SecretStatus,Error> {
         return if self.hoprd.spec.secret.is_none() && self.hoprd_secret.is_none() {
-            println!("[INFO] The secret has not been specified");
+            println!("[INFO] Hoprd node {:?} has not specified a secret in its spec", self.hoprd.name_any());
             Ok(SecretStatus::NotSpecified)
         } else {
             let client: Client = self.client.clone();
@@ -155,10 +155,10 @@ impl SecretManager {
                         return Ok(SecretStatus::Locked);
                     }
                 }
-                println!("[INFO] The secret {secret_name} is ready to be used");
+                println!("[INFO] Hoprd node {:?} is ready to use the available secret {secret_name}", self.hoprd.name_any());
                 return Ok(SecretStatus::Ready);
             } else {
-                println!("[INFO] The secret is specified but does not exists yet");
+                println!("[INFO] Hoprd node {:?} has specified a secret {secret_name} which does not exists yet", self.hoprd.name_any());
                 return Ok(SecretStatus::NotExists);
             };
         };
