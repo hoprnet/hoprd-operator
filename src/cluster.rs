@@ -341,9 +341,9 @@ impl ClusterHoprd {
         for node in nodes {
             let node_name = &node.name_any();
             let uid = &node.uid().unwrap();
-            api.delete(node_name,  &DeleteParams::default()).await.unwrap();
-            let hoprd_completed = await_condition(api.clone(), node_name, conditions::is_deleted(uid));
-            match tokio::time::timeout(std::time::Duration::from_secs(constants::OPERATOR_NODE_SYNC_TIMEOUT.into()), hoprd_completed).await {
+            api.delete(node_name,  &DeleteParams::default()).await?;
+            let hoprd_deleted = await_condition(api.clone(), node_name, conditions::is_deleted(uid));
+            match tokio::time::timeout(std::time::Duration::from_secs(constants::OPERATOR_NODE_SYNC_TIMEOUT.into()), hoprd_deleted).await {
                 Ok(_) => {},
                 Err(_error) => {
                     println!("The Hoprd node {:?} deletion failed", node.name_any())
