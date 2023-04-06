@@ -74,7 +74,7 @@ impl Display for ClusterHoprdStatusEnum {
 /// Struct corresponding to the details of the secret which contains the sensitive data to run the node
 #[derive(Serialize, Debug, Default, Deserialize,  PartialEq, Clone, JsonSchema, Hash)]
 #[serde(rename_all = "camelCase")]
-pub struct Secret {
+pub struct HoprdSecret {
 
     pub secret_name: String,
 

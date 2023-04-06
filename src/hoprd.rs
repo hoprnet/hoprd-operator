@@ -4,7 +4,7 @@ use std::time::Duration;
 use std::hash::{Hash, Hasher};
 
 use crate::{constants, hoprd_service_monitor, hoprd_ingress, hoprd_deployment, hoprd_secret, hoprd_service, utils, context_data::ContextData};
-use crate::model::{HoprdStatusEnum, EnablingFlag, Secret as HoprdSecret, DeploymentResource, Error};
+use crate::model::{HoprdStatusEnum, EnablingFlag, HoprdSecret, DeploymentResource, Error};
 use chrono::Utc;
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::OwnerReference;
 use kube::Resource;
@@ -86,16 +86,16 @@ impl Hoprd {
         let owner_reference: Option<Vec<OwnerReference>> = Some(vec![self.controller_owner_ref(&()).unwrap()]);
         self.add_finalizer(client.clone(), &hoprd_name, &hoprd_namespace).await.unwrap();
         // Invoke creation of a Kubernetes resources
-        let mut hoprd: Hoprd = self.clone();
-        match hoprd_secret::create_secret(context.clone(), &mut hoprd).await {
+        let mut secret_manager = hoprd_secret::SecretManager::new(context.clone(), self.clone());
+        match secret_manager.create_secret().await {
             Ok(secret) => {
                 hoprd_deployment::create_deployment(client.clone(), &self,  secret).await?;
                 hoprd_service::create_service(client.clone(), &hoprd_name, &hoprd_namespace, owner_reference.to_owned()).await?;
-                if hoprd.spec.ingress.as_ref().unwrap_or(&EnablingFlag {enabled: constants::ENABLED}).enabled {
+                if self.spec.ingress.as_ref().unwrap_or(&EnablingFlag {enabled: constants::ENABLED}).enabled {
                     hoprd_ingress::create_ingress(client.clone(), &hoprd_name, &hoprd_namespace,&context.config.ingress, owner_reference.to_owned()).await?;
                 }
-                if hoprd.spec.monitoring.as_ref().unwrap_or(&EnablingFlag {enabled: constants::ENABLED}).enabled {
-                    hoprd_service_monitor::create_service_monitor(client.clone(), &hoprd_name, &hoprd_namespace, &hoprd.spec, owner_reference.to_owned()).await?;
+                if self.spec.monitoring.as_ref().unwrap_or(&EnablingFlag {enabled: constants::ENABLED}).enabled {
+                    hoprd_service_monitor::create_service_monitor(client.clone(), &hoprd_name, &hoprd_namespace, &secret_manager.hoprd_secret.unwrap(), owner_reference.to_owned()).await?;
                 }
                 println!("[INFO] Hoprd node {hoprd_name} in namespace {hoprd_namespace} has been successfully created");
                 Ok(Action::requeue(Duration::from_secs(constants::RECONCILE_FREQUENCY)))
@@ -122,8 +122,8 @@ impl Hoprd {
             match serde_json::from_str::<Hoprd>(&previous_config_text) {
                 Ok(modified_hoprd) => {
                     self.check_inmutable_fields(&modified_hoprd.spec).unwrap();
-                    let operator_namespace = &context.config.instance.namespace.to_owned();
-                    let secret = hoprd_secret::get_secret_used_by(client.clone(), &self.spec.network, &hoprd_name, operator_namespace).await.unwrap();
+                    let secret_manager = hoprd_secret::SecretManager::new(context.clone(), self.clone());
+                    let secret = secret_manager.get_hoprd_secret().await.unwrap();
                     if secret.is_some() {
                         let hoprd_secret = self.spec.secret.as_ref().unwrap_or(&HoprdSecret { secret_name: secret.unwrap().name_any(), ..HoprdSecret::default() }).to_owned();
                         hoprd_deployment::modify_deployment(client.clone(), &hoprd_name.to_owned(), &hoprd_namespace.to_owned(), &modified_hoprd.spec.to_owned(), hoprd_secret).await?;
@@ -145,7 +145,6 @@ impl Hoprd {
         let hoprd_namespace = self.namespace().unwrap();
         let client: Client = context.client.clone();
         self.create_event(context.clone(), HoprdStatusEnum::Deleting).await.unwrap();
-        self.update_status(context.clone(), HoprdStatusEnum::Deleting).await.unwrap();
         println!("[INFO] Starting to delete Hoprd node {hoprd_name} from namespace {hoprd_namespace}");
         // Deletes any subresources related to this `Hoprd` resources. If and only if all subresources
         // are deleted, the finalizer is removed and Kubernetes is free to remove the `Hoprd` resource.
@@ -156,8 +155,9 @@ impl Hoprd {
             hoprd_ingress::delete_ingress(client.clone(), &hoprd_name, &hoprd_namespace).await?;
         }
         hoprd_service::delete_service(client.clone(), &hoprd_name, &hoprd_namespace).await?;
-        hoprd_deployment::delete_depoyment(client.clone(), &hoprd_name, &hoprd_namespace).await.unwrap();  
-        hoprd_secret::unlock_secret(context.clone(), &self).await.unwrap();
+        hoprd_deployment::delete_depoyment(client.clone(), &hoprd_name, &hoprd_namespace).await.unwrap();
+        let secret_manager = hoprd_secret::SecretManager::new(context.clone(), self.clone());
+        secret_manager.unlock_secret().await.unwrap();
         // Once all the resources are successfully removed, remove the finalizer to make it possible
         // for Kubernetes to delete the `Hoprd` resource.
         self.create_event(context.clone(), HoprdStatusEnum::Deleted).await.unwrap();
@@ -332,7 +332,7 @@ impl Hoprd {
             let patch = json!({
                     "status": status
             });
-            println!("[DEBUG] Updating hoprd {hoprd_name} to {:?} with spec {:?} and hash {hash}", status, self.spec);
+            //println!("[DEBUG] Updating hoprd {hoprd_name} to {:?} with spec {:?} and hash {hash}", status, self.spec);
             match api.patch(&hoprd_name, &pp, &Patch::Merge(patch)).await {
                 Ok(_) => Ok(()),
                 Err(error) => {

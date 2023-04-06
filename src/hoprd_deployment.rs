@@ -15,7 +15,7 @@ use crate::model::Error;
 use crate::{
     constants,
     hoprd::{ Hoprd, HoprdSpec},
-    model::{Secret as HoprdSecret},
+    model::{HoprdSecret},
     utils,
 };
 
