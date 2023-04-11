@@ -1,6 +1,6 @@
 ---
 
-name: 'Container PR'
+name: 'Build Container'
 
 on:
   pull_request:

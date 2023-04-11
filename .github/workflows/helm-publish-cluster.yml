@@ -1,6 +1,6 @@
 ---
 
-name: 'Helm chart publish Cluster'
+name: 'Publish Helm chart Cluster'
 
 on:
   push:

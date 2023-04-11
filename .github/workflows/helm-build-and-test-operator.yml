@@ -1,6 +1,6 @@
 ---
 
-name: 'Helm chart build Operator'
+name: 'Package Helm chart Operator'
 
 on:
   pull_request:

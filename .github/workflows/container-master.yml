@@ -1,6 +1,6 @@
 ---
 
-name: 'Container merge'
+name: 'Publish Container'
 
 on:
   push:

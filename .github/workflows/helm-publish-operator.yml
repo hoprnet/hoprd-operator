@@ -1,6 +1,6 @@
 ---
 
-name: 'Helm chart publish Operator'
+name: 'Publish Helm chart Operator'
 
 on:
   push:
