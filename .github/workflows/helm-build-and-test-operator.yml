@@ -1,13 +1,13 @@
 ---
 
-name: 'Helm chart build'
+name: 'Package Helm chart Operator'
 
 on:
   pull_request:
     paths:
-      - "charts/**"
+      - "charts/hoprd-operator/**"
 concurrency:
-  group: ${{ github.head_ref }}
+  group: ${{ github.head_ref }}-operator
   cancel-in-progress: true
 jobs:
   validate:
@@ -22,8 +22,8 @@ jobs:
         run: |
           HELM_CHART_VERSION=$(grep '^version:' Chart.yaml | sed 's/.*: //')
           echo "The Helm chart version is '${HELM_CHART_VERSION}'"
-          if git tag -l | grep helm-${HELM_CHART_VERSION} 1> /dev/null; then
-            echo "The Helm chart version '${HELM_CHART_VERSION}' already exists. Please bump property 'version' on ./charts/Chart.yaml to a new version";
+          if git tag -l | grep helm-hoprd-operator-${HELM_CHART_VERSION} 1> /dev/null; then
+            echo "The Helm chart version '${HELM_CHART_VERSION}' already exists. Please bump property 'version' on ./charts/hoprd-operator/Chart.yaml to a new version";
             exit 1
           fi
         working-directory: 'charts/hoprd-operator/'
@@ -77,3 +77,31 @@ jobs:
           helm dependency build
           helm package . --version ${{ env.HELM_CHART_VERSION }}
         working-directory: 'charts/hoprd-operator/'
+  generate-readme:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Install readme-generator-for-helm
+        run: npm install -g @bitnami/readme-generator-for-helm@2.5.0
+
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          ref: ${{github.event.pull_request.head.ref}}
+          repository: ${{github.event.pull_request.head.repo.full_name}}
+          fetch-depth: 0
+
+      - name: Execute readme-generator-for-helm
+        run: |
+          readme-generator --values "charts/cluster-hoprd/values.yaml" --readme "charts/cluster-hoprd/README.md" --schema "/tmp/schema.json"
+
+      - name: Push changes
+        run: |
+          # Push all the changes
+          if git status -s | grep charts; then
+            git config user.email "noreply@hoprnet.org"
+            git config user.name "HOPR CI robot"
+            git config pull.rebase false
+            git add . && git commit -am "Update parameters README.md" --signoff && git push
+          fi

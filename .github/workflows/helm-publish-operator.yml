@@ -1,14 +1,16 @@
 ---
 
-name: 'Helm chart publish'
+name: 'Publish Helm chart Operator'
 
 on:
   push:
     branches:
       - master
     paths:
-      - "charts/**"
-
+      - "charts/hoprd-operator/**"
+concurrency:
+  group: ${{ github.head_ref }}-operator
+  cancel-in-progress: false
 jobs:
   publish:
     runs-on: ubuntu-latest
@@ -55,5 +57,5 @@ jobs:
         run: |
             git config user.email "noreply@hoprnet.org"
             git config user.name "HOPR CI robot"
-            git tag helm-${{ env.HELM_CHART_VERSION }}
-            git push origin helm-${{ env.HELM_CHART_VERSION }}
+            git tag helm-hoprd-operator-${{ env.HELM_CHART_VERSION }}
+            git push origin helm-hoprd-operator-${{ env.HELM_CHART_VERSION }}

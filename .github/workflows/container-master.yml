@@ -1,6 +1,6 @@
 ---
 
-name: 'Container merge'
+name: 'Publish Container'
 
 on:
   push:
@@ -8,7 +8,9 @@ on:
       - master
     paths-ignore:
       - "charts/**/*"
-
+concurrency:
+  group: ${{ github.head_ref }}-container
+  cancel-in-progress: false
 jobs:
   publish:
     runs-on: ubuntu-latest

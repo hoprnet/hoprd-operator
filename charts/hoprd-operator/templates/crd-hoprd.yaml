@@ -27,10 +27,10 @@ spec:
       storage: true
       schema:
         openAPIV3Schema:
-          description: Schema definition for Hopr Node
+          description: Schema definition for Hoprd Node
           type: object
           properties:
-            spec: # There is only one (required) field named "replicas" specifying how many pods are created by the Operator
+            spec:
               type: object
               properties:
                 config:
@@ -84,15 +84,14 @@ spec:
                 enabled:
                   type: boolean
                   description: 'Flag indicating if the node should be started or stopped'
-                environmentName:
+                network:
                   type: string
-                  description: 'Name of the hopr environment'
+                  description: 'Name of the hopr network'
                   enum:
-                  - monte_rosa
-                  - master-staging
-                  - debug-staging
-                  - anvil-localhost
-                  - anvil-localhost2
+                    - monte_rosa
+                    - monte_rosa_2_0
+                    - monte_rosa_3_0
+                    - mont_blanc
                 ingress:
                   type: object
                   description: Properties regarding ingress controller for hoprd node
@@ -158,7 +157,7 @@ spec:
                 version:
                   type: string
                   description: 'An specific hoprd version. Should match with a docker tag'
-              required: ["environmentName", "version"]
+              required: ["network", "version"]
             status:
               description: The status object of Hoprd node
               nullable: true
@@ -181,7 +180,7 @@ spec:
                   - Running
                   - Reloading
                   - Deleting
-                  - Unsync
+                  - OutOfSync
               required: [ "update_timestamp", "checksum", "status"]
               type: object
           required:

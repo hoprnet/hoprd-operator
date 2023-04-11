@@ -2,7 +2,9 @@
 pub const RECONCILE_FREQUENCY: u64 = 10;
 pub const OPERATOR_ENVIRONMENT: &str = "OPERATOR_ENVIRONMENT";
 pub const OPERATOR_FINALIZER: &str = "hoprds.hoprnet.org/finalizer";
-pub const OPERATOR_JOB_TIMEOUT: u64 = 300;
+pub const OPERATOR_JOB_TIMEOUT: u64 = 180;
+// This value `OPERATOR_NODE_SYNC_TIMEOUT` should be lower than 295
+pub const OPERATOR_NODE_SYNC_TIMEOUT: u32 = 290;
 pub const OPERATOR_INSTANCE_NAMESPACE: &str = "OPERATOR_INSTANCE_NAMESPACE";
 pub const SECRET_NAME: &str = "SECRET_NAME";
 
@@ -18,15 +20,16 @@ pub const LABEL_KUBERNETES_NAME: &str = "app.kubernetes.io/name";
 pub const LABEL_KUBERNETES_INSTANCE: &str = "app.kubernetes.io/instance";
 pub const LABEL_NODE_PEER_ID: &str = "hoprds.hoprnet.org/peerId";
 pub const LABEL_NODE_ADDRESS: &str = "hoprds.hoprnet.org/address";
-pub const LABEL_NODE_ENVIRONMENT_NAME: &str = "hoprds.hoprnet.org/environmentName";
+pub const LABEL_NODE_NETWORK: &str = "hoprds.hoprnet.org/network";
 pub const LABEL_NODE_LOCKED: &str = "hoprds.hoprnet.org/locked";
+pub const LABEL_NODE_CLUSTER: &str = "hoprds.hoprnet.org/cluster";
 
 // FINALIZERS
 pub const FINALIZER_SECRET: &str = "hoprds.hoprnet.org/secret";
 
 // Kubernetes Specs
-pub const HOPR_DOCKER_REGISTRY: &str = "gcr.io";
-pub const HOPR_DOCKER_IMAGE_NAME: &str = "hoprassociation/hoprd";
+pub const HOPR_DOCKER_REGISTRY: &str = "europe-west3-docker.pkg.dev";
+pub const HOPR_DOCKER_IMAGE_NAME: &str = "hoprassociation/docker-images/hoprd";
 pub const HOPR_PRIVATE_KEY: &str = "PRIVATE_KEY";
 pub const HOPRD_PEER_ID: &str = "HOPRD_PEER_ID";
 pub const HOPRD_ADDRESS: &str = "HOPRD_ADDRESS";

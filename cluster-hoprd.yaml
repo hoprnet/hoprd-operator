@@ -1,0 +1,22 @@
+---
+apiVersion: hoprnet.org/v1alpha
+kind: ClusterHoprd
+metadata:
+  name: monte-rosa-pr-1234
+  labels:
+    hoprds.hoprnet.org/pullRequest: "1234"
+  namespace:  monte-rosa
+spec:
+  network: monte_rosa
+  ingress:
+    enabled: true
+  monitoring:
+    enabled: true
+  nodes:
+    - name: default
+      replicas: 2
+      version: bratislava
+      enabled: true 
+      config:
+        autoRedeemTickets: true
+        announce: false

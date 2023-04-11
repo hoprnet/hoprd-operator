@@ -1,0 +1,33 @@
+## @section Common parameters
+##
+
+## @param nameOverride String to partially override common.names.fullname
+##
+nameOverride: ""
+## @param fullnameOverride String to fully override common.names.fullname
+##
+fullnameOverride: ""
+
+
+## @section Cluster Hoprd parameters
+##
+## @param network Network of the ClusterHoprd
+##
+network: ""
+
+##
+## @param ingress.enabled Whether to create or not the Ingress resource
+##
+ingress:
+  enabled: true
+
+##
+## @param monitoring.enabled Whether to create or not the ServiceMonitor resource
+##
+monitoring:
+  enabled: true
+
+##
+## @param nodes Array of node configuration
+##
+nodes: []

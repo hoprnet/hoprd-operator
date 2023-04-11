@@ -9,10 +9,10 @@ use kube::Error;
 use kube::runtime::wait::{await_condition, conditions};
 use kube::{Client, Api};
 
+use crate::model::HoprdSecret;
 use crate::servicemonitor::{ServiceMonitorSpec, ServiceMonitorEndpoints, ServiceMonitorEndpointsBasicAuth, ServiceMonitorEndpointsBasicAuthUsername, ServiceMonitorNamespaceSelector, ServiceMonitorSelector, ServiceMonitorEndpointsBasicAuthPassword};
 use crate::{
     constants,
-    hoprd::HoprdSpec,
     servicemonitor::ServiceMonitor,
     utils,
 };
@@ -26,7 +26,7 @@ use crate::{
 /// - `namespace` - Namespace to create the Kubernetes Deployment in.
 /// - `hoprd_spec` - Details about the hoprd configuration node
 ///
-pub async fn create_service_monitor(client: Client, name: &str, namespace: &str, hoprd_spec: &HoprdSpec, owner_references: Option<Vec<OwnerReference>>) -> Result<ServiceMonitor, Error> {
+pub async fn create_service_monitor(client: Client, name: &str, namespace: &str, hoprd_secret: &HoprdSecret, owner_references: Option<Vec<OwnerReference>>) -> Result<ServiceMonitor, Error> {
     let labels: BTreeMap<String, String> = utils::common_lables(&name.to_owned());
     let api: Api<ServiceMonitor> = Api::namespaced(client, namespace);
 
@@ -46,19 +46,16 @@ pub async fn create_service_monitor(client: Client, name: &str, namespace: &str,
                 port:Some("api".to_owned()),
                 basic_auth: Some(ServiceMonitorEndpointsBasicAuth{
                     username:Some(ServiceMonitorEndpointsBasicAuthUsername{
-                        key: hoprd_spec
-                        .secret.as_ref().unwrap()
+                        key: hoprd_secret
                         .api_token_ref_key.as_ref().unwrap_or(&constants::HOPRD_API_TOKEN.to_owned())
                         .to_string(),
-                        name: Some(hoprd_spec.secret.as_ref().unwrap().secret_name.to_owned()),
+                        name: Some(hoprd_secret.secret_name.to_owned()),
                         optional:Some(false)
                     }),
                     password:Some(ServiceMonitorEndpointsBasicAuthPassword {
-                        key: hoprd_spec
-                        .secret.as_ref().unwrap()
-                        .metrics_password_ref_key.as_ref().unwrap_or(&constants::HOPRD_METRICS_PASSWORD.to_owned())
+                        key: hoprd_secret.metrics_password_ref_key.as_ref().unwrap_or(&constants::HOPRD_METRICS_PASSWORD.to_owned())
                         .to_string(),
-                        name: Some(hoprd_spec.secret.as_ref().unwrap().secret_name.to_owned()),
+                        name: Some(hoprd_secret.secret_name.to_owned()),
                         optional:Some(false)
                     }),
                 }), 
@@ -116,7 +113,7 @@ pub async fn delete_service_monitor(client: Client, name: &str, namespace: &str)
         let uid = service_monitor.metadata.uid.unwrap();
         api.delete(name, &DeleteParams::default()).await?;
         await_condition(api, &name.to_owned(), conditions::is_deleted(&uid)).await.unwrap();
-        Ok(println!("[INFO] ServiceMonitor successfully deleted"))
+        Ok(println!("[INFO] ServiceMonitor {name} successfully deleted"))
     } else {
         Ok(println!("[INFO] ServiceMonitor {name} in namespace {namespace} about to delete not found"))
     }

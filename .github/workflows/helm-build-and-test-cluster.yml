@@ -1,0 +1,104 @@
+---
+
+name: 'Package Helm chart Cluster'
+
+on:
+  pull_request:
+    paths:
+      - "charts/cluster-hoprd/**"
+concurrency:
+  group: ${{ github.head_ref }}-cluster
+  cancel-in-progress: true
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Validate Helm chart version
+        run: |
+          HELM_CHART_VERSION=$(grep '^version:' Chart.yaml | sed 's/.*: //')
+          echo "The Helm chart version is '${HELM_CHART_VERSION}'"
+          if git tag -l | grep helm-cluster-hoprd-${HELM_CHART_VERSION} 1> /dev/null; then
+            echo "The Helm chart version '${HELM_CHART_VERSION}' already exists. Please bump property 'version' on ./charts/cluster-hoprd/Chart.yaml to a new version";
+            exit 1
+          fi
+        working-directory: 'charts/cluster-hoprd/'
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Lint
+        run: |
+          helm dependency update
+          helm lint
+        working-directory: 'charts/cluster-hoprd/'
+
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Get Helm chart version
+        run: |
+          HELM_CHART_VERSION=$(grep '^version:' Chart.yaml | sed 's/.*: //')
+          echo "HELM_CHART_VERSION=${HELM_CHART_VERSION}" >> $GITHUB_ENV
+        working-directory: 'charts/cluster-hoprd/'
+
+      - name: Set up Google Cloud Credentials
+        uses: google-github-actions/auth@v1
+        with:
+          credentials_json: ${{ secrets.GOOGLE_HOPRASSOCIATION_CREDENTIALS_REGISTRY }}
+
+      - name: Set up Google Cloud SDK
+        uses: google-github-actions/setup-gcloud@v1
+        with:
+          project_id: ${{ secrets.GOOGLE_HOPRASSOCIATION_PROJECT }}
+          install_components: beta
+
+      - name: Artifact Registry authentication
+        run: gcloud auth application-default print-access-token | helm registry login -u oauth2accesstoken --password-stdin https://europe-west3-docker.pkg.dev
+
+      - name: Helm Package
+        run: |
+          helm package . --version ${{ env.HELM_CHART_VERSION }}
+        working-directory: 'charts/cluster-hoprd/'
+  generate-readme:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Install readme-generator-for-helm
+        run: npm install -g @bitnami/readme-generator-for-helm@2.5.0
+
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          ref: ${{github.event.pull_request.head.ref}}
+          repository: ${{github.event.pull_request.head.repo.full_name}}
+          fetch-depth: 0
+
+      - name: Execute readme-generator-for-helm
+        run: |
+          readme-generator --values "charts/hoprd-operator/values.yaml" --readme "charts/hoprd-operator/README.md" --schema "/tmp/schema.json"
+
+      - name: Push changes
+        run: |
+          # Push all the changes
+          if git status -s | grep charts; then
+            git config user.email "noreply@hoprnet.org"
+            git config user.name "HOPR CI robot"
+            git config pull.rebase false
+            git add . && git commit -am "Update parameters README.md" --signoff && git push
+          fi
