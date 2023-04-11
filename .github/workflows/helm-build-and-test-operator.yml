@@ -7,7 +7,7 @@ on:
     paths:
       - "charts/hoprd-operator/**"
 concurrency:
-  group: ${{ github.head_ref }}
+  group: ${{ github.head_ref }}-operator
   cancel-in-progress: true
 jobs:
   validate:

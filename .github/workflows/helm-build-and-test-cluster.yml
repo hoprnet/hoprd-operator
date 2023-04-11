@@ -7,7 +7,7 @@ on:
     paths:
       - "charts/cluster-hoprd/**"
 concurrency:
-  group: ${{ github.head_ref }}
+  group: ${{ github.head_ref }}-cluster
   cancel-in-progress: true
 jobs:
   validate:

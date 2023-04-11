@@ -8,7 +8,9 @@ on:
       - master
     paths:
       - "charts/cluster-hoprd/**"
-
+concurrency:
+  group: ${{ github.head_ref }}-cluster
+  cancel-in-progress: false
 jobs:
   publish:
     runs-on: ubuntu-latest

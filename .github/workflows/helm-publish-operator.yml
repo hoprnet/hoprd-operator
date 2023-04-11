@@ -8,7 +8,9 @@ on:
       - master
     paths:
       - "charts/hoprd-operator/**"
-
+concurrency:
+  group: ${{ github.head_ref }}-operator
+  cancel-in-progress: false
 jobs:
   publish:
     runs-on: ubuntu-latest
