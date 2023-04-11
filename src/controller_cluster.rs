@@ -2,10 +2,10 @@
 use futures::StreamExt;
 use k8s_openapi::api::{apps::v1::Deployment, networking::v1::Ingress, core::v1::{Service, Secret}, batch::v1::Job};
 use kube::{
-    api::{Api, ListParams},
+    api::{Api},
     client::Client,
     runtime::{
-        controller::{Action, Controller}
+        controller::{Action, Controller}, watcher::Config
     },
     Resource, Result, Error
 };
@@ -95,13 +95,13 @@ pub async fn run(client: Client, context_data: Arc<ContextData>) {
     let service_monitor = Api::<ServiceMonitor>::all(client.clone());
     let ingress = Api::<Ingress>::all(client.clone());
 
-    Controller::new(owned_api, ListParams::default())
-        .owns(job, ListParams::default())
-        .owns(deployment, ListParams::default())
-        .owns(secret, ListParams::default())
-        .owns(service, ListParams::default())
-        .owns(service_monitor, ListParams::default())
-        .owns(ingress, ListParams::default())
+    Controller::new(owned_api, Config::default())
+        .owns(job, Config::default())
+        .owns(deployment, Config::default())
+        .owns(secret, Config::default())
+        .owns(service, Config::default())
+        .owns(service_monitor, Config::default())
+        .owns(ingress, Config::default())
         .shutdown_on_signal()
         .run(reconciler, on_error, context_data)
         .for_each(|reconciliation_result| async move {

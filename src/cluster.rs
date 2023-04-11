@@ -13,7 +13,7 @@ use futures::{StreamExt, TryStreamExt};
 use k8s_openapi::api::apps::v1::Deployment;
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::OwnerReference;
 use kube::Resource;
-use kube::api::{PostParams, ListParams, DeleteParams};
+use kube::api::{PostParams, ListParams, DeleteParams, WatchParams};
 use kube::core::{ObjectMeta, WatchEvent};
 use kube::runtime::events::Recorder;
 use kube::runtime::wait::{conditions, await_condition};
@@ -305,7 +305,7 @@ impl ClusterHoprd {
         // Create the Hoprd resource defined above
         let hoprd_created = api.create(&PostParams::default(), &hoprd).await.unwrap();
         // Wait for the Hoprd deployment to be created
-        let lp = ListParams::default()
+        let lp = WatchParams::default()
             .fields(&format!("metadata.name={name}"))
             .timeout(constants::OPERATOR_NODE_SYNC_TIMEOUT);
         let deployment_api: Api<Deployment> = Api::namespaced(client.clone(), &self.namespace().unwrap());

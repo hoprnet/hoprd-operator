@@ -1,6 +1,6 @@
 ---
 
-name: 'Helm chart build'
+name: 'Helm chart build Cluster'
 
 on:
   pull_request:
