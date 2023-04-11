@@ -7,7 +7,7 @@ on:
     branches:
       - master
     paths:
-      - "charts/**"
+      - "charts/hoprd-operator/**"
 
 jobs:
   publish:
@@ -55,5 +55,5 @@ jobs:
         run: |
             git config user.email "noreply@hoprnet.org"
             git config user.name "HOPR CI robot"
-            git tag helm-${{ env.HELM_CHART_VERSION }}
-            git push origin helm-${{ env.HELM_CHART_VERSION }}
+            git tag helm-hoprd-operator-${{ env.HELM_CHART_VERSION }}
+            git push origin helm-hoprd-operator-${{ env.HELM_CHART_VERSION }}
