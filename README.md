@@ -2,6 +2,13 @@
 
 A Kubernetes operator built on top of [kube-rs](https://github.com/clux/kube-rs) project to handle `hoprd` nodes
 
+## Usage
+
+Bear in mind that in order for the wallet to be registered correctly, the wallet has to have:
+- Developer NFT
+- mHOPR
+- xDAI
+
 ## Development
 
 1. Use `kubectl apply -f hoprds.hoprnet.org.yaml` to create the CustomResourceDefinition inside Kubernetes.
@@ -11,14 +18,14 @@ A Kubernetes operator built on top of [kube-rs](https://github.com/clux/kube-rs)
 Finally, a custom `Hoprd` resource can be created with `kubectl apply -f hoprd-node-1.yaml`. A new deployment with `Hoprd` node will be created. 
 
 
-## CRD
+### CRD
 
 Include a given CRD into the Rust code:
 ````
 kopium servicemonitors.monitoring.coreos.com -A > src/service_monitor.rs
 ````
 
-## Container
+### Container
 Build the hoprd-operator container using in the repo root:
 
 ```shell
