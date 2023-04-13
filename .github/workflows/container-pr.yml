@@ -54,5 +54,5 @@ jobs:
       - name: Build container image
         uses: docker/build-push-action@v4
         with:
-          push: true
+          push: false
           tags: gcr.io/hoprassociation/hoprd-operator:latest
