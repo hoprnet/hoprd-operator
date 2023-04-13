@@ -3,10 +3,10 @@ apiVersion: hoprnet.org/v1alpha
 kind: Hoprd
 metadata:
   name: hoprd-node-1
-  namespace: riga
+  namespace: hoprd-operator
 spec:
-  network: monte_rosa
-  version: riga
+  network: master-staging
+  version: bratislava
   config:
     autoRedeemTickets: true
     announce: false
