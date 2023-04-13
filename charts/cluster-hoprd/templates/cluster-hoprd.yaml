@@ -2,7 +2,7 @@
 apiVersion: hoprnet.org/v1alpha
 kind: ClusterHoprd
 metadata:
-  name: {{ include "cluster-hoprd.fullname" . }}
+  name: {{ include "cluster-hoprd.name" . }}
   namespace: {{ .Release.Namespace | quote }}
 spec:
   network: {{ .Values.network }}

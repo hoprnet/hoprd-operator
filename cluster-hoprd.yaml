@@ -2,19 +2,19 @@
 apiVersion: hoprnet.org/v1alpha
 kind: ClusterHoprd
 metadata:
-  name: monte-rosa-pr-1234
+  name: pr-1234
   labels:
     hoprds.hoprnet.org/pullRequest: "1234"
-  namespace:  monte-rosa
+  namespace:  master-staging
 spec:
-  network: monte_rosa
+  network: master-staging
   ingress:
     enabled: true
   monitoring:
     enabled: true
   nodes:
     - name: default
-      replicas: 2
+      replicas: 1
       version: bratislava
       enabled: true 
       config:

@@ -2,8 +2,8 @@
 
 apiVersion: v2
 name: hoprd-operator
-version: 0.1.18
-appVersion: 0.1.13
+version: 0.1.20
+appVersion: 0.1.14
 description: A Helm chart operator for managing Hopr nodes
 type: application
 icon: "https://hoprnet.org/assets/icons/logo.svg"

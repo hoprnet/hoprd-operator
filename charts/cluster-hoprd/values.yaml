@@ -4,9 +4,6 @@
 ## @param nameOverride String to partially override common.names.fullname
 ##
 nameOverride: ""
-## @param fullnameOverride String to fully override common.names.fullname
-##
-fullnameOverride: ""
 
 
 ## @section Cluster Hoprd parameters
