@@ -5,7 +5,7 @@ A Kubernetes operator built on top of [kube-rs](https://github.com/clux/kube-rs)
 ## Usage
 
 Bear in mind that in order for the wallet to be registered correctly, the wallet has to have:
-- Staked Developer NFT for `monte_rosa`
+- Staked (season 6) Developer NFT for `monte_rosa`
 - mHOPR
 - xDAI
 
