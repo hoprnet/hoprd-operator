@@ -303,7 +303,7 @@ impl ClusterHoprd {
             status: None
         };
         // Create the Hoprd resource defined above
-        let hoprd_created = api.create(&PostParams::default(), &hoprd).await.unwrap();
+        let hoprd_created = api.create(&PostParams::default(), &hoprd).await?;
         // Wait for the Hoprd deployment to be created
         let lp = WatchParams::default()
             .fields(&format!("metadata.name={name}"))

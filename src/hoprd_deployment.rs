@@ -41,6 +41,11 @@ pub async fn create_deployment(client: Client, hoprd: &Hoprd, secret: Secret) ->
     labels.insert(constants::LABEL_NODE_PEER_ID.to_owned(), node_peer_id);
     labels.insert(constants::LABEL_NODE_NETWORK.to_owned(), node_network);
 
+    // Propagating ClusterHopd instance
+    if hoprd.labels().contains_key(constants::LABEL_NODE_CLUSTER) {
+        let cluster_hoprd: String = hoprd.labels().get_key_value(constants::LABEL_NODE_CLUSTER).unwrap().1.parse().unwrap();
+        labels.insert(constants::LABEL_NODE_CLUSTER.to_owned(), cluster_hoprd);
+    }
 
     // Definition of the deployment. Alternatively, a YAML representation could be used as well.
     let deployment: Deployment = Deployment {

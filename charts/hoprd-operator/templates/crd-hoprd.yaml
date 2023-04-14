@@ -88,6 +88,7 @@ spec:
                   type: string
                   description: 'Name of the hopr network'
                   enum:
+                    - master-staging
                     - monte_rosa
                     - monte_rosa_2_0
                     - monte_rosa_3_0

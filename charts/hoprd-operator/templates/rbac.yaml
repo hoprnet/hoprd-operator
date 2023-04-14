@@ -86,10 +86,13 @@ rules:
   - hoprnet.org
   resources:
   - hoprds
+  - clusterhoprds
   verbs:
   - get
   - list
   - watch
+  - create
+  - delete
   - update
   - patch
 ---

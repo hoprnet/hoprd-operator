@@ -2,12 +2,21 @@
 
 A Kubernetes operator built on top of [kube-rs](https://github.com/clux/kube-rs) project to handle `hoprd` nodes
 
+## Prerequisites
+
+Bear in mind that in order for the wallet to work correctly, the wallet has be compliant with the following requirements:
+- Hold a Developer NFT for `monte_rosa` which has been staked for Season 6 or later
+- Have enough funds in mHOPR
+- Have enough funds in xDAI
+
 ## Usage
 
-Bear in mind that in order for the wallet to be registered correctly, the wallet has to have:
-- Staked (season 6) Developer NFT for `monte_rosa`
-- mHOPR
-- xDAI
+This operator provides two CRD:
+- **Hoprd**: This resource manage a single hoprd node. See the [specifications](./charts/hoprd-operator/templates/crd-hoprd.yaml) for details about what can be configured on an specific hoprd node.
+- **ClusterHoprd**: This resource manage a cluster of related hoprd nodes. See the [specifications](./charts/hoprd-operator/templates/crd-cluster-hoprd.yaml) for details about what can be configured on a cluster of nodes.
+
+
+Note: Keep in mind that the `secret.secretName` and `network` attributes of a node cannot be modified.
 
 ## Development
 
