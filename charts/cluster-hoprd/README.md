@@ -9,10 +9,9 @@ This chart packages the creation of a ClusterHoprd
 
 ### Common parameters
 
-| Name               | Description                                        | Value |
-| ------------------ | -------------------------------------------------- | ----- |
-| `nameOverride`     | String to partially override common.names.fullname | `""`  |
-| `fullnameOverride` | String to fully override common.names.fullname     | `""`  |
+| Name           | Description                                        | Value |
+| -------------- | -------------------------------------------------- | ----- |
+| `nameOverride` | String to partially override common.names.fullname | `""`  |
 
 ### Cluster Hoprd parameters
 
