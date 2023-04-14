@@ -3,7 +3,7 @@ apiVersion: hoprnet.org/v1alpha
 kind: Hoprd
 metadata:
   name: hoprd-node-1
-  namespace: hoprd-operator
+  namespace: master-staging
 spec:
   network: master-staging
   version: bratislava
