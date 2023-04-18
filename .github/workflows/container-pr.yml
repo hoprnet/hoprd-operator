@@ -14,7 +14,7 @@ concurrency:
 jobs:
   validate:
     runs-on: ubuntu-latest
-    if: ${{ github.actor != 'dependabot[bot]' }}
+    # if: ${{ github.actor != 'dependabot[bot]' }}
 
     steps:
       - name: Checkout
@@ -48,7 +48,7 @@ jobs:
   build:
     needs: validate
     runs-on: ubuntu-latest
-    if: "!contains(github.event.pusher.name, 'dependabot')"
+    # if: "!contains(github.event.pusher.name, 'dependabot')"
 
     steps:
       - name: Build container image
