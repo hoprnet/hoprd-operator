@@ -40,33 +40,28 @@ pub async fn create_service(client: Client, name: &str, namespace: &str, owner_r
 
 
 fn service_ports() -> Vec<ServicePort> {
-    let mut service_ports = Vec::with_capacity(3);
-    service_ports.push(ServicePort {
+    vec![ServicePort {
                 name: Some("api".to_owned()),
                 port: 3001,
                 protocol: Some("TCP".to_owned()),
                 target_port: Some(IntOrString::String("api".to_owned())),
                 ..ServicePort::default()
-            });
-
-    service_ports.push(ServicePort {
+            },
+        ServicePort {
                 name: Some("p2p-tcp".to_owned()),
                 port: 9001,
                 protocol: Some("TCP".to_owned()),
                 target_port: Some(IntOrString::String("p2p-tcp".to_owned())),
                 ..ServicePort::default()
-            });
-
-    service_ports.push(ServicePort {
+            },
+        ServicePort {
                 name: Some("p2p-udp".to_owned()),
                 port: 9001,
                 protocol: Some("UDP".to_owned()),
                 target_port: Some(IntOrString::String("p2p-udp".to_owned())),
                 ..ServicePort::default()
-            });
-
-    return service_ports;
-
+            }
+    ]
 }
 
 /// Deletes an existing service.
