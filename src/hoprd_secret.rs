@@ -109,15 +109,18 @@ impl SecretManager {
     }
 
     /// Evaluates the status of the secret based on `SecretStatus` to determine later which actions need to be taken
-    async fn determine_secret_status(&self) -> Result<SecretStatus,Error> {
-        return if self.hoprd.spec.secret.is_none() && self.hoprd_secret.is_none() {
+    async fn determine_secret_status(&mut self) -> Result<SecretStatus,Error> {
+        return if self.hoprd.spec.secret.is_none() {
             println!("[INFO] Hoprd node {:?} has not specified a secret in its spec", self.hoprd.name_any());
             Ok(SecretStatus::NotSpecified)
         } else {
             let client: Client = self.client.clone();
             let operator_namespace = &self.operator_config.instance.namespace.to_owned();
             let hoprd_secret = match self.hoprd.spec.secret.as_ref() {
-                Some(secret) => secret,
+                Some(secret) => { 
+                    self.hoprd_secret = Some(secret.to_owned());
+                    secret
+                },
                 None => self.hoprd_secret.as_ref().unwrap()
             };
             let api_secrets: Api<Secret> = Api::namespaced(client.clone(), &operator_namespace);
