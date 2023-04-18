@@ -27,13 +27,7 @@ pub async fn create_service(client: Client, name: &str, namespace: &str, owner_r
         spec: Some(ServiceSpec {
             selector: Some(labels.clone()),
             type_: Some("ClusterIP".to_owned()),
-            ports: Some(vec![ServicePort {
-                name: Some("api".to_owned()),
-                port: 3001,
-                protocol: Some("TCP".to_owned()),
-                target_port: Some(IntOrString::Int(3001)),
-                ..ServicePort::default()
-            }]),
+            ports: Some(service_ports()),
             ..ServiceSpec::default()
         }),
         ..Service::default()
@@ -42,6 +36,37 @@ pub async fn create_service(client: Client, name: &str, namespace: &str, owner_r
     // Create the service defined above
     let service_api: Api<Service> = Api::namespaced(client, namespace);
     service_api.create(&PostParams::default(), &service).await
+}
+
+
+fn service_ports() -> Vec<ServicePort> {
+    let mut service_ports = Vec::with_capacity(3);
+    service_ports.push(ServicePort {
+                name: Some("api".to_owned()),
+                port: 3001,
+                protocol: Some("TCP".to_owned()),
+                target_port: Some(IntOrString::String("api".to_owned())),
+                ..ServicePort::default()
+            });
+
+    service_ports.push(ServicePort {
+                name: Some("p2p-tcp".to_owned()),
+                port: 9001,
+                protocol: Some("TCP".to_owned()),
+                target_port: Some(IntOrString::String("p2p-tcp".to_owned())),
+                ..ServicePort::default()
+            });
+
+    service_ports.push(ServicePort {
+                name: Some("p2p-udp".to_owned()),
+                port: 9001,
+                protocol: Some("UDP".to_owned()),
+                target_port: Some(IntOrString::String("p2p-udp".to_owned())),
+                ..ServicePort::default()
+            });
+
+    return service_ports;
+
 }
 
 /// Deletes an existing service.
