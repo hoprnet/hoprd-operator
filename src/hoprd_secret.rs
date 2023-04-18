@@ -79,7 +79,7 @@ impl SecretManager {
         Ok(secrets.items.first().map(|secret| secret.to_owned()))
     }
 
-    /// Gets the secret used by the Hoprd node
+    /// Gets the Kubernetes secret linked to the Hoprd node by its OwnedReferences
     pub async fn get_hoprd_secret(&self) -> Result<Option<Secret>, Error> {
         let api: Api<Secret> = Api::namespaced(self.client.clone(),& self.operator_config.instance.namespace);
         let label_selector: String = format!("{}={},{}={}",
@@ -98,10 +98,10 @@ impl SecretManager {
         Ok(secret)
     }
 
-    /// Gets the wallet secret linked to the hoprd-operator
+    /// Gets the Kubernetes secret used by the hoprd-operator to register and fund nodes 
     pub async fn get_wallet_secret(&self) -> Result<Secret, Error> {
         let api: Api<Secret> = Api::namespaced(self.client.clone(), &self.operator_config.instance.namespace);
-        if let Some(wallet_secret) = api.get_opt(&self.operator_config.instance.name).await? {
+        if let Some(wallet_secret) = api.get_opt(&self.operator_config.instance.secret_name).await? {
             Ok(wallet_secret)
         } else {
             Err(Error::SecretStatusError("[ERROR] Could not get wallet secret".to_owned()))
