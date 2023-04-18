@@ -49,14 +49,14 @@ fn service_ports() -> Vec<ServicePort> {
             },
         ServicePort {
                 name: Some("p2p-tcp".to_owned()),
-                port: 9001,
+                port: 9091,
                 protocol: Some("TCP".to_owned()),
                 target_port: Some(IntOrString::String("p2p-tcp".to_owned())),
                 ..ServicePort::default()
             },
         ServicePort {
                 name: Some("p2p-udp".to_owned()),
-                port: 9001,
+                port: 9091,
                 protocol: Some("UDP".to_owned()),
                 target_port: Some(IntOrString::String("p2p-udp".to_owned())),
                 ..ServicePort::default()
