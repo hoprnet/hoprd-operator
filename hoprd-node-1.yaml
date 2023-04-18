@@ -6,7 +6,7 @@ metadata:
   namespace: master-staging
 spec:
   network: master-staging
-  version: bratislava
+  version: providence
   config:
     autoRedeemTickets: true
     announce: false

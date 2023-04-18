@@ -15,7 +15,7 @@ spec:
   nodes:
     - name: default
       replicas: 2
-      version: bratislava
+      version: providence
       enabled: true 
       config:
         autoRedeemTickets: true
