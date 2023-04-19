@@ -110,7 +110,7 @@ impl SecretManager {
 
     /// Evaluates the status of the secret based on `SecretStatus` to determine later which actions need to be taken
     async fn determine_secret_status(&mut self) -> Result<SecretStatus,Error> {
-        return if self.hoprd.spec.secret.is_none() {
+        return if self.hoprd.spec.secret.is_none() && self.hoprd_secret.is_none() {
             println!("[INFO] Hoprd node {:?} has not specified a secret in its spec", self.hoprd.name_any());
             Ok(SecretStatus::NotSpecified)
         } else {
