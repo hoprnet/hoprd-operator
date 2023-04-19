@@ -135,11 +135,11 @@ impl SecretManager {
                 if secret_annotations.contains_key(constants::ANNOTATION_HOPRD_NETWORK_REGISTRY) {
                     let network_registry_annotation: bool = secret_annotations.get_key_value(constants::ANNOTATION_HOPRD_NETWORK_REGISTRY).unwrap().1.parse().unwrap();
                     if ! network_registry_annotation {
-                        println!("[INFO] The secret exists but is not registered");
+                        println!("[INFO] The secret {} exists but is not registered", secret_name);
                         return Ok(SecretStatus::NotRegistered)
                     }
                 } else {
-                    println!("[INFO] The secret exists but is not registered");
+                    println!("[INFO] The secret {} exists but is not registered", secret_name);
                     return Ok(SecretStatus::NotRegistered)
                 }
                 if secret_annotations.contains_key(constants::ANNOTATION_HOPRD_FUNDED) {

@@ -16,7 +16,6 @@ use kube::Resource;
 use kube::api::{PostParams, ListParams, DeleteParams, WatchParams};
 use kube::core::{ObjectMeta, WatchEvent};
 use kube::runtime::events::Recorder;
-use kube::runtime::wait::{conditions, await_condition};
 use schemars::JsonSchema;
 use serde::{Serialize, Deserialize};
 use serde_json::{json};
@@ -263,6 +262,7 @@ impl ClusterHoprd {
     /// Creates a set of hoprd resources with similar configuration
     async fn create_node_set(&self,  context: Arc<ContextData>, node_set: Node, out_of_sync: &mut bool) -> Result<(), Error> {
         let client: Client = context.client.clone();
+        println!("[INFO] Starting to create nodeset {}", node_set.name.to_owned());
         for node_instance in 0..node_set.replicas.to_owned() {
             let name = format!("{}-{}-{}", self.name_any(), node_set.name.to_owned(), node_instance.to_owned()).to_owned();
             let hoprd_spec: HoprdSpec = HoprdSpec {
@@ -310,10 +310,10 @@ impl ClusterHoprd {
             .timeout(constants::OPERATOR_NODE_SYNC_TIMEOUT);
         let deployment_api: Api<Deployment> = Api::namespaced(client.clone(), &self.namespace().unwrap());
         let mut stream = deployment_api.watch(&lp, "0").await?.boxed();
-        while let Some(deployment) = stream.try_next().await.unwrap() {
+        while let Some(deployment) = stream.try_next().await? {
             match deployment {
                 WatchEvent::Added(deployment) => {
-                    println!("[DEBUG] Deployment uid {:?} is created", deployment.uid().unwrap());
+                    println!("[DEBUG] Deployment uid {:?} is created for node {}", deployment.uid().unwrap(), name);
                     println!("[INFO] Hoprd {name} has been added to the cluster");
                     return Ok(hoprd_created);
                 },

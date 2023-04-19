@@ -58,7 +58,8 @@ data:
     set -Eeuo pipefail
 
     export PATH=${PATH}:/root/.foundry/bin/
-    export RUST_BACKTRACE=1
+    export RUST_BACKTRACE=full
+    set -x
     /bin/hopli register-in-network-registry --environment-name ${HOPRD_ENVIRONMENT} --peer-ids ${HOPRD_PEER_ID} --contracts-root /root/contracts
   fund-node.sh: |
     #!/usr/bin/env bash
@@ -66,5 +67,6 @@ data:
     set -Eeuo pipefail
 
     export PATH=${PATH}:/root/.foundry/bin/
-    export RUST_BACKTRACE=1
+    export RUST_BACKTRACE=full
+    set -x
     hopli faucet --environment-name ${HOPRD_ENVIRONMENT} --use-local-identities --identity-directory /app/hoprd-identity/ --address ${HOPRD_ADDRESS} --contracts-root /root/contracts --hopr-amount {{- printf " %f" .Values.operator.tokenAmount.hopr }} --native-amount {{- printf " %f" .Values.operator.tokenAmount.native }}

@@ -216,7 +216,7 @@ impl Hoprd {
                 }
             }
         } else {
-            println!("[INFO] Hoprd node {hoprd_name} has already been deleted");
+            println!("[DEBUG] Hoprd node {hoprd_name} has already been deleted");
             Ok(())
         }
     }
