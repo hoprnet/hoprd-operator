@@ -32,4 +32,5 @@ LABEL name="hoprd operator" \
 COPY --from=builder /hopr_operator/target/hopr_operator /bin/hopr_operator
 
 ENV OPERATOR_ENVIRONMENT=production
+ENV RUST_BACKTRACE=full
 ENTRYPOINT ["/bin/hopr_operator"]
