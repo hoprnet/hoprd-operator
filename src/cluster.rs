@@ -125,7 +125,7 @@ impl ClusterHoprd {
         let client: Client = context.client.clone();
         self.create_event(context.clone(),  ClusterHoprdStatusEnum::Deleting, None).await.unwrap();
         println!("[INFO] Starting to delete ClusterHoprd {cluster_hoprd_name} from namespace {hoprd_namespace}");
-        self.delete_nodes(client.clone()).await.unwrap();
+        self.delete_nodes(client.clone()).await.unwrap_or(());
         self.delete_finalizer(client.clone(), &cluster_hoprd_name, &hoprd_namespace).await.unwrap();
         println!("[INFO] ClusterHoprd {cluster_hoprd_name} in namespace {hoprd_namespace} has been successfully deleted");
         Ok(Action::await_change()) // Makes no sense to delete after a successful delete, as the resource is gone
@@ -340,15 +340,12 @@ impl ClusterHoprd {
         let nodes = self.get_my_nodes(api.clone()).await.unwrap();
         for node in nodes {
             let node_name = &node.name_any();
-            let uid = &node.uid().unwrap();
-            api.delete(node_name,  &DeleteParams::default()).await?;
-            let hoprd_deleted = await_condition(api.clone(), node_name, conditions::is_deleted(uid));
-            match tokio::time::timeout(std::time::Duration::from_secs(constants::OPERATOR_NODE_SYNC_TIMEOUT.into()), hoprd_deleted).await {
-                Ok(_) => {},
-                Err(_error) => {
-                    println!("The Hoprd node {:?} deletion failed", node.name_any())
-                }
-            }
+            match api.delete(node_name,  &DeleteParams::default()).await {
+                Ok(node_deleted) => {
+                    node_deleted.map_right(|s| println!("Deleted Node: {:?}", s));
+                },
+                Err(_error) => println!("The Hoprd node {:?} deletion failed", node.name_any())
+            };            
         }
         Ok(())
     }
