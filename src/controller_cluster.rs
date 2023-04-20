@@ -46,6 +46,8 @@ fn determine_action(cluster_hoprd: &ClusterHoprd) -> ClusterHoprdAction {
         ClusterHoprdAction::Create
     } else if cluster_hoprd.status.as_ref().unwrap().status == ClusterHoprdStatusEnum::OutOfSync {
         ClusterHoprdAction::Sync
+    } else if cluster_hoprd.status.as_ref().unwrap().status == ClusterHoprdStatusEnum::Deleting {
+        ClusterHoprdAction::NoOp
     } else {
         let mut hasher: DefaultHasher = DefaultHasher::new();
         let cluster_hoprd_spec: ClusterHoprdSpec = cluster_hoprd.spec.clone();

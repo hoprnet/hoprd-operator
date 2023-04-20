@@ -110,14 +110,14 @@ impl HoprdJob {
         };
 
         // Create the Job defined above
-        println!("[INFO] Launching job '{}'", &job_name.to_owned());
+        println!("[INFO] Job {} started", &job_name.to_owned());
         let api: Api<Job> = Api::namespaced(self.client.clone(), &self.config.instance.namespace);
-        api.create(&PostParams::default(), &create_node_job).await?;
+        api.create(&PostParams::default(), &create_node_job).await.unwrap();
         let job_completed = await_condition(api, &job_name, conditions::is_job_completed());
         match tokio::time::timeout(std::time::Duration::from_secs(constants::OPERATOR_JOB_TIMEOUT), job_completed).await {
-            Ok(_) => Ok(()),
+            Ok(_) => Ok(println!("[INFO] Job {} completed successfully", &job_name.to_owned())),
             Err(_error) => {
-                Err(Error::JobExecutionError(format!("The creation node job failed and the node {hoprd_name} cannot be fully configured.").to_owned()))
+                Err(Error::JobExecutionError(format!(" Job execution for {} failed", &job_name.to_owned()).to_owned()))
             }
         }
     }
@@ -144,14 +144,14 @@ impl HoprdJob {
         let registering_job: Job = self.build_job(job_name.to_owned(), namespace, owner_references, self.config.hopli_image.to_owned(), labels, command_args, env_vars, volume_mounts, volumes);
 
         // Create the Job defined above
-        println!("[INFO] Launching job '{}'", &job_name);
+        println!("[INFO] Job {} started", &job_name.to_owned());
         let api: Api<Job> = Api::namespaced(self.client.clone(), &self.config.instance.namespace.to_owned());
-        api.create(&PostParams::default(), &registering_job).await?;
+        api.create(&PostParams::default(), &registering_job).await.unwrap();
         let job_completed = await_condition(api, &job_name, conditions::is_job_completed());
         match tokio::time::timeout(std::time::Duration::from_secs(constants::OPERATOR_JOB_TIMEOUT), job_completed).await {
-            Ok(_) => Ok(()),
+            Ok(_) => Ok(println!("[INFO] Job {} completed successfully", &job_name.to_owned())),
             Err(_error) => {
-                Err(Error::JobExecutionError(format!("The registration node job failed and the node {hoprd_name} cannot be fully configured.").to_owned()))
+                Err(Error::JobExecutionError(format!(" Job execution for {} failed", &job_name.to_owned()).to_owned()))
             }
         }
     }
@@ -179,14 +179,14 @@ impl HoprdJob {
         let funding_job: Job = self.build_job(job_name.to_owned(), namespace, owner_references, self.config.hopli_image.to_owned(), labels, command_args, env_vars, volume_mounts, volumes);
 
         // Create the Job defined above
-        println!("[INFO] Launching job '{}'", &job_name);
+        println!("[INFO] Job {} started", &job_name.to_owned());
         let api: Api<Job> = Api::namespaced(self.client.clone(), &self.config.instance.namespace.to_owned());
-        api.create(&PostParams::default(), &funding_job).await?;
+        api.create(&PostParams::default(), &funding_job).await.unwrap();
         let job_completed = await_condition(api, &job_name, conditions::is_job_completed());
         match tokio::time::timeout(std::time::Duration::from_secs(constants::OPERATOR_JOB_TIMEOUT), job_completed).await {
-            Ok(_) => Ok(()),
+            Ok(_) => Ok(println!("[INFO] Job {} completed successfully", &job_name.to_owned())),
             Err(_error) => {
-                Err(Error::JobExecutionError(format!("The funding job failed and the node {hoprd_name} cannot be fully configured.").to_owned()))
+                Err(Error::JobExecutionError(format!(" Job execution for {} failed", &job_name.to_owned()).to_owned()))
             }
         }
     }

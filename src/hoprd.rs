@@ -143,7 +143,7 @@ impl Hoprd {
     pub async fn delete(&self, context: Arc<ContextData>) -> Result<Action> {
         let hoprd_name = self.name_any();
         let hoprd_namespace = self.namespace().unwrap();
-        let client: Client = context.client.clone();        
+        let client: Client = context.client.clone();
         self.create_event(context.clone(), HoprdStatusEnum::Deleting).await.unwrap();
         println!("[INFO] Starting to delete Hoprd node {hoprd_name} from namespace {hoprd_namespace}");
         // Deletes any subresources related to this `Hoprd` resources. If and only if all subresources
