@@ -14,44 +14,34 @@ metadata:
     {{- .Values.operator.commonAnnotations | toYaml | nindent 4 }}
 {{- end }}
 data:
-  create-node.sh: |
+  create-identity.sh: |
     #!/usr/bin/env bash
 
     set -Eeuo pipefail
 
-    rm -rf "/app/node_secrets/${SECRET_NAME}"
+    export PATH=${PATH}:/root/.foundry/bin/
+    export RUST_BACKTRACE=full
+
     mkdir -p "/app/node_secrets/${SECRET_NAME}"
-    export HOPRD_PASSWORD=$(tr -cd '[:alnum:]' < /dev/urandom | fold -w30 | head -n1)
-    export HOPRD_API_TOKEN=$(echo -n "^"; tr -cd '[:alnum:]' < /dev/urandom | fold -w20 | head -n1| tr -d '[:space:]';echo -n "^")
-    node lib/main.cjs --init --api --data "/app/node_secrets/${SECRET_NAME}" --environment ${HOPRD_ENVIRONMENT} --identity "/app/node_secrets/${SECRET_NAME}/.hopr-identity" &
-    export HOPRD_PID=$!
-    checkHoprd="curl -s -o /dev/null -w '%{http_code}' 'http://localhost:3001/api/v2/account/addresses' -H 'x-auth-token: ${HOPRD_API_TOKEN}' -H 'Content-Type: application/json'"
-    while [[ "200" != `eval $checkHoprd` ]];  do
-      echo "Waiting for node to be running"; 
-      sleep 5; 
-    done
-    curl -s 'http://localhost:3001/api/v2/account/addresses' -H "x-auth-token: ${HOPRD_API_TOKEN}" -H "Content-Type: application/json" | jq > "/app/node_secrets/${SECRET_NAME}/addresses.json"
-    kill -9 $HOPRD_PID
-    export HOPRD_IDENTITY=$(cat "/app/node_secrets/${SECRET_NAME}/.hopr-identity")
-    jq -n \
-      --arg identity "$HOPRD_IDENTITY" \
-      --arg password "$HOPRD_PASSWORD" \
-      --arg api_token "$HOPRD_API_TOKEN" \
-      '$ARGS.named' > "/app/node_secrets/${SECRET_NAME}/${SECRET_NAME}.json"
+    export IDENTITY_PASSWORD=$(tr -cd '[:alnum:]' < /dev/urandom | fold -w30 | head -n1)
+    echo ${IDENTITY_PASSWORD} > /app/node_secrets/${SECRET_NAME}/identity.password
+    set -x
+    /bin/hopli identity --action create --identity-directory /app/node_secrets/${SECRET_NAME}/ --identity-prefix node_ --number 1 > /app/node_secrets/${SECRET_NAME}/addresses.json
   create-secret.sh: |
     #!/usr/bin/env bash
 
     set -Eeuo pipefail
 
-    export HOPRD_PEER_ID=$(jq -r '.hoprAddress' /app/node_secrets/${SECRET_NAME}/addresses.json)
-    export HOPRD_ADDRESS=$(jq -r '.nativeAddress' /app/node_secrets/${SECRET_NAME}/addresses.json)
-    export HOPRD_IDENTITY=$(echo -n $(jq -r '.identity' /app/node_secrets/${SECRET_NAME}/${SECRET_NAME}.json) | base64 | tr -d '\n')
-    export HOPRD_PASSWORD=$(echo -n $(jq -r '.password' /app/node_secrets/${SECRET_NAME}/${SECRET_NAME}.json) | base64 | tr -d '\n')
-    export HOPRD_API_TOKEN=$(echo -n $(jq -r '.api_token' /app/node_secrets/${SECRET_NAME}/${SECRET_NAME}.json) | base64 | tr -d '\n')    
+    export HOPRD_PEER_ID=$(jq -r '.[0].peer_id' /app/node_secrets/${SECRET_NAME}/addresses.json)
+    export HOPRD_ADDRESS=$(jq -r '.[0].ethereum_address' /app/node_secrets/${SECRET_NAME}/addresses.json)
+    export HOPRD_IDENTITY=$(cat /app/node_secrets/${SECRET_NAME}/node*.id | base64 | tr -d '\n')
+    export HOPRD_PASSWORD=$(cat /app/node_secrets/${SECRET_NAME}/identity.password | base64 | tr -d '\n')
+    export API_TOKEN=$(echo -n "^"; tr -cd '[:alnum:]' < /dev/urandom | fold -w20 | head -n1| tr -d '[:space:]';echo -n "^")
+    export HOPRD_API_TOKEN=$(echo -n "${API_TOKEN}" | base64 | tr -d '\n')
     export PATCH_DATA="{\"data\":{\"HOPRD_IDENTITY\": \"${HOPRD_IDENTITY}\", \"HOPRD_PASSWORD\": \"${HOPRD_PASSWORD}\", \"HOPRD_API_TOKEN\": \"${HOPRD_API_TOKEN}\" }}"
     kubectl patch secret -n ${OPERATOR_INSTANCE_NAMESPACE} ${SECRET_NAME} --type merge --patch "${PATCH_DATA}"
-    kubectl label secret -n ${OPERATOR_INSTANCE_NAMESPACE} ${SECRET_NAME} hoprds.hoprnet.org/peerId=${HOPRD_PEER_ID}
-    kubectl label secret -n ${OPERATOR_INSTANCE_NAMESPACE} ${SECRET_NAME} hoprds.hoprnet.org/address=${HOPRD_ADDRESS}
+    kubectl label secret -n ${OPERATOR_INSTANCE_NAMESPACE} ${SECRET_NAME} --overwrite hoprds.hoprnet.org/peerId=${HOPRD_PEER_ID}
+    kubectl label secret -n ${OPERATOR_INSTANCE_NAMESPACE} ${SECRET_NAME} --overwrite hoprds.hoprnet.org/address=${HOPRD_ADDRESS}
   register-node.sh: |
     #!/usr/bin/env bash
 
@@ -61,6 +51,7 @@ data:
     export RUST_BACKTRACE=full
     set -x
     /bin/hopli register-in-network-registry --environment-name ${HOPRD_ENVIRONMENT} --peer-ids ${HOPRD_PEER_ID} --contracts-root /root/contracts
+    cat /root/contracts/broadcast/SingleAction.s.sol/100/selfRegisterNodes-latest.json
   fund-node.sh: |
     #!/usr/bin/env bash
 
@@ -69,4 +60,4 @@ data:
     export PATH=${PATH}:/root/.foundry/bin/
     export RUST_BACKTRACE=full
     set -x
-    hopli faucet --environment-name ${HOPRD_ENVIRONMENT} --use-local-identities --identity-directory /app/hoprd-identity/ --address ${HOPRD_ADDRESS} --contracts-root /root/contracts --hopr-amount {{- printf " %f" .Values.operator.tokenAmount.hopr }} --native-amount {{- printf " %f" .Values.operator.tokenAmount.native }}
+    /bin/hopli faucet --environment-name ${HOPRD_ENVIRONMENT} --identity-directory /app/hoprd-identity/ --address ${HOPRD_ADDRESS} --contracts-root /root/contracts --hopr-amount {{- printf " %f" .Values.operator.tokenAmount.hopr }} --native-amount {{- printf " %f" .Values.operator.tokenAmount.native }}

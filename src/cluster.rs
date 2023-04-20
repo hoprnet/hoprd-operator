@@ -117,11 +117,23 @@ impl ClusterHoprd {
         Ok(Action::requeue(Duration::from_secs(constants::RECONCILE_FREQUENCY)))
     }
 
+    // Sync Cluster with its hoprd nodes
+    pub async fn sync(&self, context: Arc<ContextData>) -> Result<Action> {
+        let hoprd_namespace: String = self.namespace().unwrap();
+        let cluster_hoprd_name: String= self.name_any();
+        println!("[INFO] ClusterHoprd {cluster_hoprd_name} in namespace {hoprd_namespace} is out of sync");
+        self.create_event(context.clone(), ClusterHoprdStatusEnum::Synching, None).await.unwrap();
+        self.update_status(context.clone(), ClusterHoprdStatusEnum::Synching).await.unwrap();
+        println!("[WARN] ClusterHoprd Sync not implemented yet !!!!!");
+        Ok(Action::requeue(Duration::from_secs(constants::RECONCILE_FREQUENCY)))
+    }
+
     // Deletes the hoprd nodes related with ClusterHoprd
     pub async fn delete(&self, context: Arc<ContextData>) -> Result<Action> {
         let cluster_hoprd_name = self.name_any();
         let hoprd_namespace = self.namespace().unwrap();
         let client: Client = context.client.clone();
+        self.update_status(context.clone(), ClusterHoprdStatusEnum::Deleting).await.unwrap();
         self.create_event(context.clone(),  ClusterHoprdStatusEnum::Deleting, None).await.unwrap();
         println!("[INFO] Starting to delete ClusterHoprd {cluster_hoprd_name} from namespace {hoprd_namespace}");
         self.delete_nodes(client.clone()).await.unwrap_or(());
@@ -180,7 +192,7 @@ impl ClusterHoprd {
     }
 
     /// Creates an event for ClusterHoprd given the new ClusterHoprdStatusEnum
-    async fn create_event(&self, context: Arc<ContextData>, status: ClusterHoprdStatusEnum, node_name: Option<String>) -> Result<(), Error> {
+    pub async fn create_event(&self, context: Arc<ContextData>, status: ClusterHoprdStatusEnum, node_name: Option<String>) -> Result<(), Error> {
         let client: Client = context.client.clone();   
         let ev: Event = match status {
             ClusterHoprdStatusEnum::Initializing => Event {
@@ -226,7 +238,7 @@ impl ClusterHoprd {
     }
 
     /// Updates the status of ClusterHoprd
-    async fn update_status(&self, context: Arc<ContextData>, status: ClusterHoprdStatusEnum) -> Result<(), Error> {
+    pub async fn update_status(&self, context: Arc<ContextData>, status: ClusterHoprdStatusEnum) -> Result<(), Error> {
     let client: Client = context.client.clone();
     let cluster_hoprd_name = self.metadata.name.as_ref().unwrap().to_owned();    
     let hoprd_namespace = self.metadata.namespace.as_ref().unwrap().to_owned();
@@ -314,7 +326,7 @@ impl ClusterHoprd {
             match deployment {
                 WatchEvent::Added(deployment) => {
                     println!("[DEBUG] Deployment uid {:?} is created for node {}", deployment.uid().unwrap(), name);
-                    println!("[INFO] Hoprd {name} has been added to the cluster");
+                    println!("[INFO] Hoprd node {name} has been added to the cluster");
                     return Ok(hoprd_created);
                 },
                 WatchEvent::Modified(_) => return Err(Error::ClusterHoprdSynchError("Modified operation not expected".to_owned())),

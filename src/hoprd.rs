@@ -3,8 +3,8 @@ use std::sync::Arc;
 use std::time::Duration;
 use std::hash::{Hash, Hasher};
 
-use crate::{constants, hoprd_service_monitor, hoprd_ingress, hoprd_deployment, hoprd_secret, hoprd_service, utils, context_data::ContextData};
-use crate::model::{HoprdStatusEnum, EnablingFlag, HoprdSecret, DeploymentResource, Error};
+use crate::{constants, hoprd_service_monitor, hoprd_ingress, hoprd_deployment, hoprd_secret, hoprd_service, utils, context_data::ContextData, cluster::ClusterHoprd};
+use crate::model::{ClusterHoprdStatusEnum, HoprdStatusEnum, EnablingFlag, HoprdSecret, DeploymentResource, Error};
 use chrono::Utc;
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::OwnerReference;
 use kube::Resource;
@@ -143,7 +143,7 @@ impl Hoprd {
     pub async fn delete(&self, context: Arc<ContextData>) -> Result<Action> {
         let hoprd_name = self.name_any();
         let hoprd_namespace = self.namespace().unwrap();
-        let client: Client = context.client.clone();
+        let client: Client = context.client.clone();        
         self.create_event(context.clone(), HoprdStatusEnum::Deleting).await.unwrap();
         println!("[INFO] Starting to delete Hoprd node {hoprd_name} from namespace {hoprd_namespace}");
         // Deletes any subresources related to this `Hoprd` resources. If and only if all subresources
@@ -163,6 +163,7 @@ impl Hoprd {
         self.create_event(context.clone(), HoprdStatusEnum::Deleted).await.unwrap();
         self.delete_finalizer(client.clone(), &hoprd_name, &hoprd_namespace).await.unwrap();
         println!("[INFO] Hoprd node {hoprd_name} in namespace {hoprd_namespace} has been successfully deleted");
+        self.notify_cluster(context.clone()).await.unwrap();
         Ok(Action::await_change()) // Makes no sense to delete after a successful delete, as the resource is gone
     }
 
@@ -212,7 +213,7 @@ impl Hoprd {
                 Ok(_hopr) => Ok(()),
                 Err(error) => {
                     println!("[ERROR]: {:?}", error);
-                    return Err(Error::HoprdStatusError(format!("Could not delete finalizer on {hoprd_name}.").to_owned()));
+                    return Err(Error::HoprdStatusError(format!("Could not delete finalizer on hoprd node {hoprd_name}.").to_owned()));
                 }
             }
         } else {
@@ -231,7 +232,7 @@ impl Hoprd {
         Ok(())
     }
 
-    /// Creates an event for ClusterHoprd given the new ClusterHoprdStatusEnum
+    /// Creates an event for ClusterHoprd given the new HoprdStatusEnum
     pub async fn create_event(&self, context: Arc<ContextData>, status: HoprdStatusEnum) -> Result<(), Error> {
         let client: Client = context.client.clone();
             
@@ -347,6 +348,24 @@ impl Hoprd {
 
     
 }
+
+    pub async fn notify_cluster(&self, context: Arc<ContextData>) -> Result<(), Error> {
+        let hoprd_namespace = self.metadata.namespace.as_ref().unwrap().to_owned();
+        let api: Api<ClusterHoprd> = Api::namespaced(context.client.clone(), &hoprd_namespace.to_owned());
+        if let Some(owner_reference) = self.owner_references().to_owned().first() {
+            if let Some(cluster) = api.get_opt(&owner_reference.name).await? {
+                if cluster.to_owned().status.unwrap().status != ClusterHoprdStatusEnum::Deleting {
+                    cluster.create_event(context.clone(), ClusterHoprdStatusEnum::OutOfSync, Some(self.name_any().to_owned())).await.unwrap();
+                    cluster.update_status(context.clone(), ClusterHoprdStatusEnum::OutOfSync).await.unwrap();
+                    println!("[INFO] Notifying ClusterHoprd {} that Hoprd node {} is being deleted", &owner_reference.name, self.name_any().to_owned())
+                }
+            } else {
+                println!("[WARN] ClusterHoprd {} not found", &owner_reference.name);
+            }
+        };
+
+        Ok(())
+    }
 
 }
 

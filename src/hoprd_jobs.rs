@@ -46,7 +46,7 @@ impl HoprdJob {
         let mut labels: BTreeMap<String, String> = utils::common_lables(&hoprd_name.to_owned());
         labels.insert(constants::LABEL_KUBERNETES_COMPONENT.to_owned(), "create-node".to_owned());
 
-        let create_node_args: Vec<String> = vec!["/app/scripts/create-node.sh".to_owned()];
+        let create_node_args: Vec<String> = vec!["/app/scripts/create-identity.sh".to_owned()];
         let create_secret_args: Vec<String> = vec!["/app/scripts/create-secret.sh".to_owned()];
         let mut env_vars: Vec<EnvVar> = self.build_env_vars(&hoprd_secret, &true).await;
         env_vars.push(EnvVar {
@@ -54,7 +54,6 @@ impl HoprdJob {
             value: Some(hoprd_secret.secret_name.to_owned()),
             ..EnvVar::default()
         });
-        let image_hopli: String = format!("{}/{}:{}", constants::HOPR_DOCKER_REGISTRY.to_owned(), constants::HOPR_DOCKER_IMAGE_NAME.to_owned(), &self.hoprd.spec.version.to_owned());
         let volume_mounts: Vec<VolumeMount> = self.build_volume_mounts(&true).await;
         let volumes: Vec<Volume> = self.build_volumes(hoprd_secret, &true).await;
         // Definition of the Job
@@ -75,7 +74,7 @@ impl HoprdJob {
                     spec: Some(PodSpec {
                         init_containers: Some(vec![Container {
                             name: "hopli".to_owned(),
-                            image: Some(image_hopli),
+                            image: Some(self.config.hopli_image.to_owned()),
                             image_pull_policy: Some("Always".to_owned()),
                             command: Some(vec!["/bin/bash".to_owned(), "-c".to_owned()]),
                             args: Some(create_node_args),
