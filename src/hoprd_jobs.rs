@@ -10,7 +10,8 @@ use kube::{Api,  Client, runtime::wait::{await_condition, conditions}};
 use kube::api::{ObjectMeta, PostParams};
 use std::collections::{BTreeMap};
 use crate::hoprd::Hoprd;
-use crate::model::{HoprdSecret, Error, OperatorConfig};
+use crate::model::{HoprdSecret, Error};
+use crate::operator_config::{OperatorConfig};
 use crate::{
     constants,
     utils,

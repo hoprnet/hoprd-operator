@@ -4,7 +4,7 @@ use tokio::{sync::RwLock};
 use kube::{Client, runtime::events::{Reporter, Recorder}, Resource};
 use serde::Serialize;
 
-use crate::{model::OperatorConfig, constants, hoprd::Hoprd, cluster::ClusterHoprd};
+use crate::{operator_config::OperatorConfig, constants, hoprd::Hoprd, cluster::ClusterHoprd};
 
 
 

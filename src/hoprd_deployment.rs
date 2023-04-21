@@ -1,8 +1,8 @@
 use k8s_openapi::api::apps::v1::{Deployment, DeploymentSpec};
 use k8s_openapi::api::core::v1::{
-    Container, ContainerPort, EmptyDirVolumeSource, EnvVar, EnvVarSource, HTTPGetAction, KeyToPath,
+    Container, ContainerPort, EnvVar, EnvVarSource, HTTPGetAction, KeyToPath,
     PodSpec, PodTemplateSpec, Probe, SecretKeySelector, SecretVolumeSource,
-     Volume, VolumeMount, Secret,
+     Volume, VolumeMount, Secret, PersistentVolumeClaimVolumeSource,
 };
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::{LabelSelector, OwnerReference};
 use k8s_openapi::apimachinery::pkg::util::intstr::IntOrString;
@@ -56,7 +56,7 @@ pub async fn create_deployment(client: Client, hoprd: &Hoprd, secret: Secret) ->
             owner_references,
             ..ObjectMeta::default()
         },
-        spec: Some(build_deployment_spec(labels, &hoprd.spec, hoprd_secret).await),
+        spec: Some(build_deployment_spec(labels, &hoprd.spec, hoprd_secret, &name).await),
         ..Deployment::default()
     };
 
@@ -65,7 +65,7 @@ pub async fn create_deployment(client: Client, hoprd: &Hoprd, secret: Secret) ->
     api.create(&PostParams::default(), &deployment).await
 }
 
-pub async fn build_deployment_spec(labels: BTreeMap<String, String>, hoprd_spec: &HoprdSpec, hoprd_secret: HoprdSecret) -> DeploymentSpec{
+pub async fn build_deployment_spec(labels: BTreeMap<String, String>, hoprd_spec: &HoprdSpec, hoprd_secret: HoprdSecret, pvc_name: &String) -> DeploymentSpec{
     let image = format!("{}/{}:{}", constants::HOPR_DOCKER_REGISTRY.to_owned(), constants::HOPR_DOCKER_IMAGE_NAME.to_owned(), &hoprd_spec.version.to_owned());
     let replicas: i32 = if hoprd_spec.enabled.unwrap_or(true) { 1 } else { 0 };
 
@@ -89,7 +89,7 @@ pub async fn build_deployment_spec(labels: BTreeMap<String, String>, hoprd_spec:
                         resources: utils::build_resource_requirements(&hoprd_spec.resources),
                         ..Container::default()
                     }],
-                    volumes: Some(build_volumes(&hoprd_secret).await),
+                    volumes: Some(build_volumes(&hoprd_secret, &pvc_name).await),
                     ..PodSpec::default()
                 }),
                 metadata: Some(ObjectMeta {
@@ -106,7 +106,7 @@ pub async fn modify_deployment(client: Client, deployment_name: &str, namespace:
     
     let mut labels: BTreeMap<String, String> = utils::common_lables(&deployment_name.to_owned());
     labels.insert(constants::LABEL_KUBERNETES_COMPONENT.to_owned(), "node".to_owned());
-    let spec = build_deployment_spec(labels, hoprd_spec, hoprd_secret).await;
+    let spec = build_deployment_spec(labels, hoprd_spec, hoprd_secret, &deployment_name.to_owned()).await;
     let change_set =json!({ "spec": spec });
     let patch = &Patch::Merge(change_set);
 
@@ -153,7 +153,7 @@ async fn build_volume_mounts() -> Vec<VolumeMount> {
 /// 
 /// # Arguments
 /// - `secret` - Secret struct used to build the volume for HOPRD_IDENTITY path
-async fn build_volumes(secret: &HoprdSecret) -> Vec<Volume> {
+async fn build_volumes(secret: &HoprdSecret, pvc_name: &String) -> Vec<Volume> {
     let mut volumes = Vec::with_capacity(2);
     volumes.push(Volume {
         name: "hoprd-identity".to_owned(),
@@ -175,7 +175,10 @@ async fn build_volumes(secret: &HoprdSecret) -> Vec<Volume> {
 
     volumes.push(Volume {
         name: "hoprd-db".to_owned(),
-        empty_dir: Some(EmptyDirVolumeSource::default()),
+        persistent_volume_claim: Some(PersistentVolumeClaimVolumeSource {
+            claim_name: pvc_name.to_owned(),
+            read_only: Some(false)
+        }),
         ..Volume::default()
     });
     return volumes;

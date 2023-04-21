@@ -235,6 +235,14 @@ operator:
     ##
     pullPolicy: IfNotPresent
 
+  persistence:
+    ## @param operator.persistence.size Size of the persistence Volume
+    ##
+    size: 50Mi
+    ## @param operator.persistence.storageClassName Name of the storage class
+    ##
+    storageClassName: ""
+
 ## @section Service Parameters
 ##
 
