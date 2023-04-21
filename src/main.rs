@@ -25,8 +25,9 @@ use futures::{
 };
 
 #[tokio::main]
-async fn main() -> Result<()> {    
-    println!("[INFO] Starting hoprd-operator");
+async fn main() -> Result<()> {
+    let version: &str = env!("CARGO_PKG_VERSION");
+    println!("[INFO] Starting hoprd-operator {}", version);
     let client: Client = Client::try_default().await.expect("Failed to create kube Client");
     let context_data: Arc<ContextData> = Arc::new(ContextData::new(client.clone()).await);
     // Initiatilize Kubernetes controller state
