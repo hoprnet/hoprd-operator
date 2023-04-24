@@ -23,8 +23,7 @@ data:
     export RUST_BACKTRACE=full
 
     mkdir -p "/app/node_secrets/${SECRET_NAME}"
-    export IDENTITY_PASSWORD=$(tr -cd '[:alnum:]' < /dev/urandom | fold -w30 | head -n1)
-    echo ${IDENTITY_PASSWORD} > /app/node_secrets/${SECRET_NAME}/identity.password
+    cat /dev/urandom | tr -cd '[:alnum:]' | fold -w30 | head -n1 > /app/node_secrets/${SECRET_NAME}/identity.password
     set -x
     /bin/hopli identity --action create --identity-directory /app/node_secrets/${SECRET_NAME}/ --identity-prefix node_ --number 1 > /app/node_secrets/${SECRET_NAME}/addresses.json
   create-secret.sh: |
