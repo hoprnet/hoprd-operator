@@ -28,5 +28,8 @@ data:
       dns_domain: "{{- .Values.operator.ingress.dnsDomain }}"
       annotations: {{- .Values.operator.ingress.annotations | toYaml | nindent 8 }}
     hopli_image: {{ printf "%s/%s:%s" .Values.operator.hopli.registry .Values.operator.hopli.repository .Values.operator.hopli.tag | quote }}
+    persistence:
+      size: "{{- .Values.operator.persistence.size }}"
+      storage_class_name:  "{{- .Values.operator.persistence.storageClassName }}"
 
     

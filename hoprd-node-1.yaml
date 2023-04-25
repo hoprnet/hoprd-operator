@@ -2,24 +2,32 @@
 apiVersion: hoprnet.org/v1alpha
 kind: Hoprd
 metadata:
-  name: hoprd-node-1
+  name: hoprd-node-announced
   namespace: master-staging
 spec:
   network: master-staging
   version: providence
   config:
-    autoRedeemTickets: true
-    announce: false
-  #   networkQualityThreshold: 0.6
+    announce: true
   enabled: true 
   ingress:
     enabled: true
   monitoring:
     enabled: true
-  # resources:
-  #   limits:
-  #     cpu: 1200m
-  #     memory: 2Gi
-  #   requests:
-  #     cpu: 750m
-  #     memory: 256Mi
+---
+apiVersion: hoprnet.org/v1alpha
+kind: Hoprd
+metadata:
+  name: hoprd-node-not-announced
+  namespace: master-staging
+spec:
+  network: master-staging
+  version: providence
+  config:
+    announce: false
+  enabled: true 
+  ingress:
+    enabled: true
+  monitoring:
+    enabled: true
+

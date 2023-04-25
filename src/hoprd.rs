@@ -5,6 +5,7 @@ use std::hash::{Hash, Hasher};
 
 use crate::{constants, hoprd_service_monitor, hoprd_ingress, hoprd_deployment, hoprd_secret, hoprd_service, utils, context_data::ContextData, cluster::ClusterHoprd};
 use crate::model::{ClusterHoprdStatusEnum, HoprdStatusEnum, EnablingFlag, HoprdSecret, DeploymentResource, Error};
+use crate::hoprd_persistence;
 use chrono::Utc;
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::OwnerReference;
 use kube::Resource;
@@ -89,6 +90,7 @@ impl Hoprd {
         let mut secret_manager = hoprd_secret::SecretManager::new(context.clone(), self.clone());
         match secret_manager.create_secret().await {
             Ok(secret) => {
+                hoprd_persistence::create_pvc(context.clone(), &self).await?;
                 hoprd_deployment::create_deployment(client.clone(), &self,  secret).await?;
                 hoprd_service::create_service(client.clone(), &hoprd_name, &hoprd_namespace, owner_reference.to_owned()).await?;
                 if self.spec.ingress.as_ref().unwrap_or(&EnablingFlag {enabled: constants::ENABLED}).enabled {

@@ -66,31 +66,33 @@ Chart version `Chart.yaml` should be increased according to [semver](http://semv
 
 ### Hopr Operator Parameters
 
-| Name                                | Description                                                                                                      | Value                                 |
-| ----------------------------------- | ---------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
-| `operator.replicas`                 | Replicas for operator deployment                                                                                 | `1`                                   |
-| `operator.strategy`                 | Strategy for operator deployment                                                                                 | `Recreate`                            |
-| `operator.privateKey`               | Private Key of the Wallet used to make blockchain transactions like: register in network registry or fund nodes. | `""`                                  |
-| `operator.secretName`               | Name of the secret custoding the private Key of the Wallet used to make blockchain transactions                  | `""`                                  |
-| `operator.secretKeyName`            | Key name within the Secret                                                                                       | `PRIVATE_KEY`                         |
-| `operator.hopli.registry`           | Docker registry to hopli image                                                                                   | `europe-west3-docker.pkg.dev`         |
-| `operator.hopli.repository`         | Docker image to hopli binary                                                                                     | `hoprassociation/docker-images/hopli` |
-| `operator.hopli.tag`                | Docker image tag to hopli image                                                                                  | `latest`                              |
-| `operator.tokenAmount.hopr`         | Hopr token amount to fund nodes                                                                                  | `10`                                  |
-| `operator.tokenAmount.native`       | Native(xDAI) token amount to fund nodes                                                                          | `0.01`                                |
-| `operator.commonLabels`             | Labels to add to all operator related objects                                                                    | `{}`                                  |
-| `operator.commonAnnotations`        | Annotations to to all operator related objects                                                                   | `{}`                                  |
-| `operator.ingress.ingressClassName` | Name of the ingress class name to be used by Hoprd nodes                                                         | `""`                                  |
-| `operator.ingress.dnsDomain`        | Name of the DNS suffix domain to be added to Hoprd nodes                                                         | `""`                                  |
-| `operator.ingress.annotations`      | Annotations to be added to ingress resources of Hoprd nodes                                                      | `{}`                                  |
-| `operator.nodeSelector`             | Object containing node selection constraint to operator deployment                                               | `{}`                                  |
-| `operator.resources`                | Resource specification to operator deployment                                                                    | `{}`                                  |
-| `operator.tolerations`              | Tolerations specifications to operator deployment                                                                | `[]`                                  |
-| `operator.affinity`                 | Affinity specifications to operator deployment                                                                   | `{}`                                  |
-| `operator.image.registry`           | Docker registry to operator deployment                                                                           | `gcr.io`                              |
-| `operator.image.repository`         | Docker image repository to operator deployment                                                                   | `hoprassociation/hoprd-operator`      |
-| `operator.image.tag`                | Docker image tag to operator deployment                                                                          | `""`                                  |
-| `operator.image.pullPolicy`         | Pull policy to operator deployment as deinfed in                                                                 | `IfNotPresent`                        |
+| Name                                    | Description                                                                                                      | Value                                 |
+| --------------------------------------- | ---------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
+| `operator.replicas`                     | Replicas for operator deployment                                                                                 | `1`                                   |
+| `operator.strategy`                     | Strategy for operator deployment                                                                                 | `Recreate`                            |
+| `operator.privateKey`                   | Private Key of the Wallet used to make blockchain transactions like: register in network registry or fund nodes. | `""`                                  |
+| `operator.secretName`                   | Name of the secret custoding the private Key of the Wallet used to make blockchain transactions                  | `""`                                  |
+| `operator.secretKeyName`                | Key name within the Secret                                                                                       | `PRIVATE_KEY`                         |
+| `operator.hopli.registry`               | Docker registry to hopli image                                                                                   | `europe-west3-docker.pkg.dev`         |
+| `operator.hopli.repository`             | Docker image to hopli binary                                                                                     | `hoprassociation/docker-images/hopli` |
+| `operator.hopli.tag`                    | Docker image tag to hopli image                                                                                  | `latest`                              |
+| `operator.tokenAmount.hopr`             | Hopr token amount to fund nodes                                                                                  | `10`                                  |
+| `operator.tokenAmount.native`           | Native(xDAI) token amount to fund nodes                                                                          | `0.01`                                |
+| `operator.commonLabels`                 | Labels to add to all operator related objects                                                                    | `{}`                                  |
+| `operator.commonAnnotations`            | Annotations to to all operator related objects                                                                   | `{}`                                  |
+| `operator.ingress.ingressClassName`     | Name of the ingress class name to be used by Hoprd nodes                                                         | `""`                                  |
+| `operator.ingress.dnsDomain`            | Name of the DNS suffix domain to be added to Hoprd nodes                                                         | `""`                                  |
+| `operator.ingress.annotations`          | Annotations to be added to ingress resources of Hoprd nodes                                                      | `{}`                                  |
+| `operator.nodeSelector`                 | Object containing node selection constraint to operator deployment                                               | `{}`                                  |
+| `operator.resources`                    | Resource specification to operator deployment                                                                    | `{}`                                  |
+| `operator.tolerations`                  | Tolerations specifications to operator deployment                                                                | `[]`                                  |
+| `operator.affinity`                     | Affinity specifications to operator deployment                                                                   | `{}`                                  |
+| `operator.image.registry`               | Docker registry to operator deployment                                                                           | `gcr.io`                              |
+| `operator.image.repository`             | Docker image repository to operator deployment                                                                   | `hoprassociation/hoprd-operator`      |
+| `operator.image.tag`                    | Docker image tag to operator deployment                                                                          | `""`                                  |
+| `operator.image.pullPolicy`             | Pull policy to operator deployment as deinfed in                                                                 | `IfNotPresent`                        |
+| `operator.persistence.size`             | Size of the persistence Volume                                                                                   | `50Mi`                                |
+| `operator.persistence.storageClassName` | Name of the storage class                                                                                        | `""`                                  |
 
 ### Service Parameters
 

@@ -3,7 +3,7 @@ use kube::{Api, Client, Error, core::ObjectMeta, api::{PostParams, DeleteParams}
 use std::collections::{BTreeMap};
 
 
-use crate::{utils, model::IngressConfig};
+use crate::{utils, operator_config::IngressConfig};
 
 /// Creates a new Ingress for accessing the hoprd node,
 ///
