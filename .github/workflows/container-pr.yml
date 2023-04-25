@@ -12,44 +12,59 @@ concurrency:
   group: ${{ github.head_ref }}-container
   cancel-in-progress: true
 jobs:
-  validate:
+  bump_version:
     runs-on: ubuntu-latest
-    if: ${{ github.actor != 'dependabot[bot]' }}
-
+    permissions:
+      contents: write
     steps:
       - name: Checkout
         uses: actions/checkout@v3
         with:
           fetch-depth: 0
 
-      - name: Set up Google Cloud Credentials
-        uses: google-github-actions/auth@v1
-        with:
-          credentials_json: ${{ secrets.GOOGLE_HOPRASSOCIATION_CREDENTIALS_REGISTRY }}
-
-      - name: Set up Google Cloud SDK
-        uses: google-github-actions/setup-gcloud@v1
-        with:
-          project_id: ${{ secrets.GOOGLE_HOPRASSOCIATION_PROJECT }}
-          install_components: beta
-
-      - name: Check if docker tag exists
+      - name: Bump Cargo version
+        id: bumping_version
         run: |
-          hopr_operator_version=$(grep -A 1 "hopr_operator" Cargo.lock | grep version | sed 's/.* "//' | sed 's/"//' | tr -d '\n')
-          images=$(gcloud container images  list-tags  gcr.io/hoprassociation/hoprd-operator --filter="tags[]=${hopr_operator_version}" 2> /dev/null)
-          echo "gcr images: ${images}"
-          if [ ! "${images}" = "" ]; then
-            echo "The docker image tag '${hopr_operator_version}' already exists. Please bump Cargo.toml version";
-            exit 1
-          else
-            echo "Building docker image tag '${hopr_operator_version}'";
+          hopr_operator_version=$(grep "^version = " Cargo.toml | sed 's/.* "//' | sed 's/"$//' | tr -d '\n')
+          git_tag=$(git tag -l ${hopr_operator_version})
+          echo "Workspace version is ${hopr_operator_version} while tagged is ${git_tag}"
+          if [ "${git_tag}" = "${hopr_operator_version}" ]; then
+            patch_number=$(echo $git_tag | sed 's/.*\.//')
+            release_number=$(echo $git_tag | sed "s/\.${patch_number}//")
+            bump_version=${release_number}.$((patch_number + 1))
+            echo "The version ${git_tag} already exists, bumping to version ${bump_version}";
+            sed -i "s/^version = \"${git_tag}\"/version = \"${bump_version}\"/" Cargo.toml
+            echo "bumped_version=true" >> $GITHUB_OUTPUT
           fi
 
-  build:
-    needs: validate
-    runs-on: ubuntu-latest
-    if: "!contains(github.event.pusher.name, 'dependabot')"
+      - name: Setup Rust
+        uses: actions-rs/toolchain@v1
+        if: ${{ steps.bumping_version.outputs.bumped_version }}
+        with:
+          toolchain: stable
 
+      # Update Cargo.lock
+      - name: Build Cargo
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+      
+      - name: Commit and push
+        if: ${{ steps.bumping_version.outputs.bumped_version }}
+        uses: stefanzweifel/git-auto-commit-action@v4
+        with:
+          commit_message: Bump cargo version
+          repository: .
+          commit_user_name: HOPR CI robot
+          commit_user_email: noreply@hoprnet.org
+          commit_author: HOPR CI robot <noreply@hoprnet.org>
+          skip_fetch: false
+          skip_checkout: false
+          create_branch: false
+
+  build:
+    needs: bump_version
+    runs-on: ubuntu-latest
     steps:
       - name: Build container image
         uses: docker/build-push-action@v4

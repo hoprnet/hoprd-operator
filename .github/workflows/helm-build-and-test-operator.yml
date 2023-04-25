@@ -10,7 +10,7 @@ concurrency:
   group: ${{ github.head_ref }}-operator
   cancel-in-progress: true
 jobs:
-  validate:
+  bump_version:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -18,15 +18,32 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Validate Helm chart version
+      - name: Bump Chart version
         run: |
-          HELM_CHART_VERSION=$(grep '^version:' Chart.yaml | sed 's/.*: //')
-          echo "The Helm chart version is '${HELM_CHART_VERSION}'"
-          if git tag -l | grep helm-hoprd-operator-${HELM_CHART_VERSION} 1> /dev/null; then
-            echo "The Helm chart version '${HELM_CHART_VERSION}' already exists. Please bump property 'version' on ./charts/hoprd-operator/Chart.yaml to a new version";
-            exit 1
+          helm_chart_version=$(grep '^version:' Chart.yaml | sed 's/.*: //')
+          git_tag=$(git tag -l helm-hoprd-operator-${helm_chart_version})
+          echo "Workspace version is helm-hoprd-operator-${helm_chart_version} while tagged is ${git_tag}"
+          if [ "${git_tag}" = "helm-hoprd-operator-${helm_chart_version}" ]; then
+            patch_number=$(echo $helm_chart_version | sed 's/.*\.//')
+            release_number=$(echo $helm_chart_version | sed "s/\.${patch_number}//")
+            bump_version=${release_number}.$((patch_number + 1))
+            echo "The helm chart version ${git_tag} already exists, bumping to version helm-hoprd-operator-${bump_version}";
+            sed -i "s/^version: ${helm_chart_version}/version: ${bump_version}/" Chart.yaml
+            echo "version_bumped=true" >> $GITHUB_ENV
           fi
         working-directory: 'charts/hoprd-operator/'
+      - name: Commit and push
+        if: ${{ env.version_bumped }}
+        uses: stefanzweifel/git-auto-commit-action@v4
+        with:
+          commit_message: Bump Helm chart version
+          repository: .
+          commit_user_name: HOPR CI robot
+          commit_user_email: noreply@hoprnet.org
+          commit_author: HOPR CI robot <noreply@hoprnet.org>
+          skip_fetch: false
+          skip_checkout: false
+          create_branch: false
 
   lint:
     runs-on: ubuntu-latest
@@ -94,14 +111,17 @@ jobs:
 
       - name: Execute readme-generator-for-helm
         run: |
-          readme-generator --values "charts/cluster-hoprd/values.yaml" --readme "charts/cluster-hoprd/README.md" --schema "/tmp/schema.json"
-
-      - name: Push changes
-        run: |
-          # Push all the changes
+          readme-generator --values "charts/hoprd-operator/values.yaml" --readme "charts/hoprd-operator/README.md" --schema "/tmp/schema.json"
           if git status -s | grep charts; then
-            git config user.email "noreply@hoprnet.org"
-            git config user.name "HOPR CI robot"
-            git config pull.rebase false
-            git add . && git commit -am "Update parameters README.md" --signoff && git push
+            echo "readme_updated=true" >>  $GITHUB_ENV
           fi
+
+      - name: Commit and push
+        if: ${{ env.readme_updated }}
+        uses: stefanzweifel/git-auto-commit-action@v4
+        with:
+          commit_message: Update parameters README.md
+          repository: .
+          commit_user_name: HOPR CI robot
+          commit_user_email: noreply@hoprnet.org
+          commit_author: HOPR CI robot <noreply@hoprnet.org>
