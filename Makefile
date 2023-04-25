@@ -54,3 +54,12 @@ create-cluster:
 
 delete-cluster:
 	kubectl delete -f cluster-hoprd.yaml
+
+UNLOCK_PATCH_DATA="{\"metadata\":{\"labels\":{\"hoprds.hoprnet.org/locked\": \"false\"}}}"
+LOCK_PATCH_DATA="{\"metadata\":{\"labels\":{\"hoprds.hoprnet.org/locked\": \"true\"}}}"
+
+lock-secrets:
+	for secret in `kubectl get secrets -n hoprd-operator -l hoprds.hoprnet.org/locked=false -o jsonpath="{.items[*].metadata.name}"`; do kubectl patch secret -n hoprd-operator $$secret --type merge --patch $(LOCK_PATCH_DATA);  done
+
+unlock-secrets:
+	for secret in `kubectl get secrets -n hoprd-operator -l hoprds.hoprnet.org/locked=true -o jsonpath="{.items[*].metadata.name}"`; do kubectl patch secret -n hoprd-operator $$secret --type merge --patch $(UNLOCK_PATCH_DATA);  done

@@ -1,6 +1,6 @@
 [package]
 name = "hopr_operator"
-version = "0.1.17"
+version = "0.1.18"
 authors = ["HOPR Association <tech@hoprnet.org>"]
 edition = "2021"
 

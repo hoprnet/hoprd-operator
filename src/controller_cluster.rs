@@ -1,6 +1,5 @@
 
 use futures::StreamExt;
-use k8s_openapi::api::{apps::v1::Deployment, networking::v1::Ingress, core::v1::{Service, Secret}, batch::v1::Job};
 use kube::{
     api::{Api},
     client::Client,
@@ -13,7 +12,7 @@ use kube::{
 use std::{sync::Arc, collections::hash_map::DefaultHasher, hash::{Hash, Hasher}};
 use tokio::{ time::Duration};
 
-use crate::{ constants::{self}, cluster::{ClusterHoprd, ClusterHoprdSpec}, servicemonitor::ServiceMonitor, context_data::ContextData};
+use crate::{ constants::{self}, cluster::{ClusterHoprd, ClusterHoprdSpec}, context_data::ContextData, hoprd::Hoprd, model::ClusterHoprdStatusEnum};
 
 /// Action to be taken upon an `Hoprd` resource during reconciliation
 enum ClusterHoprdAction {
@@ -21,6 +20,8 @@ enum ClusterHoprdAction {
     Create,
     /// Modify Hoprd resource
     Modify,
+    /// Sync Hoprd resources
+    Sync,
     /// Delete all subresources created in the `Create` phase
     Delete,
     /// This `Hoprd` resource is in desired state and requires no actions to be taken
@@ -43,6 +44,10 @@ fn determine_action(cluster_hoprd: &ClusterHoprd) -> ClusterHoprdAction {
         .map_or(true, |finalizers| finalizers.is_empty())
     {
         ClusterHoprdAction::Create
+    } else if cluster_hoprd.status.as_ref().unwrap().status == ClusterHoprdStatusEnum::OutOfSync {
+        ClusterHoprdAction::Sync
+    } else if cluster_hoprd.status.as_ref().unwrap().status == ClusterHoprdStatusEnum::Deleting {
+        ClusterHoprdAction::NoOp
     } else {
         let mut hasher: DefaultHasher = DefaultHasher::new();
         let cluster_hoprd_spec: ClusterHoprdSpec = cluster_hoprd.spec.clone();
@@ -59,12 +64,13 @@ fn determine_action(cluster_hoprd: &ClusterHoprd) -> ClusterHoprdAction {
     };
 }
 
-async fn reconciler(hoprd: Arc<ClusterHoprd>, context: Arc<ContextData>) -> Result<Action> {
+async fn reconciler(cluster_hoprd: Arc<ClusterHoprd>, context: Arc<ContextData>) -> Result<Action> {
     // Performs action as decided by the `determine_action` function.
-    return match determine_action(&hoprd) {
-        ClusterHoprdAction::Create => hoprd.create(context.clone()).await,
-        ClusterHoprdAction::Modify => hoprd.modify(context.clone()).await,
-        ClusterHoprdAction::Delete => hoprd.delete(context.clone()).await,
+    return match determine_action(&cluster_hoprd) {
+        ClusterHoprdAction::Create => cluster_hoprd.create(context.clone()).await,
+        ClusterHoprdAction::Modify => cluster_hoprd.modify(context.clone()).await,
+        ClusterHoprdAction::Delete => cluster_hoprd.delete(context.clone()).await,
+        ClusterHoprdAction::Sync => cluster_hoprd.sync(context.clone()).await,
         // The resource is already in desired state, do nothing and re-check after 10 seconds
         ClusterHoprdAction::NoOp => Ok(Action::requeue(Duration::from_secs(constants::RECONCILE_FREQUENCY))),
     };
@@ -88,20 +94,11 @@ pub fn on_error(hoprd: Arc<ClusterHoprd>, error: &Error, _context: Arc<ContextDa
 /// Initialize the controller
 pub async fn run(client: Client, context_data: Arc<ContextData>) {
     let owned_api: Api<ClusterHoprd> = Api::<ClusterHoprd>::all(client.clone());
-    let job = Api::<Job>::all(client.clone());
-    let deployment = Api::<Deployment>::all(client.clone());
-    let secret = Api::<Secret>::all(client.clone());
-    let service = Api::<Service>::all(client.clone());
-    let service_monitor = Api::<ServiceMonitor>::all(client.clone());
-    let ingress = Api::<Ingress>::all(client.clone());
+    let hoprd = Api::<Hoprd>::all(client.clone());
+
 
     Controller::new(owned_api, Config::default())
-        .owns(job, Config::default())
-        .owns(deployment, Config::default())
-        .owns(secret, Config::default())
-        .owns(service, Config::default())
-        .owns(service_monitor, Config::default())
-        .owns(ingress, Config::default())
+        .owns(hoprd, Config::default())
         .shutdown_on_signal()
         .run(reconciler, on_error, context_data)
         .for_each(|reconciliation_result| async move {

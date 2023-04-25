@@ -46,7 +46,7 @@ impl HoprdJob {
         let mut labels: BTreeMap<String, String> = utils::common_lables(&hoprd_name.to_owned());
         labels.insert(constants::LABEL_KUBERNETES_COMPONENT.to_owned(), "create-node".to_owned());
 
-        let create_node_args: Vec<String> = vec!["/app/scripts/create-node.sh".to_owned()];
+        let create_node_args: Vec<String> = vec!["/app/scripts/create-identity.sh".to_owned()];
         let create_secret_args: Vec<String> = vec!["/app/scripts/create-secret.sh".to_owned()];
         let mut env_vars: Vec<EnvVar> = self.build_env_vars(&hoprd_secret, &true).await;
         env_vars.push(EnvVar {
@@ -54,7 +54,6 @@ impl HoprdJob {
             value: Some(hoprd_secret.secret_name.to_owned()),
             ..EnvVar::default()
         });
-        let image_hopli: String = format!("{}/{}:{}", constants::HOPR_DOCKER_REGISTRY.to_owned(), constants::HOPR_DOCKER_IMAGE_NAME.to_owned(), &self.hoprd.spec.version.to_owned());
         let volume_mounts: Vec<VolumeMount> = self.build_volume_mounts(&true).await;
         let volumes: Vec<Volume> = self.build_volumes(hoprd_secret, &true).await;
         // Definition of the Job
@@ -75,7 +74,7 @@ impl HoprdJob {
                     spec: Some(PodSpec {
                         init_containers: Some(vec![Container {
                             name: "hopli".to_owned(),
-                            image: Some(image_hopli),
+                            image: Some(self.config.hopli_image.to_owned()),
                             image_pull_policy: Some("Always".to_owned()),
                             command: Some(vec!["/bin/bash".to_owned(), "-c".to_owned()]),
                             args: Some(create_node_args),
@@ -111,14 +110,14 @@ impl HoprdJob {
         };
 
         // Create the Job defined above
-        println!("[INFO] Launching job '{}'", &job_name.to_owned());
+        println!("[INFO] Job {} started", &job_name.to_owned());
         let api: Api<Job> = Api::namespaced(self.client.clone(), &self.config.instance.namespace);
-        api.create(&PostParams::default(), &create_node_job).await?;
+        api.create(&PostParams::default(), &create_node_job).await.unwrap();
         let job_completed = await_condition(api, &job_name, conditions::is_job_completed());
         match tokio::time::timeout(std::time::Duration::from_secs(constants::OPERATOR_JOB_TIMEOUT), job_completed).await {
-            Ok(_) => Ok(()),
+            Ok(_) => Ok(println!("[INFO] Job {} completed successfully", &job_name.to_owned())),
             Err(_error) => {
-                Err(Error::JobExecutionError(format!("The creation node job failed and the node {hoprd_name} cannot be fully configured.").to_owned()))
+                Err(Error::JobExecutionError(format!(" Job execution for {} failed", &job_name.to_owned()).to_owned()))
             }
         }
     }
@@ -145,14 +144,14 @@ impl HoprdJob {
         let registering_job: Job = self.build_job(job_name.to_owned(), namespace, owner_references, self.config.hopli_image.to_owned(), labels, command_args, env_vars, volume_mounts, volumes);
 
         // Create the Job defined above
-        println!("[INFO] Launching job '{}'", &job_name);
+        println!("[INFO] Job {} started", &job_name.to_owned());
         let api: Api<Job> = Api::namespaced(self.client.clone(), &self.config.instance.namespace.to_owned());
-        api.create(&PostParams::default(), &registering_job).await?;
+        api.create(&PostParams::default(), &registering_job).await.unwrap();
         let job_completed = await_condition(api, &job_name, conditions::is_job_completed());
         match tokio::time::timeout(std::time::Duration::from_secs(constants::OPERATOR_JOB_TIMEOUT), job_completed).await {
-            Ok(_) => Ok(()),
+            Ok(_) => Ok(println!("[INFO] Job {} completed successfully", &job_name.to_owned())),
             Err(_error) => {
-                Err(Error::JobExecutionError(format!("The registration node job failed and the node {hoprd_name} cannot be fully configured.").to_owned()))
+                Err(Error::JobExecutionError(format!(" Job execution for {} failed", &job_name.to_owned()).to_owned()))
             }
         }
     }
@@ -180,14 +179,14 @@ impl HoprdJob {
         let funding_job: Job = self.build_job(job_name.to_owned(), namespace, owner_references, self.config.hopli_image.to_owned(), labels, command_args, env_vars, volume_mounts, volumes);
 
         // Create the Job defined above
-        println!("[INFO] Launching job '{}'", &job_name);
+        println!("[INFO] Job {} started", &job_name.to_owned());
         let api: Api<Job> = Api::namespaced(self.client.clone(), &self.config.instance.namespace.to_owned());
-        api.create(&PostParams::default(), &funding_job).await?;
+        api.create(&PostParams::default(), &funding_job).await.unwrap();
         let job_completed = await_condition(api, &job_name, conditions::is_job_completed());
         match tokio::time::timeout(std::time::Duration::from_secs(constants::OPERATOR_JOB_TIMEOUT), job_completed).await {
-            Ok(_) => Ok(()),
+            Ok(_) => Ok(println!("[INFO] Job {} completed successfully", &job_name.to_owned())),
             Err(_error) => {
-                Err(Error::JobExecutionError(format!("The funding job failed and the node {hoprd_name} cannot be fully configured.").to_owned()))
+                Err(Error::JobExecutionError(format!(" Job execution for {} failed", &job_name.to_owned()).to_owned()))
             }
         }
     }

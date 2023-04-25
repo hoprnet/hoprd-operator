@@ -71,9 +71,10 @@ impl SecretManager {
     /// Gets the first secret that is ready to be used
     async fn get_first_secret_ready(&self) -> Result<Option<Secret>, Error> {
         let api: Api<Secret> = Api::namespaced(self.client.clone(), &self.operator_config.instance.namespace);
-        let label_selector: String = format!("{}={},{}={}",
+        let label_selector: String = format!("{}={},{}={},{}",
         constants::LABEL_NODE_NETWORK, self.hoprd.spec.network,
-        constants::LABEL_NODE_LOCKED, "false");
+        constants::LABEL_NODE_LOCKED, "false",
+        constants::LABEL_NODE_PEER_ID);
         let lp = ListParams::default().labels(&label_selector);
         let secrets = api.list(&lp).await?;
         Ok(secrets.items.first().map(|secret| secret.to_owned()))
@@ -135,11 +136,11 @@ impl SecretManager {
                 if secret_annotations.contains_key(constants::ANNOTATION_HOPRD_NETWORK_REGISTRY) {
                     let network_registry_annotation: bool = secret_annotations.get_key_value(constants::ANNOTATION_HOPRD_NETWORK_REGISTRY).unwrap().1.parse().unwrap();
                     if ! network_registry_annotation {
-                        println!("[INFO] The secret exists but is not registered");
+                        println!("[INFO] The secret {} exists but is not registered", secret_name);
                         return Ok(SecretStatus::NotRegistered)
                     }
                 } else {
-                    println!("[INFO] The secret exists but is not registered");
+                    println!("[INFO] The secret {} exists but is not registered", secret_name);
                     return Ok(SecretStatus::NotRegistered)
                 }
                 if secret_annotations.contains_key(constants::ANNOTATION_HOPRD_FUNDED) {
@@ -209,7 +210,7 @@ impl SecretManager {
             }
             Ok(println!("[INFO] The secret '{secret_name}' has been unlocked"))
         } else {
-            Ok(println!("[WARN] The hoprd node did not own a secret '{:?}' ", &self.hoprd.name_any().to_owned()))
+            Ok(println!("[WARN] The hoprd node did not own a secret {:?}", &self.hoprd.name_any().to_owned()))
         }
     }
 
@@ -250,8 +251,17 @@ impl SecretManager {
         self.hoprd.update_status(self.context.clone(), crate::model::HoprdStatusEnum::Creating).await?;
         let secret = self.create_secret_resource().await.unwrap();
         let owner_reference: Option<Vec<OwnerReference>> = Some(vec![secret.controller_owner_ref(&()).unwrap()]);
-        self.job_manager.execute_job_create_node(&self.hoprd_secret.as_ref().unwrap(), owner_reference).await?;
-        self.do_status_not_registered().await
+        match self.job_manager.execute_job_create_node(&self.hoprd_secret.as_ref().unwrap(), owner_reference).await {
+            Ok(_) => self.do_status_not_registered().await,
+            Err(err) => {
+                self.delete_finalizer().await?;
+                let api_secret: Api<Secret> = Api::namespaced(self.client.clone(), &self.operator_config.instance.namespace);
+                api_secret.delete(&secret.name_any(), &DeleteParams::default()).await?
+                    .map_left(|_| println!("[INFO] Deleting empty secret: {:?}", &secret.name_any()))
+                    .map_right(|_| println!("Deleted  empty secret: {:?}", &secret.name_any()));
+                Err(err)
+            }
+        }
     }
 
     /// The secret exists but can not be used yet as it is not registered. Before using it will trigger a Job to register the node
@@ -340,6 +350,30 @@ impl SecretManager {
         // Create the secret defined above
         let api: Api<Secret> = Api::namespaced(self.client.clone(), operator_namespace);
         Ok(api.create(&PostParams::default(), &deployment).await?)
+    }
+
+    /// Removes all finalizers from the secret
+    async fn delete_finalizer(&self) -> Result<(), Error> {
+        let secret_name: String = self.hoprd_secret.as_ref().unwrap().secret_name.to_owned();
+        let operator_namespace = &self.operator_config.instance.namespace;
+        let api: Api<Secret> = Api::namespaced(self.client.clone(), operator_namespace);
+        let patch = &Patch::Merge(json!({
+           "metadata": {
+                "finalizers": null
+            }
+        }));
+        if let Some(_) = api.get_opt(&secret_name).await? {
+            match api.patch(&secret_name, &PatchParams::default(), patch).await {
+                Ok(_hopr) => Ok(()),
+                Err(error) => {
+                    println!("[ERROR]: {:?}", error);
+                    return Err(Error::HoprdStatusError(format!("Could not delete finalizer on secret {secret_name}.").to_owned()));
+                }
+            }
+        } else {
+            println!("[DEBUG] Secret {secret_name} has already been deleted");
+            Ok(())
+        }
     }
 
 }
