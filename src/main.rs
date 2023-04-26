@@ -5,6 +5,7 @@ pub mod model;
 mod hoprd_persistence;
 mod operator_config;
 mod hoprd_deployment;
+mod hoprd_deployment_spec;
 mod hoprd;
 mod cluster;
 mod hoprd_ingress;

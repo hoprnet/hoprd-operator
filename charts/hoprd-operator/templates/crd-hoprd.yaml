@@ -110,30 +110,22 @@ spec:
                       type: boolean
                   required:
                   - enabled
-                resources:
+                deployment:
                   type: object
-                  description: The secret containing sensitive data from the Hoprd node
+                  description: Deployment configuration
                   properties:
-                    limits:
-                      description: Specify the limit resources for the container
-                      type: object
-                      properties:
-                        cpu:
-                          description: Specify the cpu limit resources for the container
-                          type: string
-                        memory: 
-                          description: Specify the memory limit resources for the container
-                          type: string
-                    requests:
-                      description: Specify the request resources for the container
-                      type: object
-                      properties:
-                        cpu:
-                          description: Specify the cpu limit resources for the container
-                          type: string
-                        memory: 
-                          description: Specify the memory limit resources for the container
-                          type: string
+                    resources:
+                      type: string
+                      description: The definition for hardware resources to be used by the node deployment
+                    startupProbe:
+                      type: string
+                      description: The definition of the startup probe to be used by the node deployment
+                    livenessProbe:
+                      type: string
+                      description: The definition of the liveness probe to be used by the node deployment
+                    readinessProbe:
+                      type: string
+                      description: The definition of the readiness probe to be used by the node deployment
                 secret:
                   type: object
                   description: The secret containing sensitive data from the Hoprd node

@@ -5,9 +5,10 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use crate::hoprd::{HoprdSpec, HoprdConfig};
+use crate::hoprd_deployment_spec::HoprdDeploymentSpec;
 use crate::utils;
 use crate::{constants, context_data::ContextData, hoprd::Hoprd};
-use crate::model::{EnablingFlag, DeploymentResource, Error, ClusterHoprdStatusEnum};
+use crate::model::{EnablingFlag, Error, ClusterHoprdStatusEnum};
 use chrono::Utc;
 use futures::{StreamExt, TryStreamExt};
 use k8s_openapi::api::apps::v1::Deployment;
@@ -56,7 +57,7 @@ pub struct Node {
     pub replicas: i32,
     pub config: Option<HoprdConfig>,
     pub enabled: Option<bool>,
-    pub resources: Option<DeploymentResource>,
+    pub deployment: Option<HoprdDeploymentSpec>,
     pub version: String
 }
 
@@ -284,7 +285,7 @@ impl ClusterHoprd {
                 ingress: self.spec.ingress.to_owned(),
                 monitoring: self.spec.monitoring.to_owned(),
                 version: node_set.version.to_owned(),
-                resources: node_set.resources.to_owned(),
+                deployment: node_set.deployment.to_owned(),
                 secret: None
             };
             if self.create_hoprd_resource(client.clone(), name.to_owned(), hoprd_spec).await.is_ok() {

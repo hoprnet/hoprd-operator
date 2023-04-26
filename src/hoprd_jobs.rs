@@ -10,6 +10,7 @@ use kube::{Api,  Client, runtime::wait::{await_condition, conditions}};
 use kube::api::{ObjectMeta, PostParams};
 use std::collections::{BTreeMap};
 use crate::hoprd::Hoprd;
+use crate::hoprd_deployment_spec::HoprdDeploymentSpec;
 use crate::model::{HoprdSecret, Error};
 use crate::operator_config::{OperatorConfig};
 use crate::{
@@ -81,7 +82,7 @@ impl HoprdJob {
                             args: Some(create_node_args),
                             env: Some(env_vars.to_owned()),
                             volume_mounts: Some(volume_mounts.to_owned()),
-                            resources: utils::build_resource_requirements(&None),
+                            resources: Some(HoprdDeploymentSpec::get_resource_requirements(None)),
                             ..Container::default()
                         }]),
                         containers: vec![Container {
@@ -92,7 +93,7 @@ impl HoprdJob {
                             args: Some(create_secret_args),
                             env: Some(env_vars),
                             volume_mounts: Some(volume_mounts),
-                            resources: utils::build_resource_requirements(&None),
+                            resources:Some(HoprdDeploymentSpec::get_resource_requirements(None)),
                             ..Container::default()
                         }],
                         service_account_name: Some(self.config.instance.name.to_owned()),
@@ -217,7 +218,7 @@ impl HoprdJob {
                             args: Some(command_args),
                             env: Some(env_vars),
                             volume_mounts: Some(volume_mounts),
-                            resources: utils::build_resource_requirements(&None),
+                            resources: Some(HoprdDeploymentSpec::get_resource_requirements(None)),
                             ..Container::default()
                         }],
                         volumes: Some(volumes),
