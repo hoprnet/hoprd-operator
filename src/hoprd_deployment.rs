@@ -1,4 +1,4 @@
-use k8s_openapi::api::apps::v1::{Deployment, DeploymentSpec};
+use k8s_openapi::api::apps::v1::{Deployment, DeploymentSpec, DeploymentStrategy};
 use k8s_openapi::api::core::v1::{
     Container, ContainerPort, EnvVar, EnvVarSource, KeyToPath,
     PodSpec, PodTemplateSpec, Probe, SecretKeySelector, SecretVolumeSource,
@@ -75,6 +75,10 @@ pub async fn build_deployment_spec(labels: BTreeMap<String, String>, hoprd_spec:
 
     DeploymentSpec {
             replicas: Some(replicas),
+            strategy: Some(DeploymentStrategy{
+                type_: Some("Recreate".to_owned()),
+                ..DeploymentStrategy::default()
+            }),
             selector: LabelSelector {
                 match_expressions: None,
                 match_labels: Some(labels.clone()),
