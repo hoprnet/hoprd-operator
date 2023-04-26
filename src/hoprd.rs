@@ -3,8 +3,9 @@ use std::sync::Arc;
 use std::time::Duration;
 use std::hash::{Hash, Hasher};
 
+use crate::hoprd_deployment_spec::HoprdDeploymentSpec;
 use crate::{constants, hoprd_service_monitor, hoprd_ingress, hoprd_deployment, hoprd_secret, hoprd_service, utils, context_data::ContextData, cluster::ClusterHoprd};
-use crate::model::{ClusterHoprdStatusEnum, HoprdStatusEnum, EnablingFlag, HoprdSecret, DeploymentResource, Error};
+use crate::model::{ClusterHoprdStatusEnum, HoprdStatusEnum, EnablingFlag, HoprdSecret, Error};
 use crate::hoprd_persistence;
 use chrono::Utc;
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::OwnerReference;
@@ -42,7 +43,7 @@ pub struct HoprdSpec {
     pub network: String,
     pub ingress: Option<EnablingFlag>,
     pub monitoring: Option<EnablingFlag>,
-    pub resources: Option<DeploymentResource>,
+    pub deployment: Option<HoprdDeploymentSpec>,
     pub secret: Option<HoprdSecret>,
     pub version: String,
 

@@ -1,17 +1,17 @@
 use k8s_openapi::api::apps::v1::{Deployment, DeploymentSpec};
 use k8s_openapi::api::core::v1::{
-    Container, ContainerPort, EnvVar, EnvVarSource, HTTPGetAction, KeyToPath,
+    Container, ContainerPort, EnvVar, EnvVarSource, KeyToPath,
     PodSpec, PodTemplateSpec, Probe, SecretKeySelector, SecretVolumeSource,
-     Volume, VolumeMount, Secret, PersistentVolumeClaimVolumeSource,
+     Volume, VolumeMount, Secret, PersistentVolumeClaimVolumeSource, ResourceRequirements,
 };
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::{LabelSelector, OwnerReference};
-use k8s_openapi::apimachinery::pkg::util::intstr::IntOrString;
 use kube::api::{DeleteParams, ObjectMeta, PostParams, Patch, PatchParams};
 use kube::runtime::wait::{await_condition, conditions};
 use kube::{Api, Client, ResourceExt, Resource};
 use serde_json::json;
 use std::collections::{BTreeMap};
-use crate::model::Error;
+use crate::hoprd_deployment_spec::HoprdDeploymentSpec;
+use crate::model::{Error};
 use crate::{
     constants,
     hoprd::{ Hoprd, HoprdSpec},
@@ -68,6 +68,10 @@ pub async fn create_deployment(client: Client, hoprd: &Hoprd, secret: Secret) ->
 pub async fn build_deployment_spec(labels: BTreeMap<String, String>, hoprd_spec: &HoprdSpec, hoprd_secret: HoprdSecret, pvc_name: &String) -> DeploymentSpec{
     let image = format!("{}/{}:{}", constants::HOPR_DOCKER_REGISTRY.to_owned(), constants::HOPR_DOCKER_IMAGE_NAME.to_owned(), &hoprd_spec.version.to_owned());
     let replicas: i32 = if hoprd_spec.enabled.unwrap_or(true) { 1 } else { 0 };
+    let resources: Option<ResourceRequirements> = Some(HoprdDeploymentSpec::get_resource_requirements(hoprd_spec.deployment.clone()));
+    let liveness_probe: Option<Probe> = Some(HoprdDeploymentSpec::get_liveness_probe(hoprd_spec.deployment.clone()));
+    let readiness_probe: Option<Probe> = Some(HoprdDeploymentSpec::get_readiness_probe(hoprd_spec.deployment.clone()));
+    let startup_probe: Option<Probe> = Some(HoprdDeploymentSpec::get_startup_probe(hoprd_spec.deployment.clone()));
 
     DeploymentSpec {
             replicas: Some(replicas),
@@ -83,10 +87,11 @@ pub async fn build_deployment_spec(labels: BTreeMap<String, String>, hoprd_spec:
                         image_pull_policy: Some("Always".to_owned()),
                         ports: Some(build_ports().await),
                         env: Some(build_env_vars(&hoprd_spec, &hoprd_secret)),
-                        liveness_probe: Some(build_liveness_probe().await),
-                        readiness_probe: Some(build_readiness_probe().await),
+                        liveness_probe,
+                        readiness_probe,
+                        startup_probe,
                         volume_mounts: Some(build_volume_mounts().await),
-                        resources: utils::build_resource_requirements(&hoprd_spec.resources),
+                        resources,
                         ..Container::default()
                     }],
                     volumes: Some(build_volumes(&hoprd_secret, &pvc_name).await),
@@ -182,40 +187,6 @@ async fn build_volumes(secret: &HoprdSecret, pvc_name: &String) -> Vec<Volume> {
         ..Volume::default()
     });
     return volumes;
-}
-
-/// Build the liveness probe struct
-async fn build_liveness_probe() -> Probe {
-    return Probe {
-        http_get: Some(HTTPGetAction {
-            path: Some("/healthcheck/v1/version".to_owned()),
-            port: IntOrString::Int(8080),
-            ..HTTPGetAction::default()
-        }),
-        failure_threshold: Some(6),
-        initial_delay_seconds: Some(30),
-        period_seconds: Some(20),
-        success_threshold: Some(1),
-        timeout_seconds: Some(5),
-        ..Probe::default()
-    };
-}
-
-/// Build the readiness probe struct
-async fn build_readiness_probe() -> Probe {
-    return Probe {
-        http_get: Some(HTTPGetAction {
-            path: Some("/healthcheck/v1/version".to_owned()),
-            port: IntOrString::Int(8080),
-            ..HTTPGetAction::default()
-        }),
-        failure_threshold: Some(6),
-        initial_delay_seconds: Some(15),
-        period_seconds: Some(10),
-        success_threshold: Some(1),
-        timeout_seconds: Some(5),
-        ..Probe::default()
-    };
 }
 
 /// Build struct ContainerPort

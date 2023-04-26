@@ -1,46 +1,15 @@
 use std::{collections::{BTreeMap}, fmt::{Display, Formatter, self}};
 use json_patch::{PatchOperation, ReplaceOperation};
-use k8s_openapi::{api::{core::v1::{ResourceRequirements, Secret}}, apimachinery::pkg::{api::resource::Quantity}};
+use k8s_openapi::{api::{core::v1::{ Secret}}};
 use kube::{Api, api::{ Patch, PatchParams}, Client};
 use serde_json::{Value, json};
-use crate::{constants, model::{DeploymentResource, Error}, hoprd::{Hoprd}, cluster::ClusterHoprd};
+use crate::{constants, model::{Error}, hoprd::{Hoprd}, cluster::ClusterHoprd};
 
 pub fn common_lables(instance_name: &String) -> BTreeMap<String, String> {
     let mut labels: BTreeMap<String, String> = BTreeMap::new();
     labels.insert(constants::LABEL_KUBERNETES_NAME.to_owned(), "hoprd".to_owned());
     labels.insert(constants::LABEL_KUBERNETES_INSTANCE.to_owned(), instance_name.to_owned());
     return labels;
-}
-
-/// Builds the struct ResourceRequirement from Resource specified in the node
-///
-/// # Arguments
-/// - `resources` - The resources object on the Hoprd record
-pub fn build_resource_requirements(resources: &Option<DeploymentResource>) -> Option<ResourceRequirements> {
-    let mut value_limits: BTreeMap<String, Quantity> = BTreeMap::new();
-    let mut value_requests: BTreeMap<String, Quantity> = BTreeMap::new();
-    if resources.is_some() {
-        let resource = resources.as_ref().unwrap();
-        value_limits.insert("cpu".to_owned(), Quantity(resource.limits.cpu.to_owned()));
-        value_limits.insert(
-            "memory".to_owned(),
-            Quantity(resource.limits.memory.to_owned()),
-        );
-        value_requests.insert("cpu".to_owned(), Quantity(resource.requests.cpu.to_owned()));
-        value_requests.insert(
-            "memory".to_owned(),
-            Quantity(resource.requests.memory.to_owned()),
-        );
-    } else {
-        value_limits.insert("cpu".to_owned(), Quantity("1500m".to_owned()));
-        value_limits.insert("memory".to_owned(), Quantity("2Gi".to_owned()));
-        value_requests.insert("cpu".to_owned(), Quantity("750m".to_owned()));
-        value_requests.insert("memory".to_owned(), Quantity("256Mi".to_owned()));
-    }
-    return Some(ResourceRequirements {
-        limits: Some(value_limits),
-        requests: Some(value_requests),
-    });
 }
 
 pub enum ResourceType {

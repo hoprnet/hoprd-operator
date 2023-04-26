@@ -87,20 +87,6 @@ pub struct HoprdSecret {
     pub metrics_password_ref_key: Option<String>
 }
 
-/// Struct to map Pod resources
-#[derive(Serialize, Debug, Deserialize,  PartialEq, Clone, JsonSchema, Hash)]
-pub struct DeploymentResource {
-    pub limits: ResourceTypes,
-    pub requests: ResourceTypes
-}
-
-/// Struct to define Pod resources types
-#[derive(Serialize, Debug, Deserialize,  PartialEq, Clone, JsonSchema, Hash)]
-pub struct ResourceTypes {
-    pub cpu: String,
-    pub memory: String
-}
-
 #[derive(Serialize, Debug, Deserialize,  PartialEq, Clone, JsonSchema, Hash)]
 pub struct EnablingFlag {
     pub enabled: bool
