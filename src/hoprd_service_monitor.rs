@@ -10,7 +10,7 @@ use kube::runtime::wait::{await_condition, conditions};
 use kube::{Client, Api};
 
 use crate::model::HoprdSecret;
-use crate::servicemonitor::{ServiceMonitorSpec, ServiceMonitorEndpoints, ServiceMonitorEndpointsBasicAuth, ServiceMonitorEndpointsBasicAuthUsername, ServiceMonitorNamespaceSelector, ServiceMonitorSelector, ServiceMonitorEndpointsBasicAuthPassword};
+use crate::servicemonitor::{ServiceMonitorSpec, ServiceMonitorEndpoints, ServiceMonitorEndpointsBasicAuth, ServiceMonitorEndpointsBasicAuthUsername, ServiceMonitorNamespaceSelector, ServiceMonitorSelector, ServiceMonitorEndpointsBasicAuthPassword, ServiceMonitorEndpointsRelabelings, ServiceMonitorEndpointsRelabelingsAction};
 use crate::{
     constants,
     servicemonitor::ServiceMonitor,
@@ -69,7 +69,7 @@ pub async fn create_service_monitor(client: Client, name: &str, namespace: &str,
                 oauth2: None,
                 params: None,
                 proxy_url: None,
-                relabelings: None,
+                relabelings: Some(build_metric_relabel()),
                 scheme: None,
                 scrape_timeout: None,
                 target_port: None,
@@ -97,6 +97,44 @@ pub async fn create_service_monitor(client: Client, name: &str, namespace: &str,
     api.create(&PostParams::default(), &service_monitor).await
 
 
+}
+
+pub fn build_metric_relabel() -> Vec<ServiceMonitorEndpointsRelabelings> {
+ let mut metrics = Vec::with_capacity(2);
+    metrics.push(ServiceMonitorEndpointsRelabelings {
+        action: Some(ServiceMonitorEndpointsRelabelingsAction::Replace),
+        source_labels: Some(vec!["__meta_kubernetes_pod_label_hoprds_hoprnet_org_network".to_owned()]),
+        target_label: Some("hoprd_network".to_owned()),
+        modulus: None, regex: None, replacement: None, separator: None
+    });
+    metrics.push(ServiceMonitorEndpointsRelabelings {
+        action: Some(ServiceMonitorEndpointsRelabelingsAction::Replace),
+        source_labels: Some(vec!["__meta_kubernetes_pod_container_image".to_owned()]),
+        target_label: Some("hoprd_version".to_owned()),
+        regex: Some("(.*):(.*)".to_owned()),
+        replacement: Some("${2}".to_owned()),
+        separator: Some(":".to_owned()),
+        modulus: None
+    });
+    metrics.push(ServiceMonitorEndpointsRelabelings {
+        action: Some(ServiceMonitorEndpointsRelabelingsAction::Replace),
+        source_labels: Some(vec!["__meta_kubernetes_pod_node_name".to_owned()]),
+        target_label: Some("server_name".to_owned()),
+        modulus: None, regex: None, replacement: None, separator: None
+    });
+    metrics.push(ServiceMonitorEndpointsRelabelings {
+        action: Some(ServiceMonitorEndpointsRelabelingsAction::Replace),
+        source_labels: Some(vec!["__meta_kubernetes_pod_label_hoprds_hoprnet_org_address".to_owned()]),
+        target_label: Some("hoprd_address".to_owned()),
+        modulus: None, regex: None, replacement: None, separator: None
+    });
+    metrics.push(ServiceMonitorEndpointsRelabelings {
+        action: Some(ServiceMonitorEndpointsRelabelingsAction::Replace),
+        source_labels: Some(vec!["__meta_kubernetes_pod_label_hoprds_hoprnet_org_peerId".to_owned()]),
+        target_label: Some("hoprd_peer_id".to_owned()),
+        modulus: None, regex: None, replacement: None, separator: None
+    });
+    metrics
 }
 
 
