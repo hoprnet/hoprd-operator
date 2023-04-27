@@ -40,3 +40,4 @@ Build the hoprd-operator container using in the repo root:
 ```shell
 docker build -t gcr.io/hoprassociation/hoprd-operator:latest .
 ```
+
