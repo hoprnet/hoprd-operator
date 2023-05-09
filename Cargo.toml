@@ -1,11 +1,11 @@
 [package]
 name = "hopr_operator"
-version = "0.1.22"
+version = "0.1.23"
 authors = ["HOPR Association <tech@hoprnet.org>"]
 edition = "2021"
 
 [dependencies]
-tokio = { version = "1.27", features = [
+tokio = { version = "1.28", features = [
     "macros",
     "rt-multi-thread",
 ] }
