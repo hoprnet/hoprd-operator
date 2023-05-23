@@ -197,11 +197,11 @@ operator:
     p2pPorts:
       ## @param operator.ingress.p2pPorts.min Starting port to open on Ingress controller
       ##
-      min:
+      min: ""
 
       ## @param operator.ingress.p2pPorts.max End port to open on Ingress controller
       ##
-      max:
+      max: ""
 
     ## @param operator.ingress.selectorLabels Labels selector to choose the Nginx deployment and service
     ##
