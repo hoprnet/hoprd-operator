@@ -82,6 +82,7 @@ async fn open_nginx_service_ports(client: Client, ingress_config: &IngressConfig
 
 /// Boot operator
 pub async fn start(client: Client, context_data: Arc<ContextData>) -> () {
+    // Open Nginx Ports
     if context_data.config.ingress.ingress_class_name == "nginx" {
         open_nginx_deployment_ports(client.clone(), &context_data.config.ingress).await.unwrap();
         open_nginx_service_ports(client, &context_data.config.ingress).await.unwrap();

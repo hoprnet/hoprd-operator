@@ -203,7 +203,7 @@ operator:
       ##
       max:
 
-    ## @param operator.ingress.selectorLabels Labels to choose the Nginx Selector
+    ## @param operator.ingress.selectorLabels Labels selector to choose the Nginx deployment and service
     ##
     selectorLabels: {}
 
