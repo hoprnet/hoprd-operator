@@ -8,6 +8,7 @@ mod hoprd_deployment;
 mod hoprd_deployment_spec;
 mod hoprd;
 mod cluster;
+mod bootstrap_operator;
 mod hoprd_ingress;
 mod hoprd_jobs;
 mod hoprd_secret;
@@ -34,6 +35,7 @@ async fn main() -> Result<()> {
     let client: Client = Client::try_default().await.expect("Failed to create kube Client");
     let context_data: Arc<ContextData> = Arc::new(ContextData::new(client.clone()).await);
     // Initiatilize Kubernetes controller state
+    bootstrap_operator::start(client.clone(), context_data.clone()).await;
     let controller_hoprd = controller_hoprd::run(client.clone(), context_data.clone()).fuse();
     let controller_cluster = controller_cluster::run(client.clone(), context_data.clone()).fuse();
 

@@ -185,10 +185,27 @@ operator:
     ##
     dnsDomain: ""
 
+    ## @param operator.ingress.namespace Namespace of the running ingress controller
+    ##
+    namespace: ""
+
     ## @param operator.ingress.annotations Annotations to be added to ingress resources of Hoprd nodes
     ## @skip operator.ingress.annotations
     ##
     annotations: {}
+
+    p2pPorts:
+      ## @param operator.ingress.p2pPorts.min Starting port to open on Ingress controller
+      ##
+      min:
+
+      ## @param operator.ingress.p2pPorts.max End port to open on Ingress controller
+      ##
+      max:
+
+    ## @param operator.ingress.selectorLabels Labels to choose the Nginx Selector
+    ##
+    selectorLabels: {}
 
   ## @param operator.nodeSelector Object containing node selection constraint to operator deployment
   ## https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#nodeselector

@@ -23,7 +23,11 @@ pub struct OperatorInstance {
 pub struct IngressConfig {
     pub ingress_class_name: String,
     pub dns_domain: String,
-    pub annotations: Option<BTreeMap<String, String>>
+    pub namespace: Option<String>,    
+    pub annotations: Option<BTreeMap<String, String>>,
+    pub p2p_port_min: Option<String>,
+    pub p2p_port_max: Option<String>,
+    pub selector_labels: Option<BTreeMap<String, String>>,
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Hash)]

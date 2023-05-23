@@ -12,7 +12,7 @@ use crate::{utils};
 /// - `name` - Name of the service to be created
 /// - `namespace` - Namespace to create the Kubernetes Deployment in.
 ///
-pub async fn create_service(client: Client, name: &str, namespace: &str, owner_references: Option<Vec<OwnerReference>>) -> Result<Service, Error> {
+pub async fn create_service(client: Client, name: &str, namespace: &str, p2p_port: &String, owner_references: Option<Vec<OwnerReference>>) -> Result<Service, Error> {
     let labels: BTreeMap<String, String> = utils::common_lables(&name.to_owned());
 
     // Definition of the service. Alternatively, a YAML representation could be used as well.
@@ -27,7 +27,7 @@ pub async fn create_service(client: Client, name: &str, namespace: &str, owner_r
         spec: Some(ServiceSpec {
             selector: Some(labels.clone()),
             type_: Some("ClusterIP".to_owned()),
-            ports: Some(service_ports()),
+            ports: Some(service_ports(p2p_port)),
             ..ServiceSpec::default()
         }),
         ..Service::default()
@@ -39,7 +39,7 @@ pub async fn create_service(client: Client, name: &str, namespace: &str, owner_r
 }
 
 
-fn service_ports() -> Vec<ServicePort> {
+fn service_ports(p2p_port: &String) -> Vec<ServicePort> {
     vec![ServicePort {
                 name: Some("api".to_owned()),
                 port: 3001,
@@ -49,14 +49,14 @@ fn service_ports() -> Vec<ServicePort> {
             },
         ServicePort {
                 name: Some("p2p-tcp".to_owned()),
-                port: 9091,
+                port: p2p_port.parse::<i32>().unwrap(),
                 protocol: Some("TCP".to_owned()),
                 target_port: Some(IntOrString::String("p2p-tcp".to_owned())),
                 ..ServicePort::default()
             },
         ServicePort {
                 name: Some("p2p-udp".to_owned()),
-                port: 9091,
+                port: p2p_port.parse::<i32>().unwrap(),
                 protocol: Some("UDP".to_owned()),
                 target_port: Some(IntOrString::String("p2p-udp".to_owned())),
                 ..ServicePort::default()

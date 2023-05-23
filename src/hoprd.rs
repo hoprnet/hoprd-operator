@@ -53,17 +53,27 @@ pub struct HoprdSpec {
 pub struct HoprdConfig {
     pub announce: Option<bool>,
     pub provider: Option<String>,
+    #[serde(rename(deserialize = "defaultStrategy"))]
     pub default_strategy: Option<String>,
+    #[serde(rename(deserialize = "maxAutoChannels"))]
     pub max_auto_channels: Option<i32>,
     #[serde(rename(deserialize = "autoRedeemTickets"))]
     pub auto_redeem_tickets: Option<bool>,
+    #[serde(rename(deserialize = "checkUnrealizedBalance"))]
     pub check_unrealized_balance: Option<bool>,
+    #[serde(rename(deserialize = "allowPrivateNodeConnections"))]
     pub allow_private_node_connections: Option<bool>,
+    #[serde(rename(deserialize = "testAnnounceLocalAddress"))]
     pub test_announce_local_address: Option<bool>,
+    #[serde(rename(deserialize = "heartbeatInterval"))]
     pub heartbeat_interval: Option<i32>,
+    #[serde(rename(deserialize = "heartbeatThreshold"))]
     pub heartbeat_threshold: Option<i32>,
+    #[serde(rename(deserialize = "heartbeatVariance"))]
     pub heartbeat_variance: Option<i32>,
+    #[serde(rename(deserialize = "onChainConfirmations"))]
     pub on_chain_confirmations: Option<i32>,
+    #[serde(rename(deserialize = "networkQualityThreshold"))]
     pub network_quality_threshold: Option<u32>
 }
 
@@ -92,8 +102,13 @@ impl Hoprd {
         match secret_manager.create_secret().await {
             Ok(secret) => {
                 hoprd_persistence::create_pvc(context.clone(), &self).await?;
-                hoprd_deployment::create_deployment(client.clone(), &self,  secret).await?;
-                hoprd_service::create_service(client.clone(), &hoprd_name, &hoprd_namespace, owner_reference.to_owned()).await?;
+                let p2p_port = if self.spec.config.as_ref().unwrap().announce.is_some() {
+                     hoprd_ingress::open_port(client.clone(), &hoprd_namespace, &hoprd_name, &context.config.ingress).await.unwrap()
+                } else {
+                    constants::OPERATOR_P2P_MIN_PORT.to_string()
+                };
+                hoprd_deployment::create_deployment(client.clone(), &self,  secret, &p2p_port).await?;
+                hoprd_service::create_service(client.clone(), &hoprd_name, &hoprd_namespace, &p2p_port, owner_reference.to_owned()).await?;
                 if self.spec.ingress.as_ref().unwrap_or(&EnablingFlag {enabled: constants::ENABLED}).enabled {
                     hoprd_ingress::create_ingress(client.clone(), &hoprd_name, &hoprd_namespace,&context.config.ingress, owner_reference.to_owned()).await?;
                 }
@@ -121,15 +136,15 @@ impl Hoprd {
         self.update_status(context.clone(), HoprdStatusEnum::Reloading).await.unwrap();
         let annotations = utils::get_resource_kinds(client.clone(), utils::ResourceType::Hoprd, utils::ResourceKind::Annotations, &hoprd_name, &hoprd_namespace).await;
         if annotations.contains_key(constants::ANNOTATION_LAST_CONFIGURATION) {
-            let previous_config_text: String = annotations.get_key_value(constants::ANNOTATION_LAST_CONFIGURATION).unwrap().1.parse().unwrap();
-            match serde_json::from_str::<Hoprd>(&previous_config_text) {
-                Ok(modified_hoprd) => {
-                    self.check_inmutable_fields(&modified_hoprd.spec).unwrap();
+            let previous_hoprd_text: String = annotations.get_key_value(constants::ANNOTATION_LAST_CONFIGURATION).unwrap().1.parse().unwrap();
+            match serde_json::from_str::<Hoprd>(&previous_hoprd_text) {
+                Ok(previous_hoprd) => {
+                    self.check_inmutable_fields(&previous_hoprd.spec).unwrap();
                     let secret_manager = hoprd_secret::SecretManager::new(context.clone(), self.clone());
                     let secret = secret_manager.get_hoprd_secret().await.unwrap();
                     if secret.is_some() {
                         let hoprd_secret = self.spec.secret.as_ref().unwrap_or(&HoprdSecret { secret_name: secret.unwrap().name_any(), ..HoprdSecret::default() }).to_owned();
-                        hoprd_deployment::modify_deployment(client.clone(), &hoprd_name.to_owned(), &hoprd_namespace.to_owned(), &modified_hoprd.spec.to_owned(), hoprd_secret).await?;
+                        hoprd_deployment::modify_deployment(client.clone(), &hoprd_name.to_owned(), &hoprd_namespace.to_owned(), &self.spec.to_owned(), hoprd_secret).await?;
                     } else {
                         println!("[WARN] Hoprd node {hoprd_name} does not have a linked secret and is inconsistent");
                     }
@@ -151,6 +166,9 @@ impl Hoprd {
         println!("[INFO] Starting to delete Hoprd node {hoprd_name} from namespace {hoprd_namespace}");
         // Deletes any subresources related to this `Hoprd` resources. If and only if all subresources
         // are deleted, the finalizer is removed and Kubernetes is free to remove the `Hoprd` resource.
+        if self.spec.config.as_ref().unwrap().announce.is_some() {
+            hoprd_ingress::close_port(client.clone(), &hoprd_namespace, &hoprd_name, &context.config.ingress).await.unwrap();
+        }
         if self.spec.monitoring.as_ref().unwrap_or(&EnablingFlag {enabled: constants::ENABLED}).enabled {
             hoprd_service_monitor::delete_service_monitor(client.clone(), &hoprd_name, &hoprd_namespace).await?;
         }
@@ -225,12 +243,15 @@ impl Hoprd {
         }
     }
 
-    fn check_inmutable_fields(&self, spec: &HoprdSpec) -> Result<(),Error> {
-        if ! self.spec.network.eq(&spec.network) {
+    fn check_inmutable_fields(&self, previous_hoprd: &HoprdSpec) -> Result<(),Error> {
+        if ! self.spec.network.eq(&previous_hoprd.network) {
             return Err(Error::HoprdConfigError(format!("Hoprd configuration is invalid, network field cannot be changed on {}.", self.name_any())));
         }
-        if ! self.spec.secret.eq(&spec.secret) {
+        if ! self.spec.secret.eq(&previous_hoprd.secret) {
             return Err(Error::HoprdConfigError(format!("Hoprd configuration is invalid, secret field cannot be changed on {}.", self.name_any())));
+        }
+        if self.spec.config.as_ref().is_some() && self.spec.config.as_ref().unwrap().announce.is_some() && ! self.spec.config.as_ref().unwrap().announce.unwrap().eq(&previous_hoprd.config.as_ref().unwrap().announce.unwrap()) {
+            return Err(Error::HoprdConfigError(format!("Hoprd configuration is invalid, announcement flag cannot be changed on {}.", self.name_any())));
         }
         Ok(())
     }

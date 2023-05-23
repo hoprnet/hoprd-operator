@@ -2,13 +2,15 @@
 apiVersion: hoprnet.org/v1alpha
 kind: Hoprd
 metadata:
-  name: hoprd-node-announced
+  name: hoprd-node-announced-1
   namespace: master-staging
 spec:
   network: master-staging
-  version: providence
+  version: 1.94.0-next.64
   config:
     announce: true
+    testAnnounceLocalAddress: false
+    allowPrivateNodeConnections: false
   enabled: true 
   ingress:
     enabled: true
