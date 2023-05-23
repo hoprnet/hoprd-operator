@@ -50,30 +50,20 @@ pub struct HoprdSpec {
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Default, Clone, JsonSchema, Hash)]
+#[serde(rename_all = "camelCase")]
 pub struct HoprdConfig {
     pub announce: Option<bool>,
     pub provider: Option<String>,
-    #[serde(rename(deserialize = "defaultStrategy"))]
     pub default_strategy: Option<String>,
-    #[serde(rename(deserialize = "maxAutoChannels"))]
     pub max_auto_channels: Option<i32>,
-    #[serde(rename(deserialize = "autoRedeemTickets"))]
     pub auto_redeem_tickets: Option<bool>,
-    #[serde(rename(deserialize = "checkUnrealizedBalance"))]
     pub check_unrealized_balance: Option<bool>,
-    #[serde(rename(deserialize = "allowPrivateNodeConnections"))]
     pub allow_private_node_connections: Option<bool>,
-    #[serde(rename(deserialize = "testAnnounceLocalAddress"))]
     pub test_announce_local_address: Option<bool>,
-    #[serde(rename(deserialize = "heartbeatInterval"))]
     pub heartbeat_interval: Option<i32>,
-    #[serde(rename(deserialize = "heartbeatThreshold"))]
     pub heartbeat_threshold: Option<i32>,
-    #[serde(rename(deserialize = "heartbeatVariance"))]
     pub heartbeat_variance: Option<i32>,
-    #[serde(rename(deserialize = "onChainConfirmations"))]
     pub on_chain_confirmations: Option<i32>,
-    #[serde(rename(deserialize = "networkQualityThreshold"))]
     pub network_quality_threshold: Option<u32>
 }
 
