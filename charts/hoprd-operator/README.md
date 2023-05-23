@@ -82,7 +82,11 @@ Chart version `Chart.yaml` should be increased according to [semver](http://semv
 | `operator.commonAnnotations`            | Annotations to to all operator related objects                                                                   | `{}`                                  |
 | `operator.ingress.ingressClassName`     | Name of the ingress class name to be used by Hoprd nodes                                                         | `""`                                  |
 | `operator.ingress.dnsDomain`            | Name of the DNS suffix domain to be added to Hoprd nodes                                                         | `""`                                  |
+| `operator.ingress.namespace`            | Namespace of the running ingress controller                                                                      | `""`                                  |
 | `operator.ingress.annotations`          | Annotations to be added to ingress resources of Hoprd nodes                                                      | `{}`                                  |
+| `operator.ingress.p2pPorts.min`         | Starting port to open on Ingress controller                                                                      | `""`                                  |
+| `operator.ingress.p2pPorts.max`         | End port to open on Ingress controller                                                                           | `""`                                  |
+| `operator.ingress.selectorLabels`       | Labels selector to choose the Nginx deployment and service                                                       | `{}`                                  |
 | `operator.nodeSelector`                 | Object containing node selection constraint to operator deployment                                               | `{}`                                  |
 | `operator.resources`                    | Resource specification to operator deployment                                                                    | `{}`                                  |
 | `operator.tolerations`                  | Tolerations specifications to operator deployment                                                                | `[]`                                  |
