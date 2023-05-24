@@ -3,7 +3,7 @@ use k8s_openapi::{api::{networking::v1::{Ingress, IngressSpec, IngressRule, HTTP
 use kube::{Api, Client, Error, core::ObjectMeta, api::{PostParams, DeleteParams, PatchParams, Patch}, runtime::wait::{conditions, await_condition}};
 use serde_json::json;
 use std::{collections::{BTreeMap}};
-
+use tracing::{info, error};
 
 use crate::{utils, operator_config::IngressConfig, constants};
 use crate::model::{Error as HoprError};
@@ -82,9 +82,9 @@ pub async fn delete_ingress(client: Client, name: &str, namespace: &str) -> Resu
         let uid = ingress.metadata.uid.unwrap();
         api.delete(name, &DeleteParams::default()).await?;
         await_condition(api, &name.to_owned(), conditions::is_deleted(&uid)).await.unwrap();
-        Ok(println!("[INFO] Ingress {name} successfully deleted"))
+        Ok(info!("Ingress {name} successfully deleted"))
     } else {
-        Ok(println!("[INFO] Ingress {name} in namespace {namespace} about to delete not found"))
+        Ok(info!("Ingress {name} in namespace {namespace} about to delete not found"))
     }
 }
 
@@ -104,17 +104,18 @@ pub async fn open_port(client: Client, service_namespace: &str, service_name: &s
     match api.patch("ingress-nginx-tcp", &pp, &Patch::Merge(patch.clone())).await {
             Ok(_) => {},
             Err(error) => {
-                println!("[ERROR]: {:?}", error);
+                error!("Could not open Nginx tcp port: {:?}", error);
                 return Err(HoprError::HoprdConfigError(format!("Could not open Nginx tcp port").to_owned()));
             }
     };
     match api.patch("ingress-nginx-udp", &pp, &Patch::Merge(patch.clone())).await {
             Ok(_) => {},
             Err(error) => {
-                println!("[ERROR]: {:?}", error);
-                return Err(HoprError::HoprdConfigError(format!("Could not open Nginx tcp port").to_owned()));
+                error!("Could not open Nginx udp port: {:?}", error);
+                return Err(HoprError::HoprdConfigError(format!("Could not open Nginx udp port").to_owned()));
             }
     };
+    info!("Nginx p2p port {port} for Hoprd node {service_name} have been opened");
     Ok(port)
 }
 
@@ -162,7 +163,7 @@ pub async fn close_port(client: Client, service_namespace: &str, service_name: &
 
     // TCP
     let tcp_config_map = api.get("ingress-nginx-tcp").await.unwrap();
-    let new_data = tcp_config_map.to_owned().data.unwrap().into_iter()
+    let new_data = tcp_config_map.to_owned().data.unwrap_or(BTreeMap::new()).into_iter()
         .filter(|entry| ! entry.1.contains(&service_fqn))
         .collect::<BTreeMap<String, String>>();
     let json_patch = json_patch::Patch(vec![PatchOperation::Replace(ReplaceOperation{
@@ -171,16 +172,16 @@ pub async fn close_port(client: Client, service_namespace: &str, service_name: &
     })]);
     let patch: Patch<&Value> = Patch::Json::<&Value>(json_patch);
     match api.patch(&tcp_config_map.metadata.name.unwrap(), pp, &patch).await {
-            Ok(_) => println!("[INFO] Closed p2p-tcp port on Nginx"),
+            Ok(_) => {},
             Err(error) => {
-                println!("[ERROR]: {:?}", error);
+                error!("Could not close Nginx tcp-port: {:?}", error);
                 return Err(HoprError::HoprdConfigError(format!("Could not close Nginx tcp-port").to_owned()));
             }
     };
 
     // UDP
     let udp_config_map = api.get("ingress-nginx-udp").await.unwrap();
-    let new_data = udp_config_map.to_owned().data.unwrap().into_iter()
+    let new_data = udp_config_map.to_owned().data.unwrap_or(BTreeMap::new()).into_iter()
         .filter(|entry| ! entry.1.contains(&service_fqn))
         .collect::<BTreeMap<String, String>>();
 
@@ -190,12 +191,13 @@ pub async fn close_port(client: Client, service_namespace: &str, service_name: &
     })]);
     let patch: Patch<&Value> = Patch::Json::<&Value>(json_patch);
     match api.patch(&udp_config_map.metadata.name.unwrap(), pp, &patch).await {
-            Ok(_) => println!("[INFO] Closed p2p-udp port on Nginx"),
+            Ok(_) => {},
             Err(error) => {
-                println!("[ERROR]: {:?}", error);
+                error!("Could not close Nginx udp-port: {:?}", error);
                 return Err(HoprError::HoprdConfigError(format!("Could not close Nginx udp-port").to_owned()));
             }
     };
+    info!("Nginx p2p port for Hoprd node {service_name} have been closed");
     Ok(())
 }
 

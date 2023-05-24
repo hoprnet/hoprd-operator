@@ -1,7 +1,7 @@
 use k8s_openapi::{api::core::v1::{ Service, ServicePort, ServiceSpec }, apimachinery::pkg::{util::intstr::IntOrString, apis::meta::v1::OwnerReference}};
 use kube::{Api, Client, Error, core::ObjectMeta, api::{PostParams, DeleteParams}, runtime::wait::{await_condition, conditions}};
 use std::collections::{BTreeMap};
-
+use tracing::{info};
 
 use crate::{utils};
 
@@ -77,8 +77,8 @@ pub async fn delete_service(client: Client, name: &str, namespace: &str) -> Resu
         let uid = service.metadata.uid.unwrap();        
         api.delete(name, &DeleteParams::default()).await?;
         await_condition(api, &name.to_owned(), conditions::is_deleted(&uid)).await.unwrap();
-        Ok(println!("[INFO] Service {name} successfully deleted"))
+        Ok(info!("Service {name} successfully deleted"))
     } else {
-        Ok(println!("[INFO] Service {name} in namespace {namespace} about to delete not found"))
+        Ok(info!("Service {name} in namespace {namespace} about to delete not found"))
     }
 }

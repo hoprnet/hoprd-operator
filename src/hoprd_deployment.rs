@@ -4,6 +4,7 @@ use k8s_openapi::api::core::v1::{
     PodSpec, PodTemplateSpec, Probe, SecretKeySelector, SecretVolumeSource,
      Volume, VolumeMount, Secret, PersistentVolumeClaimVolumeSource, ResourceRequirements,
 };
+use tracing::{info};
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::{LabelSelector, OwnerReference};
 use kube::api::{DeleteParams, ObjectMeta, PostParams, Patch, PatchParams};
 use kube::runtime::wait::{await_condition, conditions};
@@ -141,9 +142,9 @@ pub async fn delete_depoyment(client: Client, name: &str, namespace: &str) -> Re
         let uid = deployment.metadata.uid.unwrap();        
         api.delete(name, &DeleteParams::default()).await?;
         await_condition(api, &name.to_owned(), conditions::is_deleted(&uid)).await.unwrap();
-        Ok(println!("[INFO] Deployment {name} successfully deleted"))
+        Ok(info!("Deployment {name} successfully deleted"))
     } else {
-        Ok(println!("[INFO] Deployment {name} in namespace {namespace} about to delete not found"))
+        Ok(info!("Deployment {name} in namespace {namespace} about to delete not found"))
     }
 }
 

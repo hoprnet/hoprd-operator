@@ -1,17 +1,16 @@
-
 use futures::StreamExt;
 use k8s_openapi::api::{apps::v1::Deployment, networking::v1::Ingress, core::v1::{Service, Secret}, batch::v1::Job};
 use kube::{
     api::{Api},
     client::Client,
     runtime::{controller::{Action, Controller}, watcher::Config},
-    Resource, Result, Error
+    Resource, Result
 };
-
+use tracing::{error};
 use std::{sync::Arc, collections::hash_map::DefaultHasher, hash::{Hash, Hasher}};
 use tokio::{ time::Duration};
 
-use crate::{ constants::{self}, hoprd::{Hoprd, HoprdSpec}, servicemonitor::ServiceMonitor, context_data::ContextData};
+use crate::{ constants::{self}, hoprd::{Hoprd, HoprdSpec}, servicemonitor::ServiceMonitor, context_data::ContextData, model::Error};
 
 /// Action to be taken upon an `Hoprd` resource during reconciliation
 enum HoprdAction {
@@ -57,13 +56,11 @@ fn determine_action(hoprd: &Hoprd) -> HoprdAction {
     };
 }
 
-async fn reconciler(hoprd: Arc<Hoprd>, context: Arc<ContextData>) -> Result<Action> {
-    // Performs action as decided by the `determine_action` function.
+async fn reconciler(hoprd: Arc<Hoprd>, context: Arc<ContextData>) -> Result<Action, Error> {
     return match determine_action(&hoprd) {
         HoprdAction::Create => hoprd.create(context.clone()).await,
         HoprdAction::Modify => hoprd.modify(context.clone()).await,
         HoprdAction::Delete => hoprd.delete(context.clone()).await,
-        // The resource is already in desired state, do nothing and re-check after 10 seconds
         HoprdAction::NoOp => Ok(Action::requeue(Duration::from_secs(constants::RECONCILE_FREQUENCY))),
     };
 }
@@ -78,7 +75,7 @@ async fn reconciler(hoprd: Arc<Hoprd>, context: Arc<ContextData>) -> Result<Acti
 /// - `error`: A reference to the `kube::Error` that occurred during reconciliation.
 /// - `_context`: Unused argument. Context Data "injected" automatically by kube-rs.
 pub fn on_error(hoprd: Arc<Hoprd>, error: &Error, _context: Arc<ContextData>) -> Action {
-    eprintln!("[ERROR] [ClusterHoprd] Reconciliation error:\n{:?}.\n{:?}", error, hoprd);
+    error!("[ClusterHoprd] Reconciliation error:\n{:?}.\n{:?}", error, hoprd);
     Action::requeue(Duration::from_secs(constants::RECONCILE_FREQUENCY))
 }
 
@@ -109,7 +106,7 @@ pub async fn run(client: Client, context_data: Arc<ContextData>) {
                     let err_string = reconciliation_err.to_string();
                     if !err_string.contains("that was not found in local store") {
                         // https://github.com/kube-rs/kube/issues/712
-                            eprintln!("[ERROR] [Hoprd] Reconciliation error: {:?}", reconciliation_err)
+                            error!("[Hoprd] Reconciliation error: {:?}", reconciliation_err)
                     }
                 }
             }

@@ -2,7 +2,7 @@ use std::collections::hash_map::DefaultHasher;
 use std::sync::Arc;
 use std::time::Duration;
 use std::hash::{Hash, Hasher};
-
+use tracing::{debug, info, warn, error};
 use crate::hoprd_deployment_spec::HoprdDeploymentSpec;
 use crate::{constants, hoprd_service_monitor, hoprd_ingress, hoprd_deployment, hoprd_secret, hoprd_service, utils, context_data::ContextData, cluster::ClusterHoprd};
 use crate::model::{ClusterHoprdStatusEnum, HoprdStatusEnum, EnablingFlag, HoprdSecret, Error};
@@ -78,13 +78,13 @@ pub struct HoprdStatus {
 impl Hoprd {
 
     // Creates all the related resources
-    pub async fn create(&self, context: Arc<ContextData>) -> Result<Action> {
+    pub async fn create(&self, context: Arc<ContextData>) -> Result<Action, Error> {
         let client: Client = context.client.clone();
         let hoprd_namespace: String = self.namespace().unwrap();
         let hoprd_name: String= self.name_any();
-        self.create_event(context.clone(), HoprdStatusEnum::Initializing).await.unwrap();
-        self.update_status(context.clone(), HoprdStatusEnum::Initializing).await.unwrap();
-        println!("[INFO] Starting to create Hoprd node {hoprd_name} in namespace {hoprd_namespace}");
+        self.create_event(context.clone(), HoprdStatusEnum::Initializing).await?;
+        self.update_status(context.clone(), HoprdStatusEnum::Initializing).await?;
+        info!("Starting to create Hoprd node {hoprd_name} in namespace {hoprd_namespace}");
         let owner_reference: Option<Vec<OwnerReference>> = Some(vec![self.controller_owner_ref(&()).unwrap()]);
         self.add_finalizer(client.clone(), &hoprd_name, &hoprd_namespace).await.unwrap();
         // Invoke creation of a Kubernetes resources
@@ -105,11 +105,11 @@ impl Hoprd {
                 if self.spec.monitoring.as_ref().unwrap_or(&EnablingFlag {enabled: constants::ENABLED}).enabled {
                     hoprd_service_monitor::create_service_monitor(client.clone(), &hoprd_name, &hoprd_namespace, &secret_manager.hoprd_secret.unwrap(), owner_reference.to_owned()).await?;
                 }
-                println!("[INFO] Hoprd node {hoprd_name} in namespace {hoprd_namespace} has been successfully created");
+                info!("Hoprd node {hoprd_name} in namespace {hoprd_namespace} has been successfully created");
                 Ok(Action::requeue(Duration::from_secs(constants::RECONCILE_FREQUENCY)))
             },
             Err(error) => {
-                println!("[ERROR]: {:?}", error);
+                error!("Error creating the secret: {}", error);
                 Ok(Action::requeue(Duration::from_secs(constants::RECONCILE_FREQUENCY)))
             }
         }
@@ -117,13 +117,13 @@ impl Hoprd {
     }
 
     // Creates all the related resources
-    pub async fn modify(&self, context: Arc<ContextData>) -> Result<Action> {
+    pub async fn modify(&self, context: Arc<ContextData>) -> Result<Action, Error> {
         let client: Client = context.client.clone();
         let hoprd_namespace: String = self.namespace().unwrap();
         let hoprd_name: String= self.name_any();
-        println!("[INFO] Hoprd node {hoprd_name} in namespace {hoprd_namespace} has been successfully modified");
-        self.create_event(context.clone(), HoprdStatusEnum::Reloading).await.unwrap();
-        self.update_status(context.clone(), HoprdStatusEnum::Reloading).await.unwrap();
+        info!("Hoprd node {hoprd_name} in namespace {hoprd_namespace} has been successfully modified");
+        self.create_event(context.clone(), HoprdStatusEnum::Reloading).await?;
+        self.update_status(context.clone(), HoprdStatusEnum::Reloading).await?;
         let annotations = utils::get_resource_kinds(client.clone(), utils::ResourceType::Hoprd, utils::ResourceKind::Annotations, &hoprd_name, &hoprd_namespace).await;
         if annotations.contains_key(constants::ANNOTATION_LAST_CONFIGURATION) {
             let previous_hoprd_text: String = annotations.get_key_value(constants::ANNOTATION_LAST_CONFIGURATION).unwrap().1.parse().unwrap();
@@ -136,11 +136,11 @@ impl Hoprd {
                         let hoprd_secret = self.spec.secret.as_ref().unwrap_or(&HoprdSecret { secret_name: secret.unwrap().name_any(), ..HoprdSecret::default() }).to_owned();
                         hoprd_deployment::modify_deployment(client.clone(), &hoprd_name.to_owned(), &hoprd_namespace.to_owned(), &self.spec.to_owned(), hoprd_secret).await?;
                     } else {
-                        println!("[WARN] Hoprd node {hoprd_name} does not have a linked secret and is inconsistent");
+                        warn!("Hoprd node {hoprd_name} does not have a linked secret and is inconsistent");
                     }
                 },
                 Err(_err) => {
-                    println!("[ERROR] Could not parse the last applied configuration of Hoprd node {hoprd_name}.");
+                    error!("Could not parse the last applied configuration of Hoprd node {hoprd_name}.");
                 }
             }
         }
@@ -148,12 +148,12 @@ impl Hoprd {
     }
 
     // Deletes all the related resources
-    pub async fn delete(&self, context: Arc<ContextData>) -> Result<Action> {
+    pub async fn delete(&self, context: Arc<ContextData>) -> Result<Action, Error> {
         let hoprd_name = self.name_any();
         let hoprd_namespace = self.namespace().unwrap();
         let client: Client = context.client.clone();
-        self.create_event(context.clone(), HoprdStatusEnum::Deleting).await.unwrap();
-        println!("[INFO] Starting to delete Hoprd node {hoprd_name} from namespace {hoprd_namespace}");
+        self.create_event(context.clone(), HoprdStatusEnum::Deleting).await?;
+        info!("Starting to delete Hoprd node {hoprd_name} from namespace {hoprd_namespace}");
         // Deletes any subresources related to this `Hoprd` resources. If and only if all subresources
         // are deleted, the finalizer is removed and Kubernetes is free to remove the `Hoprd` resource.
         if self.spec.config.as_ref().unwrap().announce.is_some() {
@@ -171,9 +171,9 @@ impl Hoprd {
         secret_manager.unlock_secret().await.unwrap();
         // Once all the resources are successfully removed, remove the finalizer to make it possible
         // for Kubernetes to delete the `Hoprd` resource.
-        self.create_event(context.clone(), HoprdStatusEnum::Deleted).await.unwrap();
-        self.delete_finalizer(client.clone(), &hoprd_name, &hoprd_namespace).await.unwrap();
-        println!("[INFO] Hoprd node {hoprd_name} in namespace {hoprd_namespace} has been successfully deleted");
+        self.create_event(context.clone(), HoprdStatusEnum::Deleted).await?;
+        self.delete_finalizer(client.clone(), &hoprd_name, &hoprd_namespace).await?;
+        info!("Hoprd node {hoprd_name} in namespace {hoprd_namespace} has been successfully deleted");
         self.notify_cluster(context.clone()).await.unwrap();
         Ok(Action::await_change()) // Makes no sense to delete after a successful delete, as the resource is gone
     }
@@ -197,7 +197,7 @@ impl Hoprd {
         match api.patch(&hoprd_name, &pp, &Patch::Merge(patch)).await {
             Ok(hopr) => Ok(hopr),
             Err(error) => {
-                println!("[ERROR]: {:?}", error);
+                error!("Could not add finalizer on {hoprd_name}: {:?}", error);
                 return Err(Error::HoprdStatusError(format!("Could not add finalizer on {hoprd_name}.").to_owned()));
             }
         }
@@ -223,13 +223,11 @@ impl Hoprd {
             match api.patch(&hoprd_name, &pp, &Patch::Merge(patch)).await {
                 Ok(_hopr) => Ok(()),
                 Err(error) => {
-                    println!("[ERROR]: {:?}", error);
-                    return Err(Error::HoprdStatusError(format!("Could not delete finalizer on hoprd node {hoprd_name}.").to_owned()));
+                    Ok(error!("Could not delete finalizer on hoprd node {hoprd_name}: {:?}", error))
                 }
             }
         } else {
-            println!("[DEBUG] Hoprd node {hoprd_name} has already been deleted");
-            Ok(())
+            Ok(debug!("Hoprd node {hoprd_name} has already been deleted"))
         }
     }
 
@@ -350,12 +348,10 @@ impl Hoprd {
             let patch = json!({
                     "status": status
             });
-            //println!("[DEBUG] Updating hoprd {hoprd_name} to {:?} with spec {:?} and hash {hash}", status, self.spec);
             match api.patch(&hoprd_name, &pp, &Patch::Merge(patch)).await {
                 Ok(_) => Ok(()),
                 Err(error) => {
-                    println!("[ERROR]: {:?}", error);
-                    return Err(Error::HoprdStatusError(format!("Could not update status on node {hoprd_name}.")));
+                    Ok(error!("Could not update status on node {hoprd_name}: {:?}", error))
                 }
             }
     }
@@ -371,7 +367,7 @@ impl Hoprd {
                 if cluster.to_owned().status.unwrap().status != ClusterHoprdStatusEnum::Deleting {
                     cluster.create_event(context.clone(), ClusterHoprdStatusEnum::OutOfSync, Some(self.name_any().to_owned())).await.unwrap();
                     cluster.update_status(context.clone(), ClusterHoprdStatusEnum::OutOfSync).await.unwrap();
-                    println!("[INFO] Notifying ClusterHoprd {} that Hoprd node {} is being deleted", &owner_reference.name, self.name_any().to_owned())
+                    info!("Notifying ClusterHoprd {} that Hoprd node {} is being deleted", &owner_reference.name, self.name_any().to_owned())
                 }
             } else {
                 println!("[WARN] ClusterHoprd {} not found", &owner_reference.name);

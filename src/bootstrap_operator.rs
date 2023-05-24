@@ -1,7 +1,7 @@
 use k8s_openapi::{api::{apps::v1::Deployment, core::v1::{ContainerPort, Service, ServicePort}}, apimachinery::pkg::util::intstr::IntOrString};
 use kube::{ client::Client, Result, api::{ListParams, PatchParams, Patch}, Api};
 use crate::model::{Error as HoprError};
-
+use tracing::{error};
 use std::{sync::Arc};
 
 use crate::{ context_data::ContextData, operator_config::IngressConfig};
@@ -36,8 +36,7 @@ async fn open_nginx_deployment_ports(client: Client, ingress_config: &IngressCon
     match api_deployment.patch(&deployment.metadata.name.as_ref().unwrap().to_owned(), pp, &Patch::Apply(&deployment)).await {
             Ok(_) => Ok(()),
             Err(error) => {
-                println!("[ERROR]: {:?}", error);
-                return Err(HoprError::HoprdConfigError(format!("Could not open Nginx default ports on deployment").to_owned()));
+                Ok(error!("Could not open Nginx default ports on deployment: {:?}", error))
             }
     }
 }
@@ -73,8 +72,7 @@ async fn open_nginx_service_ports(client: Client, ingress_config: &IngressConfig
     match api_service.patch(&service.metadata.name.as_ref().unwrap().to_owned(), pp, &Patch::Apply(&service)).await {
             Ok(_) => Ok(()),
             Err(error) => {
-                println!("[ERROR]: {:?}", error);
-                return Err(HoprError::HoprdConfigError(format!("Could not open Nginx default ports on service").to_owned()));
+                Ok(error!("Could not open Nginx default ports on service: {:?}", error))
             }
     }
 }
