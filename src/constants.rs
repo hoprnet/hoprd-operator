@@ -7,6 +7,7 @@ pub const OPERATOR_JOB_TIMEOUT: u64 = 300;
 pub const OPERATOR_NODE_SYNC_TIMEOUT: u32 = 290;
 pub const OPERATOR_INSTANCE_NAMESPACE: &str = "OPERATOR_INSTANCE_NAMESPACE";
 pub const SECRET_NAME: &str = "SECRET_NAME";
+pub const OPERATOR_P2P_MIN_PORT: &str = "9000";
 
 // Annotations
 pub const ANNOTATION_HOPRD_NETWORK_REGISTRY: &str = "hoprds.hoprnet.org/network_registry";
@@ -55,6 +56,7 @@ pub const HOPRD_ON_CHAIN_CONFIRMATIONS: &str = "HOPRD_ON_CHAIN_CONFIRMATIONS";
 pub const HOPRD_NETWORK_QUALITY_THRESHOLD: &str = "HOPRD_NETWORK_QUALITY_THRESHOLD";
 pub const HOPRD_IDENTITY: &str = "HOPRD_IDENTITY";
 pub const HOPRD_DATA: &str = "HOPRD_DATA";
+pub const HOPRD_HOST: &str = "HOPRD_HOST";
 pub const HOPRD_API: &str = "HOPRD_API";
 pub const HOPRD_API_HOST: &str = "HOPRD_API_HOST";
 pub const HOPRD_INIT: &str = "HOPRD_INIT";

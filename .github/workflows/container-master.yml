@@ -37,7 +37,7 @@ jobs:
 
       - name: Get package version
         run: |
-          docker_tag=$(grep -A 1 "hopr_operator" Cargo.lock | grep version | sed 's/.* "//' | sed 's/"//' | tr -d '\n')
+          docker_tag=$(grep -A 1 "hoprd_operator" Cargo.lock | grep version | sed 's/.* "//' | sed 's/"//' | tr -d '\n')
           echo "DOCKER_TAG=${docker_tag}" >> $GITHUB_ENV
 
       - name: Build container image

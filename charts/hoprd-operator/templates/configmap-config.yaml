@@ -26,6 +26,10 @@ data:
     ingress:
       ingress_class_name: "{{- .Values.operator.ingress.ingressClassName }}"
       dns_domain: "{{- .Values.operator.ingress.dnsDomain }}"
+      namespace: "{{- .Values.operator.ingress.namespace }}"
+      p2p_port_min: "{{ .Values.operator.ingress.p2pPorts.min | quote }}"
+      p2p_port_max: "{{ .Values.operator.ingress.p2pPorts.max | quote }}"
+      selector_labels: {{- .Values.operator.ingress.selectorLabels | toYaml | nindent 8 }}
       annotations: {{- .Values.operator.ingress.annotations | toYaml | nindent 8 }}
     hopli_image: {{ printf "%s/%s:%s" .Values.operator.hopli.registry .Values.operator.hopli.repository .Values.operator.hopli.tag | quote }}
     persistence:
