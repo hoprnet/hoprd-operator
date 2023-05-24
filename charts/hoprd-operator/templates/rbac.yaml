@@ -51,6 +51,7 @@ rules:
   resources:
   - secrets
   - services
+  - configmaps
   - persistentvolumeclaims
   verbs:
   - get
