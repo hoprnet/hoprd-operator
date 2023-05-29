@@ -32,7 +32,5 @@ LABEL name="hoprd operator" \
 COPY --from=builder /hoprd_operator/target/hoprd_operator /bin/hoprd_operator
 
 ENV OPERATOR_ENVIRONMENT=production
-ENV RUST_BACKTRACE=full
-ENV RUST_LOG="hoprd_operator=DEBUG"
 
 ENTRYPOINT ["/bin/hoprd_operator"]

@@ -176,6 +176,15 @@ operator:
   ##
   commonAnnotations: {}
 
+  ## @param operator.extraEnvVars Array of extra environment variables
+  ##
+  extraEnvVars: []
+  # extraEnvVars: 
+  #   - name: RUST_BACKTRACE
+  #     value: full
+  #   - name: RUST_LOG
+  #     value: "hoprd_operator=INFO"
+
   ingress:
     ## @param operator.ingress.ingressClassName Name of the ingress class name to be used by Hoprd nodes
     ##
