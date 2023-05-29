@@ -95,10 +95,10 @@ impl Hoprd {
                 let p2p_port = if self.spec.config.as_ref().unwrap().announce.is_some() {
                      hoprd_ingress::open_port(client.clone(), &hoprd_namespace, &hoprd_name, &context.config.ingress).await.unwrap()
                 } else {
-                    constants::OPERATOR_P2P_MIN_PORT.to_string()
+                    constants::OPERATOR_P2P_MIN_PORT.parse::<i32>().unwrap()
                 };
-                hoprd_deployment::create_deployment(client.clone(), &self,  secret, &p2p_port).await?;
-                hoprd_service::create_service(client.clone(), &hoprd_name, &hoprd_namespace, &p2p_port, owner_reference.to_owned()).await?;
+                hoprd_deployment::create_deployment(client.clone(), &self,  secret, p2p_port).await?;
+                hoprd_service::create_service(client.clone(), &hoprd_name, &hoprd_namespace, p2p_port, owner_reference.to_owned()).await?;
                 if self.spec.ingress.as_ref().unwrap_or(&EnablingFlag {enabled: constants::ENABLED}).enabled {
                     hoprd_ingress::create_ingress(client.clone(), &hoprd_name, &hoprd_namespace,&context.config.ingress, owner_reference.to_owned()).await?;
                 }

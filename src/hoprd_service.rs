@@ -12,7 +12,7 @@ use crate::{utils};
 /// - `name` - Name of the service to be created
 /// - `namespace` - Namespace to create the Kubernetes Deployment in.
 ///
-pub async fn create_service(client: Client, name: &str, namespace: &str, p2p_port: &String, owner_references: Option<Vec<OwnerReference>>) -> Result<Service, Error> {
+pub async fn create_service(client: Client, name: &str, namespace: &str, p2p_port: i32, owner_references: Option<Vec<OwnerReference>>) -> Result<Service, Error> {
     let labels: BTreeMap<String, String> = utils::common_lables(&name.to_owned());
 
     // Definition of the service. Alternatively, a YAML representation could be used as well.
@@ -39,7 +39,7 @@ pub async fn create_service(client: Client, name: &str, namespace: &str, p2p_por
 }
 
 
-fn service_ports(p2p_port: &String) -> Vec<ServicePort> {
+fn service_ports(p2p_port: i32) -> Vec<ServicePort> {
     vec![ServicePort {
                 name: Some("api".to_owned()),
                 port: 3001,
@@ -49,16 +49,16 @@ fn service_ports(p2p_port: &String) -> Vec<ServicePort> {
             },
         ServicePort {
                 name: Some("p2p-tcp".to_owned()),
-                port: p2p_port.parse::<i32>().unwrap(),
+                port: p2p_port,
                 protocol: Some("TCP".to_owned()),
-                target_port: Some(IntOrString::Int(p2p_port.parse::<i32>().unwrap())),
+                target_port: Some(IntOrString::Int(p2p_port)),
                 ..ServicePort::default()
             },
         ServicePort {
                 name: Some("p2p-udp".to_owned()),
-                port: p2p_port.parse::<i32>().unwrap(),
+                port: p2p_port,
                 protocol: Some("UDP".to_owned()),
-                target_port: Some(IntOrString::Int(p2p_port.parse::<i32>().unwrap())),
+                target_port: Some(IntOrString::Int(p2p_port)),
                 ..ServicePort::default()
             }
     ]

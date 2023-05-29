@@ -91,14 +91,14 @@ pub async fn delete_ingress(client: Client, name: &str, namespace: &str) -> Resu
 
 /// Creates a new Ingress for accessing the hoprd node,
 ///
-pub async fn open_port(client: Client, service_namespace: &str, service_name: &str, ingress_config: &IngressConfig) -> Result<String, HoprError> {
+pub async fn open_port(client: Client, service_namespace: &str, service_name: &str, ingress_config: &IngressConfig) -> Result<i32, HoprError> {
     let namespace = ingress_config.namespace.as_ref().unwrap();
     let api: Api<ConfigMap> = Api::namespaced(client.clone(), namespace);
-    let port: String = get_port(client.clone(), ingress_config).await.unwrap();
+    let port: i32 = get_port(client.clone(), ingress_config).await.unwrap();
     let pp = PatchParams::default();
     let patch = json!({
            "data": {
-                port.to_owned() : format!("{}/{}:{}", service_namespace, service_name, port.to_owned())
+                port.to_string().to_owned() : format!("{}/{}:{}", service_namespace, service_name, port.to_owned())
             }
         });
     match api.patch("ingress-nginx-tcp", &pp, &Patch::Merge(patch.clone())).await {
@@ -119,18 +119,24 @@ pub async fn open_port(client: Client, service_namespace: &str, service_name: &s
     Ok(port)
 }
 
-async fn get_port(client: Client, ingress_config: &IngressConfig) -> Result<String, HoprError>  {
+async fn get_port(client: Client, ingress_config: &IngressConfig) -> Result<i32, HoprError>  {
     let api: Api<ConfigMap> = Api::namespaced(client, &ingress_config.namespace.as_ref().unwrap());
     if let Some(config_map) = api.get_opt("ingress-nginx-tcp").await? {
         let data = config_map.data.unwrap();
-        let min_port = ingress_config.p2p_port_min.as_ref().unwrap().parse::<i32>().unwrap();
-        let max_port = ingress_config.p2p_port_max.as_ref().unwrap().parse::<i32>().unwrap();
+        let min_port = ingress_config.p2p_port_min.as_ref().unwrap().parse::<i32>().unwrap_or(constants::OPERATOR_P2P_MIN_PORT.parse::<i32>().unwrap());
+        let max_port = ingress_config.p2p_port_max.as_ref().unwrap().parse::<i32>().unwrap_or(constants::OPERATOR_P2P_MAX_PORT.parse::<i32>().unwrap());
         let ports: Vec<&str> = data.keys()
             .filter(|port| port.parse::<i32>().unwrap() >= min_port )
             .filter(|port| port.parse::<i32>().unwrap() <= max_port )
             .map(|x| x.as_str())
             .clone().collect::<Vec<_>>();
-        return Ok(find_next_port(ports, ingress_config.p2p_port_min.as_ref()))
+        match find_next_port(ports, ingress_config.p2p_port_min.as_ref()).parse::<i32>() {
+            Ok(port) => Ok(port),
+            Err(error) => {
+                error!("Could not parse port number: {:?}", error);
+                Err(HoprError::HoprdConfigError(format!("Could not parse port number").to_owned()))
+            }
+        }
     } else {
         Err(HoprError::HoprdConfigError(format!("Could not get new free port").to_owned()))
     }
