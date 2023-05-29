@@ -12,7 +12,7 @@ ingress:
     nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
   namespace: ingress
   p2p_port_min: "9000"
-  p2p_port_max: "9003"
+  p2p_port_max: "9010"
   selector_labels:
     app.kubernetes.io/component: controller
     app.kubernetes.io/instance: ingress-nginx

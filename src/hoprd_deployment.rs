@@ -92,6 +92,8 @@ pub async fn build_deployment_spec(labels: BTreeMap<String, String>, hoprd_spec:
                         image_pull_policy: Some("Always".to_owned()),
                         ports: Some(build_ports(p2p_port).await),
                         env: Some(build_env_vars(&hoprd_spec, &hoprd_secret, p2p_port)),
+                        // command: Some(vec!["/bin/bash".to_owned(), "-c".to_owned()]),
+                        // args: Some(vec!["sleep 99999999".to_owned()]),
                         liveness_probe,
                         readiness_probe,
                         startup_probe,

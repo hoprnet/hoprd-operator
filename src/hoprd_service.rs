@@ -51,14 +51,14 @@ fn service_ports(p2p_port: &String) -> Vec<ServicePort> {
                 name: Some("p2p-tcp".to_owned()),
                 port: p2p_port.parse::<i32>().unwrap(),
                 protocol: Some("TCP".to_owned()),
-                target_port: Some(IntOrString::String("p2p-tcp".to_owned())),
+                target_port: Some(IntOrString::Int(p2p_port.parse::<i32>().unwrap())),
                 ..ServicePort::default()
             },
         ServicePort {
                 name: Some("p2p-udp".to_owned()),
                 port: p2p_port.parse::<i32>().unwrap(),
                 protocol: Some("UDP".to_owned()),
-                target_port: Some(IntOrString::String("p2p-udp".to_owned())),
+                target_port: Some(IntOrString::Int(p2p_port.parse::<i32>().unwrap())),
                 ..ServicePort::default()
             }
     ]
