@@ -9,7 +9,7 @@ metadata:
   namespace: {{ .Release.Namespace }}
 spec:
   network: monte_rosa
-  version: riga
+  version: bratislava
 EOF
 
 
