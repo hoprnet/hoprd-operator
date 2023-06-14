@@ -9,8 +9,8 @@ ENV OPENSSL_STATIC=1
 ENV OPENSSL_INCLUDE_DIR=/usr/include/openssl
 
 # build project sources
-RUN mkdir -p /hopr_operator
-WORKDIR /hopr_operator
+RUN mkdir -p /hoprd_operator
+WORKDIR /hoprd_operator
 
 COPY ./Cargo.lock ./Cargo.lock
 COPY ./Cargo.toml ./Cargo.toml
@@ -18,7 +18,7 @@ COPY ./src ./src
 
 RUN rustup target install $(uname -m)-unknown-linux-musl
 RUN OPENSSL_LIB_DIR=/usr/lib/$(uname -m)-linux-gnu RUSTFLAGS="-C target-feature=+crt-static" cargo build --release --target $(uname -m)-unknown-linux-musl --features vendored
-RUN mv target/$(uname -m)-unknown-linux-musl/release/hopr_operator target/
+RUN mv target/$(uname -m)-unknown-linux-musl/release/hoprd_operator target/
 
 
 
@@ -29,8 +29,8 @@ LABEL name="hoprd operator" \
       vendor="HOPR" \
       summary="Operator managing hoprd instances" \
       description="Automation to introduce a hoprd network into a Kubernetes cluster using a dedicated operator"
-COPY --from=builder /hopr_operator/target/hopr_operator /bin/hopr_operator
+COPY --from=builder /hoprd_operator/target/hoprd_operator /bin/hoprd_operator
 
 ENV OPERATOR_ENVIRONMENT=production
 ENV RUST_BACKTRACE=full
-ENTRYPOINT ["/bin/hopr_operator"]
+ENTRYPOINT ["/bin/hoprd_operator"]

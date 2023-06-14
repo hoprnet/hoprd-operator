@@ -1,7 +1,7 @@
 
 
 use std::collections::BTreeMap;
-
+use tracing::{info};
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::OwnerReference;
 use kube::api::{DeleteParams, PostParams};
 use kube::core::ObjectMeta;
@@ -151,8 +151,8 @@ pub async fn delete_service_monitor(client: Client, name: &str, namespace: &str)
         let uid = service_monitor.metadata.uid.unwrap();
         api.delete(name, &DeleteParams::default()).await?;
         await_condition(api, &name.to_owned(), conditions::is_deleted(&uid)).await.unwrap();
-        Ok(println!("[INFO] ServiceMonitor {name} successfully deleted"))
+        Ok(info!("ServiceMonitor {name} successfully deleted"))
     } else {
-        Ok(println!("[INFO] ServiceMonitor {name} in namespace {namespace} about to delete not found"))
+        Ok(info!("ServiceMonitor {name} in namespace {namespace} about to delete not found"))
     }
 }

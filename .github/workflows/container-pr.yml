@@ -25,10 +25,10 @@ jobs:
       - name: Bump Cargo version
         id: bumping_version
         run: |
-          hopr_operator_version=$(grep "^version = " Cargo.toml | sed 's/.* "//' | sed 's/"$//' | tr -d '\n')
-          git_tag=$(git tag -l ${hopr_operator_version})
-          echo "Workspace version is ${hopr_operator_version} while tagged is ${git_tag}"
-          if [ "${git_tag}" = "${hopr_operator_version}" ]; then
+          hoprd_operator_version=$(grep "^version = " Cargo.toml | sed 's/.* "//' | sed 's/"$//' | tr -d '\n')
+          git_tag=$(git tag -l ${hoprd_operator_version})
+          echo "Workspace version is ${hoprd_operator_version} while tagged is ${git_tag}"
+          if [ "${git_tag}" = "${hoprd_operator_version}" ]; then
             patch_number=$(echo $git_tag | sed 's/.*\.//')
             release_number=$(echo $git_tag | sed "s/\.${patch_number}//")
             bump_version=${release_number}.$((patch_number + 1))

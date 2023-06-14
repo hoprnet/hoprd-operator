@@ -4,6 +4,7 @@ use k8s_openapi::api::core::v1::{
     PodSpec, PodTemplateSpec, Probe, SecretKeySelector, SecretVolumeSource,
      Volume, VolumeMount, Secret, PersistentVolumeClaimVolumeSource, ResourceRequirements,
 };
+use tracing::{info};
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::{LabelSelector, OwnerReference};
 use kube::api::{DeleteParams, ObjectMeta, PostParams, Patch, PatchParams};
 use kube::runtime::wait::{await_condition, conditions};
@@ -25,7 +26,7 @@ use crate::{
 /// - `client` - A Kubernetes client to create the deployment with.
 /// - `hoprd` - Details about the hoprd configuration node
 ///
-pub async fn create_deployment(client: Client, hoprd: &Hoprd, secret: Secret) -> Result<Deployment, kube::Error> {
+pub async fn create_deployment(client: Client, hoprd: &Hoprd, secret: Secret, p2p_port: &String) -> Result<Deployment, kube::Error> {
     let namespace: String = hoprd.namespace().unwrap();
     let name: String= hoprd.name_any();
     let owner_references: Option<Vec<OwnerReference>> = Some(vec![hoprd.controller_owner_ref(&()).unwrap()]);
@@ -56,7 +57,7 @@ pub async fn create_deployment(client: Client, hoprd: &Hoprd, secret: Secret) ->
             owner_references,
             ..ObjectMeta::default()
         },
-        spec: Some(build_deployment_spec(labels, &hoprd.spec, hoprd_secret, &name).await),
+        spec: Some(build_deployment_spec(labels, &hoprd.spec, hoprd_secret, &name, p2p_port).await),
         ..Deployment::default()
     };
 
@@ -65,7 +66,7 @@ pub async fn create_deployment(client: Client, hoprd: &Hoprd, secret: Secret) ->
     api.create(&PostParams::default(), &deployment).await
 }
 
-pub async fn build_deployment_spec(labels: BTreeMap<String, String>, hoprd_spec: &HoprdSpec, hoprd_secret: HoprdSecret, pvc_name: &String) -> DeploymentSpec{
+pub async fn build_deployment_spec(labels: BTreeMap<String, String>, hoprd_spec: &HoprdSpec, hoprd_secret: HoprdSecret, pvc_name: &String, p2p_port: &String) -> DeploymentSpec{
     let image = format!("{}/{}:{}", constants::HOPR_DOCKER_REGISTRY.to_owned(), constants::HOPR_DOCKER_IMAGE_NAME.to_owned(), &hoprd_spec.version.to_owned());
     let replicas: i32 = if hoprd_spec.enabled.unwrap_or(true) { 1 } else { 0 };
     let resources: Option<ResourceRequirements> = Some(HoprdDeploymentSpec::get_resource_requirements(hoprd_spec.deployment.clone()));
@@ -89,8 +90,8 @@ pub async fn build_deployment_spec(labels: BTreeMap<String, String>, hoprd_spec:
                         name: "hoprd".to_owned(),
                         image: Some(image),
                         image_pull_policy: Some("Always".to_owned()),
-                        ports: Some(build_ports().await),
-                        env: Some(build_env_vars(&hoprd_spec, &hoprd_secret)),
+                        ports: Some(build_ports(p2p_port).await),
+                        env: Some(build_env_vars(&hoprd_spec, &hoprd_secret, p2p_port)),
                         liveness_probe,
                         readiness_probe,
                         startup_probe,
@@ -112,14 +113,19 @@ pub async fn build_deployment_spec(labels: BTreeMap<String, String>, hoprd_spec:
 
 pub async fn modify_deployment(client: Client, deployment_name: &str, namespace: &str, hoprd_spec: &HoprdSpec, hoprd_secret: HoprdSecret) -> Result<Deployment, kube::Error> {
 
-    
+    let api: Api<Deployment> = Api::namespaced(client.clone(), namespace);
+    let p2p_port = api.get(deployment_name).await.unwrap()
+        .spec.unwrap()
+        .template.spec.unwrap()
+        .containers.first().as_ref().unwrap()
+        .ports.as_ref().unwrap()
+        .iter().find(|container_port| container_port.name.as_ref().unwrap().eq("p2p-tcp")).unwrap()
+        .container_port.to_string();
     let mut labels: BTreeMap<String, String> = utils::common_lables(&deployment_name.to_owned());
     labels.insert(constants::LABEL_KUBERNETES_COMPONENT.to_owned(), "node".to_owned());
-    let spec = build_deployment_spec(labels, hoprd_spec, hoprd_secret, &deployment_name.to_owned()).await;
+    let spec = build_deployment_spec(labels, hoprd_spec, hoprd_secret, &deployment_name.to_owned(), &p2p_port).await;
     let change_set =json!({ "spec": spec });
     let patch = &Patch::Merge(change_set);
-
-    let api: Api<Deployment> = Api::namespaced(client, namespace);
     api.patch(&deployment_name, &PatchParams::default(),patch).await
 }
 
@@ -136,9 +142,9 @@ pub async fn delete_depoyment(client: Client, name: &str, namespace: &str) -> Re
         let uid = deployment.metadata.uid.unwrap();        
         api.delete(name, &DeleteParams::default()).await?;
         await_condition(api, &name.to_owned(), conditions::is_deleted(&uid)).await.unwrap();
-        Ok(println!("[INFO] Deployment {name} successfully deleted"))
+        Ok(info!("Deployment {name} successfully deleted"))
     } else {
-        Ok(println!("[INFO] Deployment {name} in namespace {namespace} about to delete not found"))
+        Ok(info!("Deployment {name} in namespace {namespace} about to delete not found"))
     }
 }
 
@@ -194,7 +200,7 @@ async fn build_volumes(secret: &HoprdSecret, pvc_name: &String) -> Vec<Volume> {
 }
 
 /// Build struct ContainerPort
-async fn build_ports() -> Vec<ContainerPort> {
+async fn build_ports(p2p_port: &String) -> Vec<ContainerPort> {
     let mut container_ports = Vec::with_capacity(3);
 
     container_ports.push(ContainerPort {
@@ -210,13 +216,13 @@ async fn build_ports() -> Vec<ContainerPort> {
         ..ContainerPort::default()
     });
     container_ports.push(ContainerPort {
-        container_port: 9091,
+        container_port: p2p_port.parse::<i32>().unwrap(),
         name: Some("p2p-tcp".to_owned()),
         protocol: Some("TCP".to_owned()),
         ..ContainerPort::default()
     });
     container_ports.push(ContainerPort {
-        container_port: 9091,
+        container_port: p2p_port.parse::<i32>().unwrap(),
         name: Some("p2p-udp".to_owned()),
         protocol: Some("UDP".to_owned()),
         ..ContainerPort::default()
@@ -226,10 +232,10 @@ async fn build_ports() -> Vec<ContainerPort> {
 
 ///Build struct environment variable
 ///
-fn build_env_vars(hoprd_spec: &HoprdSpec, secret: &HoprdSecret) -> Vec<EnvVar> {
+fn build_env_vars(hoprd_spec: &HoprdSpec, secret: &HoprdSecret, p2p_port: &String) -> Vec<EnvVar> {
     let mut env_vars = build_secret_env_var(secret);
     env_vars.extend_from_slice(&build_crd_env_var(&hoprd_spec));
-    env_vars.extend_from_slice(&build_default_env_var());
+    env_vars.extend_from_slice(&build_default_env_var(p2p_port));
     return env_vars;
 }
 
@@ -400,7 +406,7 @@ fn build_crd_env_var(hoprd_spec: &HoprdSpec) -> Vec<EnvVar> {
 
 /// Build default environment variables
 ///
-fn build_default_env_var() -> Vec<EnvVar> {
+fn build_default_env_var(p2p_port: &String) -> Vec<EnvVar> {
     let mut env_vars = Vec::with_capacity(7);
     env_vars.push(EnvVar {
         name: "DEBUG".to_owned(),
@@ -415,6 +421,11 @@ fn build_default_env_var() -> Vec<EnvVar> {
     env_vars.push(EnvVar {
         name: constants::HOPRD_DATA.to_owned(),
         value: Some("/app/hoprd-db".to_owned()),
+        ..EnvVar::default()
+    });
+    env_vars.push(EnvVar {
+        name: constants::HOPRD_HOST.to_owned(),
+        value: Some(format!("0.0.0.0:{}", p2p_port)),
         ..EnvVar::default()
     });
     env_vars.push(EnvVar {

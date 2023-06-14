@@ -6,13 +6,13 @@ use kube::{
     runtime::{
         controller::{Action, Controller}, watcher::Config
     },
-    Resource, Result, Error
+    Resource, Result
 };
-
+use tracing::{error};
 use std::{sync::Arc, collections::hash_map::DefaultHasher, hash::{Hash, Hasher}};
 use tokio::{ time::Duration};
 
-use crate::{ constants::{self}, cluster::{ClusterHoprd, ClusterHoprdSpec}, context_data::ContextData, hoprd::Hoprd, model::ClusterHoprdStatusEnum};
+use crate::{ constants::{self}, cluster::{ClusterHoprd, ClusterHoprdSpec}, context_data::ContextData, hoprd::Hoprd, model::{ClusterHoprdStatusEnum, Error}};
 
 /// Action to be taken upon an `Hoprd` resource during reconciliation
 enum ClusterHoprdAction {
@@ -64,7 +64,7 @@ fn determine_action(cluster_hoprd: &ClusterHoprd) -> ClusterHoprdAction {
     };
 }
 
-async fn reconciler(cluster_hoprd: Arc<ClusterHoprd>, context: Arc<ContextData>) -> Result<Action> {
+async fn reconciler(cluster_hoprd: Arc<ClusterHoprd>, context: Arc<ContextData>) -> Result<Action, Error> {
     // Performs action as decided by the `determine_action` function.
     return match determine_action(&cluster_hoprd) {
         ClusterHoprdAction::Create => cluster_hoprd.create(context.clone()).await,
@@ -86,7 +86,7 @@ async fn reconciler(cluster_hoprd: Arc<ClusterHoprd>, context: Arc<ContextData>)
 /// - `error`: A reference to the `kube::Error` that occurred during reconciliation.
 /// - `_context`: Unused argument. Context Data "injected" automatically by kube-rs.
 pub fn on_error(hoprd: Arc<ClusterHoprd>, error: &Error, _context: Arc<ContextData>) -> Action {
-    eprintln!("[ERROR] [ClusterHoprd] Reconciliation error:\n{:?}.\n{:?}", error, hoprd);
+    error!("[ClusterHoprd] Reconciliation error:\n{:?}.\n{:?}", error, hoprd);
     Action::requeue(Duration::from_secs(constants::RECONCILE_FREQUENCY))
 }
 
@@ -108,7 +108,7 @@ pub async fn run(client: Client, context_data: Arc<ContextData>) {
                     let err_string = reconciliation_err.to_string();
                     if !err_string.contains("that was not found in local store") {
                         // https://github.com/kube-rs/kube/issues/712
-                            eprintln!("[ERROR] [ClusterHoprd] Reconciliation error: {:?}", reconciliation_err)
+                            error!("[ClusterHoprd] Reconciliation error: {:?}", reconciliation_err)
                     }
                 }
             }
