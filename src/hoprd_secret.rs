@@ -2,7 +2,7 @@ use k8s_openapi::{api::{core::v1::Secret}, apimachinery::pkg::apis::meta::v1::Ow
 use kube::{Api, Client, api::{ Patch, ListParams, PatchParams, DeleteParams, PostParams}, ResourceExt, Resource, core::{ObjectMeta}};
 use serde_json::{json};
 use std::{collections::{BTreeMap}, sync::Arc};
-
+use tracing::{debug, info, warn, error};
 use rand::{distributions::Alphanumeric, Rng};
 use async_recursion::async_recursion;
 use crate::{
@@ -22,7 +22,9 @@ enum SecretStatus {
     /// The secret exists and it is currently being used by other existing node
     Locked,
     /// The secret exists and it is ready to be used
-    Ready
+    Ready,
+    /// The secret is in unknown status
+    Unknown
 }
 
 pub struct SecretManager {
@@ -49,23 +51,19 @@ impl SecretManager {
     /// # Arguments
     /// - `secret_labels` - Labels assigned to the secret
     ///
-    fn check_secret_labels(&self, secret_labels: &BTreeMap<String, String>) -> Result<(),Error> {
+    fn check_secret_labels(&self, secret_labels: &BTreeMap<String, String>) -> Result<bool,Error> {
         let secret_name: String = self.hoprd_secret.as_ref().unwrap().secret_name.to_owned();
         if secret_labels.contains_key(constants::LABEL_NODE_NETWORK) {
             let network_label: String = secret_labels.get_key_value(constants::LABEL_NODE_NETWORK).unwrap().1.parse().unwrap();
             if ! network_label.eq(&self.hoprd.spec.network.to_owned()) {
-                return Err(Error::SecretStatusError(
-                    format!("[ERROR] The secret specified {secret_name} belongs to '{network_label}' network which is different from the specified '{}' network", self.hoprd.spec.network)
-                        .to_owned()
-                ));
+                error!("The secret specified {secret_name} belongs to '{network_label}' network which is different from the specified '{}' network", self.hoprd.spec.network);
+                return Ok(false);
             }
         } else {
-            return Err(Error::SecretStatusError(
-                format!("[ERROR] The secret specified {secret_name} does not contain label {} which is mandatory", constants::LABEL_NODE_NETWORK)
-                    .to_owned()
-            ));
+            error!("The secret specified {secret_name} does not contain label {} which is mandatory", constants::LABEL_NODE_NETWORK);
+            return Ok(false);
         }
-        Ok(())
+        Ok(true)
     }
 
     /// Gets the first secret that is ready to be used
@@ -112,7 +110,7 @@ impl SecretManager {
     /// Evaluates the status of the secret based on `SecretStatus` to determine later which actions need to be taken
     async fn determine_secret_status(&mut self) -> Result<SecretStatus,Error> {
         return if self.hoprd.spec.secret.is_none() && self.hoprd_secret.is_none() {
-            println!("[INFO] Hoprd node {:?} has not specified a secret in its spec", self.hoprd.name_any());
+            info!("Hoprd node {:?} has not specified a secret in its spec", self.hoprd.name_any());
             Ok(SecretStatus::NotSpecified)
         } else {
             let client: Client = self.client.clone();
@@ -132,25 +130,27 @@ impl SecretManager {
                 let empty_map = &BTreeMap::new();
                 let secret_annotations: &BTreeMap<String, String> = secret.metadata.annotations.as_ref().unwrap_or_else(|| empty_map);
                 let secret_labels: &BTreeMap<String, String> = secret.metadata.labels.as_ref().unwrap_or_else(|| empty_map);
-                self.check_secret_labels(secret_labels).unwrap();
+                if ! self.check_secret_labels(secret_labels).unwrap() {
+                    return Ok(SecretStatus::Unknown)
+                }
                 if secret_annotations.contains_key(constants::ANNOTATION_HOPRD_NETWORK_REGISTRY) {
                     let network_registry_annotation: bool = secret_annotations.get_key_value(constants::ANNOTATION_HOPRD_NETWORK_REGISTRY).unwrap().1.parse().unwrap();
                     if ! network_registry_annotation {
-                        println!("[INFO] The secret {} exists but is not registered", secret_name);
+                        info!("The secret {} exists but is not registered", secret_name);
                         return Ok(SecretStatus::NotRegistered)
                     }
                 } else {
-                    println!("[INFO] The secret {} exists but is not registered", secret_name);
+                    info!("The secret {} exists but is not registered", secret_name);
                     return Ok(SecretStatus::NotRegistered)
                 }
                 if secret_annotations.contains_key(constants::ANNOTATION_HOPRD_FUNDED) {
                     let node_funded_annotation: bool = secret_annotations.get_key_value(constants::ANNOTATION_HOPRD_FUNDED).unwrap().1.parse().unwrap();
                     if ! node_funded_annotation {
-                        println!("[INFO] The secret {secret_name} exists but is not funded");
+                        info!("The secret {secret_name} exists but is not funded");
                         return Ok(SecretStatus::NotFunded)
                     }
                 } else {
-                    println!("[INFO] The secret {secret_name} exists but is not funded");
+                    info!("The secret {secret_name} exists but is not funded");
                     return Ok(SecretStatus::NotFunded)
                 }
                 if secret_labels.contains_key(constants::LABEL_NODE_LOCKED) {
@@ -159,10 +159,10 @@ impl SecretManager {
                         return Ok(SecretStatus::Locked);
                     }
                 }
-                println!("[INFO] Hoprd node {:?} is ready to use the available secret {secret_name}", self.hoprd.name_any());
+                info!("Hoprd node {:?} is ready to use the available secret {secret_name}", self.hoprd.name_any());
                 return Ok(SecretStatus::Ready);
             } else {
-                println!("[INFO] Hoprd node {:?} has specified a secret {secret_name} which does not exists yet", self.hoprd.name_any());
+                info!("Hoprd node {:?} has specified a secret {secret_name} which does not exists yet", self.hoprd.name_any());
                 return Ok(SecretStatus::NotExists);
             };
         };
@@ -177,7 +177,8 @@ impl SecretManager {
             SecretStatus::NotRegistered => self.do_status_not_registered().await,
             SecretStatus::NotFunded => self.do_status_not_funded().await,
             SecretStatus::Locked => self.do_status_locked().await,
-            SecretStatus::Ready => self.do_status_ready().await
+            SecretStatus::Ready => self.do_status_ready().await,
+            SecretStatus::Unknown => Err(Error::HoprdStatusError(format!("The secret is in unknown status").to_owned()))
         }
     }
 
@@ -197,20 +198,21 @@ impl SecretManager {
                             "ownerReferences": owner_references
                         }
                 }));
-            let _secret = match api.patch(secret_name, &PatchParams::default(), &patch).await {
-                Ok(secret) => Ok(secret),
+            return match api.patch(secret_name, &PatchParams::default(), &patch).await {
+                Ok(_) => {
+                    let api_secrets: Api<Secret> = Api::namespaced(client.clone(), &self.hoprd.namespace().unwrap().to_owned());
+                    if let Some(_secret) = api_secrets.get_opt(&secret_name).await? {
+                        api_secrets.delete(&secret_name, &DeleteParams::default()).await?;
+                    }
+                    Ok(info!("The secret '{secret_name}' has been unlocked"))
+                },
                 Err(error) => {
-                    println!("[ERROR]: {:?}", error);
+                    error!("Could not delete secret owned references for '{secret_name}': {:?}", error);
                     Err(Error::HoprdStatusError(format!("Could not delete secret owned references for '{secret_name}'.").to_owned()))
                 }
             };
-            let api_secrets: Api<Secret> = Api::namespaced(client.clone(), &self.hoprd.namespace().unwrap().to_owned());
-            if let Some(_secret) = api_secrets.get_opt(&secret_name).await? {
-                api_secrets.delete(&secret_name, &DeleteParams::default()).await?;
-            }
-            Ok(println!("[INFO] The secret '{secret_name}' has been unlocked"))
         } else {
-            Ok(println!("[WARN] The hoprd node did not own a secret {:?}", &self.hoprd.name_any().to_owned()))
+            Ok(warn!("The hoprd node did not own a secret {:?}", &self.hoprd.name_any().to_owned()))
         }
     }
 
@@ -257,8 +259,8 @@ impl SecretManager {
                 self.delete_finalizer().await?;
                 let api_secret: Api<Secret> = Api::namespaced(self.client.clone(), &self.operator_config.instance.namespace);
                 api_secret.delete(&secret.name_any(), &DeleteParams::default()).await?
-                    .map_left(|_| println!("[INFO] Deleting empty secret: {:?}", &secret.name_any()))
-                    .map_right(|_| println!("Deleted  empty secret: {:?}", &secret.name_any()));
+                    .map_left(|_| info!("Deleting empty secret: {:?}", &secret.name_any()))
+                    .map_right(|_| info!("Deleted  empty secret: {:?}", &secret.name_any()));
                 Err(err)
             }
         }
@@ -371,8 +373,7 @@ impl SecretManager {
                 }
             }
         } else {
-            println!("[DEBUG] Secret {secret_name} has already been deleted");
-            Ok(())
+            Ok(debug!("Secret {secret_name} has already been deleted"))
         }
     }
 
