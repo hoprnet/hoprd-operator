@@ -8,6 +8,7 @@ pub const OPERATOR_NODE_SYNC_TIMEOUT: u32 = 290;
 pub const OPERATOR_INSTANCE_NAMESPACE: &str = "OPERATOR_INSTANCE_NAMESPACE";
 pub const SECRET_NAME: &str = "SECRET_NAME";
 pub const OPERATOR_P2P_MIN_PORT: &str = "9000";
+pub const OPERATOR_P2P_MAX_PORT: &str = "9100";
 
 // Annotations
 pub const ANNOTATION_HOPRD_NETWORK_REGISTRY: &str = "hoprds.hoprnet.org/network_registry";

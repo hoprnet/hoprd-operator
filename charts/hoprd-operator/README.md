@@ -80,6 +80,7 @@ Chart version `Chart.yaml` should be increased according to [semver](http://semv
 | `operator.tokenAmount.native`           | Native(xDAI) token amount to fund nodes                                                                          | `0.01`                                |
 | `operator.commonLabels`                 | Labels to add to all operator related objects                                                                    | `{}`                                  |
 | `operator.commonAnnotations`            | Annotations to to all operator related objects                                                                   | `{}`                                  |
+| `operator.extraEnvVars`                 | Array of extra environment variables                                                                             | `[]`                                  |
 | `operator.ingress.ingressClassName`     | Name of the ingress class name to be used by Hoprd nodes                                                         | `""`                                  |
 | `operator.ingress.dnsDomain`            | Name of the DNS suffix domain to be added to Hoprd nodes                                                         | `""`                                  |
 | `operator.ingress.namespace`            | Namespace of the running ingress controller                                                                      | `""`                                  |

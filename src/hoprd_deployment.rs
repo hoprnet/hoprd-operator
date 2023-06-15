@@ -26,7 +26,7 @@ use crate::{
 /// - `client` - A Kubernetes client to create the deployment with.
 /// - `hoprd` - Details about the hoprd configuration node
 ///
-pub async fn create_deployment(client: Client, hoprd: &Hoprd, secret: Secret, p2p_port: &String) -> Result<Deployment, kube::Error> {
+pub async fn create_deployment(client: Client, hoprd: &Hoprd, secret: Secret, p2p_port: i32) -> Result<Deployment, kube::Error> {
     let namespace: String = hoprd.namespace().unwrap();
     let name: String= hoprd.name_any();
     let owner_references: Option<Vec<OwnerReference>> = Some(vec![hoprd.controller_owner_ref(&()).unwrap()]);
@@ -66,7 +66,7 @@ pub async fn create_deployment(client: Client, hoprd: &Hoprd, secret: Secret, p2
     api.create(&PostParams::default(), &deployment).await
 }
 
-pub async fn build_deployment_spec(labels: BTreeMap<String, String>, hoprd_spec: &HoprdSpec, hoprd_secret: HoprdSecret, pvc_name: &String, p2p_port: &String) -> DeploymentSpec{
+pub async fn build_deployment_spec(labels: BTreeMap<String, String>, hoprd_spec: &HoprdSpec, hoprd_secret: HoprdSecret, pvc_name: &String, p2p_port: i32) -> DeploymentSpec{
     let image = format!("{}/{}:{}", constants::HOPR_DOCKER_REGISTRY.to_owned(), constants::HOPR_DOCKER_IMAGE_NAME.to_owned(), &hoprd_spec.version.to_owned());
     let replicas: i32 = if hoprd_spec.enabled.unwrap_or(true) { 1 } else { 0 };
     let resources: Option<ResourceRequirements> = Some(HoprdDeploymentSpec::get_resource_requirements(hoprd_spec.deployment.clone()));
@@ -92,6 +92,8 @@ pub async fn build_deployment_spec(labels: BTreeMap<String, String>, hoprd_spec:
                         image_pull_policy: Some("Always".to_owned()),
                         ports: Some(build_ports(p2p_port).await),
                         env: Some(build_env_vars(&hoprd_spec, &hoprd_secret, p2p_port)),
+                        // command: Some(vec!["/bin/bash".to_owned(), "-c".to_owned()]),
+                        // args: Some(vec!["sleep 99999999".to_owned()]),
                         liveness_probe,
                         readiness_probe,
                         startup_probe,
@@ -120,10 +122,10 @@ pub async fn modify_deployment(client: Client, deployment_name: &str, namespace:
         .containers.first().as_ref().unwrap()
         .ports.as_ref().unwrap()
         .iter().find(|container_port| container_port.name.as_ref().unwrap().eq("p2p-tcp")).unwrap()
-        .container_port.to_string();
+        .container_port;
     let mut labels: BTreeMap<String, String> = utils::common_lables(&deployment_name.to_owned());
     labels.insert(constants::LABEL_KUBERNETES_COMPONENT.to_owned(), "node".to_owned());
-    let spec = build_deployment_spec(labels, hoprd_spec, hoprd_secret, &deployment_name.to_owned(), &p2p_port).await;
+    let spec = build_deployment_spec(labels, hoprd_spec, hoprd_secret, &deployment_name.to_owned(), p2p_port).await;
     let change_set =json!({ "spec": spec });
     let patch = &Patch::Merge(change_set);
     api.patch(&deployment_name, &PatchParams::default(),patch).await
@@ -200,7 +202,7 @@ async fn build_volumes(secret: &HoprdSecret, pvc_name: &String) -> Vec<Volume> {
 }
 
 /// Build struct ContainerPort
-async fn build_ports(p2p_port: &String) -> Vec<ContainerPort> {
+async fn build_ports(p2p_port: i32) -> Vec<ContainerPort> {
     let mut container_ports = Vec::with_capacity(3);
 
     container_ports.push(ContainerPort {
@@ -216,13 +218,13 @@ async fn build_ports(p2p_port: &String) -> Vec<ContainerPort> {
         ..ContainerPort::default()
     });
     container_ports.push(ContainerPort {
-        container_port: p2p_port.parse::<i32>().unwrap(),
+        container_port: p2p_port,
         name: Some("p2p-tcp".to_owned()),
         protocol: Some("TCP".to_owned()),
         ..ContainerPort::default()
     });
     container_ports.push(ContainerPort {
-        container_port: p2p_port.parse::<i32>().unwrap(),
+        container_port: p2p_port,
         name: Some("p2p-udp".to_owned()),
         protocol: Some("UDP".to_owned()),
         ..ContainerPort::default()
@@ -232,7 +234,7 @@ async fn build_ports(p2p_port: &String) -> Vec<ContainerPort> {
 
 ///Build struct environment variable
 ///
-fn build_env_vars(hoprd_spec: &HoprdSpec, secret: &HoprdSecret, p2p_port: &String) -> Vec<EnvVar> {
+fn build_env_vars(hoprd_spec: &HoprdSpec, secret: &HoprdSecret, p2p_port: i32) -> Vec<EnvVar> {
     let mut env_vars = build_secret_env_var(secret);
     env_vars.extend_from_slice(&build_crd_env_var(&hoprd_spec));
     env_vars.extend_from_slice(&build_default_env_var(p2p_port));
@@ -406,7 +408,7 @@ fn build_crd_env_var(hoprd_spec: &HoprdSpec) -> Vec<EnvVar> {
 
 /// Build default environment variables
 ///
-fn build_default_env_var(p2p_port: &String) -> Vec<EnvVar> {
+fn build_default_env_var(p2p_port: i32) -> Vec<EnvVar> {
     let mut env_vars = Vec::with_capacity(7);
     env_vars.push(EnvVar {
         name: "DEBUG".to_owned(),

@@ -66,6 +66,9 @@ spec:
                 key: {{ .Values.operator.secretKeyName }} 
                 name: {{ .Values.operator.secretName }} 
         {{- end }}
+        {{- if .Values.operator.extraEnvVars }}
+          {{ toYaml .Values.operator.extraEnvVars | nindent 10 }} 
+        {{- end }}
         volumeMounts:
           - name: hopr-config-volume
             mountPath: /app/config
