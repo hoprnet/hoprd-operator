@@ -29,7 +29,7 @@ impl ContextData {
             path
         } else {
             let mut path = env::current_dir().as_ref().unwrap().to_str().unwrap().to_owned();
-            path.push_str(&format!("/sample_config-{operator_environment}.yaml"));
+            path.push_str(format!("/sample_config-{operator_environment}.yaml".as_str()));
             path
         };
         let config_file = std::fs::File::open(&config_path).expect("Could not open config file.");
