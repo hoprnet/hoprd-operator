@@ -3,9 +3,9 @@ apiVersion: hoprnet.org/v1alpha
 kind: Hoprd
 metadata:
   name: hoprd-node-announced-1
-  namespace: master-staging
+  namespace: rotsee
 spec:
-  network: master-staging
+  network: rotsee
   version: 1.94.0-next.64
   config:
     announce: true
@@ -71,9 +71,9 @@ spec:
 # kind: Hoprd
 # metadata:
 #   name: hoprd-node-not-announced
-#   namespace: master-staging
+#   namespace: rotsee
 # spec:
-#   network: master-staging
+#   network: rotsee
 #   version: providence
 #   config:
 #     announce: false

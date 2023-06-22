@@ -37,7 +37,7 @@ spec:
                   type: string
                   description: 'Name of the hoprd network'
                   enum:
-                  - master-staging
+                  - rotsee
                   - monte_rosa
                   - monte_rosa_2_0
                   - monte_rosa_3_0

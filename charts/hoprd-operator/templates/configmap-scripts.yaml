@@ -49,7 +49,7 @@ data:
     export PATH=${PATH}:/root/.foundry/bin/
     export RUST_BACKTRACE=full
     set -x
-    /bin/hopli register-in-network-registry --environment-name ${HOPRD_ENVIRONMENT} --peer-ids ${HOPRD_PEER_ID} --contracts-root /root/contracts
+    /bin/hopli register-in-network-registry --network ${HOPRD_NETWORK} --peer-ids ${HOPRD_PEER_ID} --contracts-root /root/contracts
     cat /root/contracts/broadcast/SingleAction.s.sol/100/selfRegisterNodes-latest.json
   fund-node.sh: |
     #!/usr/bin/env bash
@@ -59,4 +59,4 @@ data:
     export PATH=${PATH}:/root/.foundry/bin/
     export RUST_BACKTRACE=full
     set -x
-    /bin/hopli faucet --environment-name ${HOPRD_ENVIRONMENT} --identity-directory /app/hoprd-identity/ --address ${HOPRD_ADDRESS} --contracts-root /root/contracts --hopr-amount {{- printf " %f" .Values.operator.tokenAmount.hopr }} --native-amount {{- printf " %f" .Values.operator.tokenAmount.native }}
+    /bin/hopli faucet --network ${HOPRD_NETWORK} --identity-directory /app/hoprd-identity/ --address ${HOPRD_ADDRESS} --contracts-root /root/contracts --hopr-amount {{- printf " %f" .Values.operator.tokenAmount.hopr }} --native-amount {{- printf " %f" .Values.operator.tokenAmount.native }}

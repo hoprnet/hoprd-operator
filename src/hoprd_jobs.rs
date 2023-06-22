@@ -351,7 +351,7 @@ impl HoprdJob {
             });
         }
         env_vars.push(EnvVar {
-            name: constants::HOPRD_ENVIRONMENT.to_owned(),
+            name: constants::HOPRD_NETWORK.to_owned(),
             value: Some(self.hoprd.spec.network.to_owned()),
             ..EnvVar::default()
         });
