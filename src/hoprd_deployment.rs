@@ -291,7 +291,7 @@ fn build_secret_env_var(secret: &HoprdSecret) -> Vec<EnvVar> {
 fn build_crd_env_var(hoprd_spec: &HoprdSpec) -> Vec<EnvVar> {
     let mut env_vars = Vec::with_capacity(1);
     env_vars.push(EnvVar {
-        name: constants::HOPRD_ENVIRONMENT.to_owned(),
+        name: constants::HOPRD_NETWORK.to_owned(),
         value: Some(hoprd_spec.network.to_owned()),
         ..EnvVar::default()
     });

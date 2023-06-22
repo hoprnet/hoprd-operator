@@ -1,0 +1,23 @@
+instance:
+  name: "hoprd-operator"
+  namespace: "hoprd-operator"
+  secret_name: "hoprd-operator"
+ingress:
+  ingress_class_name: "nginx"
+  dns_domain: "prod.hoprtech.net"
+  annotations:
+    cert-manager.io/cluster-issuer: "linode-issuer"
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+  namespace: ingress
+  p2p_port_min: "9000"
+  p2p_port_max: "9010"
+  selector_labels:
+    app.kubernetes.io/component: controller
+    app.kubernetes.io/instance: ingress-nginx
+    app.kubernetes.io/name: ingress-nginx
+hopli_image: europe-west3-docker.pkg.dev/hoprassociation/docker-images/hopli:latest
+persistence:
+  size: 50Mi
+  storage_class_name: ceph-ephimeral
