@@ -28,7 +28,7 @@ async-recursion = "1.0.4"
 # x86_64-unknown-linux-musl using the "vendored" feature below
 openssl-sys = "*"
 json-patch = "1.0"
-serde_yaml = "0.9.22"
+serde_yaml = "0.9.23"
 chrono = "0.4.26"
 tracing = "0.1.37"
 tracing-subscriber = { version = "0.3.17", default-features = true, features = ["env-filter"]}
