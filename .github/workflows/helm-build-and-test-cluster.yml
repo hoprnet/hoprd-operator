@@ -34,7 +34,7 @@ jobs:
         working-directory: 'charts/cluster-hoprd/'
       - name: Commit and push
         if: ${{ env.version_bumped }}
-        uses: stefanzweifel/git-auto-commit-action@v4
+        uses: stefanzweifel/git-auto-commit-action@v5
         with:
           commit_message: Bump Helm chart version
           repository: .
@@ -116,7 +116,7 @@ jobs:
 
       - name: Commit and push
         if: ${{ env.readme_updated }}
-        uses: stefanzweifel/git-auto-commit-action@v4
+        uses: stefanzweifel/git-auto-commit-action@v5
         with:
           commit_message: Update parameters README.md
           repository: .
