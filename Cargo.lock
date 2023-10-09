@@ -464,7 +464,7 @@ dependencies = [
 
 [[package]]
 name = "hoprd_operator"
-version = "0.1.42"
+version = "0.1.43"
 dependencies = [
  "async-recursion",
  "chrono",
