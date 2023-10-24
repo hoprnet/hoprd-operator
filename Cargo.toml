@@ -23,7 +23,7 @@ schemars = "0.8"
 thiserror = "1.0"
 time = "0.3"
 rand = "0.8.5"
-async-recursion = "1.0.4"
+async-recursion = "1.0.5"
 # Add openssl-sys as a direct dependency so it can be cross compiled to
 # x86_64-unknown-linux-musl using the "vendored" feature below
 openssl-sys = "*"
