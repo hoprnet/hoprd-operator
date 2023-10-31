@@ -36,3 +36,4 @@ target/
 
 charts/*/values-testing*.yaml
 charts/hoprd-operator/charts/*.tgz
+test-data/identity-pool-secret.yaml

@@ -1,24 +1,23 @@
 use k8s_openapi::api::apps::v1::{Deployment, DeploymentSpec, DeploymentStrategy};
 use k8s_openapi::api::core::v1::{
-    Container, ContainerPort, EnvVar, EnvVarSource, KeyToPath,
-    PodSpec, PodTemplateSpec, Probe, SecretKeySelector, SecretVolumeSource,
-     Volume, VolumeMount, Secret, PersistentVolumeClaimVolumeSource, ResourceRequirements,
+    Container, ContainerPort, EnvVar, PodSpec, PodTemplateSpec, Probe,
+     Volume, VolumeMount, PersistentVolumeClaimVolumeSource, ResourceRequirements, EmptyDirVolumeSource, EnvVarSource, SecretKeySelector,
 };
-use tracing::{info};
+use tracing::info;
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::{LabelSelector, OwnerReference};
 use kube::api::{DeleteParams, ObjectMeta, PostParams, Patch, PatchParams};
 use kube::runtime::wait::{await_condition, conditions};
 use kube::{Api, Client, ResourceExt, Resource};
 use serde_json::json;
-use std::collections::{BTreeMap};
+use std::collections::BTreeMap;
+use std::sync::Arc;
+use crate::context_data::ContextData;
 use crate::hoprd_deployment_spec::HoprdDeploymentSpec;
-use crate::model::{Error};
-use crate::{
-    constants,
-    hoprd::{ Hoprd, HoprdSpec},
-    model::{HoprdSecret},
-    utils,
-};
+use crate::identity_hoprd::IdentityHoprd;
+use crate::identity_pool::IdentityPool;
+use crate::model::Error;
+use crate::operator_config::IngressConfig;
+use crate::{ constants, hoprd::{ Hoprd, HoprdSpec},utils};
 
 /// Creates a new deployment for running the hoprd node,
 ///
@@ -26,21 +25,20 @@ use crate::{
 /// - `client` - A Kubernetes client to create the deployment with.
 /// - `hoprd` - Details about the hoprd configuration node
 ///
-pub async fn create_deployment(client: Client, hoprd: &Hoprd, secret: Secret, p2p_port: i32) -> Result<Deployment, kube::Error> {
+pub async fn create_deployment(context_data: Arc<ContextData>, hoprd: &Hoprd, identity_hoprd: &IdentityHoprd, p2p_port: i32, ingress_config: IngressConfig) -> Result<Deployment, kube::Error> {
     let namespace: String = hoprd.namespace().unwrap();
     let name: String= hoprd.name_any();
     let owner_references: Option<Vec<OwnerReference>> = Some(vec![hoprd.controller_owner_ref(&()).unwrap()]);
-    let hoprd_secret = hoprd.spec.secret.as_ref().unwrap_or(&HoprdSecret { secret_name: secret.name_any(), ..HoprdSecret::default() }).to_owned();
-    let node_address = secret.labels().get(constants::LABEL_NODE_ADDRESS).unwrap().to_owned();
-    let node_peer_id = secret.labels().get(constants::LABEL_NODE_PEER_ID).unwrap().to_owned();
-    let node_network = secret.labels().get(constants::LABEL_NODE_NETWORK).unwrap().to_owned();
+    let identity_pool: IdentityPool = identity_hoprd.get_identity_pool(context_data.client.clone()).await.unwrap();
 
-
-    let mut labels: BTreeMap<String, String> = utils::common_lables(&name.to_owned());
-    labels.insert(constants::LABEL_KUBERNETES_COMPONENT.to_owned(), "node".to_owned());
-    labels.insert(constants::LABEL_NODE_ADDRESS.to_owned(), node_address);
-    labels.insert(constants::LABEL_NODE_PEER_ID.to_owned(), node_peer_id);
-    labels.insert(constants::LABEL_NODE_NETWORK.to_owned(), node_network);
+    let mut labels: BTreeMap<String, String> = utils::common_lables(context_data.config.instance.name.to_owned(),Some(name.to_owned()), Some("node".to_owned()));
+    labels.insert(constants::LABEL_NODE_NETWORK.to_owned(), identity_pool.spec.network.clone());
+    labels.insert(constants::LABEL_KUBERNETES_IDENTITY_POOL.to_owned(), identity_pool.name_any());    
+    labels.insert(constants::LABEL_NODE_NATIVE_ADDRESS.to_owned(), identity_hoprd.spec.native_address.to_owned());
+    labels.insert(constants::LABEL_NODE_PEER_ID.to_owned(), identity_hoprd.spec.peer_id.to_owned());
+    labels.insert(constants::LABEL_NODE_SAFE_ADDRESS.to_owned(), identity_hoprd.spec.safe_address.to_owned());
+    labels.insert(constants::LABEL_NODE_MODULE_ADDRESS.to_owned(), identity_hoprd.spec.module_address.to_owned());
+    let hoprd_host = format!("{}:{}",ingress_config.public_ip.unwrap(), p2p_port);
 
     // Propagating ClusterHopd instance
     if hoprd.labels().contains_key(constants::LABEL_NODE_CLUSTER) {
@@ -57,22 +55,25 @@ pub async fn create_deployment(client: Client, hoprd: &Hoprd, secret: Secret, p2
             owner_references,
             ..ObjectMeta::default()
         },
-        spec: Some(build_deployment_spec(labels, &hoprd.spec, hoprd_secret, &name, p2p_port).await),
+        spec: Some(build_deployment_spec(labels, &hoprd.spec, identity_pool, identity_hoprd, &name, &hoprd_host).await),
         ..Deployment::default()
     };
 
     // Create the deployment defined above
-    let api: Api<Deployment> = Api::namespaced(client.clone(), &namespace);
+    let api: Api<Deployment> = Api::namespaced(context_data.client.clone(), &namespace);
     api.create(&PostParams::default(), &deployment).await
 }
 
-pub async fn build_deployment_spec(labels: BTreeMap<String, String>, hoprd_spec: &HoprdSpec, hoprd_secret: HoprdSecret, pvc_name: &String, p2p_port: i32) -> DeploymentSpec{
+pub async fn build_deployment_spec(labels: BTreeMap<String, String>, hoprd_spec: &HoprdSpec, identity_pool: IdentityPool, identity_hoprd: &IdentityHoprd, pvc_name: &String, hoprd_host: &String) -> DeploymentSpec{
     let image = format!("{}/{}:{}", constants::HOPR_DOCKER_REGISTRY.to_owned(), constants::HOPR_DOCKER_IMAGE_NAME.to_owned(), &hoprd_spec.version.to_owned());
     let replicas: i32 = if hoprd_spec.enabled.unwrap_or(true) { 1 } else { 0 };
     let resources: Option<ResourceRequirements> = Some(HoprdDeploymentSpec::get_resource_requirements(hoprd_spec.deployment.clone()));
     let liveness_probe: Option<Probe> = Some(HoprdDeploymentSpec::get_liveness_probe(hoprd_spec.deployment.clone()));
     let readiness_probe: Option<Probe> = Some(HoprdDeploymentSpec::get_readiness_probe(hoprd_spec.deployment.clone()));
     let startup_probe: Option<Probe> = Some(HoprdDeploymentSpec::get_startup_probe(hoprd_spec.deployment.clone()));
+    let volume_mounts: Option<Vec<VolumeMount>> = build_volume_mounts();
+    let port = hoprd_host.split(':').collect::<Vec<&str>>().get(1).unwrap().to_string().parse::<i32>().unwrap();
+    
 
     DeploymentSpec {
             replicas: Some(replicas),
@@ -86,22 +87,40 @@ pub async fn build_deployment_spec(labels: BTreeMap<String, String>, hoprd_spec:
             },
             template: PodTemplateSpec {
                 spec: Some(PodSpec {
+                    init_containers: Some(vec![Container {
+                        name: "init".to_owned(),
+                        image: Some(image.to_owned()),
+                        env: Some(vec![EnvVar {
+                            name: constants::HOPRD_IDENTITY_FILE.to_owned(),
+                            value: Some(identity_hoprd.spec.identity_file.to_owned()),
+                            ..EnvVar::default()
+                        },
+                        EnvVar {
+                            name: constants::HOPRD_CONFIGURATION_FILE_PATH.to_owned(),
+                            value: Some(hoprd_spec.config.to_owned()),
+                            ..EnvVar::default()
+                        }]),
+                        command: Some(vec!["/bin/bash".to_owned(), "-c".to_owned()]),
+                        args: Some(vec!["echo $HOPRD_IDENTITY_FILE | base64 -d > /app/hoprd-identity/.hopr-id && echo $HOPRD_CONFIGURATION_FILE_PATH > /app/hoprd-db/config.yaml && ".to_owned()]),
+                        volume_mounts: volume_mounts.to_owned(),
+                        ..Container::default()
+                    }]),
                     containers: vec![Container {
                         name: "hoprd".to_owned(),
                         image: Some(image),
                         image_pull_policy: Some("Always".to_owned()),
-                        ports: Some(build_ports(p2p_port).await),
-                        env: Some(build_env_vars(&hoprd_spec, &hoprd_secret, p2p_port)),
+                        ports: Some(build_ports(port)),
+                        env: Some(build_env_vars(&identity_pool, &identity_hoprd, hoprd_host)),
                         // command: Some(vec!["/bin/bash".to_owned(), "-c".to_owned()]),
                         // args: Some(vec!["sleep 99999999".to_owned()]),
                         liveness_probe,
                         readiness_probe,
                         startup_probe,
-                        volume_mounts: Some(build_volume_mounts().await),
+                        volume_mounts,
                         resources,
                         ..Container::default()
                     }],
-                    volumes: Some(build_volumes(&hoprd_secret, &pvc_name).await),
+                    volumes: Some(build_volumes(&pvc_name).await),
                     ..PodSpec::default()
                 }),
                 metadata: Some(ObjectMeta {
@@ -113,19 +132,20 @@ pub async fn build_deployment_spec(labels: BTreeMap<String, String>, hoprd_spec:
         }
 }
 
-pub async fn modify_deployment(client: Client, deployment_name: &str, namespace: &str, hoprd_spec: &HoprdSpec, hoprd_secret: HoprdSecret) -> Result<Deployment, kube::Error> {
+pub async fn modify_deployment(context_data: Arc<ContextData>, deployment_name: &str, namespace: &str, hoprd_spec: &HoprdSpec, identity_hoprd: &IdentityHoprd) -> Result<Deployment, kube::Error> {
 
-    let api: Api<Deployment> = Api::namespaced(client.clone(), namespace);
-    let p2p_port = api.get(deployment_name).await.unwrap()
+    let api: Api<Deployment> = Api::namespaced(context_data.client.clone(), namespace);
+    let hoprd_host = api.get(deployment_name).await.unwrap()
         .spec.unwrap()
         .template.spec.unwrap()
         .containers.first().as_ref().unwrap()
-        .ports.as_ref().unwrap()
-        .iter().find(|container_port| container_port.name.as_ref().unwrap().eq("p2p-tcp")).unwrap()
-        .container_port;
-    let mut labels: BTreeMap<String, String> = utils::common_lables(&deployment_name.to_owned());
+        .env.as_ref().unwrap().iter()
+        .find(|&env_var| env_var.name.eq(&constants::HOPRD_HOST.to_owned())).unwrap()
+        .value.as_ref().unwrap().to_owned();
+    let mut labels: BTreeMap<String, String> = utils::common_lables(context_data.config.instance.name.to_owned(),Some(deployment_name.to_owned()), Some("node".to_owned()));
     labels.insert(constants::LABEL_KUBERNETES_COMPONENT.to_owned(), "node".to_owned());
-    let spec = build_deployment_spec(labels, hoprd_spec, hoprd_secret, &deployment_name.to_owned(), p2p_port).await;
+    let identity_pool: IdentityPool = identity_hoprd.get_identity_pool(context_data.client.clone()).await.unwrap();
+    let spec = build_deployment_spec(labels, hoprd_spec, identity_pool, identity_hoprd, &deployment_name.to_owned(), &hoprd_host).await;
     let change_set =json!({ "spec": spec });
     let patch = &Patch::Merge(change_set);
     api.patch(&deployment_name, &PatchParams::default(),patch).await
@@ -151,7 +171,7 @@ pub async fn delete_depoyment(client: Client, name: &str, namespace: &str) -> Re
 }
 
 /// Builds the struct VolumeMount to be attached into the Container
-async fn build_volume_mounts() -> Vec<VolumeMount> {
+fn build_volume_mounts() -> Option<Vec<VolumeMount>> {
     let mut volume_mounts = Vec::with_capacity(2);
     volume_mounts.push(VolumeMount {
         name: "hoprd-identity".to_owned(),
@@ -163,30 +183,18 @@ async fn build_volume_mounts() -> Vec<VolumeMount> {
         mount_path: "/app/hoprd-db".to_owned(),
         ..VolumeMount::default()
     });
-    return volume_mounts;
+    return Some(volume_mounts);
 }
 
 /// Builds the struct Volume to be included as part of the PodSpec
 /// 
 /// # Arguments
 /// - `secret` - Secret struct used to build the volume for HOPRD_IDENTITY path
-async fn build_volumes(secret: &HoprdSecret, pvc_name: &String) -> Vec<Volume> {
+async fn build_volumes(pvc_name: &String) -> Vec<Volume> {
     let mut volumes = Vec::with_capacity(2);
     volumes.push(Volume {
         name: "hoprd-identity".to_owned(),
-        secret: Some(SecretVolumeSource {
-            secret_name: Some(secret.secret_name.to_owned()),
-            items: Some(vec![KeyToPath {
-                key: secret
-                    .identity_ref_key
-                    .as_ref()
-                    .unwrap_or(&"HOPRD_IDENTITY".to_owned())
-                    .to_owned(),
-                mode: Some(440),
-                path: ".hopr-id".to_owned(),
-            }]),
-            ..SecretVolumeSource::default()
-        }),
+        empty_dir: Some(EmptyDirVolumeSource::default()),
         ..Volume::default()
     });
 
@@ -202,7 +210,7 @@ async fn build_volumes(secret: &HoprdSecret, pvc_name: &String) -> Vec<Volume> {
 }
 
 /// Build struct ContainerPort
-async fn build_ports(p2p_port: i32) -> Vec<ContainerPort> {
+fn build_ports(p2p_port: i32) -> Vec<ContainerPort> {
     let mut container_ports = Vec::with_capacity(3);
 
     container_ports.push(ContainerPort {
@@ -234,10 +242,10 @@ async fn build_ports(p2p_port: i32) -> Vec<ContainerPort> {
 
 ///Build struct environment variable
 ///
-fn build_env_vars(hoprd_spec: &HoprdSpec, secret: &HoprdSecret, p2p_port: i32) -> Vec<EnvVar> {
-    let mut env_vars = build_secret_env_var(secret);
-    env_vars.extend_from_slice(&build_crd_env_var(&hoprd_spec));
-    env_vars.extend_from_slice(&build_default_env_var(p2p_port));
+fn build_env_vars(identity_pool: &IdentityPool, identity_hoprd: &IdentityHoprd, hoprd_host: &String) -> Vec<EnvVar> {
+    let mut env_vars = build_secret_env_var(identity_pool);
+    env_vars.extend_from_slice(&build_crd_env_var(identity_pool, identity_hoprd));
+    env_vars.extend_from_slice(&build_default_env_var(hoprd_host));
     return env_vars;
 }
 
@@ -245,19 +253,15 @@ fn build_env_vars(hoprd_spec: &HoprdSpec, secret: &HoprdSecret, p2p_port: i32) -
 /// 
 /// # Arguments
 /// - `secret` - Secret struct used to build HOPRD_PASSWORD and HOPRD_API_TOKEN
-fn build_secret_env_var(secret: &HoprdSecret) -> Vec<EnvVar> {
+fn build_secret_env_var(identity_pool: &IdentityPool) -> Vec<EnvVar> {
     let mut env_vars = Vec::with_capacity(2);
 
     env_vars.push(EnvVar {
         name: constants::HOPRD_PASSWORD.to_owned(),
         value_from: Some(EnvVarSource {
             secret_key_ref: Some(SecretKeySelector {
-                key: secret
-                    .password_ref_key
-                    .as_ref()
-                    .unwrap_or(&constants::HOPRD_PASSWORD.to_owned())
-                    .to_string(),
-                name: Some(secret.secret_name.to_owned()),
+                key: constants::IDENTITY_POOL_IDENTITY_PASSWORD_REF_KEY.to_owned(),
+                name: Some(identity_pool.spec.secret_name.to_owned()),
                 ..SecretKeySelector::default()
             }),
             ..EnvVarSource::default()
@@ -269,12 +273,8 @@ fn build_secret_env_var(secret: &HoprdSecret) -> Vec<EnvVar> {
         name: constants::HOPRD_API_TOKEN.to_owned(),
         value_from: Some(EnvVarSource {
             secret_key_ref: Some(SecretKeySelector {
-                key: secret
-                    .api_token_ref_key
-                    .as_ref()
-                    .unwrap_or(&constants::HOPRD_API_TOKEN.to_owned())
-                    .to_string(),
-                name: Some(secret.secret_name.to_owned()),
+                key: constants::IDENTITY_POOL_API_TOKEN_REF_KEY.to_owned(),
+                name: Some(identity_pool.spec.secret_name.to_owned()),
                 ..SecretKeySelector::default()
             }),
             ..EnvVarSource::default()
@@ -288,127 +288,129 @@ fn build_secret_env_var(secret: &HoprdSecret) -> Vec<EnvVar> {
 ///
 /// # Arguments
 /// - `hoprd_spec` - Details about the hoprd configuration node
-fn build_crd_env_var(hoprd_spec: &HoprdSpec) -> Vec<EnvVar> {
+fn build_crd_env_var(identity_pool: &IdentityPool, identity_hoprd: &IdentityHoprd) -> Vec<EnvVar> {
     let mut env_vars = Vec::with_capacity(1);
+
     env_vars.push(EnvVar {
-        name: constants::HOPRD_NETWORK.to_owned(),
-        value: Some(hoprd_spec.network.to_owned()),
+        name: constants::HOPRD_CONFIGURATION_FILE_PATH.to_owned(),
+        value: Some("/app/hoprd-db/config.yaml".to_owned()),
         ..EnvVar::default()
     });
 
-    let config = hoprd_spec.config.to_owned().unwrap_or_default();
+    env_vars.push(EnvVar {
+        name: constants::HOPRD_NETWORK.to_owned(),
+        value: Some(identity_pool.spec.network.to_owned()),
+        ..EnvVar::default()
+    });
 
-    if config.announce.is_some() {
-        env_vars.push(EnvVar {
-            name: constants::HOPRD_ANNOUNCE.to_owned(),
-            value: Some(config.announce.as_ref().unwrap().to_string()),
-            ..EnvVar::default()
-        });
-    }
+    env_vars.push(EnvVar {
+        name: constants::HOPRD_SAFE_ADDRESS.to_owned(),
+        value: Some(identity_hoprd.spec.safe_address.to_owned()),
+        ..EnvVar::default()
+    });
 
-    if config.provider.is_some() {
-        env_vars.push(EnvVar {
-            name: constants::HOPRD_PROVIDER.to_owned(),
-            value: Some(config.provider.as_ref().unwrap().to_string()),
-            ..EnvVar::default()
-        });
-    }
+    env_vars.push(EnvVar {
+        name: constants::HOPRD_MODULE_ADDRESS.to_owned(),
+        value: Some(identity_hoprd.spec.module_address.to_owned()),
+        ..EnvVar::default()
+    });
 
-    if config.default_strategy.is_some() {
-        env_vars.push(EnvVar {
-            name: constants::HOPRD_DEFAULT_STRATEGY.to_owned(),
-            value: Some(config.default_strategy.as_ref().unwrap().to_string()),
-            ..EnvVar::default()
-        });
-    }
 
-    if config.max_auto_channels.is_some() {
-        env_vars.push(EnvVar {
-            name: constants::HOPRD_MAX_AUTOCHANNELS.to_owned(),
-            value: Some(config.max_auto_channels.as_ref().unwrap().to_string()),
-            ..EnvVar::default()
-        });
-    }
+    env_vars.push(EnvVar {
+        name: constants::HOPRD_ANNOUNCE.to_owned(),
+        value: Some("true".to_owned()),
+        ..EnvVar::default()
+    });
 
-    if config.auto_redeem_tickets.is_some() {
-        env_vars.push(EnvVar {
-            name: constants::HOPRD_AUTO_REDEEM_TICKETS.to_owned(),
-            value: Some(config.auto_redeem_tickets.as_ref().unwrap().to_string()),
-            ..EnvVar::default()
-        });
-    }
 
-    if config.check_unrealized_balance.is_some() {
-        env_vars.push(EnvVar {
-            name: constants::HOPRD_CHECK_UNREALIZED_BALANCE.to_owned(),
-            value: Some(config.check_unrealized_balance.as_ref().unwrap().to_string(),
-            ),
-            ..EnvVar::default()
-        });
-    }
+    // if config.provider.is_some() {
+    //     env_vars.push(EnvVar {
+    //         name: constants::HOPRD_PROVIDER.to_owned(),
+    //         value: Some(config.provider.as_ref().unwrap().to_string()),
+    //         ..EnvVar::default()
+    //     });
+    // }
 
-    if config.allow_private_node_connections.is_some() {
-        env_vars.push(EnvVar {
-            name: constants::HOPRD_ALLOW_PRIVATE_NODE_CONNECTIONS.to_owned(),
-            value: Some(config.allow_private_node_connections.as_ref().unwrap().to_string()),
-            ..EnvVar::default()
-        });
-    }
+    // if config.default_strategy.is_some() {
+    //     env_vars.push(EnvVar {
+    //         name: constants::HOPRD_DEFAULT_STRATEGY.to_owned(),
+    //         value: Some(config.default_strategy.as_ref().unwrap().to_string()),
+    //         ..EnvVar::default()
+    //     });
+    // }
 
-    if config.test_announce_local_address.is_some() {
-        env_vars.push(EnvVar {
-            name: constants::HOPRD_TEST_ANNOUNCE_LOCAL_ADDRESSES.to_owned(),
-            value: Some(config.test_announce_local_address.as_ref().unwrap().to_string()),
-            ..EnvVar::default()
-        });
-    }
+    // if config.max_auto_channels.is_some() {
+    //     env_vars.push(EnvVar {
+    //         name: constants::HOPRD_MAX_AUTOCHANNELS.to_owned(),
+    //         value: Some(config.max_auto_channels.as_ref().unwrap().to_string()),
+    //         ..EnvVar::default()
+    //     });
+    // }
 
-    if config.heartbeat_interval.is_some() {
-        env_vars.push(EnvVar {
-            name: constants::HOPRD_HEARTBEAT_INTERVAL.to_owned(),
-            value: Some(config.heartbeat_interval.as_ref().unwrap().to_string()),
-            ..EnvVar::default()
-        });
-    }
+    // if config.auto_redeem_tickets.is_some() {
+    //     env_vars.push(EnvVar {
+    //         name: constants::HOPRD_AUTO_REDEEM_TICKETS.to_owned(),
+    //         value: Some(config.auto_redeem_tickets.as_ref().unwrap().to_string()),
+    //         ..EnvVar::default()
+    //     });
+    // }
 
-    if config.heartbeat_threshold.is_some() {
-        env_vars.push(EnvVar {
-            name: constants::HOPRD_HEARTBEAT_THRESHOLD.to_owned(),
-            value: Some(config.heartbeat_threshold.as_ref().unwrap().to_string()),
-            ..EnvVar::default()
-        });
-    }
+    // if config.check_unrealized_balance.is_some() {
+    //     env_vars.push(EnvVar {
+    //         name: constants::HOPRD_CHECK_UNREALIZED_BALANCE.to_owned(),
+    //         value: Some(config.check_unrealized_balance.as_ref().unwrap().to_string(),
+    //         ),
+    //         ..EnvVar::default()
+    //     });
+    // }
 
-    if config.heartbeat_variance.is_some() {
-        env_vars.push(EnvVar {
-            name: constants::HOPRD_HEARTBEAT_VARIANCE.to_owned(),
-            value: Some(config.heartbeat_variance.as_ref().unwrap().to_string()),
-            ..EnvVar::default()
-        });
-    }
+    // if config.allow_private_node_connections.is_some() {
+    //     env_vars.push(EnvVar {
+    //         name: constants::HOPRD_ALLOW_PRIVATE_NODE_CONNECTIONS.to_owned(),
+    //         value: Some(config.allow_private_node_connections.as_ref().unwrap().to_string()),
+    //         ..EnvVar::default()
+    //     });
+    // }
 
-    if config.on_chain_confirmations.is_some() {
-        env_vars.push(EnvVar {
-            name: constants::HOPRD_ON_CHAIN_CONFIRMATIONS.to_owned(),
-            value: Some(config.on_chain_confirmations.as_ref().unwrap().to_string()),
-            ..EnvVar::default()
-        });
-    }
+    // if config.test_announce_local_address.is_some() {
+    //     env_vars.push(EnvVar {
+    //         name: constants::HOPRD_TEST_ANNOUNCE_LOCAL_ADDRESSES.to_owned(),
+    //         value: Some(config.test_announce_local_address.as_ref().unwrap().to_string()),
+    //         ..EnvVar::default()
+    //     });
+    // }
 
-    if config.network_quality_threshold.is_some() {
-        env_vars.push(EnvVar {
-            name: constants::HOPRD_NETWORK_QUALITY_THRESHOLD.to_owned(),
-            value: Some(config.network_quality_threshold.as_ref().unwrap().to_string()),
-            ..EnvVar::default()
-        });
-    }
+    // if config.heartbeat_interval.is_some() {
+    //     env_vars.push(EnvVar {
+    //         name: constants::HOPRD_HEARTBEAT_INTERVAL.to_owned(),
+    //         value: Some(config.heartbeat_interval.as_ref().unwrap().to_string()),
+    //         ..EnvVar::default()
+    //     });
+    // }
+
+    // if config.heartbeat_threshold.is_some() {
+    //     env_vars.push(EnvVar {
+    //         name: constants::HOPRD_HEARTBEAT_THRESHOLD.to_owned(),
+    //         value: Some(config.heartbeat_threshold.as_ref().unwrap().to_string()),
+    //         ..EnvVar::default()
+    //     });
+    // }
+
+    // if config.heartbeat_variance.is_some() {
+    //     env_vars.push(EnvVar {
+    //         name: constants::HOPRD_HEARTBEAT_VARIANCE.to_owned(),
+    //         value: Some(config.heartbeat_variance.as_ref().unwrap().to_string()),
+    //         ..EnvVar::default()
+    //     });
+    // }
+
 
     return env_vars;
 }
 
 /// Build default environment variables
 ///
-fn build_default_env_var(p2p_port: i32) -> Vec<EnvVar> {
+fn build_default_env_var(hoprd_host: &String) -> Vec<EnvVar> {
     let mut env_vars = Vec::with_capacity(7);
     env_vars.push(EnvVar {
         name: "DEBUG".to_owned(),
@@ -427,7 +429,7 @@ fn build_default_env_var(p2p_port: i32) -> Vec<EnvVar> {
     });
     env_vars.push(EnvVar {
         name: constants::HOPRD_HOST.to_owned(),
-        value: Some(format!("0.0.0.0:{}", p2p_port)),
+        value: Some(hoprd_host.to_owned()),
         ..EnvVar::default()
     });
     env_vars.push(EnvVar {

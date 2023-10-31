@@ -1,14 +1,14 @@
 use futures::StreamExt;
 use k8s_openapi::api::{apps::v1::Deployment, networking::v1::Ingress, core::v1::{Service, Secret}, batch::v1::Job};
 use kube::{
-    api::{Api},
+    api::Api,
     client::Client,
     runtime::{controller::{Action, Controller}, watcher::Config},
     Resource, Result
 };
-use tracing::{error};
+use tracing::error;
 use std::{sync::Arc, collections::hash_map::DefaultHasher, hash::{Hash, Hasher}};
-use tokio::{ time::Duration};
+use tokio::time::Duration;
 
 use crate::{ constants::{self}, hoprd::{Hoprd, HoprdSpec}, servicemonitor::ServiceMonitor, context_data::ContextData, model::Error};
 
@@ -45,14 +45,14 @@ fn determine_action(hoprd: &Hoprd) -> HoprdAction {
         let hoprd_spec: HoprdSpec = hoprd.spec.clone();
         hoprd_spec.clone().hash(&mut hasher);
         let hash: String = hasher.finish().to_string();
-        let current_checksum = format!("checksum-{}",hash.to_string());
+        let current_checksum = hash.to_string();
         let previous_checksum: String = hoprd.status.as_ref().map_or("0".to_owned(), |status| status.checksum.to_owned());
         // When the resource is created, does not have previous checksum and needs to be skip the modification because it's being handled already by the creation operation
         if previous_checksum.eq(&"0".to_owned()) || current_checksum.eq(&previous_checksum) {
             HoprdAction::NoOp
         } else {
             HoprdAction::Modify
-        } 
+        }
     };
 }
 

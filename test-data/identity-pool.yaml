@@ -1,0 +1,10 @@
+---
+apiVersion: hoprnet.org/v1alpha
+kind: IdentityPool
+metadata:
+  name: core-staging
+  namespace: rotsee
+spec:
+  network: rotsee
+  secretName: identity-pool-core-staging
+  minReadyIdentities: 1

@@ -38,9 +38,7 @@ spec:
                   description: 'Name of the hoprd network'
                   enum:
                   - rotsee
-                  - monte_rosa
-                  - monte_rosa_2_0
-                  - monte_rosa_3_0
+                  - dufour
                   - mont_blanc
                 ingress:
                   type: object
@@ -72,60 +70,14 @@ spec:
                         type: number
                         description: Number of instances for this configuration
                       config:
-                        type: object
-                        description: Node configuration
-                        properties:
-                          announce:
-                            type: boolean
-                            description: 'Run as a Public Relay Node (PRN)'
-                          provider:
-                            type: string
-                            description: 'A custom RPC provider to be used for the node to connect to blockchain'
-                          defaultStrategy:
-                            type: string
-                            description: 'Default channel strategy to use when the node is started'
-                          maxAutoChannels:
-                            type: integer
-                            format: int32
-                            description: 'Maximum number of channels a strategy can open'
-                          autoRedeemTickets:
-                            type: boolean
-                            description: 'Enables automatic ticket redemption when received a winning ticket'
-                          checkUnrealizedBalance:
-                            type: boolean
-                            description: 'Check unrealized balance in the channel when validating unacknowledged tickets'
-                          allowPrivateNodeConnections:
-                            type: boolean
-                            description: 'Allow connections to other nodes running on localhost'
-                          testAnnounceLocalAddress:
-                            type: boolean
-                            description: 'For testing local testnets. Announce local addresses'
-                          heartbeatInterval:
-                            type: integer
-                            format: int32
-                            description: 'Interval in milliseconds in which the availability of other nodes get measured'
-                          heartbeatThreshold:
-                            type: integer
-                            format: int32
-                            description: 'Timeframe in milliseconds after which a heartbeat to another peer is performed, if it has not been seen since'
-                          heartbeatVariance:
-                            type: integer
-                            format: int32
-                            description: 'Upper bound for variance applied to heartbeat interval in milliseconds'
-                          onChainConfirmations:
-                            type: integer
-                            format: int32
-                            description: 'Number of confirmations required for on-chain transactions'
-                          networkQualityThreshold:
-                            type: number
-                            description: 'Minimum acceptable peer connection quality'
-
+                        type: string
+                        description: Yaml configuration for Hoprd nodes
                       enabled:
                         type: boolean
                         description: 'Flag indicating if the node should be started or stopped'
                       resources:
                         type: object
-                        description: The secret containing sensitive data from the Hoprd node
+                        description: The OS resources assigned to the Hoprd node
                         properties:
                           limits:
                             description: Specify the limit resources for the container
@@ -157,8 +109,9 @@ spec:
               description: The status object of ClusterHord node
               nullable: true
               properties:
-                update_timestamp:
-                  type: number
+                updateTimestamp:
+                  format: date-time
+                  type: string
                   description: Timestamp of the last applied change
                 checksum:
                   type: string
@@ -172,7 +125,7 @@ spec:
                   - InSync
                   - Deleting
                   - OutOfSync
-              required: [ "update_timestamp", "checksum", "status"]
+              required: [ "updateTimestamp", "checksum", "status"]
               type: object
           required:
           - spec

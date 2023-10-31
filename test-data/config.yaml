@@ -1,0 +1,105 @@
+---
+host:
+  address: !IPv4 0.0.0.0
+  port: 9091
+identity:
+  file: "/app/hoprd-db/.hoprd.id"
+  password: "<READCTED>"
+  private_key:
+db:
+  data: "/app/hoprd-db"
+  initialize: true
+  force_initialize: false
+inbox:
+  capacity: 512
+  max_age: 900
+  excluded_tags:
+  - 0
+api:
+  enable: true
+  auth: !Token "<READCTED>"
+  host:
+    address: !IPv4 0.0.0.0
+    port: 3001
+heartbeat:
+  variance: 2000
+  interval: 20000
+  threshold: 60000
+network_options:
+  min_delay: 1
+  max_delay: 300
+  quality_bad_threshold: 0.2
+  quality_offline_threshold: 0.5
+  quality_step: 0.1
+  ignore_timeframe: 600
+  backoff_exponent: 1.5
+  backoff_min: 2
+  backoff_max: 300
+healthcheck:
+  enable: true
+  host: 0.0.0.0
+  port: 8080
+protocol:
+  ack:
+    timeout: 15
+  heartbeat:
+    timeout: 15
+  msg:
+    timeout: 15
+  ticket_aggregation:
+    timeout: 15
+network: unknown
+chain:
+  announce: true
+  provider:
+  check_unrealized_balance: true
+safe_module:
+  safe_transaction_service_provider:
+  safe_address:
+    addr:
+      - 44
+      - 44
+      - 44
+      - 44
+      - 44
+      - 44
+      - 44
+      - 44
+      - 44
+      - 44
+      - 44
+      - 44
+      - 44
+      - 44
+      - 44
+      - 44
+      - 44
+      - 44
+      - 44
+      - 44
+  module_address:
+    addr:
+      - 44
+      - 44
+      - 44
+      - 44
+      - 44
+      - 44
+      - 44
+      - 44
+      - 44
+      - 44
+      - 44
+      - 44
+      - 44
+      - 44
+      - 44
+      - 44
+      - 44
+      - 44
+      - 44
+      - 44
+test:
+  announce_local_addresses: false
+  prefer_local_addresses: false
+  use_weak_crypto: false

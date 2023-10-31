@@ -1,14 +1,15 @@
 use std::collections::BTreeMap;
 use std::collections::hash_map::DefaultHasher;
+use std::fmt::{Display, Formatter};
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 use std::time::Duration;
 use tracing::{debug, info, warn, error};
-use crate::hoprd::{HoprdSpec, HoprdConfig};
+use crate::hoprd::HoprdSpec;
 use crate::hoprd_deployment_spec::HoprdDeploymentSpec;
 use crate::utils;
 use crate::{constants, context_data::ContextData, hoprd::Hoprd};
-use crate::model::{EnablingFlag, Error, ClusterHoprdStatusEnum};
+use crate::model::Error;
 use chrono::Utc;
 use futures::{StreamExt, TryStreamExt};
 use k8s_openapi::api::apps::v1::Deployment;
@@ -19,12 +20,12 @@ use kube::core::{ObjectMeta, WatchEvent};
 use kube::runtime::events::Recorder;
 use schemars::JsonSchema;
 use serde::{Serialize, Deserialize};
-use serde_json::{json};
+use serde_json::json;
 use kube::{
     api::{Api, Patch, PatchParams, ResourceExt},
     client::Client,
     runtime::{
-        controller::{Action}, events::{Event, EventType}
+        controller::Action, events::{Event, EventType}
     },
     CustomResource, Result
 };
@@ -45,9 +46,7 @@ use kube::{
 #[serde(rename_all = "camelCase")]
 pub struct ClusterHoprdSpec {
     pub network: String,    
-    pub nodes: Vec<Node>,
-    pub ingress: Option<EnablingFlag>,
-    pub monitoring: Option<EnablingFlag>
+    pub nodes: Vec<Node>
 
 }
 
@@ -55,7 +54,7 @@ pub struct ClusterHoprdSpec {
 pub struct Node {
     pub name: String,
     pub replicas: i32,
-    pub config: Option<HoprdConfig>,
+    pub config: String,
     pub enabled: Option<bool>,
     pub deployment: Option<HoprdDeploymentSpec>,
     pub version: String
@@ -68,6 +67,33 @@ pub struct ClusterHoprdStatus {
     pub update_timestamp: i64,
     pub status: ClusterHoprdStatusEnum,
     pub checksum: String,
+}
+
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone, JsonSchema, Copy)]
+pub enum ClusterHoprdStatusEnum {
+    // The HoprdCluster is initializing the nodes
+    Initializing,
+    // The HoprdCluster is synching with its nodes
+    Synching,
+    // The HoprdCluster is synchronized with its nodes
+    InSync,
+    /// The HoprdCluster is being deleted
+    Deleting,
+    /// The HoprdCluster is not synchronized with its nodes
+    OutOfSync
+}
+
+impl Display for ClusterHoprdStatusEnum {
+    fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
+        match self {
+            ClusterHoprdStatusEnum::Initializing => write!(f, "Initializing"),
+            ClusterHoprdStatusEnum::Synching => write!(f, "Synching"),
+            ClusterHoprdStatusEnum::InSync => write!(f, "InSync"),
+            ClusterHoprdStatusEnum::Deleting => write!(f, "Deleting"),
+            ClusterHoprdStatusEnum::OutOfSync => write!(f, "OutOfSync")
+        }
+    }
 }
 
 impl ClusterHoprd {
@@ -155,8 +181,8 @@ impl ClusterHoprd {
         match api.patch(&hoprd_name, &pp, &Patch::Merge(patch)).await {
             Ok(_) => Ok(()),
             Err(error) => {
-                error!("Could not add finalizer on {hoprd_name}: {:?}", error);
-                return Err(Error::HoprdStatusError(format!("Could not add finalizer on {hoprd_name}.").to_owned()));
+                error!("[ClusterHoprd] Could not add finalizer on {hoprd_name}: {:?}", error);
+                return Err(Error::HoprdStatusError(format!("[ClusterHoprd] Could not add finalizer on {hoprd_name}.").to_owned()));
             }
         }
     }
@@ -174,18 +200,18 @@ impl ClusterHoprd {
             match api.patch(&cluster_name, &pp, &Patch::Merge(patch)).await {
                 Ok(_) => Ok(()),
                 Err(error) => {
-                    Ok(error!("Could not delete finalizer on {cluster_name}: {:?}", error))
+                    Ok(error!("[ClusterHoprd] Could not delete finalizer on {cluster_name}: {:?}", error))
                 }
             }
         } else {
-            Ok(debug!("ClusterHoprd {cluster_name} has already been deleted"))
+            Ok(debug!("ClusterHoprd {cluster_name} already deleted"))
         }
     }
 
     /// Check the fileds that cannot be modifed
     fn check_inmutable_fields(&self, spec: &ClusterHoprdSpec) -> Result<(),Error> {
         if ! self.spec.network.eq(&spec.network) {
-            return Err(Error::HoprdConfigError(format!("Hoprd configuration is invalid, network field cannot be changed on {}.", self.name_any())));
+            return Err(Error::HoprdConfigError(format!("[ClusterHoprd] Cluster configuration is invalid, network field cannot be changed on {}.", self.name_any())));
         }
         Ok(())
     }
@@ -261,7 +287,7 @@ impl ClusterHoprd {
         match api.patch(&cluster_hoprd_name, &pp, &Patch::Merge(patch)).await {
             Ok(_cluster_hopr) => Ok(()),
             Err(error) => {
-                Ok(error!("Could not update status on cluster {cluster_hoprd_name}: {:?}", error))
+                Ok(error!("[ClusterHoprd] Could not update status on cluster {cluster_hoprd_name}: {:?}", error))
             }
         }
     }
@@ -271,21 +297,18 @@ impl ClusterHoprd {
 
     /// Creates a set of hoprd resources with similar configuration
     async fn create_node_set(&self,  context: Arc<ContextData>, node_set: Node, out_of_sync: &mut bool) -> Result<(), Error> {
-        let client: Client = context.client.clone();
         info!("Starting to create nodeset {}", node_set.name.to_owned());
         for node_instance in 0..node_set.replicas.to_owned() {
             let name = format!("{}-{}-{}", self.name_any(), node_set.name.to_owned(), node_instance.to_owned()).to_owned();
             let hoprd_spec: HoprdSpec = HoprdSpec {
                 config: node_set.config.to_owned(),
                 enabled: node_set.enabled,
-                network: self.spec.network.to_owned(),
-                ingress: self.spec.ingress.to_owned(),
-                monitoring: self.spec.monitoring.to_owned(),
                 version: node_set.version.to_owned(),
                 deployment: node_set.deployment.to_owned(),
-                secret: None
+                identity_pool_name: "".to_owned(),
+                identity_name: "".to_owned()
             };
-            if self.create_hoprd_resource(client.clone(), name.to_owned(), hoprd_spec).await.is_ok() {
+            if self.create_hoprd_resource(context.clone(), name.to_owned(), hoprd_spec).await.is_ok() {
                 self.create_event(context.clone(), ClusterHoprdStatusEnum::Synching, Some(name)).await?;
             } else {
                 *out_of_sync = true;
@@ -296,10 +319,10 @@ impl ClusterHoprd {
     }
 
     /// Creates a hoprd resource
-    async fn create_hoprd_resource(&self, client: Client, name: String, hoprd_spec: HoprdSpec) -> Result<Hoprd, Error> {
-        let mut labels: BTreeMap<String, String> = utils::common_lables(&name.to_owned());
+    async fn create_hoprd_resource(&self, context: Arc<ContextData>, name: String, hoprd_spec: HoprdSpec) -> Result<Hoprd, Error> {
+        let mut labels: BTreeMap<String, String> = utils::common_lables(context.config.instance.name.to_owned(),Some(name.to_owned()), Some("node".to_owned()));
         labels.insert(constants::LABEL_NODE_CLUSTER.to_owned(), self.name_any());
-        let api: Api<Hoprd> = Api::namespaced(client.clone(), &self.namespace().unwrap());
+        let api: Api<Hoprd> = Api::namespaced(context.client.clone(), &self.namespace().unwrap());
         let owner_references: Option<Vec<OwnerReference>> = Some(vec![self.controller_owner_ref(&()).unwrap()]);
         let hoprd: Hoprd = Hoprd {
             metadata: ObjectMeta { 
@@ -318,7 +341,7 @@ impl ClusterHoprd {
         let lp = WatchParams::default()
             .fields(&format!("metadata.name={name}"))
             .timeout(constants::OPERATOR_NODE_SYNC_TIMEOUT);
-        let deployment_api: Api<Deployment> = Api::namespaced(client.clone(), &self.namespace().unwrap());
+        let deployment_api: Api<Deployment> = Api::namespaced(context.client.clone(), &self.namespace().unwrap());
         let mut stream = deployment_api.watch(&lp, "0").await?.boxed();
         while let Some(deployment) = stream.try_next().await? {
             match deployment {

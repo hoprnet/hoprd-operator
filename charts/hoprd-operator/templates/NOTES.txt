@@ -8,9 +8,6 @@ metadata:
   name: hoprd-node-1
   namespace: {{ .Release.Namespace }}
 spec:
-  network: monte_rosa
-  version: bratislava
+  network: rotsee
+  version: providence
 EOF
-
-
-

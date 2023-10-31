@@ -1,39 +1,39 @@
 
 use futures::StreamExt;
 use kube::{
-    api::{Api},
+    api::Api,
     client::Client,
     runtime::{
         controller::{Action, Controller}, watcher::Config
     },
     Resource, Result
 };
-use tracing::{error};
+use tracing::error;
 use std::{sync::Arc, collections::hash_map::DefaultHasher, hash::{Hash, Hasher}};
-use tokio::{ time::Duration};
+use tokio::time::Duration;
 
-use crate::{ constants::{self}, cluster::{ClusterHoprd, ClusterHoprdSpec}, context_data::ContextData, hoprd::Hoprd, model::{ClusterHoprdStatusEnum, Error}};
+use crate::{ constants::{self}, cluster::{ClusterHoprd, ClusterHoprdSpec, ClusterHoprdStatusEnum}, context_data::ContextData, hoprd::Hoprd, model::Error};
 
-/// Action to be taken upon an `Hoprd` resource during reconciliation
+/// Action to be taken upon an `ClusterHoprd` resource during reconciliation
 enum ClusterHoprdAction {
-    /// Create the subresources, this includes spawning `n` pods with Hoprd service
+    /// Create the subresources, this includes spawning multiple `Hoprd` resources
     Create,
-    /// Modify Hoprd resource
+    /// Modify ClusterHoprd resource
     Modify,
-    /// Sync Hoprd resources
+    /// Sync ClusterHoprd resources
     Sync,
     /// Delete all subresources created in the `Create` phase
     Delete,
-    /// This `Hoprd` resource is in desired state and requires no actions to be taken
+    /// This `ClusterHoprd` resource is in desired state and requires no actions to be taken
     NoOp,
 }
 
 /// Resources arrives into reconciliation queue in a certain state. This function looks at
-/// the state of given `Hoprd` resource and decides which actions needs to be performed.
+/// the state of given `ClusterHoprd` resource and decides which actions needs to be performed.
 /// The finite set of possible actions is represented by the `ClusterHoprdAction` enum.
 ///
 /// # Arguments
-/// - `hoprd`: A reference to `Hoprd` being reconciled to decide next action upon.
+/// - `cluster_hoprd`: A reference to `ClusterHoprd` being reconciled to decide next action upon.
 fn determine_action(cluster_hoprd: &ClusterHoprd) -> ClusterHoprdAction {
     return if cluster_hoprd.meta().deletion_timestamp.is_some() {
         ClusterHoprdAction::Delete
@@ -82,11 +82,11 @@ async fn reconciler(cluster_hoprd: Arc<ClusterHoprd>, context: Arc<ContextData>)
 /// five seconds.
 ///
 /// # Arguments
-/// - `hoprd`: The erroneous resource.
+/// - `cluster_hoprd`: The erroneous resource.
 /// - `error`: A reference to the `kube::Error` that occurred during reconciliation.
 /// - `_context`: Unused argument. Context Data "injected" automatically by kube-rs.
-pub fn on_error(hoprd: Arc<ClusterHoprd>, error: &Error, _context: Arc<ContextData>) -> Action {
-    error!("[ClusterHoprd] Reconciliation error:\n{:?}.\n{:?}", error, hoprd);
+pub fn on_error(cluster_hoprd: Arc<ClusterHoprd>, error: &Error, _context: Arc<ContextData>) -> Action {
+    error!("[ClusterHoprd] Reconciliation error:\n{:?}.\n{:?}", error, cluster_hoprd);
     Action::requeue(Duration::from_secs(constants::RECONCILE_FREQUENCY))
 }
 
@@ -103,7 +103,7 @@ pub async fn run(client: Client, context_data: Arc<ContextData>) {
         .run(reconciler, on_error, context_data)
         .for_each(|reconciliation_result| async move {
             match reconciliation_result {
-                Ok(_hoprd_resource) => {}
+                Ok(_cluster_hoprd_resource) => {}
                 Err(reconciliation_err) => {
                     let err_string = reconciliation_err.to_string();
                     if !err_string.contains("that was not found in local store") {

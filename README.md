@@ -16,7 +16,7 @@ This operator provides two CRD:
 - **ClusterHoprd**: This resource manage a cluster of related hoprd nodes. See the [specifications](./charts/hoprd-operator/templates/crd-cluster-hoprd.yaml) for details about what can be configured on a cluster of nodes.
 
 
-Note: Keep in mind that the `secret.secretName` and `network` attributes of a node cannot be modified.
+Note: Keep in mind that the `network` attributes of a node cannot be modified.
 
 ## Development
 

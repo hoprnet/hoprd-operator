@@ -38,10 +38,10 @@ helm-publish-cluster:
 	helm push cluster-hoprd-0.0.1.tgz oci://europe-west3-docker.pkg.dev/hoprassociation/helm-charts
 
 create-node:
-	kubectl apply -f hoprd-node-1.yaml
+	kubectl apply -f ./test-data/hoprd-node.yaml
 
 delete-node:
-	kubectl delete -f hoprd-node-1.yaml
+	kubectl delete -f ./test-data/hoprd-node.yaml
 
 docker-build:
 	docker build -t gcr.io/hoprassociation/hoprd-operator:latest --platform linux/amd64 --progress plain .
@@ -50,10 +50,16 @@ docker-push:
 	docker push gcr.io/hoprassociation/hoprd-operator:latest
 
 create-cluster:
-	kubectl apply -f cluster-hoprd.yaml
+	kubectl apply -f ./test-data/cluster-hoprd.yaml
 
 delete-cluster:
-	kubectl delete -f cluster-hoprd.yaml
+	kubectl delete -f ./test-data/cluster-hoprd.yaml
+
+create-identity:
+	kubectl apply -f ./test-data/identity-hoprd.yaml
+
+delete-identity:
+	kubectl delete -f ./test-data/identity-hoprd.yaml
 
 UNLOCK_PATCH_DATA="{\"metadata\":{\"labels\":{\"hoprds.hoprnet.org/locked\": \"false\"}}}"
 LOCK_PATCH_DATA="{\"metadata\":{\"labels\":{\"hoprds.hoprnet.org/locked\": \"true\"}}}"

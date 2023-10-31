@@ -14,8 +14,7 @@ pub struct OperatorConfig {
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone, Hash)]
 pub struct OperatorInstance {
     pub name: String,
-    pub namespace: String,
-    pub secret_name: String
+    pub namespace: String
 }
 
 
@@ -25,6 +24,7 @@ pub struct IngressConfig {
     pub dns_domain: String,
     pub namespace: Option<String>,    
     pub annotations: Option<BTreeMap<String, String>>,
+    pub public_ip: Option<String>,
     pub p2p_port_min: Option<String>,
     pub p2p_port_max: Option<String>,
     pub selector_labels: Option<BTreeMap<String, String>>,

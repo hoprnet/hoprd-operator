@@ -2,13 +2,8 @@
 
 apiVersion: v2
 name: hoprd-operator
-version: 0.1.29
-appVersion: 0.1.29
+version: 0.1.30
+appVersion: 0.1.46
 description: A Helm chart operator for managing Hopr nodes
 type: application
 icon: "https://hoprnet.org/assets/icons/logo.svg"
-dependencies:
-  - condition: replicator.enabled
-    name: kubernetes-replicator
-    repository: https://helm.mittwald.de
-    version: v2.7

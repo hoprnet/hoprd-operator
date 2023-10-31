@@ -25,6 +25,18 @@ spec:
     - name: v1alpha
       served: true
       storage: true
+      additionalPrinterColumns:
+        - name: Status
+          type: string
+          description: Hoprd status
+          jsonPath: .status.status
+        - name: IdentityHoprd
+          type: string
+          description: Hoprd Name
+          jsonPath: .status.identityName
+        - name: Age
+          type: date
+          jsonPath: .metadata.creationTimestamp
       schema:
         openAPIV3Schema:
           description: Schema definition for Hoprd Node
@@ -34,82 +46,11 @@ spec:
               type: object
               properties:
                 config:
-                  type: object
-                  description: Specific hoprd configuration
-                  properties:
-                    announce:
-                      type: boolean
-                      description: 'Run as a Public Relay Node (PRN)'
-                    provider:
-                      type: string
-                      description: 'A custom RPC provider to be used for the node to connect to blockchain'
-                    defaultStrategy:
-                      type: string
-                      description: 'Default channel strategy to use when the node is started'
-                    maxAutoChannels:
-                      type: integer
-                      format: int32
-                      description: 'Maximum number of channels a strategy can open'
-                    autoRedeemTickets:
-                      type: boolean
-                      description: 'Enables automatic ticket redemption when received a winning ticket'
-                    checkUnrealizedBalance:
-                      type: boolean
-                      description: 'Check unrealized balance in the channel when validating unacknowledged tickets'
-                    allowPrivateNodeConnections:
-                      type: boolean
-                      description: 'Allow connections to other nodes running on localhost'
-                    testAnnounceLocalAddress:
-                      type: boolean
-                      description: 'For testing local testnets. Announce local addresses'
-                    heartbeatInterval:
-                      type: integer
-                      format: int32
-                      description: 'Interval in milliseconds in which the availability of other nodes get measured'
-                    heartbeatThreshold:
-                      type: integer
-                      format: int32
-                      description: 'Timeframe in milliseconds after which a heartbeat to another peer is performed, if it has not been seen since'
-                    heartbeatVariance:
-                      type: integer
-                      format: int32
-                      description: 'Upper bound for variance applied to heartbeat interval in milliseconds'
-                    onChainConfirmations:
-                      type: integer
-                      format: int32
-                      description: 'Number of confirmations required for on-chain transactions'
-                    networkQualityThreshold:
-                      type: number
-                      description: 'Minimum acceptable peer connection quality'
+                  type: string
+                  description: Yaml configuration for Hoprd nodes
                 enabled:
                   type: boolean
                   description: 'Flag indicating if the node should be started or stopped'
-                network:
-                  type: string
-                  description: 'Name of the hopr network'
-                  enum:
-                    - rotsee
-                    - monte_rosa
-                    - monte_rosa_2_0
-                    - monte_rosa_3_0
-                    - mont_blanc
-                ingress:
-                  type: object
-                  description: Properties regarding ingress controller for hoprd node
-                  properties:
-                    enabled:
-                      type: boolean
-                      description: 'Whether to enable or disable the creation of an associated Ingress resource'
-                  required: ["enabled"]
-                monitoring:
-                  type: object
-                  description: Monitoring configuration
-                  properties:
-                    enabled:
-                      description: Whether to create a ServiceMonitor associated to this hoprd node
-                      type: boolean
-                  required:
-                  - enabled
                 deployment:
                   type: object
                   description: Deployment configuration
@@ -126,37 +67,23 @@ spec:
                     readinessProbe:
                       type: string
                       description: The definition of the readiness probe to be used by the node deployment
-                secret:
-                  type: object
-                  description: The secret containing sensitive data from the Hoprd node
-                  properties:
-                    secretName:
-                      description: Name of the secret containing sensitive data for the Hoprd node.
-                      type: string
-                    passwordRefKey:
-                      description: 'Name of secret key that has the password for the node repository'
-                      type: string
-                    apiTokenRefKey:
-                      description: 'Name of secret key that has the API Token for the node repository'
-                      type: string
-                    identityRefKey:
-                      description: 'Name of secret key that has the contents of the node repository identity file'
-                      type: string
-                    metricsPasswordRefKey: 
-                      type: string
-                      description: Name of the secret key that has an empty value to be used as password for Prometheus
-                  required:
-                  - secretName
+                identityPoolName:
+                  type: string
+                  description: The name of the IdentityPool
+                identityName:
+                  type: string
+                  description: The name of the IdentityHoprd
                 version:
                   type: string
                   description: 'An specific hoprd version. Should match with a docker tag'
-              required: ["network", "version"]
+              required: ["version", "identityPoolName", "identityName"]
             status:
               description: The status object of Hoprd node
               nullable: true
               properties:
-                update_timestamp:
-                  type: number
+                updateTimestamp:
+                  format: date-time
+                  type: string
                   description: Timestamp of the last applied change
                 checksum:
                   type: string
@@ -174,7 +101,10 @@ spec:
                   - Reloading
                   - Deleting
                   - OutOfSync
-              required: [ "update_timestamp", "checksum", "status"]
+                identityName:
+                  type: string
+                  description: Name of the HoprdNode
+              required: [ "updateTimestamp", "checksum", "status"]
               type: object
           required:
           - spec

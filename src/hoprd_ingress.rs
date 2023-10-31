@@ -2,11 +2,11 @@ use json_patch::{PatchOperation, ReplaceOperation};
 use k8s_openapi::{api::{networking::v1::{Ingress, IngressSpec, IngressRule, HTTPIngressRuleValue, HTTPIngressPath, IngressBackend, IngressServiceBackend, ServiceBackendPort, IngressTLS}, core::v1::ConfigMap}, apimachinery::pkg::apis::meta::v1::OwnerReference, serde_value::Value};
 use kube::{Api, Client, Error, core::ObjectMeta, api::{PostParams, DeleteParams, PatchParams, Patch}, runtime::wait::{conditions, await_condition}};
 use serde_json::json;
-use std::{collections::{BTreeMap}};
+use std::{collections::BTreeMap, sync::Arc};
 use tracing::{info, error};
 
-use crate::{utils, operator_config::IngressConfig, constants};
-use crate::model::{Error as HoprError};
+use crate::{utils, operator_config::IngressConfig, constants, context_data::ContextData};
+use crate::model::Error as HoprError;
 
 /// Creates a new Ingress for accessing the hoprd node,
 ///
@@ -16,8 +16,8 @@ use crate::model::{Error as HoprError};
 /// - `namespace` - Namespace to create the Kubernetes Deployment in.
 /// - `ingress` - Ingress Details
 ///
-pub async fn create_ingress(client: Client, service_name: &str, namespace: &str, ingress_config: &IngressConfig, owner_references: Option<Vec<OwnerReference>>) -> Result<Ingress, Error> {
-    let labels: BTreeMap<String, String> = utils::common_lables(&service_name.to_owned());
+pub async fn create_ingress(context: Arc<ContextData>, service_name: &str, namespace: &str, ingress_config: &IngressConfig, owner_references: Option<Vec<OwnerReference>>) -> Result<Ingress, Error> {
+    let labels: Option<BTreeMap<String, String>> = Some(utils::common_lables(context.config.instance.name.to_owned(),Some(service_name.to_owned()), None));
     let annotations: BTreeMap<String, String> = ingress_config.annotations.as_ref().unwrap_or(&BTreeMap::new()).clone();
 
     let hostname = format!("{}.{}.{}", service_name, namespace, ingress_config.dns_domain);
@@ -27,7 +27,7 @@ pub async fn create_ingress(client: Client, service_name: &str, namespace: &str,
         metadata: ObjectMeta {
             name: Some(service_name.to_owned()),
             namespace: Some(namespace.to_owned()),
-            labels: Some(labels.clone()),
+            labels,
             annotations: Some(annotations),
             owner_references,
             ..ObjectMeta::default()
@@ -65,7 +65,7 @@ pub async fn create_ingress(client: Client, service_name: &str, namespace: &str,
     };
 
     // Create the Ingress defined above
-    let api: Api<Ingress> = Api::namespaced(client, namespace);
+    let api: Api<Ingress> = Api::namespaced(context.client.clone(), namespace);
     api.create(&PostParams::default(), &ingress).await
 }
 
@@ -96,26 +96,26 @@ pub async fn open_port(client: Client, service_namespace: &str, service_name: &s
     let api: Api<ConfigMap> = Api::namespaced(client.clone(), namespace);
     let port: i32 = get_port(client.clone(), ingress_config).await.unwrap();
     let pp = PatchParams::default();
-    let patch = json!({
+    let patch = Patch::Merge(json!({
            "data": {
                 port.to_string().to_owned() : format!("{}/{}:{}", service_namespace, service_name, port.to_owned())
             }
-        });
-    match api.patch("ingress-nginx-tcp", &pp, &Patch::Merge(patch.clone())).await {
+        }));
+    match api.patch("ingress-nginx-tcp", &pp, &patch.clone()).await {
             Ok(_) => {},
             Err(error) => {
                 error!("Could not open Nginx tcp port: {:?}", error);
                 return Err(HoprError::HoprdConfigError(format!("Could not open Nginx tcp port").to_owned()));
             }
     };
-    match api.patch("ingress-nginx-udp", &pp, &Patch::Merge(patch.clone())).await {
+    match api.patch("ingress-nginx-udp", &pp, &patch.clone()).await {
             Ok(_) => {},
             Err(error) => {
                 error!("Could not open Nginx udp port: {:?}", error);
                 return Err(HoprError::HoprdConfigError(format!("Could not open Nginx udp port").to_owned()));
             }
     };
-    info!("Nginx p2p port {port} for Hoprd node {service_name} have been opened");
+    info!("Nginx p2p port {port} for Hoprd node {service_name} opened");
     Ok(port)
 }
 

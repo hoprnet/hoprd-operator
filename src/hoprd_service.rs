@@ -1,9 +1,9 @@
 use k8s_openapi::{api::core::v1::{ Service, ServicePort, ServiceSpec }, apimachinery::pkg::{util::intstr::IntOrString, apis::meta::v1::OwnerReference}};
 use kube::{Api, Client, Error, core::ObjectMeta, api::{PostParams, DeleteParams}, runtime::wait::{await_condition, conditions}};
-use std::collections::{BTreeMap};
-use tracing::{info};
+use std::collections::BTreeMap;
+use tracing::info;
 
-use crate::{utils};
+use crate::constants;
 
 /// Creates a new service for accessing the hoprd node,
 ///
@@ -12,8 +12,11 @@ use crate::{utils};
 /// - `name` - Name of the service to be created
 /// - `namespace` - Namespace to create the Kubernetes Deployment in.
 ///
-pub async fn create_service(client: Client, name: &str, namespace: &str, p2p_port: i32, owner_references: Option<Vec<OwnerReference>>) -> Result<Service, Error> {
-    let labels: BTreeMap<String, String> = utils::common_lables(&name.to_owned());
+pub async fn create_service(client: Client, name: &str, namespace: &str, identity_pool_name: &str, p2p_port: i32, owner_references: Option<Vec<OwnerReference>>) -> Result<Service, Error> {
+    let mut labels: BTreeMap<String, String> = BTreeMap::new();
+    labels.insert(constants::LABEL_KUBERNETES_NAME.to_owned(), "hoprd".to_owned());
+    labels.insert(constants::LABEL_KUBERNETES_INSTANCE.to_owned(), name.to_owned());
+    labels.insert(constants::LABEL_KUBERNETES_IDENTITY_POOL.to_owned(), identity_pool_name.to_owned() );
 
     // Definition of the service. Alternatively, a YAML representation could be used as well.
     let service: Service = Service {

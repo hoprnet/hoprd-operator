@@ -52,21 +52,8 @@ spec:
             cpu: 10m
             memory: 1Mi
         {{- end }}
-        env:
-        {{- if .Values.operator.privateKey }}
-          - name: PRIVATE_KEY
-            valueFrom:
-              secretKeyRef:
-                key: PRIVATE_KEY
-                name: {{ include "hoprd-operator.name" . }}
-        {{- else }}
-          - name: PRIVATE_KEY
-            valueFrom:
-              secretKeyRef:
-                key: {{ .Values.operator.secretKeyName }} 
-                name: {{ .Values.operator.secretName }} 
-        {{- end }}
         {{- if .Values.operator.extraEnvVars }}
+        env:
           {{ toYaml .Values.operator.extraEnvVars | nindent 10 }} 
         {{- end }}
         volumeMounts:

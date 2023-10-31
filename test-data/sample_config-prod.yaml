@@ -4,7 +4,8 @@ instance:
   secret_name: "hoprd-operator"
 ingress:
   ingress_class_name: "nginx"
-  dns_domain: "stage.hoprtech.net"
+  dns_domain: "prod.hoprtech.net"
+  public_ip: 142.132.140.8
   annotations:
     cert-manager.io/cluster-issuer: "linode-issuer"
     nginx.ingress.kubernetes.io/proxy-connect-timeout: "3600"

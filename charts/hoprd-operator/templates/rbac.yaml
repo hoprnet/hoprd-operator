@@ -88,6 +88,8 @@ rules:
   - hoprnet.org
   resources:
   - hoprds
+  - identitypools
+  - identityhoprds
   - clusterhoprds
   verbs:
   - get

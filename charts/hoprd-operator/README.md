@@ -34,12 +34,6 @@ Chart version `Chart.yaml` should be increased according to [semver](http://semv
 | `nameOverride`     | String to partially override common.names.fullname | `""`  |
 | `fullnameOverride` | String to fully override common.names.fullname     | `""`  |
 
-### Replicator Parameters
-
-| Name                 | Description                                                                                                     | Value  |
-| -------------------- | --------------------------------------------------------------------------------------------------------------- | ------ |
-| `replicator.enabled` | Install the Helm Chart dependency Reflector. See more info at https://github.com/mittwald/kubernetes-replicator | `true` |
-
 ### Hopr AdminUI Parameters
 
 | Name                               | Description                                                                                           | Value                        |
@@ -70,9 +64,6 @@ Chart version `Chart.yaml` should be increased according to [semver](http://semv
 | --------------------------------------- | ---------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
 | `operator.replicas`                     | Replicas for operator deployment                                                                                 | `1`                                   |
 | `operator.strategy`                     | Strategy for operator deployment                                                                                 | `Recreate`                            |
-| `operator.privateKey`                   | Private Key of the Wallet used to make blockchain transactions like: register in network registry or fund nodes. | `""`                                  |
-| `operator.secretName`                   | Name of the secret custoding the private Key of the Wallet used to make blockchain transactions                  | `""`                                  |
-| `operator.secretKeyName`                | Key name within the Secret                                                                                       | `PRIVATE_KEY`                         |
 | `operator.hopli.registry`               | Docker registry to hopli image                                                                                   | `europe-west3-docker.pkg.dev`         |
 | `operator.hopli.repository`             | Docker image to hopli binary                                                                                     | `hoprassociation/docker-images/hopli` |
 | `operator.hopli.tag`                    | Docker image tag to hopli image                                                                                  | `latest`                              |

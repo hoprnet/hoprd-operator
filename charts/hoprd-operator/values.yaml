@@ -11,11 +11,6 @@ fullnameOverride: ""
 ## @section Replicator Parameters
 ##
 
-replicator:
-  ## @param replicator.enabled Install the Helm Chart dependency Reflector. See more info at https://github.com/mittwald/kubernetes-replicator
-  ##
-  enabled: true
-
 ## @section Hopr AdminUI Parameters
 ##
 
@@ -67,11 +62,11 @@ adminUI:
   image:
     ## @param adminUI.image.registry Docker registry to AdminUI deployment
     ##
-    registry: gcr.io
+    registry: europe-west3-docker.pkg.dev
 
     ## @param adminUI.image.repository Docker image repository to AdminUI deployment
     ##
-    repository: hoprassociation/hopr-admin
+    repository: hoprassociation/docker-images/hopr-admin
 
     ## @param adminUI.image.tag Docker image tag to AdminUI deployment
     ##
@@ -80,7 +75,7 @@ adminUI:
     ## @param adminUI.image.pullPolicy Pull policy to AdminUI deployment as deinfed in 
     ## ref: http://kubernetes.io/docs/user-guide/images/#pre-pulling-images
     ##
-    pullPolicy: IfNotPresent
+    pullPolicy: Always
 
   ingress:
 
@@ -134,18 +129,6 @@ operator:
   ## @param operator.strategy Strategy for operator deployment
   ##
   strategy: "Recreate"
-
-  ## @param operator.privateKey Private Key of the Wallet used to make blockchain transactions like: register in network registry or fund nodes.
-  ##
-  privateKey: ""
-
-  ## @param operator.secretName Name of the secret custoding the private Key of the Wallet used to make blockchain transactions
-  ##
-  secretName: ""
-
-  ## @param operator.secretKeyName Key name within the Secret
-  ##
-  secretKeyName: PRIVATE_KEY
 
   hopli:
     ## @param operator.hopli.registry Docker registry to hopli image
@@ -202,6 +185,10 @@ operator:
     ## @skip operator.ingress.annotations
     ##
     annotations: {}
+
+    ## @param operator.ingress.publicIp Public IP of the LoadBalancer Service for the Ingress 
+    ##
+    publicIp: ""
 
     p2pPorts:
       ## @param operator.ingress.p2pPorts.min Starting port to open on Ingress controller
@@ -281,7 +268,7 @@ service:
 
     ## @param service.ports.http service HTTP port number
     ##  
-    http: 3000
+    http: 80
 
     ## @param service.ports.name service HTTP port name
     ##
