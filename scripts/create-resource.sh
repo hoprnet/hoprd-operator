@@ -1,9 +1,6 @@
 #!/usr/bin/env bash
 
 set -Eeuo pipefail
-namespace=${1}
-identity_pool_name=${2}
-identity_name=${3}
 
 set -x
 declare -a safe_address, module_address, peer_id, native_address, identity_file
@@ -17,10 +14,10 @@ cat <<EOF > "/app/hoprd-identity-created/identityHorpd.yaml"
 apiVersion: hoprnet.org/v1alpha
 kind: IdentityHoprd
 metadata:
-  namespace: ${namespace}
-  name: ${identity_name}
+  namespace: ${JOB_NAMESPACE}
+  name: ${IDENTITY_NAME}
 spec:
-  identityPoolName: ${identity_pool_name}
+  identityPoolName: ${IDENTITY_POOL_NAME}
   identityFile: ${identity_file}
   peerId: "${peer_id}"
   nativeAddress: "${native_address}"

@@ -422,7 +422,7 @@ impl IdentityPool {
         let mut labels: BTreeMap<String, String> = utils::common_lables(context.config.instance.name.to_owned(),Some(identity_name.to_owned()), Some("job-create-identity".to_owned()));
         labels.insert(constants::LABEL_KUBERNETES_COMPONENT.to_owned(), "create-identity".to_owned());
         let create_identity_args: Vec<String> = vec![format!("curl {}/create-identity.sh -s | bash", constants::OPERATOR_JOB_SCRIPT_URL.to_owned())];
-        let create_resource_args: Vec<String> = vec![format!("curl {}/create-resource.sh -s | bash {namespace} {} {identity_name}", constants::OPERATOR_JOB_SCRIPT_URL.to_owned(), self.name_any())];
+        let create_resource_args: Vec<String> = vec![format!("curl {}/create-resource.sh -s | bash", constants::OPERATOR_JOB_SCRIPT_URL.to_owned())];
         let env_vars: Vec<EnvVar> = vec![EnvVar {
             name: constants::IDENTITY_POOL_IDENTITY_PASSWORD_REF_KEY.to_owned(),
             value_from: Some(EnvVarSource {
@@ -447,8 +447,21 @@ impl IdentityPool {
             }),
             ..EnvVar::default()
         },
-
-
+        EnvVar {
+            name: "JOB_NAMESPACE".to_owned(),
+            value: Some(namespace.to_owned()),
+            ..EnvVar::default()
+        },
+        EnvVar {
+            name: "IDENTITY_POOL_NAME".to_owned(),
+            value: Some(self.name_any()),
+            ..EnvVar::default()
+        },
+        EnvVar {
+            name: "IDENTITY_NAME".to_owned(),
+            value: Some(identity_name),
+            ..EnvVar::default()
+        },
         EnvVar {
             name: constants::HOPRD_NETWORK.to_owned(),
             value: Some(self.spec.network.to_owned()),
