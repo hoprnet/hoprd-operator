@@ -3,7 +3,6 @@
 set -Eeuo pipefail
 
 set -x
-declare -a safe_address, module_address, peer_id, native_address, identity_file
 safe_address=$(grep "Logs" -A 3 "/app/hoprd-identity-created/create-safe-module.log" | grep safeAddress | cut -d ' ' -f 4)
 module_address=$(grep "Logs" -A 3 "/app/hoprd-identity-created/create-safe-module.log" | grep safeAddress | cut -d ' ' -f 6)
 peer_id=$(jq -r '.".hoprd0.id".peer_id' /app/hoprd-identity-created/hoprd.json)
