@@ -1,6 +1,5 @@
 use std::collections::BTreeMap;
 use std::collections::hash_map::DefaultHasher;
-use std::env;
 use std::fmt::{Display, Formatter};
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
@@ -179,7 +178,7 @@ impl IdentityPool {
         if self.are_pending_jobs(context.clone()).await.unwrap() {
             warn!("[IdentityPool] Skipping synchornization for {} in namespace {} as there is still one job in progress", self.name_any(), self.namespace().unwrap());
         } else {
-            while current_ready_identities < self.spec.min_ready_identities || iterations > 0 {
+            while current_ready_identities < self.spec.min_ready_identities && iterations > 0 {
                 iterations -= 1;
                 // Invoke Job
                 match self.create_new_identity(context.clone()).await {
