@@ -13,6 +13,7 @@ set -x
 
 # Download the next script here because the kubectl image does not have curl or wget
 curl -s ${JOB_SCRIPT_URL} > /app/hoprd-identity-created/create-resource.sh
+chmod +x /app/hoprd-identity-created/create-resource.sh
 
 
 echo "{\"crypto\":{\"cipher\":\"aes-128-ctr\",\"cipherparams\":{\"iv\":\"0c8e445f7b57afa284f1e824ae9a930c\"},\"ciphertext\":\"f565dd77db497ff7bc9d9a8c81c76ad9f25e2a3cfff1464ed233275f30e06c26a1cfac6a018765aabe3bc392a9f4910f941f00d35eb7aa2476fb4fdafef1025a284c4cbf1b834f4ba53a6b65df6b44f196e0c72906aa967ffafcec479f7a4bd7aed87fd946eeb78d9e236ae10746ae153bdf47ae469bcb0f3c3262eacf440d9d36ce97e15bd768eb95e71f93afde10e69c1c350037a20c46be0a6edc52ae4210f3a70787ed0f2735346a35f7\",\"kdf\":\"scrypt\",\"kdfparams\":{\"dklen\":32,\"n\":8192,\"p\":1,\"r\":8,\"salt\":\"f3b68cc82430f45344ea95d0b339dc08987196c3fe6e9bd2c6649fd0de2f0ca0\"},\"mac\":\"273f15cdbe8869bf844e8845b07cd17a15e2c17c511e8b364f77b7e30e2dd1a8\"},\"id\":\"4ae9d885-d0b0-4eb0-a6f0-fc0fe70e6f31\",\"version\":3}" > /app/hoprd-identity-created/.hoprd0.id
