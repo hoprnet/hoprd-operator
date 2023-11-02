@@ -6,7 +6,7 @@ use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 use std::time::Duration;
 use k8s_openapi::api::batch::v1::{Job, JobSpec};
-use k8s_openapi::api::core::v1::{EnvVar, EnvVarSource, SecretKeySelector, Volume, ConfigMapVolumeSource, EmptyDirVolumeSource, VolumeMount, PodTemplateSpec, PodSpec, Container};
+use k8s_openapi::api::core::v1::{EnvVar, EnvVarSource, SecretKeySelector, Volume, EmptyDirVolumeSource, VolumeMount, PodTemplateSpec, PodSpec, Container};
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::OwnerReference;
 use kube::{Resource, ResourceExt};
 use kube::api::{ListParams, PostParams};
@@ -23,6 +23,7 @@ use chrono::Utc;
 use kube::runtime::events::Recorder;
 use schemars::JsonSchema;
 use serde::{Serialize, Deserialize};
+use rand::{distributions::Alphanumeric, Rng};
 use serde_json::json;
 use kube::{
     api::{Api, Patch, PatchParams},
@@ -178,8 +179,13 @@ impl IdentityPool {
         while current_ready_identities < self.spec.min_ready_identities || iterations > 0 {
             iterations -= 1;
             // Invoke Job
-            self.create_new_identity(context.clone()).await.unwrap();
-            current_ready_identities += 1;
+            match self.create_new_identity(context.clone()).await {
+                Ok(()) => current_ready_identities += 1,
+                Err(error) => {
+                    error!("[IdentityPool] Could not create identity: {:?}", error);
+                    iterations = 0;
+                }
+            };
         }
         if current_ready_identities >= self.spec.min_ready_identities {
             self.create_event(context.clone(), IdentityPoolStatusEnum::Ready).await?;
@@ -416,7 +422,8 @@ impl IdentityPool {
     async fn create_new_identity(&self, context: Arc<ContextData>) -> Result<(), Error> {
         self.create_event(context.clone(), IdentityPoolStatusEnum::CreatingIdentity).await?;
         let identity_name = format!("{}-{}", self.name_any(),  self.status.as_ref().unwrap().size + 1);
-        let job_name: String = format!("create-identity-{}",&identity_name.to_owned());
+        let random_string: String = rand::thread_rng().sample_iter(&Alphanumeric).take(5).map(char::from).collect();
+        let job_name: String = format!("create-identity-{}-{}",&identity_name.to_owned(),random_string.to_ascii_lowercase());
         let namespace: String = self.metadata.namespace.as_ref().unwrap().to_owned();
         let owner_references: Option<Vec<OwnerReference>> = Some(vec![self.controller_owner_ref(&()).unwrap()]);
         let mut labels: BTreeMap<String, String> = utils::common_lables(context.config.instance.name.to_owned(),Some(identity_name.to_owned()), Some("job-create-identity".to_owned()));
