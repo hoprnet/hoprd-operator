@@ -125,12 +125,19 @@ impl IdentityHoprd {
             self.create_event(context.clone(),  IdentityHoprdStatusEnum::Deleting, None).await?;
             self.update_status(context.clone(), IdentityHoprdStatusEnum::Deleting, None).await?;
             info!("[IdentityHoprd] Starting to delete identity {identity_name} from namespace {identity_namespace}");
+
+            // Update pool to decrease identities
+            let api: Api<IdentityPool> = Api::namespaced(context.client.clone(), &self.namespace().unwrap());
+            let identity_pool = api.get(self.spec.identity_pool_name.as_str()).await.unwrap();
+            identity_pool.update_status(context.clone(), IdentityPoolStatusEnum::IdentityDeleted).await?;
+
             // TODO Drain funds
             self.delete_finalizer(client.clone(), &identity_name, &identity_namespace).await?;
             info!("[IdentityHoprd] Identity {identity_name} in namespace {identity_namespace} has been successfully deleted");
             Ok(Action::await_change()) // Makes no sense to delete after a successful delete, as the resource is gone
         } else {
-            Err(Error::IdentityStatusError(format!("[IdentityHoprd] Cannot delete a identity in state {}", self.status.as_ref().unwrap().status)))
+            error!("[IdentityHoprd] Cannot delete an identity in state {}", self.status.as_ref().unwrap().status);
+            Ok(Action::requeue(Duration::from_secs(constants::RECONCILE_FREQUENCY)))
         }
     }
 

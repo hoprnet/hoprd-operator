@@ -86,7 +86,7 @@ spec:
                   description: Status of the last applied change
                   type: string
                   enum:
-                  - Initializing
+                  - Initialized
                   - Failed
                   - Synching
                   - Ready

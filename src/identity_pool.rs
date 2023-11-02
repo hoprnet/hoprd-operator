@@ -98,7 +98,9 @@ pub enum IdentityPoolStatusEnum {
     // Event that represents when the IdentityPool is syncronizing by creating new required identities
     CreatingIdentity,
     // Event that represents when the IdentityPool has created a new identity
-    IdentityCreated
+    IdentityCreated,
+    // Event that represents when the IdentityPool has created a new identity
+    IdentityDeleted
 
 }
 
@@ -116,6 +118,7 @@ impl Display for IdentityPoolStatusEnum {
             IdentityPoolStatusEnum::Unlocked => write!(f, "Unlocked"),
             IdentityPoolStatusEnum::CreatingIdentity => write!(f, "CreatingIdentity"),
             IdentityPoolStatusEnum::IdentityCreated => write!(f, "IdentityCreated"),
+            IdentityPoolStatusEnum::IdentityDeleted => write!(f, "IdentityDeleted"),
 
         }
     }
@@ -137,14 +140,14 @@ impl IdentityPool {
         // - Check that the secret exist and contains the required keys
         // - Does the wallet private key have permissions in Network to register new nodes and create safes ?
         // - Does the wallet private key have enough funds to work ?
-        self.create_event(context.clone(), IdentityPoolStatusEnum::Initialized).await?;
+        self.create_event(context.clone(), IdentityPoolStatusEnum::Initialized, None).await?;
         self.update_status(context.clone(), IdentityPoolStatusEnum::Initialized).await?;
         info!("[IdentityPool] Identity {identity_pool_name} in namespace {identity_pool_namespace} has been successfully created");
         if self.spec.min_ready_identities == 0 {
-            self.create_event(context.clone(), IdentityPoolStatusEnum::Ready).await?;
+            self.create_event(context.clone(), IdentityPoolStatusEnum::Ready, None).await?;
             self.update_status(context.clone(), IdentityPoolStatusEnum::Ready).await?;
         } else {
-            self.create_event(context.clone(), IdentityPoolStatusEnum::OutOfSync).await?;
+            self.create_event(context.clone(), IdentityPoolStatusEnum::OutOfSync, Some(self.spec.min_ready_identities.to_string())).await?;
             self.update_status(context.clone(), IdentityPoolStatusEnum::OutOfSync).await?;
             info!("[IdentityPool] Identity {identity_pool_name} in namespace {identity_pool_namespace} requires to create {} new identities", self.spec.min_ready_identities);
         }
@@ -161,15 +164,20 @@ impl IdentityPool {
     pub async fn delete(&self, context: Arc<ContextData>) -> Result<Action, Error> {
         let identity_pool_name = self.name_any();
         let identity_pool_namespace = self.namespace().unwrap();
-        let client: Client = context.client.clone();
-        self.update_status(context.clone(), IdentityPoolStatusEnum::Deleting).await?;
-        self.create_event(context.clone(),  IdentityPoolStatusEnum::Deleting).await?;
-        info!("[IdentityPool] Starting to delete identity {identity_pool_name} from namespace {identity_pool_namespace}");
-        identity_pool_service_monitor::delete_service_monitor(client.clone(), &identity_pool_name, &identity_pool_namespace).await?;
-        identity_pool_service_account::delete_rbac(client.clone(), &identity_pool_namespace, &identity_pool_name).await?;
-        self.delete_finalizer(client.clone(), &identity_pool_name, &identity_pool_namespace).await?;
-        info!("[IdentityPool] Identity {identity_pool_name} in namespace {identity_pool_namespace} has been successfully deleted");
-        Ok(Action::await_change()) // Makes no sense to delete after a successful delete, as the resource is gone
+        if self.status.as_ref().unwrap().locked == 0 {
+            let client: Client = context.client.clone();
+            self.update_status(context.clone(), IdentityPoolStatusEnum::Deleting).await?;
+            self.create_event(context.clone(),  IdentityPoolStatusEnum::Deleting, None).await?;
+            info!("[IdentityPool] Starting to delete identity {identity_pool_name} from namespace {identity_pool_namespace}");
+            identity_pool_service_monitor::delete_service_monitor(client.clone(), &identity_pool_name, &identity_pool_namespace).await?;
+            identity_pool_service_account::delete_rbac(client.clone(), &identity_pool_namespace, &identity_pool_name).await?;
+            self.delete_finalizer(client.clone(), &identity_pool_name, &identity_pool_namespace).await?;
+            info!("[IdentityPool] Identity {identity_pool_name} in namespace {identity_pool_namespace} has been successfully deleted");
+            Ok(Action::await_change()) // Makes no sense to delete after a successful delete, as the resource is gone
+        } else {
+            error!("[IdentityPool] Cannot delete a identity pool with identities in use");
+            Ok(Action::requeue(Duration::from_secs(constants::RECONCILE_FREQUENCY)))
+        }
     }
 
     pub async fn sync(&self, context: Arc<ContextData>) -> Result<Action, Error> {
@@ -190,10 +198,10 @@ impl IdentityPool {
                 };
             }
             if current_ready_identities >= self.spec.min_ready_identities {
-                self.create_event(context.clone(), IdentityPoolStatusEnum::Ready).await?;
+                self.create_event(context.clone(), IdentityPoolStatusEnum::Ready, None).await?;
                 self.update_status(context.clone(), IdentityPoolStatusEnum::Ready).await?;
             } else {
-                self.create_event(context.clone(), IdentityPoolStatusEnum::OutOfSync).await?;
+                self.create_event(context.clone(), IdentityPoolStatusEnum::OutOfSync, Some((self.spec.min_ready_identities - current_ready_identities).to_string())).await?;
                 self.update_status(context.clone(), IdentityPoolStatusEnum::OutOfSync).await?;
                 info!("[IdentityPool] Identity {} in namespace {} failed to create required identities", self.name_any(), self.namespace().unwrap());
             }
@@ -239,7 +247,7 @@ impl IdentityPool {
     }
 
     /// Creates an event for IdentityPool given the new IdentityPoolStatusEnum
-    pub async fn create_event(&self, context: Arc<ContextData>, status: IdentityPoolStatusEnum) -> Result<(), Error> {
+    pub async fn create_event(&self, context: Arc<ContextData>, status: IdentityPoolStatusEnum, attribute: Option<String>) -> Result<(), Error> {
         let client: Client = context.client.clone();   
         let ev: Event = match status {
             IdentityPoolStatusEnum::Initialized => Event {
@@ -259,7 +267,7 @@ impl IdentityPool {
             IdentityPoolStatusEnum::OutOfSync => Event {
                         type_: EventType::Normal,
                         reason: "OutOfSync".to_string(),
-                        note: Some("The identity pool is out of sync".to_owned()),
+                        note: Some(format!("The identity pool is out of sync. There are {} identities pending to be created", attribute.unwrap())),
                         action: "The identity pool need to create more identities".to_string(),
                         secondary: None
                     },
@@ -280,43 +288,50 @@ impl IdentityPool {
             IdentityPoolStatusEnum::Locking => Event {
                         type_: EventType::Normal,
                         reason: "Locking".to_string(),
-                        note: Some("Locking identity from pool".to_owned()),
-                        action: "Locking a ready identity from pool".to_string(),
+                        note: Some(format!("Lokcing identity {} from pool", attribute.as_ref().unwrap())),
+                        action: format!("Lokcing identity {} from pool", attribute.as_ref().unwrap()),
                         secondary: None
                     },
             IdentityPoolStatusEnum::Locked => Event {
                         type_: EventType::Normal,
                         reason: "Locked".to_string(),
-                        note: Some("Identity locked from pool".to_owned()),
-                        action: "Identity sucessfully locked from pool".to_string(),
+                        note: Some(format!("Identity {} locked from pool", attribute.as_ref().unwrap())),
+                        action: format!("Identity {} locked from pool", attribute.as_ref().unwrap()),
                         secondary: None
                     },
             IdentityPoolStatusEnum::Unlocking => Event {
                         type_: EventType::Normal,
                         reason: "Unlocking".to_string(),
-                        note: Some("Unlocking identity from pool".to_owned()),
-                        action: "Unlocking a InUse identity from pool".to_string(),
+                        note: Some(format!("Unlokcing identity {} from pool", attribute.as_ref().unwrap())),
+                        action: format!("Unlokcing identity {} from pool", attribute.as_ref().unwrap()),
                         secondary: None
                     },
             IdentityPoolStatusEnum::Unlocked => Event {
                         type_: EventType::Normal,
                         reason: "Unlocked".to_string(),
-                        note: Some("Identity unlocked from pool".to_owned()),
-                        action: "Identity successfully unlocked from pool".to_string(),
+                        note: Some(format!("Identity {} unlocked from pool", attribute.as_ref().unwrap())),
+                        action: format!("Identity {} unlocked from pool", attribute.as_ref().unwrap()),
                         secondary: None
                     },
             IdentityPoolStatusEnum::CreatingIdentity => Event {
                         type_: EventType::Normal,
                         reason: "CreatingIdentity".to_string(),
-                        note: Some("Starting to sync an identity pool".to_owned()),
-                        action: "Synching failed identity pool".to_string(),
+                        note: Some(format!("Creating identity {}", attribute.as_ref().unwrap())),
+                        action: format!("Creating identity {}", attribute.as_ref().unwrap()),
                         secondary: None
                     },
             IdentityPoolStatusEnum::IdentityCreated => Event {
                         type_: EventType::Normal,
                         reason: "IdentityCreated".to_string(),
-                        note: Some("Starting to sync an identity pool".to_owned()),
-                        action: "Synching failed identity pool".to_string(),
+                        note: Some(format!("Identity pool created identity {}", attribute.as_ref().unwrap())),
+                        action: format!("Identity pool created identity {}", attribute.as_ref().unwrap()),
+                        secondary: None
+                    },
+            IdentityPoolStatusEnum::IdentityDeleted => Event {
+                        type_: EventType::Normal,
+                        reason: "IdentityDeleted".to_string(),
+                        note: Some(format!("Identity pool deregistered identity {}", attribute.as_ref().unwrap())),
+                        action: format!("Identity pool deregistered identity {}", attribute.as_ref().unwrap()),
                         secondary: None
                     },
         };
@@ -338,7 +353,10 @@ impl IdentityPool {
         let mut hasher: DefaultHasher = DefaultHasher::new();
         self.spec.clone().hash(&mut hasher);
         let checksum: String = hasher.finish().to_string();
-        if status.eq(&IdentityPoolStatusEnum::IdentityCreated) 
+        identity_pool_status.update_timestamp = Utc::now().to_rfc3339();
+        identity_pool_status.checksum = checksum;
+        identity_pool_status.status = status;
+        if status.eq(&IdentityPoolStatusEnum::IdentityCreated)
         { 
             if (identity_pool_status.size - identity_pool_status.locked + 1) >= self.spec.min_ready_identities {
                 identity_pool_status.status = IdentityPoolStatusEnum::Ready;
@@ -346,6 +364,14 @@ impl IdentityPool {
                 identity_pool_status.status = IdentityPoolStatusEnum::OutOfSync;
             }
             identity_pool_status.size = identity_pool_status.size + 1
+        }else if status.eq(&IdentityPoolStatusEnum::IdentityDeleted)
+        { 
+            if (identity_pool_status.size - identity_pool_status.locked - 1) >= self.spec.min_ready_identities {
+                identity_pool_status.status = IdentityPoolStatusEnum::Ready;
+            } else {
+                identity_pool_status.status = IdentityPoolStatusEnum::OutOfSync;
+            }
+            identity_pool_status.size = identity_pool_status.size - 1
         };
 
         if status.eq(&IdentityPoolStatusEnum::Locked)
@@ -366,10 +392,6 @@ impl IdentityPool {
             }
             identity_pool_status.locked = identity_pool_status.locked - 1 
         };
-        identity_pool_status.update_timestamp = Utc::now().to_rfc3339();
-        identity_pool_status.checksum = checksum;
-        identity_pool_status.status = status;
-
         let patch = Patch::Merge(json!({
                 "status": identity_pool_status
         }));
@@ -397,7 +419,7 @@ impl IdentityPool {
 
     /// Gets the first identity in ready status
     pub async fn lock_identity(&self, context: Arc<ContextData>, identity_name: &str) -> Result<Option<IdentityHoprd>,Error> {
-        self.create_event(context.clone(), IdentityPoolStatusEnum::Locking).await?;
+        self.create_event(context.clone(), IdentityPoolStatusEnum::Locking, Some(identity_name.to_owned())).await?;
         let api: Api<IdentityHoprd> = Api::namespaced(context.client.clone(), &self.namespace().unwrap().to_owned());
         let identities = api.list(&ListParams::default()).await.unwrap();
         let first_identity = identities.iter()
@@ -409,7 +431,7 @@ impl IdentityPool {
                  if identity.to_owned().status.unwrap().status.eq(&IdentityHoprdStatusEnum::Ready) {
                     identity.create_event(context.clone(), IdentityHoprdStatusEnum::InUse, Some(identity_name.to_owned())).await?;
                     identity.update_status(context.clone(), IdentityHoprdStatusEnum::InUse, Some(identity_name.to_owned())).await?;
-                    self.create_event(context.clone(), IdentityPoolStatusEnum::Locked).await?;
+                    self.create_event(context.clone(), IdentityPoolStatusEnum::Locked, Some(identity_name.to_owned())).await?;
                     self.update_status(context.clone(), IdentityPoolStatusEnum::Locked).await?;
                     Ok(Some(identity.to_owned()))
                 } else {
@@ -433,8 +455,8 @@ impl IdentityPool {
     }
 
     async fn create_new_identity(&self, context: Arc<ContextData>) -> Result<(), Error> {
-        self.create_event(context.clone(), IdentityPoolStatusEnum::CreatingIdentity).await?;
         let identity_name = format!("{}-{}", self.name_any(),  self.status.as_ref().unwrap().size + 1);
+        self.create_event(context.clone(), IdentityPoolStatusEnum::CreatingIdentity, Some(identity_name.to_owned())).await?;
         let random_string: String = rand::thread_rng().sample_iter(&Alphanumeric).take(5).map(char::from).collect();
         let job_name: String = format!("create-identity-{}-{}",&identity_name.to_owned(),random_string.to_ascii_lowercase());
         let namespace: String = self.metadata.namespace.as_ref().unwrap().to_owned();
@@ -485,7 +507,7 @@ impl IdentityPool {
         },
         EnvVar {
             name: "IDENTITY_NAME".to_owned(),
-            value: Some(identity_name),
+            value: Some(identity_name.to_owned()),
             ..EnvVar::default()
         },
         EnvVar {
@@ -568,16 +590,19 @@ impl IdentityPool {
             Ok(job_option) => {
                 match job_option {
                     Some(job) => {
-                        let status = job.status.unwrap();
-                        self.create_event(context.clone(), IdentityPoolStatusEnum::IdentityCreated).await?;
-                        self.update_status(context.clone(), IdentityPoolStatusEnum::IdentityCreated).await?;
-                        Ok(info!("Job {} completed successfully", &job_name.to_owned()))
+                        if job.status.unwrap().failed.is_none() {
+                            self.create_event(context.clone(), IdentityPoolStatusEnum::IdentityCreated, Some(identity_name.to_owned())).await?;
+                            self.update_status(context.clone(), IdentityPoolStatusEnum::IdentityCreated).await?;
+                            Ok(info!("Job {} completed successfully", &job_name.to_owned()))
+                        } else {
+                            Err(Error::JobExecutionError(format!(" Job pod execution for {} failed", &job_name.to_owned()).to_owned()))
+                        }
                     },
                     None => Err(Error::JobExecutionError(format!(" Job execution for {} failed", &job_name.to_owned()).to_owned())),
                 }
             },
             Err(_error) => {
-                Err(Error::JobExecutionError(format!(" Job execution for {} failed", &job_name.to_owned()).to_owned()))
+                Err(Error::JobExecutionError(format!(" Job timeout for {}", &job_name.to_owned()).to_owned()))
             }
         }
     }
