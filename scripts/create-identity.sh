@@ -2,7 +2,7 @@
 
 set -Eeuo pipefail
 
-export PATH=${PATH}:/root/.foundry/bin/
+export PATH=${PATH}:/app/hoprnet/.foundry/bin/
 export RUST_BACKTRACE=full
 export PRIVATE_KEY=${DEPLOYER_PRIVATE_KEY}
 

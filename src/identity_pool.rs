@@ -176,25 +176,30 @@ impl IdentityPool {
     pub async fn sync(&self, context: Arc<ContextData>) -> Result<Action, Error> {
         let mut current_ready_identities = self.status.as_ref().unwrap().size - self.status.as_ref().unwrap().locked;
         let mut iterations = (self.spec.min_ready_identities - current_ready_identities) * 2;
-        while current_ready_identities < self.spec.min_ready_identities || iterations > 0 {
-            iterations -= 1;
-            // Invoke Job
-            match self.create_new_identity(context.clone()).await {
-                Ok(()) => current_ready_identities += 1,
-                Err(error) => {
-                    error!("[IdentityPool] Could not create identity: {:?}", error);
-                    iterations = 0;
-                }
-            };
-        }
-        if current_ready_identities >= self.spec.min_ready_identities {
-            self.create_event(context.clone(), IdentityPoolStatusEnum::Ready).await?;
-            self.update_status(context.clone(), IdentityPoolStatusEnum::Ready).await?;
+        if self.are_pending_jobs(context.clone()).await.unwrap() {
+            warn!("[IdentityPool] Skipping synchornization for {} in namespace {} as there is still one job in progress", self.name_any(), self.namespace().unwrap());
         } else {
-            self.create_event(context.clone(), IdentityPoolStatusEnum::OutOfSync).await?;
-            self.update_status(context.clone(), IdentityPoolStatusEnum::OutOfSync).await?;
-            info!("[IdentityPool] Identity {} in namespace {} failed to create required identities", self.name_any(), self.namespace().unwrap());
+            while current_ready_identities < self.spec.min_ready_identities || iterations > 0 {
+                iterations -= 1;
+                // Invoke Job
+                match self.create_new_identity(context.clone()).await {
+                    Ok(()) => current_ready_identities += 1,
+                    Err(error) => {
+                        error!("[IdentityPool] Could not create identity: {:?}", error);
+                        iterations = 0;
+                    }
+                };
+            }
+            if current_ready_identities >= self.spec.min_ready_identities {
+                self.create_event(context.clone(), IdentityPoolStatusEnum::Ready).await?;
+                self.update_status(context.clone(), IdentityPoolStatusEnum::Ready).await?;
+            } else {
+                self.create_event(context.clone(), IdentityPoolStatusEnum::OutOfSync).await?;
+                self.update_status(context.clone(), IdentityPoolStatusEnum::OutOfSync).await?;
+                info!("[IdentityPool] Identity {} in namespace {} failed to create required identities", self.name_any(), self.namespace().unwrap());
+            }
         }
+
         Ok(Action::requeue(Duration::from_secs(constants::RECONCILE_FREQUENCY)))
     }
 
@@ -419,6 +424,15 @@ impl IdentityPool {
         
     }
 
+    async fn are_pending_jobs(&self, context: Arc<ContextData>) -> Result<bool, Error> {
+        let namespace: String = self.metadata.namespace.as_ref().unwrap().to_owned();
+        let api: Api<Job> = Api::namespaced(context.client.clone(), &namespace);
+        let label_selector: String = format!("{}={},{}={},{}={}", constants::LABEL_KUBERNETES_NAME, context.config.instance.name.to_owned(), constants::LABEL_KUBERNETES_COMPONENT, "create-identity".to_owned(), constants::LABEL_KUBERNETES_IDENTITY_POOL, self.name_any());
+        let lp = ListParams::default().labels(&label_selector);
+        let jobs = api.list(&lp).await?;
+        Ok(jobs.items.len() > 0)
+    }
+
     async fn create_new_identity(&self, context: Arc<ContextData>) -> Result<(), Error> {
         self.create_event(context.clone(), IdentityPoolStatusEnum::CreatingIdentity).await?;
         let identity_name = format!("{}-{}", self.name_any(),  self.status.as_ref().unwrap().size + 1);
@@ -428,6 +442,7 @@ impl IdentityPool {
         let owner_references: Option<Vec<OwnerReference>> = Some(vec![self.controller_owner_ref(&()).unwrap()]);
         let mut labels: BTreeMap<String, String> = utils::common_lables(context.config.instance.name.to_owned(),Some(identity_name.to_owned()), Some("job-create-identity".to_owned()));
         labels.insert(constants::LABEL_KUBERNETES_COMPONENT.to_owned(), "create-identity".to_owned());
+        labels.insert(constants::LABEL_KUBERNETES_IDENTITY_POOL.to_owned(), self.name_any());
         let create_identity_args: Vec<String> = vec![format!("curl {}/create-identity.sh -s | bash", constants::OPERATOR_JOB_SCRIPT_URL.to_owned())];
         let create_resource_args: Vec<String> = vec![format!("curl {}/create-resource.sh -s | bash", constants::OPERATOR_JOB_SCRIPT_URL.to_owned())];
         let env_vars: Vec<EnvVar> = vec![EnvVar {
