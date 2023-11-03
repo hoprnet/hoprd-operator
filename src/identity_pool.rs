@@ -200,23 +200,23 @@ impl IdentityPool {
             match serde_json::from_str::<IdentityPool>(&previous_text) {
                 Ok(previous_identity_pool) => {
                     self.check_inmutable_fields(&previous_identity_pool.spec).unwrap();
-                    // Do modify
-                }
+                    info!("[IdentityPool] Identity pool {identity_pool_name} in namespace {identity_pool_namespace} has been successfully modified");
+                    if self.status.as_ref().unwrap().size - self.status.as_ref().unwrap().locked - self.spec.min_ready_identities < 0 {
+                        let pending = self.spec.min_ready_identities - self.status.as_ref().unwrap().locked - self.status.as_ref().unwrap().size;
+                        self.create_event(context.clone(),IdentityPoolStatusEnum::OutOfSync,Some(pending.to_string())).await?;
+                        self.update_status(context.clone(), IdentityPoolStatusEnum::OutOfSync).await?;
+                        info!("[IdentityPool] Identity {identity_pool_name} in namespace {identity_pool_namespace} requires to create {} new identities", self.spec.min_ready_identities);
+                    }else {
+                        self.create_event(context.clone(),IdentityPoolStatusEnum::Ready, None).await?;
+                        self.update_status(context.clone(), IdentityPoolStatusEnum::Ready).await?;
+                    }
+                },
                 Err(_err) => {
                     error!("[IdentityPool] Could not parse the last applied configuration from {identity_pool_name}.");
                 }
             }
         }
-        info!("[IdentityPool] Identity pool {identity_pool_name} in namespace {identity_pool_namespace} has been successfully modified");
-        if self.status.as_ref().unwrap().size - self.status.as_ref().unwrap().locked - self.spec.min_ready_identities < 0 {
-            let pending = self.spec.min_ready_identities - self.status.as_ref().unwrap().locked - self.status.as_ref().unwrap().size;
-            self.create_event(context.clone(),IdentityPoolStatusEnum::OutOfSync,Some(pending.to_string()),).await?;
-            self.update_status(context.clone(), IdentityPoolStatusEnum::OutOfSync).await?;
-            info!("[IdentityPool] Identity {identity_pool_name} in namespace {identity_pool_namespace} requires to create {} new identities", self.spec.min_ready_identities);
-        }
-        Ok(Action::requeue(Duration::from_secs(
-            constants::RECONCILE_FREQUENCY,
-        )))
+        Ok(Action::requeue(Duration::from_secs(constants::RECONCILE_FREQUENCY)))
     }
 
     // Handle the deletion of IdentityPool resource
