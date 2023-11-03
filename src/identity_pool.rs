@@ -199,10 +199,8 @@ impl IdentityPool {
             }
             if current_ready_identities >= self.spec.min_ready_identities {
                 self.create_event(context.clone(), IdentityPoolStatusEnum::Ready, None).await?;
-                self.update_status(context.clone(), IdentityPoolStatusEnum::Ready).await?;
             } else {
                 self.create_event(context.clone(), IdentityPoolStatusEnum::OutOfSync, Some((self.spec.min_ready_identities - current_ready_identities).to_string())).await?;
-                self.update_status(context.clone(), IdentityPoolStatusEnum::OutOfSync).await?;
                 info!("[IdentityPool] Identity {} in namespace {} failed to create required identities", self.name_any(), self.namespace().unwrap());
             }
         }
@@ -364,7 +362,7 @@ impl IdentityPool {
                 identity_pool_status.status = IdentityPoolStatusEnum::OutOfSync;
             }
             identity_pool_status.size = identity_pool_status.size + 1
-        }else if status.eq(&IdentityPoolStatusEnum::IdentityDeleted)
+        } else if status.eq(&IdentityPoolStatusEnum::IdentityDeleted)
         { 
             if (identity_pool_status.size - identity_pool_status.locked - 1) >= self.spec.min_ready_identities {
                 identity_pool_status.status = IdentityPoolStatusEnum::Ready;

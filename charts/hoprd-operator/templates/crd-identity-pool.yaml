@@ -34,6 +34,14 @@ spec:
           type: string
           description: Identity status
           jsonPath: .status.status
+        - name: Size
+          type: number
+          description: Identity size
+          jsonPath: .status.size
+        - name: Locked
+          type: number
+          description: Identity locked
+          jsonPath: .status.locked
         - name: Age
           type: date
           jsonPath: .metadata.creationTimestamp
