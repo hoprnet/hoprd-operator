@@ -1,0 +1,45 @@
+
+operator:
+  persistence:
+    storageClassName: ceph-ephimeral
+  image:
+    tag: latest
+    pullPolicy: Always
+  extraEnvVars: 
+    - name: RUST_BACKTRACE
+      value: full
+    - name: RUST_LOG
+      value: "hoprd_operator=DEBUG"
+  ingress:
+    ingressClassName: nginx
+    dnsDomain: prod.hoprtech.net
+    annotations:
+      cert-manager.io/cluster-issuer: "linode-issuer"
+      nginx.ingress.kubernetes.io/proxy-connect-timeout: "3600"
+      nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+      nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    namespace: ingress
+    publicIp: 142.132.140.85
+    p2pPorts:
+      min: 9000
+      max: 9100
+    selectorLabels:
+      app.kubernetes.io/component: controller
+      app.kubernetes.io/instance: ingress-nginx
+      app.kubernetes.io/name: ingress-nginx
+adminUI:
+  enabled: true
+  image:
+    tag: latest
+  ingress:
+    enabled: true
+    ingressClassName: nginx
+    hostname: hoprd.prod.hoprtech.net
+    annotations:
+      nginx.ingress.kubernetes.io/server-snippets: |
+          more_set_headers "Content-Security-Policy: upgrade-insecure-requests";
+
+
+
+
+

@@ -2,12 +2,12 @@
 apiVersion: hoprnet.org/v1alpha
 kind: Hoprd
 metadata:
-  name: core-staging-1
+  name: core-rotsee-1
   namespace: rotsee
 spec:
-  version: 2.0.0-rc.11
-  identityPoolName: core-staging
-  identityName: core-staging-1
+  version: providence
+  identityPoolName: core-rotsee
+  identityName: core-rotsee-1
   enabled: true 
   deployment:
     resources: |
@@ -40,6 +40,27 @@ spec:
       host:
         address: !IPv4 0.0.0.0
         port: 3001
+    strategy:
+      on_fail_continue: true
+      allow_recursive: false
+      finalize_channel_closure: true
+      strategies:
+        - !Promiscuous
+          max_channels: 10
+          network_quality_threshold: 0.6
+          new_channel_stake: "1000000 HOPR"
+          minimum_node_balance: "10000000 HOPR"
+          enforce_max_channels: true
+        - !AutoFunding
+          funding_amount: "1000000 HOPR"
+          min_stake_threshold: "100000 HOPR"
+        - !Aggregating
+          aggregation_threshold: 100000
+          unrealized_balance_ratio: 0.9
+          aggregation_timeout: 60
+          aggregate_on_channel_close: true
+        - !AutoRedeeming
+          redeem_only_aggregated: True
     heartbeat:
       variance: 2000
       interval: 20000

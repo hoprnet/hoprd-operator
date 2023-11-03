@@ -196,8 +196,7 @@ impl Hoprd {
         info!(
             "Hoprd node {hoprd_name} in namespace {hoprd_namespace} has been successfully modified"
         );
-        self.create_event(context.clone(), HoprdStatusEnum::Synching)
-            .await?;
+        self.create_event(context.clone(), HoprdStatusEnum::Synching).await?;
         self.update_status(
             context.clone(),
             HoprdStatusEnum::Synching,

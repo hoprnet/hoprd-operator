@@ -4,6 +4,7 @@ use crate::identity_hoprd::IdentityHoprd;
 use crate::identity_pool::IdentityPool;
 use crate::model::Error;
 use crate::operator_config::IngressConfig;
+use base64::{Engine as _, engine::{self, general_purpose}, alphabet};
 use crate::{
     constants,
     hoprd::{Hoprd, HoprdSpec},
@@ -157,6 +158,7 @@ pub async fn build_deployment_spec(
         .to_string()
         .parse::<i32>()
         .unwrap();
+    let encoded_configuration = general_purpose::STANDARD.encode(hoprd_spec.config.to_string());
 
     DeploymentSpec {
             replicas: Some(replicas),
@@ -179,12 +181,15 @@ pub async fn build_deployment_spec(
                             ..EnvVar::default()
                         },
                         EnvVar {
-                            name: constants::HOPRD_CONFIGURATION_FILE_PATH.to_owned(),
-                            value: Some(hoprd_spec.config.to_owned()),
+                            name: constants::HOPRD_CONFIGURATION.to_owned(),
+                            value: Some(encoded_configuration),
                             ..EnvVar::default()
                         }]),
                         command: Some(vec!["/bin/bash".to_owned(), "-c".to_owned()]),
-                        args: Some(vec!["echo $HOPRD_IDENTITY_FILE | base64 -d > /app/hoprd-identity/.hopr-id && echo $HOPRD_CONFIGURATION_FILE_PATH > /app/hoprd-db/config.yaml && ".to_owned()]),
+                        args: Some(vec![format!("{} && {}",
+                            "echo $HOPRD_IDENTITY_FILE | base64 -d > /app/hoprd-identity/.hopr-id", 
+                            "echo $HOPRD_CONFIGURATION | base64 -d > /app/hoprd-identity/config.yaml")
+                        ]),
                         volume_mounts: volume_mounts.to_owned(),
                         ..Container::default()
                     }]),
@@ -196,9 +201,9 @@ pub async fn build_deployment_spec(
                         env: Some(build_env_vars(&identity_pool, &identity_hoprd, hoprd_host)),
                         // command: Some(vec!["/bin/bash".to_owned(), "-c".to_owned()]),
                         // args: Some(vec!["sleep 99999999".to_owned()]),
-                        liveness_probe,
-                        readiness_probe,
-                        startup_probe,
+                        // liveness_probe,
+                        // readiness_probe,
+                        // startup_probe,
                         volume_mounts,
                         resources,
                         ..Container::default()
@@ -424,7 +429,7 @@ fn build_crd_env_var(identity_pool: &IdentityPool, identity_hoprd: &IdentityHopr
 
     env_vars.push(EnvVar {
         name: constants::HOPRD_CONFIGURATION_FILE_PATH.to_owned(),
-        value: Some("/app/hoprd-db/config.yaml".to_owned()),
+        value: Some("/app/hoprd-identity/config.yaml".to_owned()),
         ..EnvVar::default()
     });
 
@@ -451,87 +456,6 @@ fn build_crd_env_var(identity_pool: &IdentityPool, identity_hoprd: &IdentityHopr
         value: Some("true".to_owned()),
         ..EnvVar::default()
     });
-
-    // if config.provider.is_some() {
-    //     env_vars.push(EnvVar {
-    //         name: constants::HOPRD_PROVIDER.to_owned(),
-    //         value: Some(config.provider.as_ref().unwrap().to_string()),
-    //         ..EnvVar::default()
-    //     });
-    // }
-
-    // if config.default_strategy.is_some() {
-    //     env_vars.push(EnvVar {
-    //         name: constants::HOPRD_DEFAULT_STRATEGY.to_owned(),
-    //         value: Some(config.default_strategy.as_ref().unwrap().to_string()),
-    //         ..EnvVar::default()
-    //     });
-    // }
-
-    // if config.max_auto_channels.is_some() {
-    //     env_vars.push(EnvVar {
-    //         name: constants::HOPRD_MAX_AUTOCHANNELS.to_owned(),
-    //         value: Some(config.max_auto_channels.as_ref().unwrap().to_string()),
-    //         ..EnvVar::default()
-    //     });
-    // }
-
-    // if config.auto_redeem_tickets.is_some() {
-    //     env_vars.push(EnvVar {
-    //         name: constants::HOPRD_AUTO_REDEEM_TICKETS.to_owned(),
-    //         value: Some(config.auto_redeem_tickets.as_ref().unwrap().to_string()),
-    //         ..EnvVar::default()
-    //     });
-    // }
-
-    // if config.check_unrealized_balance.is_some() {
-    //     env_vars.push(EnvVar {
-    //         name: constants::HOPRD_CHECK_UNREALIZED_BALANCE.to_owned(),
-    //         value: Some(config.check_unrealized_balance.as_ref().unwrap().to_string(),
-    //         ),
-    //         ..EnvVar::default()
-    //     });
-    // }
-
-    // if config.allow_private_node_connections.is_some() {
-    //     env_vars.push(EnvVar {
-    //         name: constants::HOPRD_ALLOW_PRIVATE_NODE_CONNECTIONS.to_owned(),
-    //         value: Some(config.allow_private_node_connections.as_ref().unwrap().to_string()),
-    //         ..EnvVar::default()
-    //     });
-    // }
-
-    // if config.test_announce_local_address.is_some() {
-    //     env_vars.push(EnvVar {
-    //         name: constants::HOPRD_TEST_ANNOUNCE_LOCAL_ADDRESSES.to_owned(),
-    //         value: Some(config.test_announce_local_address.as_ref().unwrap().to_string()),
-    //         ..EnvVar::default()
-    //     });
-    // }
-
-    // if config.heartbeat_interval.is_some() {
-    //     env_vars.push(EnvVar {
-    //         name: constants::HOPRD_HEARTBEAT_INTERVAL.to_owned(),
-    //         value: Some(config.heartbeat_interval.as_ref().unwrap().to_string()),
-    //         ..EnvVar::default()
-    //     });
-    // }
-
-    // if config.heartbeat_threshold.is_some() {
-    //     env_vars.push(EnvVar {
-    //         name: constants::HOPRD_HEARTBEAT_THRESHOLD.to_owned(),
-    //         value: Some(config.heartbeat_threshold.as_ref().unwrap().to_string()),
-    //         ..EnvVar::default()
-    //     });
-    // }
-
-    // if config.heartbeat_variance.is_some() {
-    //     env_vars.push(EnvVar {
-    //         name: constants::HOPRD_HEARTBEAT_VARIANCE.to_owned(),
-    //         value: Some(config.heartbeat_variance.as_ref().unwrap().to_string()),
-    //         ..EnvVar::default()
-    //     });
-    // }
 
     return env_vars;
 }

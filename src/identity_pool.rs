@@ -162,25 +162,15 @@ impl IdentityPool {
         // - Check that the secret exist and contains the required keys
         // - Does the wallet private key have permissions in Network to register new nodes and create safes ?
         // - Does the wallet private key have enough funds to work ?
-        self.create_event(context.clone(), IdentityPoolStatusEnum::Initialized, None)
-            .await?;
-        self.update_status(context.clone(), IdentityPoolStatusEnum::Initialized)
-            .await?;
+        self.create_event(context.clone(), IdentityPoolStatusEnum::Initialized, None).await?;
+        self.update_status(context.clone(), IdentityPoolStatusEnum::Initialized).await?;
         info!("[IdentityPool] Identity {identity_pool_name} in namespace {identity_pool_namespace} has been successfully created");
         if self.spec.min_ready_identities == 0 {
-            self.create_event(context.clone(), IdentityPoolStatusEnum::Ready, None)
-                .await?;
-            self.update_status(context.clone(), IdentityPoolStatusEnum::Ready)
-                .await?;
+            self.create_event(context.clone(), IdentityPoolStatusEnum::Ready, None).await?;
+            self.update_status(context.clone(), IdentityPoolStatusEnum::Ready).await?;
         } else {
-            self.create_event(
-                context.clone(),
-                IdentityPoolStatusEnum::OutOfSync,
-                Some(self.spec.min_ready_identities.to_string()),
-            )
-            .await?;
-            self.update_status(context.clone(), IdentityPoolStatusEnum::OutOfSync)
-                .await?;
+            self.create_event(context.clone(),IdentityPoolStatusEnum::OutOfSync,Some(self.spec.min_ready_identities.to_string()),).await?;
+            self.update_status(context.clone(), IdentityPoolStatusEnum::OutOfSync).await?;
             info!("[IdentityPool] Identity {identity_pool_name} in namespace {identity_pool_namespace} requires to create {} new identities", self.spec.min_ready_identities);
         }
         Ok(Action::requeue(Duration::from_secs(
@@ -189,11 +179,44 @@ impl IdentityPool {
     }
 
     /// Handle the modification of IdentityPool resource
-    pub async fn modify(&self) -> Result<Action, Error> {
-        error!("[IdentityPool] The resource cannot be modified");
-        Err(Error::OperationNotSupported(
-            format!("[IdentityPool] The resource cannot be modified").to_owned(),
-        ))
+    pub async fn modify(&self, context: Arc<ContextData>) -> Result<Action, Error> {
+        let client: Client = context.client.clone();
+        let identity_pool_namespace: String = self.namespace().unwrap();
+        let identity_pool_name: String = self.name_any();
+        let annotations = utils::get_resource_kinds(
+            client.clone(),
+            utils::ResourceType::IdentityPool,
+            utils::ResourceKind::Annotations,
+            &identity_pool_name,
+            &identity_pool_namespace,
+        ).await;
+        if annotations.contains_key(constants::ANNOTATION_LAST_CONFIGURATION) {
+            let previous_text: String = annotations
+                .get_key_value(constants::ANNOTATION_LAST_CONFIGURATION)
+                .unwrap()
+                .1
+                .parse()
+                .unwrap();
+            match serde_json::from_str::<IdentityPool>(&previous_text) {
+                Ok(previous_identity_pool) => {
+                    self.check_inmutable_fields(&previous_identity_pool.spec).unwrap();
+                    // Do modify
+                }
+                Err(_err) => {
+                    error!("[IdentityPool] Could not parse the last applied configuration from {identity_pool_name}.");
+                }
+            }
+        }
+        info!("[IdentityPool] Identity pool {identity_pool_name} in namespace {identity_pool_namespace} has been successfully modified");
+        if self.status.as_ref().unwrap().size - self.status.as_ref().unwrap().locked - self.spec.min_ready_identities < 0 {
+            let pending = self.spec.min_ready_identities - self.status.as_ref().unwrap().locked - self.status.as_ref().unwrap().size;
+            self.create_event(context.clone(),IdentityPoolStatusEnum::OutOfSync,Some(pending.to_string()),).await?;
+            self.update_status(context.clone(), IdentityPoolStatusEnum::OutOfSync).await?;
+            info!("[IdentityPool] Identity {identity_pool_name} in namespace {identity_pool_namespace} requires to create {} new identities", self.spec.min_ready_identities);
+        }
+        Ok(Action::requeue(Duration::from_secs(
+            constants::RECONCILE_FREQUENCY,
+        )))
     }
 
     // Handle the deletion of IdentityPool resource
@@ -269,6 +292,17 @@ impl IdentityPool {
         Ok(Action::requeue(Duration::from_secs(
             constants::RECONCILE_FREQUENCY,
         )))
+    }
+
+    fn check_inmutable_fields(&self, previous_identity: &IdentityPoolSpec) -> Result<(), Error> {
+        if !self.spec.network.eq(&previous_identity.network)
+        {
+            return Err(Error::HoprdConfigError(format!("[IdentityPool] Configuration is invalid, 'network' field cannot be changed on {}.", self.name_any())));
+        }
+        if !self.spec.secret_name.eq(&previous_identity.secret_name) {
+            return Err(Error::HoprdConfigError(format!("[IdentityPool] Configuration is invalid, 'secret_name' field cannot be changed on {}.", self.name_any())));
+        }
+        Ok(())
     }
 
     /// Adds a finalizer in IdentityPool to prevent deletion of the resource by Kubernetes API and allow the controller to safely manage its deletion

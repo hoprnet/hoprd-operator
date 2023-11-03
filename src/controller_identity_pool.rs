@@ -47,19 +47,10 @@ enum IdentityPoolAction {
 fn determine_action(identity_pool: &IdentityPool) -> IdentityPoolAction {
     return if identity_pool.meta().deletion_timestamp.is_some() {
         IdentityPoolAction::Delete
-    } else if identity_pool
-        .meta()
-        .finalizers
-        .as_ref()
-        .map_or(true, |finalizers| finalizers.is_empty())
+    } else if identity_pool.meta().finalizers.as_ref().map_or(true, |finalizers| finalizers.is_empty())
     {
         IdentityPoolAction::Create
-    } else if identity_pool
-        .status
-        .as_ref()
-        .unwrap()
-        .status
-        .eq(&crate::identity_pool::IdentityPoolStatusEnum::OutOfSync)
+    } else if identity_pool.status.as_ref().unwrap().status.eq(&crate::identity_pool::IdentityPoolStatusEnum::OutOfSync)
     {
         IdentityPoolAction::Sync
     } else {
@@ -68,9 +59,7 @@ fn determine_action(identity_pool: &IdentityPool) -> IdentityPoolAction {
         identity_pool_spec.clone().hash(&mut hasher);
         let hash: String = hasher.finish().to_string();
         let current_checksum = hash.to_string();
-        let previous_checksum: String = identity_pool
-            .status
-            .as_ref()
+        let previous_checksum: String = identity_pool.status.as_ref()
             .map_or("0".to_owned(), |status| status.checksum.to_owned());
         // When the resource is created, does not have previous checksum and needs to be skip the modification because it's being handled already by the creation operation
         if previous_checksum.eq(&"0".to_owned()) || current_checksum.eq(&previous_checksum) {
@@ -88,7 +77,7 @@ async fn reconciler(
     // Performs action as decided by the `determine_action` function.
     return match determine_action(&identity_pool) {
         IdentityPoolAction::Create => identity_pool.create(context.clone()).await,
-        IdentityPoolAction::Modify => identity_pool.modify().await,
+        IdentityPoolAction::Modify => identity_pool.modify(context.clone()).await,
         IdentityPoolAction::Sync => identity_pool.sync(context.clone()).await,
         IdentityPoolAction::Delete => identity_pool.delete(context.clone()).await,
         // The resource is already in desired state, do nothing and re-check after 10 seconds

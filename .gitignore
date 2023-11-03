@@ -34,6 +34,5 @@ target/
 # MSVC Windows builds of rustc generate these, which store debugging information
 *.pdb
 
-charts/*/values-testing*.yaml
-charts/hoprd-operator/charts/*.tgz
 test-data/identity-pool-secret.yaml
+*hoprd-*.tgz

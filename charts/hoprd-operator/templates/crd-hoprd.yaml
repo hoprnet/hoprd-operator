@@ -93,14 +93,11 @@ spec:
                   type: string
                   enum:
                   - Initializing
-                  - Creating
-                  - RegisteringInNetwork
-                  - Funding
-                  - Stopped
                   - Running
-                  - Reloading
-                  - Deleting
+                  - Stopped
+                  - Synching
                   - OutOfSync
+                  - Deleting
                 identityName:
                   type: string
                   description: Name of the HoprdNode
