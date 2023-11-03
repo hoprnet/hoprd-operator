@@ -1,23 +1,28 @@
-use k8s_openapi::api::apps::v1::{Deployment, DeploymentSpec, DeploymentStrategy};
-use k8s_openapi::api::core::v1::{
-    Container, ContainerPort, EnvVar, PodSpec, PodTemplateSpec, Probe,
-     Volume, VolumeMount, PersistentVolumeClaimVolumeSource, ResourceRequirements, EmptyDirVolumeSource, EnvVarSource, SecretKeySelector,
-};
-use tracing::info;
-use k8s_openapi::apimachinery::pkg::apis::meta::v1::{LabelSelector, OwnerReference};
-use kube::api::{DeleteParams, ObjectMeta, PostParams, Patch, PatchParams};
-use kube::runtime::wait::{await_condition, conditions};
-use kube::{Api, Client, ResourceExt, Resource};
-use serde_json::json;
-use std::collections::BTreeMap;
-use std::sync::Arc;
 use crate::context_data::ContextData;
 use crate::hoprd_deployment_spec::HoprdDeploymentSpec;
 use crate::identity_hoprd::IdentityHoprd;
 use crate::identity_pool::IdentityPool;
 use crate::model::Error;
 use crate::operator_config::IngressConfig;
-use crate::{ constants, hoprd::{ Hoprd, HoprdSpec},utils};
+use crate::{
+    constants,
+    hoprd::{Hoprd, HoprdSpec},
+    utils,
+};
+use k8s_openapi::api::apps::v1::{Deployment, DeploymentSpec, DeploymentStrategy};
+use k8s_openapi::api::core::v1::{
+    Container, ContainerPort, EmptyDirVolumeSource, EnvVar, EnvVarSource,
+    PersistentVolumeClaimVolumeSource, PodSpec, PodTemplateSpec, Probe, ResourceRequirements,
+    SecretKeySelector, Volume, VolumeMount,
+};
+use k8s_openapi::apimachinery::pkg::apis::meta::v1::{LabelSelector, OwnerReference};
+use kube::api::{DeleteParams, ObjectMeta, Patch, PatchParams, PostParams};
+use kube::runtime::wait::{await_condition, conditions};
+use kube::{Api, Client, Resource, ResourceExt};
+use serde_json::json;
+use std::collections::BTreeMap;
+use std::sync::Arc;
+use tracing::info;
 
 /// Creates a new deployment for running the hoprd node,
 ///
@@ -25,24 +30,62 @@ use crate::{ constants, hoprd::{ Hoprd, HoprdSpec},utils};
 /// - `client` - A Kubernetes client to create the deployment with.
 /// - `hoprd` - Details about the hoprd configuration node
 ///
-pub async fn create_deployment(context_data: Arc<ContextData>, hoprd: &Hoprd, identity_hoprd: &IdentityHoprd, p2p_port: i32, ingress_config: IngressConfig) -> Result<Deployment, kube::Error> {
+pub async fn create_deployment(
+    context_data: Arc<ContextData>,
+    hoprd: &Hoprd,
+    identity_hoprd: &IdentityHoprd,
+    p2p_port: i32,
+    ingress_config: IngressConfig,
+) -> Result<Deployment, kube::Error> {
     let namespace: String = hoprd.namespace().unwrap();
-    let name: String= hoprd.name_any();
-    let owner_references: Option<Vec<OwnerReference>> = Some(vec![hoprd.controller_owner_ref(&()).unwrap()]);
-    let identity_pool: IdentityPool = identity_hoprd.get_identity_pool(context_data.client.clone()).await.unwrap();
+    let name: String = hoprd.name_any();
+    let owner_references: Option<Vec<OwnerReference>> =
+        Some(vec![hoprd.controller_owner_ref(&()).unwrap()]);
+    let identity_pool: IdentityPool = identity_hoprd
+        .get_identity_pool(context_data.client.clone())
+        .await
+        .unwrap();
 
-    let mut labels: BTreeMap<String, String> = utils::common_lables(context_data.config.instance.name.to_owned(),Some(name.to_owned()), Some("node".to_owned()));
-    labels.insert(constants::LABEL_NODE_NETWORK.to_owned(), identity_pool.spec.network.clone());
-    labels.insert(constants::LABEL_KUBERNETES_IDENTITY_POOL.to_owned(), identity_pool.name_any());    
-    labels.insert(constants::LABEL_NODE_NATIVE_ADDRESS.to_owned(), identity_hoprd.spec.native_address.to_owned());
-    labels.insert(constants::LABEL_NODE_PEER_ID.to_owned(), identity_hoprd.spec.peer_id.to_owned());
-    labels.insert(constants::LABEL_NODE_SAFE_ADDRESS.to_owned(), identity_hoprd.spec.safe_address.to_owned());
-    labels.insert(constants::LABEL_NODE_MODULE_ADDRESS.to_owned(), identity_hoprd.spec.module_address.to_owned());
-    let hoprd_host = format!("{}:{}",ingress_config.public_ip.unwrap(), p2p_port);
+    let mut labels: BTreeMap<String, String> = utils::common_lables(
+        context_data.config.instance.name.to_owned(),
+        Some(name.to_owned()),
+        Some("node".to_owned()),
+    );
+    labels.insert(
+        constants::LABEL_NODE_NETWORK.to_owned(),
+        identity_pool.spec.network.clone(),
+    );
+    labels.insert(
+        constants::LABEL_KUBERNETES_IDENTITY_POOL.to_owned(),
+        identity_pool.name_any(),
+    );
+    labels.insert(
+        constants::LABEL_NODE_NATIVE_ADDRESS.to_owned(),
+        identity_hoprd.spec.native_address.to_owned(),
+    );
+    labels.insert(
+        constants::LABEL_NODE_PEER_ID.to_owned(),
+        identity_hoprd.spec.peer_id.to_owned(),
+    );
+    labels.insert(
+        constants::LABEL_NODE_SAFE_ADDRESS.to_owned(),
+        identity_hoprd.spec.safe_address.to_owned(),
+    );
+    labels.insert(
+        constants::LABEL_NODE_MODULE_ADDRESS.to_owned(),
+        identity_hoprd.spec.module_address.to_owned(),
+    );
+    let hoprd_host = format!("{}:{}", ingress_config.public_ip.unwrap(), p2p_port);
 
     // Propagating ClusterHopd instance
     if hoprd.labels().contains_key(constants::LABEL_NODE_CLUSTER) {
-        let cluster_hoprd: String = hoprd.labels().get_key_value(constants::LABEL_NODE_CLUSTER).unwrap().1.parse().unwrap();
+        let cluster_hoprd: String = hoprd
+            .labels()
+            .get_key_value(constants::LABEL_NODE_CLUSTER)
+            .unwrap()
+            .1
+            .parse()
+            .unwrap();
         labels.insert(constants::LABEL_NODE_CLUSTER.to_owned(), cluster_hoprd);
     }
 
@@ -55,7 +98,17 @@ pub async fn create_deployment(context_data: Arc<ContextData>, hoprd: &Hoprd, id
             owner_references,
             ..ObjectMeta::default()
         },
-        spec: Some(build_deployment_spec(labels, &hoprd.spec, identity_pool, identity_hoprd, &name, &hoprd_host).await),
+        spec: Some(
+            build_deployment_spec(
+                labels,
+                &hoprd.spec,
+                identity_pool,
+                identity_hoprd,
+                &name,
+                &hoprd_host,
+            )
+            .await,
+        ),
         ..Deployment::default()
     };
 
@@ -64,16 +117,46 @@ pub async fn create_deployment(context_data: Arc<ContextData>, hoprd: &Hoprd, id
     api.create(&PostParams::default(), &deployment).await
 }
 
-pub async fn build_deployment_spec(labels: BTreeMap<String, String>, hoprd_spec: &HoprdSpec, identity_pool: IdentityPool, identity_hoprd: &IdentityHoprd, pvc_name: &String, hoprd_host: &String) -> DeploymentSpec{
-    let image = format!("{}/{}:{}", constants::HOPR_DOCKER_REGISTRY.to_owned(), constants::HOPR_DOCKER_IMAGE_NAME.to_owned(), &hoprd_spec.version.to_owned());
-    let replicas: i32 = if hoprd_spec.enabled.unwrap_or(true) { 1 } else { 0 };
-    let resources: Option<ResourceRequirements> = Some(HoprdDeploymentSpec::get_resource_requirements(hoprd_spec.deployment.clone()));
-    let liveness_probe: Option<Probe> = Some(HoprdDeploymentSpec::get_liveness_probe(hoprd_spec.deployment.clone()));
-    let readiness_probe: Option<Probe> = Some(HoprdDeploymentSpec::get_readiness_probe(hoprd_spec.deployment.clone()));
-    let startup_probe: Option<Probe> = Some(HoprdDeploymentSpec::get_startup_probe(hoprd_spec.deployment.clone()));
+pub async fn build_deployment_spec(
+    labels: BTreeMap<String, String>,
+    hoprd_spec: &HoprdSpec,
+    identity_pool: IdentityPool,
+    identity_hoprd: &IdentityHoprd,
+    pvc_name: &String,
+    hoprd_host: &String,
+) -> DeploymentSpec {
+    let image = format!(
+        "{}/{}:{}",
+        constants::HOPR_DOCKER_REGISTRY.to_owned(),
+        constants::HOPR_DOCKER_IMAGE_NAME.to_owned(),
+        &hoprd_spec.version.to_owned()
+    );
+    let replicas: i32 = if hoprd_spec.enabled.unwrap_or(true) {
+        1
+    } else {
+        0
+    };
+    let resources: Option<ResourceRequirements> = Some(
+        HoprdDeploymentSpec::get_resource_requirements(hoprd_spec.deployment.clone()),
+    );
+    let liveness_probe: Option<Probe> = Some(HoprdDeploymentSpec::get_liveness_probe(
+        hoprd_spec.deployment.clone(),
+    ));
+    let readiness_probe: Option<Probe> = Some(HoprdDeploymentSpec::get_readiness_probe(
+        hoprd_spec.deployment.clone(),
+    ));
+    let startup_probe: Option<Probe> = Some(HoprdDeploymentSpec::get_startup_probe(
+        hoprd_spec.deployment.clone(),
+    ));
     let volume_mounts: Option<Vec<VolumeMount>> = build_volume_mounts();
-    let port = hoprd_host.split(':').collect::<Vec<&str>>().get(1).unwrap().to_string().parse::<i32>().unwrap();
-    
+    let port = hoprd_host
+        .split(':')
+        .collect::<Vec<&str>>()
+        .get(1)
+        .unwrap()
+        .to_string()
+        .parse::<i32>()
+        .unwrap();
 
     DeploymentSpec {
             replicas: Some(replicas),
@@ -132,23 +215,63 @@ pub async fn build_deployment_spec(labels: BTreeMap<String, String>, hoprd_spec:
         }
 }
 
-pub async fn modify_deployment(context_data: Arc<ContextData>, deployment_name: &str, namespace: &str, hoprd_spec: &HoprdSpec, identity_hoprd: &IdentityHoprd) -> Result<Deployment, kube::Error> {
-
+pub async fn modify_deployment(
+    context_data: Arc<ContextData>,
+    deployment_name: &str,
+    namespace: &str,
+    hoprd_spec: &HoprdSpec,
+    identity_hoprd: &IdentityHoprd,
+) -> Result<Deployment, kube::Error> {
     let api: Api<Deployment> = Api::namespaced(context_data.client.clone(), namespace);
-    let hoprd_host = api.get(deployment_name).await.unwrap()
-        .spec.unwrap()
-        .template.spec.unwrap()
-        .containers.first().as_ref().unwrap()
-        .env.as_ref().unwrap().iter()
-        .find(|&env_var| env_var.name.eq(&constants::HOPRD_HOST.to_owned())).unwrap()
-        .value.as_ref().unwrap().to_owned();
-    let mut labels: BTreeMap<String, String> = utils::common_lables(context_data.config.instance.name.to_owned(),Some(deployment_name.to_owned()), Some("node".to_owned()));
-    labels.insert(constants::LABEL_KUBERNETES_COMPONENT.to_owned(), "node".to_owned());
-    let identity_pool: IdentityPool = identity_hoprd.get_identity_pool(context_data.client.clone()).await.unwrap();
-    let spec = build_deployment_spec(labels, hoprd_spec, identity_pool, identity_hoprd, &deployment_name.to_owned(), &hoprd_host).await;
-    let change_set =json!({ "spec": spec });
+    let hoprd_host = api
+        .get(deployment_name)
+        .await
+        .unwrap()
+        .spec
+        .unwrap()
+        .template
+        .spec
+        .unwrap()
+        .containers
+        .first()
+        .as_ref()
+        .unwrap()
+        .env
+        .as_ref()
+        .unwrap()
+        .iter()
+        .find(|&env_var| env_var.name.eq(&constants::HOPRD_HOST.to_owned()))
+        .unwrap()
+        .value
+        .as_ref()
+        .unwrap()
+        .to_owned();
+    let mut labels: BTreeMap<String, String> = utils::common_lables(
+        context_data.config.instance.name.to_owned(),
+        Some(deployment_name.to_owned()),
+        Some("node".to_owned()),
+    );
+    labels.insert(
+        constants::LABEL_KUBERNETES_COMPONENT.to_owned(),
+        "node".to_owned(),
+    );
+    let identity_pool: IdentityPool = identity_hoprd
+        .get_identity_pool(context_data.client.clone())
+        .await
+        .unwrap();
+    let spec = build_deployment_spec(
+        labels,
+        hoprd_spec,
+        identity_pool,
+        identity_hoprd,
+        &deployment_name.to_owned(),
+        &hoprd_host,
+    )
+    .await;
+    let change_set = json!({ "spec": spec });
     let patch = &Patch::Merge(change_set);
-    api.patch(&deployment_name, &PatchParams::default(),patch).await
+    api.patch(&deployment_name, &PatchParams::default(), patch)
+        .await
 }
 
 /// Deletes an existing deployment.
@@ -161,12 +284,16 @@ pub async fn modify_deployment(context_data: Arc<ContextData>, deployment_name: 
 pub async fn delete_depoyment(client: Client, name: &str, namespace: &str) -> Result<(), Error> {
     let api: Api<Deployment> = Api::namespaced(client, namespace);
     if let Some(deployment) = api.get_opt(&name).await? {
-        let uid = deployment.metadata.uid.unwrap();        
+        let uid = deployment.metadata.uid.unwrap();
         api.delete(name, &DeleteParams::default()).await?;
-        await_condition(api, &name.to_owned(), conditions::is_deleted(&uid)).await.unwrap();
+        await_condition(api, &name.to_owned(), conditions::is_deleted(&uid))
+            .await
+            .unwrap();
         Ok(info!("Deployment {name} successfully deleted"))
     } else {
-        Ok(info!("Deployment {name} in namespace {namespace} about to delete not found"))
+        Ok(info!(
+            "Deployment {name} in namespace {namespace} about to delete not found"
+        ))
     }
 }
 
@@ -187,7 +314,7 @@ fn build_volume_mounts() -> Option<Vec<VolumeMount>> {
 }
 
 /// Builds the struct Volume to be included as part of the PodSpec
-/// 
+///
 /// # Arguments
 /// - `secret` - Secret struct used to build the volume for HOPRD_IDENTITY path
 async fn build_volumes(pvc_name: &String) -> Vec<Volume> {
@@ -202,7 +329,7 @@ async fn build_volumes(pvc_name: &String) -> Vec<Volume> {
         name: "hoprd-db".to_owned(),
         persistent_volume_claim: Some(PersistentVolumeClaimVolumeSource {
             claim_name: pvc_name.to_owned(),
-            read_only: Some(false)
+            read_only: Some(false),
         }),
         ..Volume::default()
     });
@@ -242,7 +369,11 @@ fn build_ports(p2p_port: i32) -> Vec<ContainerPort> {
 
 ///Build struct environment variable
 ///
-fn build_env_vars(identity_pool: &IdentityPool, identity_hoprd: &IdentityHoprd, hoprd_host: &String) -> Vec<EnvVar> {
+fn build_env_vars(
+    identity_pool: &IdentityPool,
+    identity_hoprd: &IdentityHoprd,
+    hoprd_host: &String,
+) -> Vec<EnvVar> {
     let mut env_vars = build_secret_env_var(identity_pool);
     env_vars.extend_from_slice(&build_crd_env_var(identity_pool, identity_hoprd));
     env_vars.extend_from_slice(&build_default_env_var(hoprd_host));
@@ -250,7 +381,7 @@ fn build_env_vars(identity_pool: &IdentityPool, identity_hoprd: &IdentityHoprd, 
 }
 
 /// Build environment variables from secrets
-/// 
+///
 /// # Arguments
 /// - `secret` - Secret struct used to build HOPRD_PASSWORD and HOPRD_API_TOKEN
 fn build_secret_env_var(identity_pool: &IdentityPool) -> Vec<EnvVar> {
@@ -315,13 +446,11 @@ fn build_crd_env_var(identity_pool: &IdentityPool, identity_hoprd: &IdentityHopr
         ..EnvVar::default()
     });
 
-
     env_vars.push(EnvVar {
         name: constants::HOPRD_ANNOUNCE.to_owned(),
         value: Some("true".to_owned()),
         ..EnvVar::default()
     });
-
 
     // if config.provider.is_some() {
     //     env_vars.push(EnvVar {
@@ -403,7 +532,6 @@ fn build_crd_env_var(identity_pool: &IdentityPool, identity_hoprd: &IdentityHopr
     //         ..EnvVar::default()
     //     });
     // }
-
 
     return env_vars;
 }

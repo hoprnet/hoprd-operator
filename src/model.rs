@@ -1,5 +1,3 @@
-
-
 /// All errors possible to occur during reconciliation
 #[derive(Debug, thiserror::Error)]
 pub enum Error {

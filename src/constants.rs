@@ -3,7 +3,8 @@ pub const RECONCILE_FREQUENCY: u64 = 10;
 pub const OPERATOR_ENVIRONMENT: &str = "OPERATOR_ENVIRONMENT";
 pub const OPERATOR_FINALIZER: &str = "hoprds.hoprnet.org/finalizer";
 pub const OPERATOR_JOB_TIMEOUT: u64 = 300;
-pub const OPERATOR_JOB_SCRIPT_URL: &str = "https://raw.githubusercontent.com/hoprnet/hoprd-operator/ausias/refactor-operator/scripts";
+pub const OPERATOR_JOB_SCRIPT_URL: &str =
+    "https://raw.githubusercontent.com/hoprnet/hoprd-operator/ausias/refactor-operator/scripts";
 // This value `OPERATOR_NODE_SYNC_TIMEOUT` should be lower than 295
 pub const OPERATOR_NODE_SYNC_TIMEOUT: u32 = 290;
 pub const OPERATOR_P2P_MIN_PORT: &str = "9000";
@@ -12,7 +13,6 @@ pub const IDENTITY_POOL_WALLET_PRIVATE_KEY_REF_KEY: &str = "DEPLOYER_PRIVATE_KEY
 pub const IDENTITY_POOL_IDENTITY_PASSWORD_REF_KEY: &str = "IDENTITY_PASSWORD";
 pub const IDENTITY_POOL_API_TOKEN_REF_KEY: &str = "HOPRD_API_TOKEN";
 pub const IDENTITY_POOL_METRICS_PASSWORD_REF_KEY: &str = "METRICS_PASSWORD";
-
 
 // Annotations
 pub const ANNOTATION_LAST_CONFIGURATION: &str = "kubectl.kubernetes.io/last-applied-configuration";

@@ -1,19 +1,28 @@
-
 use futures::StreamExt;
 use k8s_openapi::api::core::v1::PersistentVolumeClaim;
 use kube::{
     api::Api,
     client::Client,
     runtime::{
-        controller::{Action, Controller}, watcher::Config
+        controller::{Action, Controller},
+        watcher::Config,
     },
-    Resource, Result
+    Resource, Result,
 };
-use tracing::error;
-use std::{sync::Arc, collections::hash_map::DefaultHasher, hash::{Hash, Hasher}};
+use std::{
+    collections::hash_map::DefaultHasher,
+    hash::{Hash, Hasher},
+    sync::Arc,
+};
 use tokio::time::Duration;
+use tracing::error;
 
-use crate::{ constants::{self}, identity_hoprd::{IdentityHoprd, IdentityHoprdSpec}, context_data::ContextData, model::Error};
+use crate::{
+    constants::{self},
+    context_data::ContextData,
+    identity_hoprd::{IdentityHoprd, IdentityHoprdSpec},
+    model::Error,
+};
 
 /// Action to be taken upon an `IdentityHoprd` resource during reconciliation
 enum IdentityHoprdAction {
@@ -49,7 +58,10 @@ fn determine_action(identity_hoprd: &IdentityHoprd) -> IdentityHoprdAction {
         identity_spec.clone().hash(&mut hasher);
         let hash: String = hasher.finish().to_string();
         let current_checksum = hash.to_string();
-        let previous_checksum: String = identity_hoprd.status.as_ref().map_or("0".to_owned(), |status| status.checksum.to_owned());
+        let previous_checksum: String = identity_hoprd
+            .status
+            .as_ref()
+            .map_or("0".to_owned(), |status| status.checksum.to_owned());
         // When the resource is created, does not have previous checksum and needs to be skip the modification because it's being handled already by the creation operation
         if previous_checksum.eq(&"0".to_owned()) || current_checksum.eq(&previous_checksum) {
             IdentityHoprdAction::NoOp
@@ -59,17 +71,21 @@ fn determine_action(identity_hoprd: &IdentityHoprd) -> IdentityHoprdAction {
     };
 }
 
-async fn reconciler(identity_hoprd: Arc<IdentityHoprd>, context: Arc<ContextData>) -> Result<Action, Error> {
+async fn reconciler(
+    identity_hoprd: Arc<IdentityHoprd>,
+    context: Arc<ContextData>,
+) -> Result<Action, Error> {
     // Performs action as decided by the `determine_action` function.
     return match determine_action(&identity_hoprd) {
         IdentityHoprdAction::Create => identity_hoprd.create(context.clone()).await,
         IdentityHoprdAction::Modify => identity_hoprd.modify().await,
         IdentityHoprdAction::Delete => identity_hoprd.delete(context.clone()).await,
         // The resource is already in desired state, do nothing and re-check after 10 seconds
-        IdentityHoprdAction::NoOp => Ok(Action::requeue(Duration::from_secs(constants::RECONCILE_FREQUENCY))),
+        IdentityHoprdAction::NoOp => Ok(Action::requeue(Duration::from_secs(
+            constants::RECONCILE_FREQUENCY,
+        ))),
     };
 }
-
 
 /// Actions to be taken when a reconciliation fails - for whatever reason.
 /// Prints out the error to `stderr` and requeues the resource for another reconciliation after
@@ -79,11 +95,17 @@ async fn reconciler(identity_hoprd: Arc<IdentityHoprd>, context: Arc<ContextData
 /// - `identity_hoprd`: The erroneous resource.
 /// - `error`: A reference to the `kube::Error` that occurred during reconciliation.
 /// - `_context`: Unused argument. Context Data "injected" automatically by kube-rs.
-pub fn on_error(identity_hoprd: Arc<IdentityHoprd>, error: &Error, _context: Arc<ContextData>) -> Action {
-    error!("[IdentityHoprd] Reconciliation error:\n{:?}.\n{:?}", error, identity_hoprd);
+pub fn on_error(
+    identity_hoprd: Arc<IdentityHoprd>,
+    error: &Error,
+    _context: Arc<ContextData>,
+) -> Action {
+    error!(
+        "[IdentityHoprd] Reconciliation error:\n{:?}.\n{:?}",
+        error, identity_hoprd
+    );
     Action::requeue(Duration::from_secs(constants::RECONCILE_FREQUENCY))
 }
-
 
 /// Initialize the controller
 pub async fn run(client: Client, context_data: Arc<ContextData>) {
@@ -101,7 +123,10 @@ pub async fn run(client: Client, context_data: Arc<ContextData>) {
                     let err_string = reconciliation_err.to_string();
                     if !err_string.contains("that was not found in local store") {
                         // https://github.com/kube-rs/kube/issues/712
-                            error!("[IdentityHoprd] Reconciliation error: {:?}", reconciliation_err)
+                        error!(
+                            "[IdentityHoprd] Reconciliation error: {:?}",
+                            reconciliation_err
+                        )
                     }
                 }
             }
