@@ -463,7 +463,7 @@ dependencies = [
 
 [[package]]
 name = "hoprd_operator"
-version = "0.1.47"
+version = "0.2.0"
 dependencies = [
  "async-recursion",
  "base64 0.21.5",

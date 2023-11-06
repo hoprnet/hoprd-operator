@@ -28,10 +28,10 @@ helm-upgrade: ## Update helm-chart templates into cluster and remove deployment 
 	kubectl delete deployment -n hoprd-operator hoprd-operator-controller
 
 helm-package-operator: ## Creates helm package for operator Hoprd
-	helm package charts/hoprd-operator --version 0.0.1
+	helm package charts/hoprd-operator --version 0.2.0
 
 helm-package-cluster: ## Creates helm package for operator ClusterHoprd
-	helm package charts/cluster-hoprd --version 0.0.1
+	helm package charts/cluster-hoprd --version 0.2.0
 
 helm-publish-operator: ## Deploys helm package to GCP artifact registry
 	helm push hoprd-operator-0.0.1.tgz oci://europe-west3-docker.pkg.dev/hoprassociation/helm-charts

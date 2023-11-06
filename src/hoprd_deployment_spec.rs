@@ -72,41 +72,41 @@ impl HoprdDeploymentSpec {
         resource_requirements
     }
 
-    pub fn get_liveness_probe(hoprd_deployment_spec: Option<HoprdDeploymentSpec>) -> Probe {
-        let default_deployment_spec = HoprdDeploymentSpec::default();
-        let hoprd_deployment_spec =
-            hoprd_deployment_spec.unwrap_or(default_deployment_spec.clone());
-        let liveness_probe_string = hoprd_deployment_spec
-            .liveness_probe
-            .as_ref()
-            .unwrap_or(&default_deployment_spec.liveness_probe.as_ref().unwrap());
-        let liveness_probe: Probe = serde_yaml::from_str(liveness_probe_string).unwrap();
-        liveness_probe
-    }
+    // pub fn get_liveness_probe(hoprd_deployment_spec: Option<HoprdDeploymentSpec>) -> Probe {
+    //     let default_deployment_spec = HoprdDeploymentSpec::default();
+    //     let hoprd_deployment_spec =
+    //         hoprd_deployment_spec.unwrap_or(default_deployment_spec.clone());
+    //     let liveness_probe_string = hoprd_deployment_spec
+    //         .liveness_probe
+    //         .as_ref()
+    //         .unwrap_or(&default_deployment_spec.liveness_probe.as_ref().unwrap());
+    //     let liveness_probe: Probe = serde_yaml::from_str(liveness_probe_string).unwrap();
+    //     liveness_probe
+    // }
 
-    pub fn get_startup_probe(hoprd_deployment_spec: Option<HoprdDeploymentSpec>) -> Probe {
-        let default_deployment_spec = HoprdDeploymentSpec::default();
-        let hoprd_deployment_spec =
-            hoprd_deployment_spec.unwrap_or(default_deployment_spec.clone());
-        let startup_probe_string = hoprd_deployment_spec
-            .startup_probe
-            .as_ref()
-            .unwrap_or(&default_deployment_spec.startup_probe.as_ref().unwrap());
-        let startup_probe: Probe = serde_yaml::from_str(startup_probe_string).unwrap();
-        startup_probe
-    }
+    // pub fn get_startup_probe(hoprd_deployment_spec: Option<HoprdDeploymentSpec>) -> Probe {
+    //     let default_deployment_spec = HoprdDeploymentSpec::default();
+    //     let hoprd_deployment_spec =
+    //         hoprd_deployment_spec.unwrap_or(default_deployment_spec.clone());
+    //     let startup_probe_string = hoprd_deployment_spec
+    //         .startup_probe
+    //         .as_ref()
+    //         .unwrap_or(&default_deployment_spec.startup_probe.as_ref().unwrap());
+    //     let startup_probe: Probe = serde_yaml::from_str(startup_probe_string).unwrap();
+    //     startup_probe
+    // }
 
-    pub fn get_readiness_probe(hoprd_deployment_spec: Option<HoprdDeploymentSpec>) -> Probe {
-        let default_deployment_spec = HoprdDeploymentSpec::default();
-        let hoprd_deployment_spec =
-            hoprd_deployment_spec.unwrap_or(default_deployment_spec.clone());
-        let readiness_probe_string = hoprd_deployment_spec
-            .readiness_probe
-            .as_ref()
-            .unwrap_or(&default_deployment_spec.readiness_probe.as_ref().unwrap());
-        let readiness_probe: Probe = serde_yaml::from_str(readiness_probe_string).unwrap();
-        readiness_probe
-    }
+    // pub fn get_readiness_probe(hoprd_deployment_spec: Option<HoprdDeploymentSpec>) -> Probe {
+    //     let default_deployment_spec = HoprdDeploymentSpec::default();
+    //     let hoprd_deployment_spec =
+    //         hoprd_deployment_spec.unwrap_or(default_deployment_spec.clone());
+    //     let readiness_probe_string = hoprd_deployment_spec
+    //         .readiness_probe
+    //         .as_ref()
+    //         .unwrap_or(&default_deployment_spec.readiness_probe.as_ref().unwrap());
+    //     let readiness_probe: Probe = serde_yaml::from_str(readiness_probe_string).unwrap();
+    //     readiness_probe
+    // }
 }
 #[derive(Serialize, Debug, Deserialize, PartialEq, Clone, JsonSchema, Hash)]
 pub struct EnablingFlag {

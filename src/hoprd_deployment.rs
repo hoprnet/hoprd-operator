@@ -4,7 +4,7 @@ use crate::identity_hoprd::IdentityHoprd;
 use crate::identity_pool::IdentityPool;
 use crate::model::Error;
 use crate::operator_config::IngressConfig;
-use base64::{Engine as _, engine::{self, general_purpose}, alphabet};
+use base64::{Engine as _, engine::general_purpose};
 use crate::{
     constants,
     hoprd::{Hoprd, HoprdSpec},
@@ -13,7 +13,7 @@ use crate::{
 use k8s_openapi::api::apps::v1::{Deployment, DeploymentSpec, DeploymentStrategy};
 use k8s_openapi::api::core::v1::{
     Container, ContainerPort, EmptyDirVolumeSource, EnvVar, EnvVarSource,
-    PersistentVolumeClaimVolumeSource, PodSpec, PodTemplateSpec, Probe, ResourceRequirements,
+    PersistentVolumeClaimVolumeSource, PodSpec, PodTemplateSpec, ResourceRequirements,
     SecretKeySelector, Volume, VolumeMount,
 };
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::{LabelSelector, OwnerReference};
@@ -140,15 +140,15 @@ pub async fn build_deployment_spec(
     let resources: Option<ResourceRequirements> = Some(
         HoprdDeploymentSpec::get_resource_requirements(hoprd_spec.deployment.clone()),
     );
-    let liveness_probe: Option<Probe> = Some(HoprdDeploymentSpec::get_liveness_probe(
-        hoprd_spec.deployment.clone(),
-    ));
-    let readiness_probe: Option<Probe> = Some(HoprdDeploymentSpec::get_readiness_probe(
-        hoprd_spec.deployment.clone(),
-    ));
-    let startup_probe: Option<Probe> = Some(HoprdDeploymentSpec::get_startup_probe(
-        hoprd_spec.deployment.clone(),
-    ));
+    // let liveness_probe: Option<Probe> = Some(HoprdDeploymentSpec::get_liveness_probe(
+    //     hoprd_spec.deployment.clone(),
+    // ));
+    // let readiness_probe: Option<Probe> = Some(HoprdDeploymentSpec::get_readiness_probe(
+    //     hoprd_spec.deployment.clone(),
+    // ));
+    // let startup_probe: Option<Probe> = Some(HoprdDeploymentSpec::get_startup_probe(
+    //     hoprd_spec.deployment.clone(),
+    // ));
     let volume_mounts: Option<Vec<VolumeMount>> = build_volume_mounts();
     let port = hoprd_host
         .split(':')
@@ -228,29 +228,11 @@ pub async fn modify_deployment(
     identity_hoprd: &IdentityHoprd,
 ) -> Result<Deployment, kube::Error> {
     let api: Api<Deployment> = Api::namespaced(context_data.client.clone(), namespace);
-    let hoprd_host = api
-        .get(deployment_name)
-        .await
-        .unwrap()
-        .spec
-        .unwrap()
-        .template
-        .spec
-        .unwrap()
-        .containers
-        .first()
-        .as_ref()
-        .unwrap()
-        .env
-        .as_ref()
-        .unwrap()
-        .iter()
-        .find(|&env_var| env_var.name.eq(&constants::HOPRD_HOST.to_owned()))
-        .unwrap()
-        .value
-        .as_ref()
-        .unwrap()
-        .to_owned();
+    let hoprd_host = api.get(deployment_name).await.unwrap()
+        .spec.unwrap().template.spec.unwrap().containers.first().as_ref().unwrap()
+        .env.as_ref().unwrap().iter()
+        .find(|&env_var| env_var.name.eq(&constants::HOPRD_HOST.to_owned())).unwrap()
+        .value.as_ref().unwrap().to_owned();
     let mut labels: BTreeMap<String, String> = utils::common_lables(
         context_data.config.instance.name.to_owned(),
         Some(deployment_name.to_owned()),
