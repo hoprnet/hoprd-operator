@@ -19,9 +19,13 @@ pub async fn create_rbac(
     name: &String,
     owner_references: Option<Vec<OwnerReference>>,
 ) -> Result<(), Error> {
+    info!("Step 1");
     create_service_account(context_data.clone(), namespace,name, owner_references.to_owned()).await.unwrap();
+    info!("Step 2");
     create_role(context_data.clone(), namespace, name, owner_references.to_owned()).await.unwrap();
+    info!("Step 3");
     create_role_binding(context_data.clone(), namespace, name, owner_references.to_owned()).await.unwrap();
+    info!("Step 4");
     Ok(())
 }
 
@@ -47,7 +51,7 @@ async fn create_service_account(context_data: Arc<ContextData>, namespace: &Stri
         ..ServiceAccount::default()
     };
     match api.create(&PostParams::default(), &service_account).await {
-        Ok(role) => Ok(role),
+        Ok(sa) => Ok(sa),
         Err(error) => {
             error!("{:?}", error);
             Err(Error::HoprdConfigError(format!("[IdentityPool] Could not create ServiceAccount for {} in namespace {}.", name, namespace)))
@@ -59,6 +63,7 @@ async fn create_service_account(context_data: Arc<ContextData>, namespace: &Stri
 async fn create_role(context_data: Arc<ContextData>, namespace: &String, name: &String, owner_references: Option<Vec<OwnerReference>>) -> Result<Role, Error> {
     let labels = utils::common_lables(context_data.config.instance.name.to_owned(), Some(name.to_owned()), None);
     let api: Api<Role> = Api::namespaced(context_data.client.clone(), namespace);
+    info!("Step 2.0");
     let role: Role = Role {
         metadata: ObjectMeta {
             labels: Some(labels.clone()),
@@ -80,6 +85,7 @@ async fn create_role(context_data: Arc<ContextData>, namespace: &String, name: &
             ..PolicyRule::default()
         }]),
     };
+    info!("Step 2.1: {:?}", role);
     match api.create(&PostParams::default(), &role).await {
         Ok(role) => Ok(role),
         Err(error) => {
@@ -90,17 +96,8 @@ async fn create_role(context_data: Arc<ContextData>, namespace: &String, name: &
     }
 }
 
-async fn create_role_binding(
-    context_data: Arc<ContextData>,
-    namespace: &String,
-    name: &String,
-    owner_references: Option<Vec<OwnerReference>>,
-) -> Result<RoleBinding, Error> {
-    let labels = utils::common_lables(
-        context_data.config.instance.name.to_owned(),
-        Some(name.to_owned()),
-        None,
-    );
+async fn create_role_binding(context_data: Arc<ContextData>, namespace: &String, name: &String, owner_references: Option<Vec<OwnerReference>>) -> Result<RoleBinding, Error> {
+    let labels = utils::common_lables(context_data.config.instance.name.to_owned(), Some(name.to_owned()), None);
     let api: Api<RoleBinding> = Api::namespaced(context_data.client.clone(), namespace);
     let role_binding: RoleBinding = RoleBinding {
         metadata: ObjectMeta {
@@ -122,7 +119,7 @@ async fn create_role_binding(
         }]),
     };
     match api.create(&PostParams::default(), &role_binding).await {
-        Ok(role) => Ok(role),
+        Ok(rb) => Ok(rb),
         Err(error) => {
             error!("{:?}", error);
             Err(Error::HoprdConfigError(format!("[IdentityPool] Could not create RoleBinding for {} in namespace {}.", name, namespace)))
