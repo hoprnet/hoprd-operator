@@ -52,6 +52,9 @@ rules:
   - secrets
   - services
   - configmaps
+  - serviceaccounts
+  - roles
+  - rolebindings
   - persistentvolumeclaims
   verbs:
   - get

@@ -4,13 +4,13 @@ use k8s_openapi::apimachinery::pkg::apis::meta::v1::OwnerReference;
 use kube::api::{DeleteParams, PostParams};
 use kube::core::ObjectMeta;
 use kube::runtime::wait::{await_condition, conditions};
-use kube::Error;
 use kube::{Api, Client};
 use std::sync::Arc;
-use tracing::info;
+use tracing::{info,error};
 
 use crate::context_data::ContextData;
 
+use crate::model::Error;
 use crate::utils;
 
 pub async fn create_rbac(
@@ -19,30 +19,9 @@ pub async fn create_rbac(
     name: &String,
     owner_references: Option<Vec<OwnerReference>>,
 ) -> Result<(), Error> {
-    let _service_account = create_service_account(
-        context_data.clone(),
-        namespace,
-        name,
-        owner_references.to_owned(),
-    )
-    .await
-    .unwrap();
-    let _role = create_role(
-        context_data.clone(),
-        namespace,
-        name,
-        owner_references.to_owned(),
-    )
-    .await
-    .unwrap();
-    let _robebinding = create_role_binding(
-        context_data.clone(),
-        namespace,
-        name,
-        owner_references.to_owned(),
-    )
-    .await
-    .unwrap();
+    create_service_account(context_data.clone(), namespace,name, owner_references.to_owned()).await.unwrap();
+    create_role(context_data.clone(), namespace, name, owner_references.to_owned()).await.unwrap();
+    create_role_binding(context_data.clone(), namespace, name, owner_references.to_owned()).await.unwrap();
     Ok(())
 }
 
@@ -54,17 +33,8 @@ pub async fn delete_rbac(client: Client, namespace: &String, name: &String) -> R
 }
 
 /// Creates a new service Account for the IdentityPool
-async fn create_service_account(
-    context_data: Arc<ContextData>,
-    namespace: &String,
-    name: &String,
-    owner_references: Option<Vec<OwnerReference>>,
-) -> Result<ServiceAccount, Error> {
-    let labels = utils::common_lables(
-        context_data.config.instance.name.to_owned(),
-        Some(name.to_owned()),
-        None,
-    );
+async fn create_service_account(context_data: Arc<ContextData>, namespace: &String, name: &String, owner_references: Option<Vec<OwnerReference>>) -> Result<ServiceAccount, Error> {
+    let labels = utils::common_lables(context_data.config.instance.name.to_owned(), Some(name.to_owned()), None);
     let api: Api<ServiceAccount> = Api::namespaced(context_data.client.clone(), namespace);
     let service_account: ServiceAccount = ServiceAccount {
         metadata: ObjectMeta {
@@ -76,23 +46,18 @@ async fn create_service_account(
         },
         ..ServiceAccount::default()
     };
-    Ok(api
-        .create(&PostParams::default(), &service_account)
-        .await
-        .unwrap())
+    match api.create(&PostParams::default(), &service_account).await {
+        Ok(role) => Ok(role),
+        Err(error) => {
+            error!("{:?}", error);
+            Err(Error::HoprdConfigError(format!("[IdentityPool] Could not create ServiceAccount for {} in namespace {}.", name, namespace)))
+        }
+        
+    }
 }
 
-async fn create_role(
-    context_data: Arc<ContextData>,
-    namespace: &String,
-    name: &String,
-    owner_references: Option<Vec<OwnerReference>>,
-) -> Result<Role, Error> {
-    let labels = utils::common_lables(
-        context_data.config.instance.name.to_owned(),
-        Some(name.to_owned()),
-        None,
-    );
+async fn create_role(context_data: Arc<ContextData>, namespace: &String, name: &String, owner_references: Option<Vec<OwnerReference>>) -> Result<Role, Error> {
+    let labels = utils::common_lables(context_data.config.instance.name.to_owned(), Some(name.to_owned()), None);
     let api: Api<Role> = Api::namespaced(context_data.client.clone(), namespace);
     let role: Role = Role {
         metadata: ObjectMeta {
@@ -115,7 +80,14 @@ async fn create_role(
             ..PolicyRule::default()
         }]),
     };
-    Ok(api.create(&PostParams::default(), &role).await.unwrap())
+    match api.create(&PostParams::default(), &role).await {
+        Ok(role) => Ok(role),
+        Err(error) => {
+            error!("{:?}", error);
+            Err(Error::HoprdConfigError(format!("[IdentityPool] Could not create Role for {} in namespace {}.", name, namespace)))
+        }
+        
+    }
 }
 
 async fn create_role_binding(
@@ -130,7 +102,7 @@ async fn create_role_binding(
         None,
     );
     let api: Api<RoleBinding> = Api::namespaced(context_data.client.clone(), namespace);
-    let role: RoleBinding = RoleBinding {
+    let role_binding: RoleBinding = RoleBinding {
         metadata: ObjectMeta {
             labels: Some(labels.clone()),
             name: Some(name.to_owned()),
@@ -149,7 +121,14 @@ async fn create_role_binding(
             ..Subject::default()
         }]),
     };
-    Ok(api.create(&PostParams::default(), &role).await.unwrap())
+    match api.create(&PostParams::default(), &role_binding).await {
+        Ok(role) => Ok(role),
+        Err(error) => {
+            error!("{:?}", error);
+            Err(Error::HoprdConfigError(format!("[IdentityPool] Could not create RoleBinding for {} in namespace {}.", name, namespace)))
+        }
+        
+    }
 }
 
 async fn delete_service_account(client: Client, name: &str, namespace: &str) -> Result<(), Error> {

@@ -136,28 +136,9 @@ impl IdentityPool {
         let owner_references: Option<Vec<OwnerReference>> =
             Some(vec![self.controller_owner_ref(&()).unwrap()]);
         info!("[IdentityPool] Starting to create identity {identity_pool_name} in namespace {identity_pool_namespace}");
-        self.add_finalizer(
-            client.clone(),
-            &identity_pool_name,
-            &identity_pool_namespace,
-        )
-        .await
-        .unwrap();
-        identity_pool_service_monitor::create_service_monitor(
-            context.clone(),
-            &identity_pool_name,
-            &identity_pool_namespace,
-            &self.spec.secret_name,
-            owner_references.to_owned(),
-        )
-        .await?;
-        identity_pool_service_account::create_rbac(
-            context.clone(),
-            &identity_pool_namespace,
-            &identity_pool_name,
-            owner_references.to_owned(),
-        )
-        .await?;
+        self.add_finalizer(client.clone(), &identity_pool_name, &identity_pool_namespace).await.unwrap();
+        identity_pool_service_monitor::create_service_monitor(context.clone(), &identity_pool_name, &identity_pool_namespace, &self.spec.secret_name, owner_references.to_owned()).await?;
+        identity_pool_service_account::create_rbac(context.clone(), &identity_pool_namespace, &identity_pool_name,owner_references.to_owned()).await?;
         // TODO: Validate data
         // - Check that the secret exist and contains the required keys
         // - Does the wallet private key have permissions in Network to register new nodes and create safes ?
