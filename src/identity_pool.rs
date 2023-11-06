@@ -144,7 +144,7 @@ impl IdentityPool {
         .await
         .unwrap();
         identity_pool_service_monitor::create_service_monitor(
-            client.clone(),
+            context.clone(),
             &identity_pool_name,
             &identity_pool_namespace,
             &self.spec.secret_name,

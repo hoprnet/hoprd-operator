@@ -1,6 +1,6 @@
 ---
 
-name: 'Publish Container'
+name: 'Publish Docker Image'
 
 on:
   push:
@@ -13,13 +13,12 @@ concurrency:
   cancel-in-progress: false
 jobs:
   publish:
+    name: Publish
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
       - name: Set up Google Cloud Credentials
         uses: google-github-actions/auth@v1
@@ -33,24 +32,25 @@ jobs:
           install_components: beta
 
       - name: Google Container authentication
-        run: gcloud auth configure-docker --quiet gcr.io
+        run: make gcp-login
 
       - name: Get package version
+        id: version
         run: |
           docker_tag=$(grep -A 1 "hoprd_operator" Cargo.lock | grep version | sed 's/.* "//' | sed 's/"//' | tr -d '\n')
-          echo "DOCKER_TAG=${docker_tag}" >> $GITHUB_ENV
+          echo "DOCKER_TAG=${docker_tag}" >> $GITHUB_OUTPUT
 
       - name: Build container image
         uses: docker/build-push-action@v5
         with:
           push: true
           tags: |
-            gcr.io/hoprassociation/hoprd-operator:${{ env.DOCKER_TAG }}
-            gcr.io/hoprassociation/hoprd-operator:latest
+            europe-west3-docker.pkg.dev/hoprassociation/docker-images/hoprd-operator:${{ steps.version.outputs.DOCKER_TAG }}
+            europe-west3-docker.pkg.dev/hoprassociation/docker-images/hoprd-operator:latest
 
       - name: Tag Docker version
         run: |
             git config user.email "noreply@hoprnet.org"
             git config user.name "HOPR CI robot"
-            git tag ${{ env.DOCKER_TAG }}
-            git push origin ${{ env.DOCKER_TAG }}
+            git tag ${{ steps.version.outputs.DOCKER_TAG }}
+            git push origin ${{ steps.version.outputs.DOCKER_TAG }}

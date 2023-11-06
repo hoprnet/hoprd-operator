@@ -20,19 +20,12 @@ operator:
       nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
     namespace: ingress
     publicIp: 142.132.140.85
-    p2pPorts:
-      min: 9000
-      max: 9100
     selectorLabels:
       app.kubernetes.io/component: controller
       app.kubernetes.io/instance: ingress-nginx
       app.kubernetes.io/name: ingress-nginx
 adminUI:
-  enabled: true
-  image:
-    tag: latest
   ingress:
-    enabled: true
     ingressClassName: nginx
     hostname: hoprd.prod.hoprtech.net
     annotations:

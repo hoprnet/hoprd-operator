@@ -1,26 +1,27 @@
 ---
 
-name: 'Build Container'
-
+name: 'Build Docker Image'
 on:
   pull_request:
+    types:
+      - synchronize
+      - ready_for_review
     branches:
       - master
     paths-ignore:
       - "charts/**/*"
 concurrency:
-  group: ${{ github.head_ref }}-container
+  group: ${{ github.head_ref }}-docker
   cancel-in-progress: true
 jobs:
   bump_version:
+    name: Bump version
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
       - name: Bump Cargo version
         id: bumping_version
@@ -53,7 +54,7 @@ jobs:
         if: ${{ steps.bumping_version.outputs.bumped_version }}
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          commit_message: Bump cargo version
+          commit_message: "Bump to cargo version ${{ steps.bumping_version.outputs.bumped_version }}"
           repository: .
           commit_user_name: HOPR CI robot
           commit_user_email: noreply@hoprnet.org
@@ -63,11 +64,17 @@ jobs:
           create_branch: false
 
   build:
+    name: Build docker
     needs: bump_version
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
       - name: Build container image
         uses: docker/build-push-action@v5
         with:
           push: false
-          tags: gcr.io/hoprassociation/hoprd-operator:latest
+          tags: europe-west3-docker.pkg.dev/hoprassociation/docker-images/hoprd-operator:latest
+
+

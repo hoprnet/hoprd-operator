@@ -14,16 +14,16 @@ run: ## Rust run
 	nohup cargo run &
 
 helm-test: ## Print helm resources
-	helm install --dry-run --namespace hoprd-operator --create-namespace -f ./charts/hoprd-operator/values-staging.yaml hoprd-operator ./charts/hoprd-operator/
+	helm install --dry-run --namespace hoprd-operator --create-namespace -f ./charts/hoprd-operator/values-stage.yaml hoprd-operator ./charts/hoprd-operator/
 
-helm-install: ## Install helm chart using values-staging.yaml file
-	helm install --namespace hoprd-operator --create-namespace -f ./charts/hoprd-operator/values-staging.yaml hoprd-operator ./charts/hoprd-operator/
+helm-install: ## Install helm chart using values-stage.yaml file
+	helm install --namespace hoprd-operator --create-namespace -f ./charts/hoprd-operator/values-stage.yaml hoprd-operator ./charts/hoprd-operator/
 
 helm-uninstall: ## Uninstall helm chart
 	helm uninstall --namespace hoprd-operator hoprd-operator
 
 helm-upgrade: ## Update helm-chart templates into cluster and remove deployment to be run within VsCode in debug mode
-	helm upgrade --namespace hoprd-operator --create-namespace -f ./charts/hoprd-operator/values-staging.yaml hoprd-operator ./charts/hoprd-operator/
+	helm upgrade --namespace hoprd-operator --create-namespace -f ./charts/hoprd-operator/values-stage.yaml hoprd-operator ./charts/hoprd-operator/
 	sleep 3
 	kubectl delete deployment -n hoprd-operator hoprd-operator-controller
 

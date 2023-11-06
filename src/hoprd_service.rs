@@ -8,10 +8,10 @@ use kube::{
     runtime::wait::{await_condition, conditions},
     Api, Client, Error,
 };
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, sync::Arc};
 use tracing::info;
 
-use crate::constants;
+use crate::{constants, context_data::ContextData, utils};
 
 /// Creates a new service for accessing the hoprd node,
 ///
@@ -20,27 +20,9 @@ use crate::constants;
 /// - `name` - Name of the service to be created
 /// - `namespace` - Namespace to create the Kubernetes Deployment in.
 ///
-pub async fn create_service(
-    client: Client,
-    name: &str,
-    namespace: &str,
-    identity_pool_name: &str,
-    p2p_port: i32,
-    owner_references: Option<Vec<OwnerReference>>,
-) -> Result<Service, Error> {
-    let mut labels: BTreeMap<String, String> = BTreeMap::new();
-    labels.insert(
-        constants::LABEL_KUBERNETES_NAME.to_owned(),
-        "hoprd".to_owned(),
-    );
-    labels.insert(
-        constants::LABEL_KUBERNETES_INSTANCE.to_owned(),
-        name.to_owned(),
-    );
-    labels.insert(
-        constants::LABEL_KUBERNETES_IDENTITY_POOL.to_owned(),
-        identity_pool_name.to_owned(),
-    );
+pub async fn create_service(context_data: Arc<ContextData>, name: &str, namespace: &str, identity_pool_name: &str, p2p_port: i32, owner_references: Option<Vec<OwnerReference>>) -> Result<Service, Error> {
+    let mut labels: BTreeMap<String, String> = utils::common_lables(context_data.config.instance.name.to_owned(),Some(name.to_owned()),None);
+    labels.insert(constants::LABEL_KUBERNETES_IDENTITY_POOL.to_owned(),identity_pool_name.to_owned());
 
     // Definition of the service. Alternatively, a YAML representation could be used as well.
     let service: Service = Service {
@@ -61,7 +43,7 @@ pub async fn create_service(
     };
 
     // Create the service defined above
-    let service_api: Api<Service> = Api::namespaced(client, namespace);
+    let service_api: Api<Service> = Api::namespaced(context_data.client.clone(), namespace);
     service_api.create(&PostParams::default(), &service).await
 }
 

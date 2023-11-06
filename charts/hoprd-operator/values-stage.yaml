@@ -14,27 +14,24 @@ operator:
     ingressClassName: nginx
     dnsDomain: stage.hoprtech.net
     annotations:
+      nginx.ingress.kubernetes.io/enable-cors: "true"
+      nginx.ingress.kubernetes.io/cors-allow-headers: "x-auth-token"
       cert-manager.io/cluster-issuer: "linode-issuer"
       nginx.ingress.kubernetes.io/proxy-connect-timeout: "3600"
       nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
       nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
     namespace: ingress
     publicIp: 157.90.129.92
-    p2pPorts:
-      min: 9000
-      max: 9100
     selectorLabels:
       app.kubernetes.io/component: controller
       app.kubernetes.io/instance: ingress-nginx
       app.kubernetes.io/name: ingress-nginx
 adminUI:
-  enabled: true
-  image:
-    tag: latest
   ingress:
-    enabled: true
     ingressClassName: nginx
     hostname: hoprd.stage.hoprtech.net
     annotations:
+      # nginx.ingress.kubernetes.io/enable-cors: "true"
+      # nginx.ingress.kubernetes.io/cors-allow-headers: "*"
       nginx.ingress.kubernetes.io/server-snippets: |
           more_set_headers "Content-Security-Policy: upgrade-insecure-requests";

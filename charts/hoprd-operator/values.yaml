@@ -81,7 +81,7 @@ adminUI:
 
     ## @param adminUI.ingress.enabled Enable ingress record generation
     ##
-    enabled: false
+    enabled: true
 
     ## @param adminUI.ingress.pathType Ingress path type
     ##
@@ -193,11 +193,11 @@ operator:
     p2pPorts:
       ## @param operator.ingress.p2pPorts.min Starting port to open on Ingress controller
       ##
-      min: ""
+      min: 9000
 
       ## @param operator.ingress.p2pPorts.max End port to open on Ingress controller
       ##
-      max: ""
+      max: 9100
 
     ## @param operator.ingress.selectorLabels Labels selector to choose the Nginx deployment and service
     ##
@@ -233,11 +233,11 @@ operator:
   image:
     ## @param operator.image.registry Docker registry to operator deployment
     ##
-    registry: gcr.io
+    registry: europe-west3-docker.pkg.dev
 
     ## @param operator.image.repository Docker image repository to operator deployment
     ##
-    repository: hoprassociation/hoprd-operator
+    repository: hoprassociation/docker-images/hoprd-operator
 
     ## @param operator.image.tag Docker image tag to operator deployment
     ##
