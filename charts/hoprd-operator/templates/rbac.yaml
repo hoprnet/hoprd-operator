@@ -53,9 +53,20 @@ rules:
   - services
   - configmaps
   - serviceaccounts
+  - persistentvolumeclaims
+  verbs:
+  - get
+  - create
+  - list
+  - update
+  - patch
+  - watch
+  - delete
+- apiGroups:
+  - "rbac.authorization.k8s.io"
+  resources:
   - roles
   - rolebindings
-  - persistentvolumeclaims
   verbs:
   - get
   - create

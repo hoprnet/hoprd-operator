@@ -546,88 +546,30 @@ impl IdentityPool {
     // }
 
     /// Gets the first identity in ready status
-    pub async fn lock_identity(
-        &self,
-        context: Arc<ContextData>,
-        identity_name: &str,
-    ) -> Result<Option<IdentityHoprd>, Error> {
-        self.create_event(
-            context.clone(),
-            IdentityPoolStatusEnum::Locking,
-            Some(identity_name.to_owned()),
-        )
-        .await?;
-        let api: Api<IdentityHoprd> = Api::namespaced(
-            context.client.clone(),
-            &self.namespace().unwrap().to_owned(),
-        );
+    pub async fn lock_identity(&self, context: Arc<ContextData>, identity_name: &str) -> Result<Option<IdentityHoprd>, Error> {
+        self.create_event(context.clone(), IdentityPoolStatusEnum::Locking, Some(identity_name.to_owned())).await?;
+        let api: Api<IdentityHoprd> = Api::namespaced(context.client.clone(),&self.namespace().unwrap().to_owned());
         let identities = api.list(&ListParams::default()).await.unwrap();
-        let first_identity = identities
-            .iter()
+        let first_identity = identities.iter()
             .filter(|&identity| {
-                identity
-                    .metadata
-                    .owner_references
-                    .as_ref()
-                    .unwrap()
-                    .first()
-                    .unwrap()
-                    .name
-                    .eq(&self.name_any())
-            })
-            .next();
-        return match first_identity {
+                identity.metadata.owner_references.as_ref().unwrap().first().unwrap().name.eq(&self.name_any())
+            }).next();
+        match first_identity {
             Some(identity) => {
-                if identity
-                    .to_owned()
-                    .status
-                    .unwrap()
-                    .status
-                    .eq(&IdentityHoprdStatusEnum::Ready)
-                {
-                    identity
-                        .create_event(
-                            context.clone(),
-                            IdentityHoprdStatusEnum::InUse,
-                            Some(identity_name.to_owned()),
-                        )
-                        .await?;
-                    identity
-                        .update_status(
-                            context.clone(),
-                            IdentityHoprdStatusEnum::InUse,
-                            Some(identity_name.to_owned()),
-                        )
-                        .await?;
-                    self.create_event(
-                        context.clone(),
-                        IdentityPoolStatusEnum::Locked,
-                        Some(identity_name.to_owned()),
-                    )
-                    .await?;
-                    self.update_status(context.clone(), IdentityPoolStatusEnum::Locked)
-                        .await?;
+                if identity.to_owned().status.unwrap().status.eq(&IdentityHoprdStatusEnum::Ready) {
+                    identity.create_event(context.clone(), IdentityHoprdStatusEnum::InUse, Some(identity_name.to_owned())).await?;
+                    identity.update_status(context.clone(), IdentityHoprdStatusEnum::InUse, Some(identity_name.to_owned())).await?;
+                    self.create_event(context.clone(), IdentityPoolStatusEnum::Locked, Some(identity_name.to_owned())).await?;
+                    self.update_status(context.clone(), IdentityPoolStatusEnum::Locked).await?;
                     Ok(Some(identity.to_owned()))
                 } else {
-                    warn!(
-                        "The identity {} is in state {} and might be used by {}",
-                        identity_name,
-                        identity.status.as_ref().unwrap().status,
-                        identity
-                            .status
-                            .as_ref()
-                            .unwrap()
-                            .hoprd_node_name
-                            .as_ref()
-                            .unwrap()
-                    );
+                    let status = identity.status.as_ref().unwrap();
+                    warn!("The identity {} is in state {} and might be used by {}",identity_name, status.status, status.hoprd_node_name.as_ref().unwrap());
                     Ok(None)
                 }
             }
-            None => Err(Error::IdentityIssue(
-                format!("The identity {} does not exist", identity_name).to_owned(),
-            )),
-        };
+            None => Err(Error::IdentityIssue(format!("The identity {} does not exist", identity_name).to_owned()))
+        }
     }
 
     async fn are_active_jobs(&self, context: Arc<ContextData>) -> Result<bool, Error> {
@@ -643,59 +585,23 @@ impl IdentityPool {
             self.name_any()
         );
         let lp = ListParams::default().labels(&label_selector);
-        let jobs = api.list(&lp).await?;
-        let active_jobs: Vec<&Job> = jobs
-            .items
-            .iter()
-            .filter(|&job| job.status.as_ref().unwrap().active.is_some())
-            .collect();
+        let jobs = api.list(&lp).await.unwrap().items;
+        let active_jobs: Vec<&Job> = jobs.iter().filter(|&job| job.status.as_ref().unwrap().active.is_some()).collect();
         Ok(active_jobs.len() > 0)
     }
 
     async fn create_new_identity(&self, context: Arc<ContextData>) -> Result<(), Error> {
-        let identity_name = format!(
-            "{}-{}",
-            self.name_any(),
-            self.status.as_ref().unwrap().size + 1
-        );
-        self.create_event(
-            context.clone(),
-            IdentityPoolStatusEnum::CreatingIdentity,
-            Some(identity_name.to_owned()),
-        )
-        .await?;
-        let random_string: String = rand::thread_rng()
-            .sample_iter(&Alphanumeric)
-            .take(5)
-            .map(char::from)
-            .collect();
-        let job_name: String = format!(
-            "create-identity-{}-{}",
-            &identity_name.to_owned(),
-            random_string.to_ascii_lowercase()
-        );
+        let identity_name = format!("{}-{}", self.name_any(), self.status.as_ref().unwrap().size + 1);
+        self.create_event(context.clone(), IdentityPoolStatusEnum::CreatingIdentity,Some(identity_name.to_owned())).await?;
+        let random_string: String = rand::thread_rng().sample_iter(&Alphanumeric).take(5).map(char::from).collect();
+        let job_name: String = format!("create-identity-{}-{}", &identity_name.to_owned(), random_string.to_ascii_lowercase());
         let namespace: String = self.metadata.namespace.as_ref().unwrap().to_owned();
-        let owner_references: Option<Vec<OwnerReference>> =
-            Some(vec![self.controller_owner_ref(&()).unwrap()]);
-        let mut labels: BTreeMap<String, String> = utils::common_lables(
-            context.config.instance.name.to_owned(),
-            Some(identity_name.to_owned()),
-            Some("job-create-identity".to_owned()),
-        );
-        labels.insert(
-            constants::LABEL_KUBERNETES_COMPONENT.to_owned(),
-            "create-identity".to_owned(),
-        );
-        labels.insert(
-            constants::LABEL_KUBERNETES_IDENTITY_POOL.to_owned(),
-            self.name_any(),
-        );
-        let create_identity_args: Vec<String> = vec![format!(
-            "curl {}/create-identity.sh -s | bash",
-            constants::OPERATOR_JOB_SCRIPT_URL.to_owned()
-        )];
-        let create_resource_args: Vec<String> =
-            vec!["/app/hoprd-identity-created/create-resource.sh".to_owned()];
+        let owner_references: Option<Vec<OwnerReference>> = Some(vec![self.controller_owner_ref(&()).unwrap()]);
+        let mut labels: BTreeMap<String, String> = utils::common_lables(context.config.instance.name.to_owned(), Some(identity_name.to_owned()), Some("job-create-identity".to_owned()));
+        labels.insert(constants::LABEL_KUBERNETES_COMPONENT.to_owned(), "create-identity".to_owned());
+        labels.insert(constants::LABEL_KUBERNETES_IDENTITY_POOL.to_owned(), self.name_any());
+        let create_identity_args: Vec<String> = vec![format!("curl {}/create-identity.sh -s | bash", constants::OPERATOR_JOB_SCRIPT_URL.to_owned())];
+        let create_resource_args: Vec<String> = vec!["/app/hoprd-identity-created/create-resource.sh".to_owned()];
         let env_vars: Vec<EnvVar> = vec![
             EnvVar {
                 name: constants::IDENTITY_POOL_IDENTITY_PASSWORD_REF_KEY.to_owned(),
@@ -816,46 +722,21 @@ impl IdentityPool {
         // Create the Job defined above
         info!("Job {} started", &job_name.to_owned());
         let api: Api<Job> = Api::namespaced(context.client.clone(), &namespace);
-        api.create(&PostParams::default(), &create_node_job)
-            .await
-            .unwrap();
+        api.create(&PostParams::default(), &create_node_job).await.unwrap();
         let job_completed = await_condition(api, &job_name, conditions::is_job_completed());
-        match tokio::time::timeout(
-            std::time::Duration::from_secs(constants::OPERATOR_JOB_TIMEOUT),
-            job_completed,
-        )
-        .await
-        .unwrap()
+        match tokio::time::timeout(std::time::Duration::from_secs(constants::OPERATOR_JOB_TIMEOUT), job_completed).await.unwrap()
         {
             Ok(job_option) => match job_option {
                 Some(job) => {
                     if job.status.unwrap().failed.is_none() {
-                        self.create_event(
-                            context.clone(),
-                            IdentityPoolStatusEnum::IdentityCreated,
-                            Some(identity_name.to_owned()),
-                        )
-                        .await?;
-                        self.update_status(
-                            context.clone(),
-                            IdentityPoolStatusEnum::IdentityCreated,
-                        )
-                        .await?;
                         Ok(info!("Job {} completed successfully", &job_name.to_owned()))
                     } else {
-                        Err(Error::JobExecutionError(
-                            format!(" Job pod execution for {} failed", &job_name.to_owned())
-                                .to_owned(),
-                        ))
+                        Err(Error::JobExecutionError(format!(" Job pod execution for {} failed", &job_name.to_owned()).to_owned()))
                     }
                 }
-                None => Err(Error::JobExecutionError(
-                    format!(" Job execution for {} failed", &job_name.to_owned()).to_owned(),
-                )),
+                None => Err(Error::JobExecutionError(format!(" Job execution for {} failed", &job_name.to_owned()).to_owned()))
             },
-            Err(_error) => Err(Error::JobExecutionError(
-                format!(" Job timeout for {}", &job_name.to_owned()).to_owned(),
-            )),
+            Err(_error) => Err(Error::JobExecutionError(format!(" Job timeout for {}", &job_name.to_owned()).to_owned()))
         }
     }
 }

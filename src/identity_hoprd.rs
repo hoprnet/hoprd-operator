@@ -95,27 +95,25 @@ impl IdentityHoprd {
         let identity_name: String = self.name_any();
 
         info!("[IdentityHoprd] Starting to create identity {identity_name} in namespace {identity_namespace}");
-        self.add_finalizer(client.clone(), &identity_name, &identity_namespace)
-            .await
-            .unwrap();
+        self.add_finalizer(client.clone(), &identity_name, &identity_namespace).await.unwrap();
         self.add_owner_reference(client.clone()).await?;
         identity_hoprd_persistence::create_pvc(context.clone(), &self).await?;
-        self.create_event(context.clone(), IdentityHoprdStatusEnum::Initialized, None)
-            .await?;
-        self.update_status(context.clone(), IdentityHoprdStatusEnum::Initialized, None)
-            .await?;
+        self.create_event(context.clone(), IdentityHoprdStatusEnum::Initialized, None).await?;
+        self.update_status(context.clone(), IdentityHoprdStatusEnum::Initialized, None).await?;
         // TODO: Validate data
         // - Is registered in network
         // - Is funded (safe and node)
         // - SafeAddress is correct
         // - ModuleAddress is correct
-        self.create_event(context.clone(), IdentityHoprdStatusEnum::Ready, None)
-            .await?;
-        self.update_status(context.clone(), IdentityHoprdStatusEnum::Ready, None)
-            .await?;
-        Ok(Action::requeue(Duration::from_secs(
-            constants::RECONCILE_FREQUENCY,
-        )))
+        self.create_event(context.clone(), IdentityHoprdStatusEnum::Ready, None).await?;
+        self.update_status(context.clone(), IdentityHoprdStatusEnum::Ready, None).await?;
+
+        // Update pool to decrease identities
+        let api: Api<IdentityPool> = Api::namespaced(context.client.clone(), &self.namespace().unwrap());
+        let identity_pool = api.get(self.spec.identity_pool_name.as_str()).await.unwrap();
+        identity_pool.create_event(context.clone(), IdentityPoolStatusEnum::IdentityCreated, Some(identity_name.to_owned())).await?;
+        identity_pool.update_status(context.clone(), IdentityPoolStatusEnum::IdentityCreated).await?;
+        Ok(Action::requeue(Duration::from_secs(constants::RECONCILE_FREQUENCY)))
     }
 
     /// Handle the modification of IdentityHoprd resource
@@ -131,117 +129,65 @@ impl IdentityHoprd {
         let identity_name = self.name_any();
         let identity_namespace = self.namespace().unwrap();
         let client: Client = context.client.clone();
-        if !self
-            .status
-            .as_ref()
-            .unwrap()
-            .status
-            .eq(&IdentityHoprdStatusEnum::InUse)
+        if !self.status.as_ref().unwrap().status.eq(&IdentityHoprdStatusEnum::InUse)
         {
-            self.create_event(context.clone(), IdentityHoprdStatusEnum::Deleting, None)
-                .await?;
-            self.update_status(context.clone(), IdentityHoprdStatusEnum::Deleting, None)
-                .await?;
+            self.create_event(context.clone(), IdentityHoprdStatusEnum::Deleting, None).await?;
+            self.update_status(context.clone(), IdentityHoprdStatusEnum::Deleting, None).await?;
             info!("[IdentityHoprd] Starting to delete identity {identity_name} from namespace {identity_namespace}");
 
             // Update pool to decrease identities
-            let api: Api<IdentityPool> =
-                Api::namespaced(context.client.clone(), &self.namespace().unwrap());
-            let identity_pool = api
-                .get(self.spec.identity_pool_name.as_str())
-                .await
-                .unwrap();
-            identity_pool
-                .update_status(context.clone(), IdentityPoolStatusEnum::IdentityDeleted)
-                .await?;
+            let api: Api<IdentityPool> = Api::namespaced(context.client.clone(), &self.namespace().unwrap());
+            let identity_pool = api.get(self.spec.identity_pool_name.as_str()).await.unwrap();
+            identity_pool.update_status(context.clone(), IdentityPoolStatusEnum::IdentityDeleted).await?;
 
             // TODO Drain funds
-            self.delete_finalizer(client.clone(), &identity_name, &identity_namespace)
-                .await?;
+            self.delete_finalizer(client.clone(), &identity_name, &identity_namespace).await?;
             info!("[IdentityHoprd] Identity {identity_name} in namespace {identity_namespace} has been successfully deleted");
             Ok(Action::await_change()) // Makes no sense to delete after a successful delete, as the resource is gone
         } else {
-            error!(
-                "[IdentityHoprd] Cannot delete an identity in state {}",
-                self.status.as_ref().unwrap().status
-            );
-            Ok(Action::requeue(Duration::from_secs(
-                constants::RECONCILE_FREQUENCY,
-            )))
+            error!("[IdentityHoprd] Cannot delete an identity in state {}", self.status.as_ref().unwrap().status);
+            Ok(Action::requeue(Duration::from_secs(constants::RECONCILE_FREQUENCY)))
         }
     }
 
     /// Adds a finalizer in IdentityHoprd to prevent deletion of the resource by Kubernetes API and allow the controller to safely manage its deletion
-    async fn add_finalizer(
-        &self,
-        client: Client,
-        identity_name: &str,
-        identity_namespace: &str,
-    ) -> Result<(), Error> {
-        let api: Api<IdentityHoprd> =
-            Api::namespaced(client.clone(), &identity_namespace.to_owned());
+    async fn add_finalizer(&self, client: Client, identity_name: &str, identity_namespace: &str) -> Result<(), Error> {
+        let api: Api<IdentityHoprd> = Api::namespaced(client.clone(), &identity_namespace.to_owned());
         let patch = Patch::Merge(json!({
            "metadata": {
                 "finalizers": [constants::OPERATOR_FINALIZER]
             }
         }));
-        match api
-            .patch(&identity_name, &PatchParams::default(), &patch)
-            .await
+        match api.patch(&identity_name, &PatchParams::default(), &patch).await
         {
             Ok(_) => Ok(()),
             Err(error) => {
-                error!(
-                    "[IdentityHoprd] Could not add finalizer on {identity_name}: {:?}",
-                    error
-                );
-                return Err(Error::HoprdStatusError(
-                    format!("[IdentityHoprd] Could not add finalizer on {identity_name}.")
-                        .to_owned(),
-                ));
+                error!("[IdentityHoprd] Could not add finalizer on {identity_name}: {:?}", error);
+                Err(Error::HoprdStatusError(format!("[IdentityHoprd] Could not add finalizer on {identity_name}.").to_owned()))
             }
         }
     }
 
     /// Deletes the finalizer of IdentityHoprd resource, so the resource can be freely deleted by Kubernetes API
-    async fn delete_finalizer(
-        &self,
-        client: Client,
-        identity_name: &str,
-        identity_namespace: &str,
-    ) -> Result<(), Error> {
-        let api: Api<IdentityHoprd> =
-            Api::namespaced(client.clone(), &identity_namespace.to_owned());
+    async fn delete_finalizer(&self, client: Client, identity_name: &str, identity_namespace: &str) -> Result<(), Error> {
+        let api: Api<IdentityHoprd> = Api::namespaced(client.clone(), &identity_namespace.to_owned());
         let patch = Patch::Merge(json!({
            "metadata": {
                 "finalizers": null
             }
         }));
         if let Some(_) = api.get_opt(&identity_name).await? {
-            match api
-                .patch(&identity_name, &PatchParams::default(), &patch)
-                .await
-            {
+            match api.patch(&identity_name, &PatchParams::default(), &patch).await {
                 Ok(_) => Ok(()),
-                Err(error) => Ok(error!(
-                    "[IdentityHoprd] Could not delete finalizer on {identity_name}: {:?}",
-                    error
-                )),
+                Err(error) => Ok(error!("[IdentityHoprd] Could not delete finalizer on {identity_name}: {:?}", error))
             }
         } else {
-            Ok(debug!(
-                "[IdentityHoprd] Identity {identity_name} already deleted"
-            ))
+            Ok(debug!("[IdentityHoprd] Identity {identity_name} already deleted"))
         }
     }
 
     /// Creates an event for IdentityHoprd given the new IdentityHoprdStatusEnum
-    pub async fn create_event(
-        &self,
-        context: Arc<ContextData>,
-        status: IdentityHoprdStatusEnum,
-        hoprd_name: Option<String>,
-    ) -> Result<(), Error> {
+    pub async fn create_event(&self, context: Arc<ContextData>, status: IdentityHoprdStatusEnum, hoprd_name: Option<String>) -> Result<(), Error> {
         let client: Client = context.client.clone();
         let ev: Event = match status {
             IdentityHoprdStatusEnum::Initialized => Event {
@@ -290,21 +236,12 @@ impl IdentityHoprd {
                 secondary: None,
             },
         };
-        let recorder: Recorder = context
-            .state
-            .read()
-            .await
-            .generate_identity_hoprd_event(client.clone(), self);
+        let recorder: Recorder = context.state.read().await.generate_identity_hoprd_event(client.clone(), self);
         Ok(recorder.publish(ev).await?)
     }
 
     /// Updates the status of IdentityHoprd
-    pub async fn update_status(
-        &self,
-        context: Arc<ContextData>,
-        status: IdentityHoprdStatusEnum,
-        hoprd_name: Option<String>,
-    ) -> Result<(), Error> {
+    pub async fn update_status(&self, context: Arc<ContextData>, status: IdentityHoprdStatusEnum, hoprd_name: Option<String>) -> Result<(), Error> {
         let client: Client = context.client.clone();
         let identity_hoprd_name = self.metadata.name.as_ref().unwrap().to_owned();
         let hoprd_namespace = self.metadata.namespace.as_ref().unwrap().to_owned();
@@ -324,15 +261,10 @@ impl IdentityHoprd {
             };
             let patch = Patch::Merge(json!({ "status": status }));
 
-            match api
-                .patch(&identity_hoprd_name, &PatchParams::default(), &patch)
-                .await
+            match api.patch(&identity_hoprd_name, &PatchParams::default(), &patch).await
             {
                 Ok(_identity) => Ok(()),
-                Err(error) => Ok(error!(
-                    "[IdentityHoprd] Could not update status on {identity_hoprd_name}: {:?}",
-                    error
-                )),
+                Err(error) => Ok(error!("[IdentityHoprd] Could not update status on {identity_hoprd_name}: {:?}",error))
             }
         }
     }
@@ -344,58 +276,35 @@ impl IdentityHoprd {
 
     // // Unlocks a given identity from a Hoprd node
     pub async fn unlock(&self, context: Arc<ContextData>) -> Result<(), Error> {
-        if self
-            .status
-            .as_ref()
-            .unwrap()
-            .status
-            .eq(&IdentityHoprdStatusEnum::InUse)
+        if self.status.as_ref().unwrap().status.eq(&IdentityHoprdStatusEnum::InUse)
         {
-            self.create_event(context.clone(), IdentityHoprdStatusEnum::Ready, None)
-                .await?;
-            self.update_status(context.clone(), IdentityHoprdStatusEnum::Ready, None)
-                .await?;
-            let api: Api<IdentityPool> =
-                Api::namespaced(context.client.clone(), &self.namespace().unwrap());
-            let identity_pool = api
-                .get(self.spec.identity_pool_name.as_str())
-                .await
-                .unwrap();
-            identity_pool
-                .update_status(context.clone(), IdentityPoolStatusEnum::Unlocked)
-                .await?;
+            self.create_event(context.clone(), IdentityHoprdStatusEnum::Ready, None).await?;
+            self.update_status(context.clone(), IdentityHoprdStatusEnum::Ready, None).await?;
+            let api: Api<IdentityPool> = Api::namespaced(context.client.clone(), &self.namespace().unwrap());
+            let identity_pool = api.get(self.spec.identity_pool_name.as_str()).await.unwrap();
+            identity_pool.update_status(context.clone(), IdentityPoolStatusEnum::Unlocked).await?;
             Ok(())
         } else {
-            Ok(warn!(
-                "The identity cannot be unlock because it is in status {:?}",
-                &self.status
-            ))
+            Ok(warn!("The identity cannot be unlock because it is in status {:?}", &self.status))
         }
     }
 
     pub async fn add_owner_reference(&self, client: Client) -> Result<(), Error> {
         let identity_pool = self.get_identity_pool(client.clone()).await.unwrap();
         let identity_name = self.name_any();
-        let identity_pool_owner_reference: Option<Vec<OwnerReference>> =
-            Some(vec![identity_pool.controller_owner_ref(&()).unwrap()]);
-        let api: Api<IdentityHoprd> =
-            Api::namespaced(client.clone(), &identity_pool.namespace().unwrap());
+        let identity_pool_owner_reference: Option<Vec<OwnerReference>> = Some(vec![identity_pool.controller_owner_ref(&()).unwrap()]);
+        let api: Api<IdentityHoprd> = Api::namespaced(client.clone(), &identity_pool.namespace().unwrap());
         let patch = Patch::Merge(json!({
                     "metadata": {
                         "ownerReferences": identity_pool_owner_reference
                     }
         }));
-        let _updated = match api
-            .patch(&identity_name, &PatchParams::default(), &patch)
-            .await
+        let _updated = match api.patch(&identity_name, &PatchParams::default(), &patch).await
         {
             Ok(secret) => Ok(secret),
             Err(error) => {
                 println!("[ERROR]: {:?}", error);
-                Err(Error::HoprdStatusError(
-                    format!("Could not update secret owned references for '{identity_name}'.")
-                        .to_owned(),
-                ))
+                Err(Error::HoprdStatusError(format!("Could not update secret owned references for '{identity_name}'.").to_owned()))
             }
         };
         Ok(())

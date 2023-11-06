@@ -19,13 +19,9 @@ pub async fn create_rbac(
     name: &String,
     owner_references: Option<Vec<OwnerReference>>,
 ) -> Result<(), Error> {
-    info!("Step 1");
     create_service_account(context_data.clone(), namespace,name, owner_references.to_owned()).await.unwrap();
-    info!("Step 2");
     create_role(context_data.clone(), namespace, name, owner_references.to_owned()).await.unwrap();
-    info!("Step 3");
     create_role_binding(context_data.clone(), namespace, name, owner_references.to_owned()).await.unwrap();
-    info!("Step 4");
     Ok(())
 }
 
@@ -53,7 +49,7 @@ async fn create_service_account(context_data: Arc<ContextData>, namespace: &Stri
     match api.create(&PostParams::default(), &service_account).await {
         Ok(sa) => Ok(sa),
         Err(error) => {
-            error!("{:?}", error);
+            error!("[IdentityPool] Could not create ServiceAccount {:?}", error);
             Err(Error::HoprdConfigError(format!("[IdentityPool] Could not create ServiceAccount for {} in namespace {}.", name, namespace)))
         }
         
@@ -85,11 +81,10 @@ async fn create_role(context_data: Arc<ContextData>, namespace: &String, name: &
             ..PolicyRule::default()
         }]),
     };
-    info!("Step 2.1: {:?}", role);
     match api.create(&PostParams::default(), &role).await {
         Ok(role) => Ok(role),
         Err(error) => {
-            error!("{:?}", error);
+            error!("[IdentityPool] Could not create Role {:?}", error);
             Err(Error::HoprdConfigError(format!("[IdentityPool] Could not create Role for {} in namespace {}.", name, namespace)))
         }
         
@@ -121,7 +116,7 @@ async fn create_role_binding(context_data: Arc<ContextData>, namespace: &String,
     match api.create(&PostParams::default(), &role_binding).await {
         Ok(rb) => Ok(rb),
         Err(error) => {
-            error!("{:?}", error);
+            error!("[IdentityPool] Could not create RoleBinding {:?}", error);
             Err(Error::HoprdConfigError(format!("[IdentityPool] Could not create RoleBinding for {} in namespace {}.", name, namespace)))
         }
         
