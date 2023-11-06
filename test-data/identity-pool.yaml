@@ -2,6 +2,16 @@
 apiVersion: hoprnet.org/v1alpha
 kind: IdentityPool
 metadata:
+  name: pool-hoprd-operator
+  namespace: hoprd-operator
+spec:
+  network: rotsee
+  secretName: identity-pool-hoprd-operator
+  minReadyIdentities: 0
+---
+apiVersion: hoprnet.org/v1alpha
+kind: IdentityPool
+metadata:
   name: core-rotsee
   namespace: rotsee
 spec:

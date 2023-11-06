@@ -48,21 +48,11 @@ docker-push: ## Deploys docker image into GCP Artifact registry
 create-identity: ## Create identity resources
 	kubectl apply -f ./test-data/identity-pool.yaml
 	kubectl apply -f ./test-data/identity-hoprd.yaml
+	kubectl patch -n hoprd-operator IdentityPool pool-hoprd-operator --type='json' -p='[{"op": "replace", "path": "/spec/minReadyIdentities", "value":1}]'
 	kubectl patch -n rotsee IdentityPool core-rotsee --type='json' -p='[{"op": "replace", "path": "/spec/minReadyIdentities", "value":1}]'
 
 delete-identity: ## Deletes identity resources
+	kubectl patch -n hoprd-operator IdentityPool pool-hoprd-operator --type='json' -p='[{"op": "replace", "path": "/spec/minReadyIdentities", "value":0}]'
 	kubectl patch -n rotsee IdentityPool core-rotsee --type='json' -p='[{"op": "replace", "path": "/spec/minReadyIdentities", "value":0}]'
 	kubectl delete -f ./test-data/identity-hoprd.yaml
 	kubectl apply -f ./test-data/identity-pool.yaml
-
-create-node: ## Create hoprd node
-	kubectl apply -f ./test-data/hoprd-node.yaml
-
-delete-node: ## Delete hoprd node
-	kubectl delete -f ./test-data/hoprd-node.yaml
-
-create-cluster: ## Create cluster hoprd node
-	kubectl apply -f ./test-data/cluster-hoprd.yaml
-
-delete-cluster: ## Delete cluster hoprd node
-	kubectl delete -f ./test-data/cluster-hoprd.yaml

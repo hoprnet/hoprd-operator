@@ -194,11 +194,7 @@ pub fn build_metric_relabel() -> Vec<ServiceMonitorEndpointsRelabelings> {
 /// - `name` - Name of the ServiceMonitor to delete
 /// - `namespace` - Namespace the existing ServiceMonitor resides in
 ///
-pub async fn delete_service_monitor(
-    client: Client,
-    name: &str,
-    namespace: &str,
-) -> Result<(), Error> {
+pub async fn delete_service_monitor(client: Client, name: &str,namespace: &str) -> Result<(), Error> {
     let api: Api<ServiceMonitor> = Api::namespaced(client, namespace);
     if let Some(service_monitor) = api.get_opt(&name).await? {
         let uid = service_monitor.metadata.uid.unwrap();

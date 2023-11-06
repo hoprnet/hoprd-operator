@@ -52,14 +52,12 @@ async fn create_service_account(context_data: Arc<ContextData>, namespace: &Stri
             error!("[IdentityPool] Could not create ServiceAccount {:?}", error);
             Err(Error::HoprdConfigError(format!("[IdentityPool] Could not create ServiceAccount for {} in namespace {}.", name, namespace)))
         }
-        
     }
 }
 
 async fn create_role(context_data: Arc<ContextData>, namespace: &String, name: &String, owner_references: Option<Vec<OwnerReference>>) -> Result<Role, Error> {
     let labels = utils::common_lables(context_data.config.instance.name.to_owned(), Some(name.to_owned()), None);
     let api: Api<Role> = Api::namespaced(context_data.client.clone(), namespace);
-    info!("Step 2.0");
     let role: Role = Role {
         metadata: ObjectMeta {
             labels: Some(labels.clone()),
