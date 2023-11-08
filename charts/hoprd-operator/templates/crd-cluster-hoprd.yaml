@@ -25,6 +25,30 @@ spec:
     - name: v1alpha
       served: true
       storage: true
+      additionalPrinterColumns:
+        - name: Phase
+          type: string
+          description: ClusterHoprd phase
+          jsonPath: .status.phase
+        - name: Pool
+          type: string
+          description: Pool name
+          jsonPath: .spec.identityPoolName
+        - name: version
+          type: string
+          description: Hoprd version
+          jsonPath: .spec.version
+        - name: Replicas
+          type: number
+          description: Replicas
+          jsonPath: .spec.replicas
+        - name: Running
+          type: number
+          description: Nodes running
+          jsonPath: .status.runningNodes
+        - name: Age
+          type: date
+          jsonPath: .metadata.creationTimestamp
       schema:
         openAPIV3Schema:
           description: Schema definition for ClusterHoprd Node
@@ -33,78 +57,42 @@ spec:
             spec:
               type: object
               properties:
-                network:
+                identityPoolName:
                   type: string
-                  description: 'Name of the hoprd network'
-                  enum:
-                  - rotsee
-                  - dufour
-                  - mont_blanc
-                ingress:
+                  description: The name of the IdentityPool
+                replicas:
+                  type: number
+                  description: Number of instances for this configuration
+                config:
+                  type: string
+                  description: Yaml configuration for Hoprd nodes
+                version:
+                  type: string
+                  description: An specific hoprd version. Should match with a docker tag
+                enabled:
+                  type: boolean
+                  description: 'Flag indicating if the node should be started or stopped'
+                deployment:
                   type: object
-                  description: Properties regarding ingress controller
+                  description: Deployment configuration
                   properties:
-                    enabled:
-                      type: boolean
-                      description: 'Whether to enable or disable the creation of an associated Ingress resource'
-                  required: ["enabled"]
-                monitoring:
-                  type: object
-                  description: Monitoring configuration
-                  properties:
-                    enabled:
-                      description: Whether to create a ServiceMonitor associated to nodes
-                      type: boolean
-                  required:
-                  - enabled
-                nodes:
-                  type: array
-                  description: Array of node configurations
-                  items:
-                    type: object
-                    properties:
-                      name:
-                        type: string
-                        description: Name for this configuration
-                      replicas:
-                        type: number
-                        description: Number of instances for this configuration
-                      config:
-                        type: string
-                        description: Yaml configuration for Hoprd nodes
-                      enabled:
-                        type: boolean
-                        description: 'Flag indicating if the node should be started or stopped'
-                      resources:
-                        type: object
-                        description: The OS resources assigned to the Hoprd node
-                        properties:
-                          limits:
-                            description: Specify the limit resources for the container
-                            type: object
-                            properties:
-                              cpu:
-                                description: Specify the cpu limit resources for the container
-                                type: string
-                              memory: 
-                                description: Specify the memory limit resources for the container
-                                type: string
-                          requests:
-                            description: Specify the request resources for the container
-                            type: object
-                            properties:
-                              cpu:
-                                description: Specify the cpu limit resources for the container
-                                type: string
-                              memory: 
-                                description: Specify the memory limit resources for the container
-                                type: string
-
-                      version:
-                        type: string
-                        description: 'An specific hoprd version. Should match with a docker tag'
-                    required: ["name", "replicas", "version"]
-              required: ["network","nodes"]
+                    resources:
+                      type: string
+                      description: The definition for hardware resources to be used by the node deployment
+                    startupProbe:
+                      type: string
+                      description: The definition of the startup probe to be used by the node deployment
+                    livenessProbe:
+                      type: string
+                      description: The definition of the liveness probe to be used by the node deployment
+                    readinessProbe:
+                      type: string
+                      description: The definition of the readiness probe to be used by the node deployment
+              required: 
+                - identityPoolName
+                - replicas
+                - config
+                - version
             status:
               description: The status object of ClusterHord node
               nullable: true
@@ -116,16 +104,19 @@ spec:
                 checksum:
                   type: string
                   description: Checksum of the last applied change
-                status:
-                  description: Status of the last applied change
+                phase:
+                  description: Phase of the last applied change
                   type: string
                   enum:
-                  - Initializing
-                  - Synching
-                  - InSync
-                  - Deleting
+                  - Initialized
+                  - Failed
                   - OutOfSync
-              required: [ "updateTimestamp", "checksum", "status"]
+                  - Ready
+                  - Deleting
+                runningNodes:
+                  type: number
+                  description: Number of nodes running
+              required: [ "updateTimestamp", "checksum", "phase", "runningNodes"]
               type: object
           required:
-          - spec
+            - spec

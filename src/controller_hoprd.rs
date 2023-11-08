@@ -97,10 +97,7 @@ async fn reconciler(hoprd: Arc<Hoprd>, context: Arc<ContextData>) -> Result<Acti
 /// - `error`: A reference to the `kube::Error` that occurred during reconciliation.
 /// - `_context`: Unused argument. Context Data "injected" automatically by kube-rs.
 pub fn on_error(hoprd: Arc<Hoprd>, error: &Error, _context: Arc<ContextData>) -> Action {
-    error!(
-        "[ClusterHoprd] Reconciliation error:\n{:?}.\n{:?}",
-        error, hoprd
-    );
+    error!("[Hoprd] Reconciliation error:\n{:?}.\n{:?}",error, hoprd);
     Action::requeue(Duration::from_secs(constants::RECONCILE_FREQUENCY))
 }
 

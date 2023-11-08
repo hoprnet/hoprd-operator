@@ -47,9 +47,10 @@ spec:
       strategies:
         - !Promiscuous
           max_channels: 10
-          network_quality_threshold: 0.6
+          network_quality_threshold: 0.5
           new_channel_stake: "1000000 HOPR"
           minimum_node_balance: "10000000 HOPR"
+          min_network_size_samples: 20
           enforce_max_channels: true
         - !AutoFunding
           funding_amount: "1000000 HOPR"
@@ -68,6 +69,7 @@ spec:
     network_options:
       min_delay: 1
       max_delay: 300
+      quality_avg_window_size: 25
       quality_bad_threshold: 0.2
       quality_offline_threshold: 0.5
       quality_step: 0.1

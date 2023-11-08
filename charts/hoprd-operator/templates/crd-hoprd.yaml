@@ -26,10 +26,10 @@ spec:
       served: true
       storage: true
       additionalPrinterColumns:
-        - name: Status
+        - name: Phase
           type: string
-          description: Hoprd status
-          jsonPath: .status.status
+          description: Hoprd phase
+          jsonPath: .status.phase
         - name: IdentityHoprd
           type: string
           description: Hoprd Name
@@ -76,7 +76,7 @@ spec:
                 version:
                   type: string
                   description: 'An specific hoprd version. Should match with a docker tag'
-              required: ["version", "identityPoolName", "identityName"]
+              required: ["version", "identityPoolName"]
             status:
               description: The status object of Hoprd node
               nullable: true
@@ -88,8 +88,8 @@ spec:
                 checksum:
                   type: string
                   description: Checksum of the last applied change
-                status:
-                  description: Status of the last applied change
+                phase:
+                  description: Phase of the last applied change
                   type: string
                   enum:
                   - Initializing
@@ -101,7 +101,7 @@ spec:
                 identityName:
                   type: string
                   description: Name of the HoprdNode
-              required: [ "updateTimestamp", "checksum", "status"]
+              required: [ "updateTimestamp", "checksum", "phase"]
               type: object
           required:
           - spec

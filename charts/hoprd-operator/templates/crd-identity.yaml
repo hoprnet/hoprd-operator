@@ -26,10 +26,14 @@ spec:
       served: true
       storage: true
       additionalPrinterColumns:
-        - name: Status
+        - name: Phase
           type: string
-          description: Identity status
-          jsonPath: .status.status
+          description: Identity phase
+          jsonPath: .status.phase
+        - name: Pool
+          type: string
+          description: Pool name
+          jsonPath: .spec.identityPoolName
         - name: HoprdNode
           type: string
           description: Hoprd Name
@@ -82,8 +86,8 @@ spec:
                 checksum:
                   type: string
                   description: Checksum of the last applied change
-                status:
-                  description: Status of the last applied change
+                phase:
+                  description: Phase of the last applied change
                   type: string
                   enum:
                   - Initialized
@@ -95,7 +99,7 @@ spec:
                 hoprdNodeName:
                   type: string
                   description: Name of the HoprdNode
-              required: [ "updateTimestamp", "checksum", "status"]
+              required: [ "updateTimestamp", "checksum", "phase"]
               type: object
           required:
           - spec

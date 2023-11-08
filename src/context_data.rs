@@ -1,15 +1,14 @@
-use std::{env, sync::Arc};
+use std::{env, sync::Arc, collections::BTreeMap};
 use tokio::sync::RwLock;
 
 use kube::{
     runtime::events::{Recorder, Reporter},
-    Client, Resource,
+    Client, Resource, Api, api::ListParams, ResourceExt,
 };
-use serde::Serialize;
 
 use crate::{
     cluster::ClusterHoprd, constants, hoprd::Hoprd, identity_hoprd::IdentityHoprd,
-    identity_pool::IdentityPool, operator_config::OperatorConfig,
+    identity_pool::{IdentityPool}, operator_config::OperatorConfig,
 };
 
 #[derive(Clone)]
@@ -31,59 +30,59 @@ impl ContextData {
             let path = "/app/config/config.yaml".to_owned();
             path
         } else {
-            let mut path = env::current_dir()
-                .as_ref()
-                .unwrap()
-                .to_str()
-                .unwrap()
-                .to_owned();
-            path.push_str(&format!(
-                "/test-data/sample_config-{operator_environment}.yaml"
-            ));
+            let mut path = env::current_dir().as_ref().unwrap().to_str().unwrap().to_owned();
+            path.push_str(&format!("/test-data/sample_config-{operator_environment}.yaml"));
             path
         };
         let config_file = std::fs::File::open(&config_path).expect("Could not open config file.");
-        let config: OperatorConfig =
-            serde_yaml::from_reader(config_file).expect("Could not read contents of config file.");
+        let config: OperatorConfig = serde_yaml::from_reader(config_file).expect("Could not read contents of config file.");
+
+        let api = Api::<IdentityPool>::all(client.clone());
+        let pools = api.list(&ListParams::default()).await.unwrap().items.clone();
 
         ContextData {
             client,
-            state: Arc::new(RwLock::new(State::default())),
+            state: Arc::new(RwLock::new(State::new(pools))),
             config,
         }
     }
 }
 
-#[derive(Clone, Serialize)]
+#[derive(Debug,Clone)]
 pub struct State {
-    #[serde(skip)]
     pub reporter: Reporter,
-}
-impl Default for State {
-    fn default() -> Self {
-        Self {
-            reporter: Reporter::from("hopr-operator-controller"),
-        }
-    }
+    pub identity_pool: BTreeMap<String, Arc<IdentityPool>>
 }
 impl State {
-    pub fn generate_identity_hoprd_event(
-        &self,
-        client: Client,
-        identity_hoprd: &IdentityHoprd,
-    ) -> Recorder {
-        Recorder::new(
-            client,
-            self.reporter.clone(),
-            identity_hoprd.object_ref(&()),
-        )
+    pub fn new(identity_pools: Vec<IdentityPool>) -> State {
+        State {
+            reporter: Reporter::from("hopr-operator-controller"),
+            identity_pool: identity_pools.into_iter().map(|identity_pool| (format!("{}-{}",identity_pool.namespace().unwrap(), identity_pool.name_any()), Arc::new(identity_pool))).collect()
+        }
     }
 
-    pub fn generate_identity_pool_event(
-        &self,
-        client: Client,
-        identity_pool: &IdentityPool,
-    ) -> Recorder {
+    pub fn add_identity_pool(&mut self, identity_pool: IdentityPool) {
+        self.identity_pool.insert(format!("{}-{}",identity_pool.namespace().unwrap(), identity_pool.name_any()), Arc::new(identity_pool));
+    }
+
+    pub fn remove_identity_pool(&mut self, namespace: &String, identity_pool_name: &String) {
+        self.identity_pool.remove(&format!("{}-{}",namespace, identity_pool_name));
+    }
+
+    pub fn get_identity_pool(&self, namespace: &String, identity_pool_name: &String) -> Option<Arc<IdentityPool>> {
+        self.identity_pool.get(&format!("{}-{}",namespace, identity_pool_name)).map(|x| x.clone())
+    }
+
+    pub fn update_identity_pool(&mut self, identity_pool: IdentityPool) {
+        self.remove_identity_pool(&identity_pool.metadata.namespace.as_ref().unwrap(), &identity_pool.metadata.name.as_ref().unwrap());
+        self.add_identity_pool(identity_pool);
+    }
+
+    pub fn generate_identity_hoprd_event(&self, client: Client, identity_hoprd: &IdentityHoprd) -> Recorder {
+        Recorder::new(client, self.reporter.clone(), identity_hoprd.object_ref(&()))
+    }
+
+    pub fn generate_identity_pool_event(&self, client: Client, identity_pool: &IdentityPool) -> Recorder {
         Recorder::new(client, self.reporter.clone(), identity_pool.object_ref(&()))
     }
 
@@ -91,11 +90,7 @@ impl State {
         Recorder::new(client, self.reporter.clone(), hoprd.object_ref(&()))
     }
 
-    pub fn generate_cluster_hoprd_event(
-        &self,
-        client: Client,
-        cluster_hoprd: &ClusterHoprd,
-    ) -> Recorder {
+    pub fn generate_cluster_hoprd_event(&self,client: Client,cluster_hoprd: &ClusterHoprd) -> Recorder {
         Recorder::new(client, self.reporter.clone(), cluster_hoprd.object_ref(&()))
     }
 }

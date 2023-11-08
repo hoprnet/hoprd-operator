@@ -30,10 +30,10 @@ spec:
           type: string
           description: Hoprd network name
           jsonPath: .spec.network
-        - name: Status
+        - name: Phase
           type: string
-          description: Identity status
-          jsonPath: .status.status
+          description: Identity pool phase
+          jsonPath: .status.phase
         - name: Size
           type: number
           description: Identity size
@@ -77,8 +77,8 @@ spec:
                 checksum:
                   type: string
                   description: Checksum of the last applied change
-                status:
-                  description: Status of the last applied change
+                phase:
+                  description: Phase of the last applied change
                   type: string
                   enum:
                   - Initialized
@@ -92,7 +92,7 @@ spec:
                 locked:
                   description: Amount of locked identities
                   type: number
-              required: [ "updateTimestamp", "checksum", "status", "size", "locked"]
+              required: [ "updateTimestamp", "checksum", "phase", "size", "locked"]
               type: object
           required:
           - spec

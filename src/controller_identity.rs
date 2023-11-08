@@ -58,10 +58,7 @@ fn determine_action(identity_hoprd: &IdentityHoprd) -> IdentityHoprdAction {
         identity_spec.clone().hash(&mut hasher);
         let hash: String = hasher.finish().to_string();
         let current_checksum = hash.to_string();
-        let previous_checksum: String = identity_hoprd
-            .status
-            .as_ref()
-            .map_or("0".to_owned(), |status| status.checksum.to_owned());
+        let previous_checksum: String = identity_hoprd.status.as_ref().map_or("0".to_owned(), |status| status.checksum.to_owned());
         // When the resource is created, does not have previous checksum and needs to be skip the modification because it's being handled already by the creation operation
         if previous_checksum.eq(&"0".to_owned()) || current_checksum.eq(&previous_checksum) {
             IdentityHoprdAction::NoOp
@@ -71,15 +68,14 @@ fn determine_action(identity_hoprd: &IdentityHoprd) -> IdentityHoprdAction {
     };
 }
 
-async fn reconciler(
-    identity_hoprd: Arc<IdentityHoprd>,
-    context: Arc<ContextData>,
-) -> Result<Action, Error> {
+async fn reconciler(identity_hoprd: Arc<IdentityHoprd>,context: Arc<ContextData>) -> Result<Action, Error> {
+    let mut identity_hoprd_cloned = identity_hoprd.clone();
+    let identity_hoprd_mutable:  &mut IdentityHoprd = Arc::<IdentityHoprd>::make_mut(&mut identity_hoprd_cloned);
     // Performs action as decided by the `determine_action` function.
-    return match determine_action(&identity_hoprd) {
-        IdentityHoprdAction::Create => identity_hoprd.create(context.clone()).await,
-        IdentityHoprdAction::Modify => identity_hoprd.modify().await,
-        IdentityHoprdAction::Delete => identity_hoprd.delete(context.clone()).await,
+    return match determine_action(&identity_hoprd_mutable) {
+        IdentityHoprdAction::Create => identity_hoprd_mutable.create(context.clone()).await,
+        IdentityHoprdAction::Modify => identity_hoprd_mutable.modify().await,
+        IdentityHoprdAction::Delete => identity_hoprd_mutable.delete(context.clone()).await,
         // The resource is already in desired state, do nothing and re-check after 10 seconds
         IdentityHoprdAction::NoOp => Ok(Action::requeue(Duration::from_secs(
             constants::RECONCILE_FREQUENCY,
@@ -100,10 +96,7 @@ pub fn on_error(
     error: &Error,
     _context: Arc<ContextData>,
 ) -> Action {
-    error!(
-        "[IdentityHoprd] Reconciliation error:\n{:?}.\n{:?}",
-        error, identity_hoprd
-    );
+    error!("[IdentityHoprd] Reconciliation error:\n{:?}.\n{:?}",error, identity_hoprd);
     Action::requeue(Duration::from_secs(constants::RECONCILE_FREQUENCY))
 }
 
@@ -123,10 +116,7 @@ pub async fn run(client: Client, context_data: Arc<ContextData>) {
                     let err_string = reconciliation_err.to_string();
                     if !err_string.contains("that was not found in local store") {
                         // https://github.com/kube-rs/kube/issues/712
-                        error!(
-                            "[IdentityHoprd] Reconciliation error: {:?}",
-                            reconciliation_err
-                        )
+                        error!("[IdentityHoprd] Reconciliation error: {:?}",reconciliation_err)
                     }
                 }
             }

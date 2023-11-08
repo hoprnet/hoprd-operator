@@ -17,7 +17,7 @@ use tokio::time::Duration;
 use tracing::error;
 
 use crate::{
-    cluster::{ClusterHoprd, ClusterHoprdSpec, ClusterHoprdStatusEnum},
+    cluster::{ClusterHoprd, ClusterHoprdSpec, ClusterHoprdPhaseEnum},
     constants::{self},
     context_data::ContextData,
     hoprd::Hoprd,
@@ -54,20 +54,17 @@ fn determine_action(cluster_hoprd: &ClusterHoprd) -> ClusterHoprdAction {
         .map_or(true, |finalizers| finalizers.is_empty())
     {
         ClusterHoprdAction::Create
-    } else if cluster_hoprd.status.as_ref().unwrap().status == ClusterHoprdStatusEnum::OutOfSync {
+    } else if cluster_hoprd.status.as_ref().unwrap().phase == ClusterHoprdPhaseEnum::OutOfSync {
         ClusterHoprdAction::Sync
-    } else if cluster_hoprd.status.as_ref().unwrap().status == ClusterHoprdStatusEnum::Deleting {
+    } else if cluster_hoprd.status.as_ref().unwrap().phase == ClusterHoprdPhaseEnum::Deleting {
         ClusterHoprdAction::NoOp
     } else {
         let mut hasher: DefaultHasher = DefaultHasher::new();
         let cluster_hoprd_spec: ClusterHoprdSpec = cluster_hoprd.spec.clone();
         cluster_hoprd_spec.clone().hash(&mut hasher);
         let hash: String = hasher.finish().to_string();
-        let current_checksum = format!("checksum-{}", hash.to_string());
-        let previous_checksum: String = cluster_hoprd
-            .status
-            .as_ref()
-            .map_or("0".to_owned(), |status| status.checksum.to_owned());
+        let current_checksum = hash.to_string();
+        let previous_checksum: String = cluster_hoprd.status.as_ref().map_or("0".to_owned(), |status| status.checksum.to_owned());
         // When the resource is created, does not have previous checksum and needs to be skip the modification because it's being handled already by the creation operation
         if previous_checksum.eq(&"0".to_owned()) || current_checksum.eq(&previous_checksum) {
             ClusterHoprdAction::NoOp
@@ -107,10 +104,7 @@ pub fn on_error(
     error: &Error,
     _context: Arc<ContextData>,
 ) -> Action {
-    error!(
-        "[ClusterHoprd] Reconciliation error:\n{:?}.\n{:?}",
-        error, cluster_hoprd
-    );
+    error!("[ClusterHoprd] Reconciliation error:\n{:?}.\n{:?}",error, cluster_hoprd);
     Action::requeue(Duration::from_secs(constants::RECONCILE_FREQUENCY))
 }
 
@@ -130,10 +124,7 @@ pub async fn run(client: Client, context_data: Arc<ContextData>) {
                     let err_string = reconciliation_err.to_string();
                     if !err_string.contains("that was not found in local store") {
                         // https://github.com/kube-rs/kube/issues/712
-                        error!(
-                            "[ClusterHoprd] Reconciliation error: {:?}",
-                            reconciliation_err
-                        )
+                        error!("[ClusterHoprd] Reconciliation error: {:?}",reconciliation_err)
                     }
                 }
             }

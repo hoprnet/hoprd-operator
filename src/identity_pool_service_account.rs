@@ -49,8 +49,8 @@ async fn create_service_account(context_data: Arc<ContextData>, namespace: &Stri
     match api.create(&PostParams::default(), &service_account).await {
         Ok(sa) => Ok(sa),
         Err(error) => {
-            error!("[IdentityPool] Could not create ServiceAccount {:?}", error);
-            Err(Error::HoprdConfigError(format!("[IdentityPool] Could not create ServiceAccount for {} in namespace {}.", name, namespace)))
+            error!("Could not create ServiceAccount {:?}", error);
+            Err(Error::HoprdConfigError(format!("Could not create ServiceAccount for {} in namespace {}.", name, namespace)))
         }
     }
 }
@@ -82,8 +82,8 @@ async fn create_role(context_data: Arc<ContextData>, namespace: &String, name: &
     match api.create(&PostParams::default(), &role).await {
         Ok(role) => Ok(role),
         Err(error) => {
-            error!("[IdentityPool] Could not create Role {:?}", error);
-            Err(Error::HoprdConfigError(format!("[IdentityPool] Could not create Role for {} in namespace {}.", name, namespace)))
+            error!("Could not create Role {:?}", error);
+            Err(Error::HoprdConfigError(format!("Could not create Role for {} in namespace {}.", name, namespace)))
         }
         
     }
@@ -114,8 +114,8 @@ async fn create_role_binding(context_data: Arc<ContextData>, namespace: &String,
     match api.create(&PostParams::default(), &role_binding).await {
         Ok(rb) => Ok(rb),
         Err(error) => {
-            error!("[IdentityPool] Could not create RoleBinding {:?}", error);
-            Err(Error::HoprdConfigError(format!("[IdentityPool] Could not create RoleBinding for {} in namespace {}.", name, namespace)))
+            error!("Could not create RoleBinding {:?}", error);
+            Err(Error::HoprdConfigError(format!("Could not create RoleBinding for {} in namespace {}.", name, namespace)))
         }
         
     }

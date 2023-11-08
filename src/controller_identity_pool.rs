@@ -50,7 +50,7 @@ fn determine_action(identity_pool: &IdentityPool) -> IdentityPoolAction {
     } else if identity_pool.meta().finalizers.as_ref().map_or(true, |finalizers| finalizers.is_empty())
     {
         IdentityPoolAction::Create
-    } else if identity_pool.status.as_ref().unwrap().status.eq(&crate::identity_pool::IdentityPoolStatusEnum::OutOfSync)
+    } else if identity_pool.status.as_ref().unwrap().phase.eq(&crate::identity_pool::IdentityPoolPhaseEnum::OutOfSync)
     {
         IdentityPoolAction::Sync
     } else {
@@ -70,16 +70,15 @@ fn determine_action(identity_pool: &IdentityPool) -> IdentityPoolAction {
     };
 }
 
-async fn reconciler(
-    identity_pool: Arc<IdentityPool>,
-    context: Arc<ContextData>,
-) -> Result<Action, Error> {
+async fn reconciler(identity_pool: Arc<IdentityPool>, context: Arc<ContextData>) -> Result<Action, Error> {
+    let mut identity_pool_cloned = identity_pool.clone();
+    let identity_pool_mutable:  &mut IdentityPool = Arc::<IdentityPool>::make_mut(&mut identity_pool_cloned);
     // Performs action as decided by the `determine_action` function.
-    return match determine_action(&identity_pool) {
-        IdentityPoolAction::Create => identity_pool.create(context.clone()).await,
-        IdentityPoolAction::Modify => identity_pool.modify(context.clone()).await,
-        IdentityPoolAction::Sync => identity_pool.sync(context.clone()).await,
-        IdentityPoolAction::Delete => identity_pool.delete(context.clone()).await,
+    return match determine_action(identity_pool_mutable) {
+        IdentityPoolAction::Create => identity_pool_mutable.create(context.clone()).await,
+        IdentityPoolAction::Modify => identity_pool_mutable.modify(context.clone()).await,
+        IdentityPoolAction::Sync => identity_pool_mutable.sync(context.clone()).await,
+        IdentityPoolAction::Delete => identity_pool_mutable.delete(context.clone()).await,
         // The resource is already in desired state, do nothing and re-check after 10 seconds
         IdentityPoolAction::NoOp => Ok(Action::requeue(Duration::from_secs(
             constants::RECONCILE_FREQUENCY,
@@ -100,10 +99,7 @@ pub fn on_error(
     error: &Error,
     _context: Arc<ContextData>,
 ) -> Action {
-    error!(
-        "[IdentityPool] Reconciliation error:\n{:?}.\n{:?}",
-        error, identity_hoprd
-    );
+    error!("[IdentityPool] Reconciliation error:\n{:?}.\n{:?}",error, identity_hoprd);
     Action::requeue(Duration::from_secs(constants::RECONCILE_FREQUENCY))
 }
 
@@ -123,10 +119,7 @@ pub async fn run(client: Client, context_data: Arc<ContextData>) {
                     let err_string = reconciliation_err.to_string();
                     if !err_string.contains("that was not found in local store") {
                         // https://github.com/kube-rs/kube/issues/712
-                        error!(
-                            "[IdentityPool] Reconciliation error: {:?}",
-                            reconciliation_err
-                        )
+                        error!("[IdentityPool] Reconciliation error: {:?}",reconciliation_err)
                     }
                 }
             }
