@@ -21,7 +21,7 @@ use crate::{
     context_data::ContextData,
     identity_pool::{IdentityPool, IdentityPoolSpec},
     model::Error,
-    servicemonitor::ServiceMonitor,
+    servicemonitor::ServiceMonitor, identity_hoprd::IdentityHoprd,
 };
 
 /// Action to be taken upon an `IdentityPool` resource during reconciliation
@@ -107,9 +107,11 @@ pub fn on_error(
 pub async fn run(client: Client, context_data: Arc<ContextData>) {
     let owned_api: Api<IdentityPool> = Api::<IdentityPool>::all(client.clone());
     let service_monitor = Api::<ServiceMonitor>::all(client.clone());
+    let identity_hoprd = Api::<IdentityHoprd>::all(client.clone());
 
     Controller::new(owned_api, Config::default())
         .owns(service_monitor, Config::default())
+        .owns(identity_hoprd, Config::default())
         .shutdown_on_signal()
         .run(reconciler, on_error, context_data)
         .for_each(|reconciliation_result| async move {

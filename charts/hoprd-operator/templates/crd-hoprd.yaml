@@ -95,7 +95,6 @@ spec:
                   - Initializing
                   - Running
                   - Stopped
-                  - Synching
                   - OutOfSync
                   - Deleting
                 identityName:

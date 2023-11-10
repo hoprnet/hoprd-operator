@@ -160,16 +160,13 @@ pub async fn build_deployment_spec(labels: BTreeMap<String, String>, hoprd_spec:
 
 pub async fn modify_deployment(context_data: Arc<ContextData>, deployment_name: &str, namespace: &str, hoprd_spec: &HoprdSpec, identity_hoprd: &IdentityHoprd) -> Result<Deployment, kube::Error> {
     let api: Api<Deployment> = Api::namespaced(context_data.client.clone(), namespace);
-    let hoprd_host = api.get(deployment_name).await.unwrap()
-        .spec.unwrap().template.spec.unwrap().containers.first().as_ref().unwrap()
+    let deployment = api.get(deployment_name).await.unwrap();
+    let hoprd_host = deployment.spec.clone().unwrap().template.spec.unwrap().containers.first().as_ref().unwrap()
         .env.as_ref().unwrap().iter()
         .find(|&env_var| env_var.name.eq(&constants::HOPRD_HOST.to_owned())).unwrap()
         .value.as_ref().unwrap().to_owned();
-    let mut labels: BTreeMap<String, String> = utils::common_lables(context_data.config.instance.name.to_owned(), Some(deployment_name.to_owned()), Some("node".to_owned()));
-    labels.insert(constants::LABEL_KUBERNETES_COMPONENT.to_owned(),"node".to_owned(),
-    );
     let identity_pool: IdentityPool = identity_hoprd.get_identity_pool(context_data.client.clone()).await.unwrap();
-    let spec = build_deployment_spec(labels, hoprd_spec, identity_pool, identity_hoprd, &hoprd_host).await;
+    let spec = build_deployment_spec(deployment.labels().to_owned(), hoprd_spec, identity_pool, identity_hoprd, &hoprd_host).await;
     let patch = &Patch::Merge(json!({ "spec": spec }));
     api.patch(&deployment_name, &PatchParams::default(), patch).await
 }

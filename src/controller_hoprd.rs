@@ -14,18 +14,14 @@ use kube::{
     },
     Resource, Result,
 };
-use std::{
-    collections::hash_map::DefaultHasher,
-    hash::{Hash, Hasher},
-    sync::Arc,
-};
+use std::sync::Arc;
 use tokio::time::Duration;
 use tracing::error;
 
 use crate::{
     constants::{self},
     context_data::ContextData,
-    hoprd::{Hoprd, HoprdSpec},
+    hoprd::{Hoprd, HoprdPhaseEnum},
     model::Error,
     servicemonitor::ServiceMonitor,
 };
@@ -58,12 +54,12 @@ fn determine_action(hoprd: &Hoprd) -> HoprdAction {
         .map_or(true, |finalizers| finalizers.is_empty())
     {
         HoprdAction::Create
+    } else if hoprd.status.as_ref().unwrap().phase == HoprdPhaseEnum::OutOfSync {
+        HoprdAction::Modify
+    } else if hoprd.status.as_ref().unwrap().phase == HoprdPhaseEnum::Deleting {
+        HoprdAction::NoOp
     } else {
-        let mut hasher: DefaultHasher = DefaultHasher::new();
-        let hoprd_spec: HoprdSpec = hoprd.spec.clone();
-        hoprd_spec.clone().hash(&mut hasher);
-        let hash: String = hasher.finish().to_string();
-        let current_checksum = hash.to_string();
+        let current_checksum = hoprd.get_checksum();
         let previous_checksum: String = hoprd
             .status
             .as_ref()

@@ -8,16 +8,12 @@ use kube::{
     },
     Resource, Result,
 };
-use std::{
-    collections::hash_map::DefaultHasher,
-    hash::{Hash, Hasher},
-    sync::Arc,
-};
+use std::sync::Arc;
 use tokio::time::Duration;
 use tracing::error;
 
 use crate::{
-    cluster::{ClusterHoprd, ClusterHoprdSpec, ClusterHoprdPhaseEnum},
+    cluster::{ClusterHoprd, ClusterHoprdPhaseEnum},
     constants::{self},
     context_data::ContextData,
     hoprd::Hoprd,
@@ -31,7 +27,7 @@ enum ClusterHoprdAction {
     /// Modify ClusterHoprd resource
     Modify,
     /// Sync ClusterHoprd resources
-    Sync,
+    Rescale,
     /// Delete all subresources created in the `Create` phase
     Delete,
     /// This `ClusterHoprd` resource is in desired state and requires no actions to be taken
@@ -54,16 +50,12 @@ fn determine_action(cluster_hoprd: &ClusterHoprd) -> ClusterHoprdAction {
         .map_or(true, |finalizers| finalizers.is_empty())
     {
         ClusterHoprdAction::Create
-    } else if cluster_hoprd.status.as_ref().unwrap().phase == ClusterHoprdPhaseEnum::OutOfSync {
-        ClusterHoprdAction::Sync
+    } else if cluster_hoprd.status.as_ref().unwrap().phase == ClusterHoprdPhaseEnum::NotScaled || cluster_hoprd.status.as_ref().unwrap().phase == ClusterHoprdPhaseEnum::Scaling {
+        ClusterHoprdAction::Rescale
     } else if cluster_hoprd.status.as_ref().unwrap().phase == ClusterHoprdPhaseEnum::Deleting {
         ClusterHoprdAction::NoOp
     } else {
-        let mut hasher: DefaultHasher = DefaultHasher::new();
-        let cluster_hoprd_spec: ClusterHoprdSpec = cluster_hoprd.spec.clone();
-        cluster_hoprd_spec.clone().hash(&mut hasher);
-        let hash: String = hasher.finish().to_string();
-        let current_checksum = hash.to_string();
+        let current_checksum = cluster_hoprd.get_checksum();
         let previous_checksum: String = cluster_hoprd.status.as_ref().map_or("0".to_owned(), |status| status.checksum.to_owned());
         // When the resource is created, does not have previous checksum and needs to be skip the modification because it's being handled already by the creation operation
         if previous_checksum.eq(&"0".to_owned()) || current_checksum.eq(&previous_checksum) {
@@ -83,7 +75,7 @@ async fn reconciler(
         ClusterHoprdAction::Create => cluster_hoprd.create(context.clone()).await,
         ClusterHoprdAction::Modify => cluster_hoprd.modify(context.clone()).await,
         ClusterHoprdAction::Delete => cluster_hoprd.delete(context.clone()).await,
-        ClusterHoprdAction::Sync => cluster_hoprd.sync(context.clone()).await,
+        ClusterHoprdAction::Rescale => cluster_hoprd.rescale(context.clone()).await,
         // The resource is already in desired state, do nothing and re-check after 10 seconds
         ClusterHoprdAction::NoOp => Ok(Action::requeue(Duration::from_secs(
             constants::RECONCILE_FREQUENCY,

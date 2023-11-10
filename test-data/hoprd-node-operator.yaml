@@ -7,7 +7,7 @@ metadata:
 spec:
   version: providence
   identityPoolName: pool-hoprd-operator
-  identityName: pool-hoprd-operator-1
+  identityName: pool-hoprd-operator-2
   enabled: true 
   deployment:
     resources: |
