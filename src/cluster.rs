@@ -282,7 +282,7 @@ impl ClusterHoprd {
             ClusterHoprdPhaseEnum::NotScaled => Event {
                 type_: EventType::Warning,
                 reason: "NotScaled".to_string(),
-                note: Some(format!("ClusterHoprd is not sync. There are {} nodes pending to be synchronized", attribute.unwrap())),
+                note: Some(format!("ClusterHoprd is not sync. There are {} nodes pending to be synchronized", attribute.as_ref().unwrap_or(&"unknown".to_string()))),
                 action: "ClusterHoprd is not scaled".to_string(),
                 secondary: None,
             },
@@ -331,15 +331,15 @@ impl ClusterHoprd {
             ClusterHoprdPhaseEnum::DeletingNode => Event {
                 type_: EventType::Normal,
                 reason: "DeletingNode".to_string(),
-                note: Some(format!("Node {} is being deleted from the cluster", attribute.as_ref().unwrap())),
-                action: format!("Node {} is being deleted from the cluster", attribute.unwrap()),
+                note: Some(format!("Node {} is being deleted from the cluster", attribute.as_ref().unwrap_or(&"unknown".to_string()))),
+                action: format!("Node {} is being deleted from the cluster", attribute.as_ref().unwrap_or(&"unknown".to_string())),
                 secondary: None,
             },
             ClusterHoprdPhaseEnum::NodeDeleted => Event {
                 type_: EventType::Normal,
                 reason: "NodeDeleted".to_string(),
-                note: Some(format!("Node {} is deleted from the cluster", attribute.as_ref().unwrap())),
-                action: format!("Node {} is deleted from the cluster", attribute.unwrap()),
+                note: Some(format!("Node {} is deleted from the cluster", attribute.as_ref().unwrap_or(&"unknown".to_string()))),
+                action: format!("Node {} is deleted from the cluster", attribute.as_ref().unwrap_or(&"unknown".to_string())),
                 secondary: None,
             },
 

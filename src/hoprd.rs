@@ -222,9 +222,7 @@ impl Hoprd {
         // for Kubernetes to delete the `Hoprd` resource.
         self.create_event(context_data.clone(), HoprdPhaseEnum::Deleted).await?;
         self.delete_finalizer(client.clone(), &hoprd_name, &hoprd_namespace).await?;
-        info!(
-            "Hoprd node {hoprd_name} in namespace {hoprd_namespace} has been successfully deleted"
-        );
+        info!("Hoprd node {hoprd_name} in namespace {hoprd_namespace} has been successfully deleted");
         self.notify_cluster(context_data.clone()).await.unwrap();
         Ok(Action::await_change()) // Makes no sense to delete after a successful delete, as the resource is gone
     }
@@ -417,8 +415,8 @@ impl Hoprd {
             if let Some(cluster) = api.get_opt(&owner_reference.name).await? {
                 let current_phase = cluster.to_owned().status.unwrap().phase;
                 if current_phase.ne(&ClusterHoprdPhaseEnum::Deleting) && current_phase.ne(&ClusterHoprdPhaseEnum::NotScaled) {
-                    cluster.create_event(context.clone(), ClusterHoprdPhaseEnum::NotScaled, Some(self.name_any().to_owned())).await.unwrap();
-                    cluster.update_phase(context.clone(), ClusterHoprdPhaseEnum::NotScaled).await.unwrap();
+                    cluster.create_event(context.clone(), ClusterHoprdPhaseEnum::NodeDeleted, None).await.unwrap();
+                    cluster.update_phase(context.clone(), ClusterHoprdPhaseEnum::NodeDeleted).await.unwrap();
                     info!("Notifying ClusterHoprd {} that hoprd node {} is being deleted", &owner_reference.name, self.name_any().to_owned())
                 }
             } else {

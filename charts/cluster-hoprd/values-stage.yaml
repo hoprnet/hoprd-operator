@@ -1,27 +1,90 @@
-identityPoolName: core-staging
+identityPoolName: identity-pool-hoprd-operator
 replicas: 1
-version: 2.0.2
+version: latest
 enabled: true
-deployment:
-  resources: |
-      limits:
-        cpu: 2000m
-        memory: 2Gi
-      requests:
-        cpu: 750m
-        memory: 256Mi
+# deployment:
+#   resources: |
+#       limits:
+#         cpu: 2000m
+#         memory: 2Gi
+#       requests:
+#         cpu: 750m
+#         memory: 256Mi
 config: |
-  host:
-    address: !IPv4 0.0.0.0
-    port: 9091
+  hopr:
+    host:
+      address: !IPv4 0.0.0.0
+      port: 9091
+    db:
+      data: "/app/hoprd-db"
+      initialize: true
+      force_initialize: false
+    strategy:
+      on_fail_continue: true
+      allow_recursive: false
+      finalize_channel_closure: true
+      strategies:
+        - !Promiscuous
+          max_channels: 10
+          network_quality_threshold: 0.5
+          new_channel_stake: "1000000 HOPR"
+          minimum_node_balance: "10000000 HOPR"
+          min_network_size_samples: 20
+          enforce_max_channels: true
+        - !AutoFunding
+          funding_amount: "1000000 HOPR"
+          min_stake_threshold: "100000 HOPR"
+        - !Aggregating
+          aggregation_threshold: 1000000
+          unrealized_balance_ratio: 0.9
+          aggregation_timeout: 60
+          aggregate_on_channel_close: true
+        - !AutoRedeeming
+          redeem_only_aggregated: True
+    heartbeat:
+      variance: 2000
+      interval: 20000
+      threshold: 60000
+    network_options:
+      min_delay: 1
+      max_delay: 300
+      quality_avg_window_size: 25
+      quality_bad_threshold: 0.2
+      quality_offline_threshold: 0.5
+      quality_step: 0.1
+      ignore_timeframe: 600
+      backoff_exponent: 1.5
+      backoff_min: 2
+      backoff_max: 300
+    healthcheck:
+      enable: true
+      host: 0.0.0.0
+      port: 8080
+    transport:
+      announce_local_addresses: false
+      prefer_local_addresses: false
+    protocol:
+      ack:
+        timeout: 15
+      heartbeat:
+        timeout: 15
+      msg:
+        timeout: 15
+      ticket_aggregation:
+        timeout: 15
+    chain:
+      network: rotsee
+      announce: true
+      provider:
+      check_unrealized_balance: true
+    safe_module:
+      safe_transaction_service_provider: https://safe-transaction.prod.hoprtech.net/
+      safe_address: "0x0000000000000000000000000000000000000000"
+      module_address: "0x0000000000000000000000000000000000000000"
   identity:
     file: "/app/hoprd-db/.hoprd.id"
     password: "<READCTED>"
     private_key:
-  db:
-    data: "/app/hoprd-db"
-    initialize: true
-    force_initialize: false
   inbox:
     capacity: 512
     max_age: 900
@@ -33,108 +96,5 @@ config: |
     host:
       address: !IPv4 0.0.0.0
       port: 3001
-  strategy:
-    on_fail_continue: true
-    allow_recursive: false
-    finalize_channel_closure: true
-    strategies:
-      - !Promiscuous
-        max_channels: 10
-        network_quality_threshold: 0.5
-        new_channel_stake: "1000000 HOPR"
-        minimum_node_balance: "10000000 HOPR"
-        min_network_size_samples: 20
-        enforce_max_channels: true
-      - !AutoFunding
-        funding_amount: "1000000 HOPR"
-        min_stake_threshold: "100000 HOPR"
-      - !Aggregating
-        aggregation_threshold: 100000
-        unrealized_balance_ratio: 0.9
-        aggregation_timeout: 60
-        aggregate_on_channel_close: true
-      - !AutoRedeeming
-        redeem_only_aggregated: True
-  heartbeat:
-    variance: 2000
-    interval: 20000
-    threshold: 60000
-  network_options:
-    min_delay: 1
-    max_delay: 300
-    quality_avg_window_size: 25
-    quality_bad_threshold: 0.2
-    quality_offline_threshold: 0.5
-    quality_step: 0.1
-    ignore_timeframe: 600
-    backoff_exponent: 1.5
-    backoff_min: 2
-    backoff_max: 300
-  healthcheck:
-    enable: true
-    host: 0.0.0.0
-    port: 8080
-  protocol:
-    ack:
-      timeout: 15
-    heartbeat:
-      timeout: 15
-    msg:
-      timeout: 15
-    ticket_aggregation:
-      timeout: 15
-  network: unknown
-  chain:
-    announce: true
-    provider:
-    check_unrealized_balance: true
-  safe_module:
-    safe_transaction_service_provider:
-    safe_address:
-      addr:
-        - 44
-        - 44
-        - 44
-        - 44
-        - 44
-        - 44
-        - 44
-        - 44
-        - 44
-        - 44
-        - 44
-        - 44
-        - 44
-        - 44
-        - 44
-        - 44
-        - 44
-        - 44
-        - 44
-        - 44
-    module_address:
-      addr:
-        - 44
-        - 44
-        - 44
-        - 44
-        - 44
-        - 44
-        - 44
-        - 44
-        - 44
-        - 44
-        - 44
-        - 44
-        - 44
-        - 44
-        - 44
-        - 44
-        - 44
-        - 44
-        - 44
-        - 44
   test:
-    announce_local_addresses: false
-    prefer_local_addresses: false
     use_weak_crypto: false
