@@ -23,9 +23,9 @@ impl Default for HoprdDeploymentSpec {
         let mut limits: BTreeMap<String, Quantity> = BTreeMap::new();
         let mut requests: BTreeMap<String, Quantity> = BTreeMap::new();
         limits.insert("cpu".to_owned(), Quantity("1500m".to_owned()));
-        limits.insert("memory".to_owned(), Quantity("2Gi".to_owned()));
+        limits.insert("memory".to_owned(), Quantity("3Gi".to_owned()));
         requests.insert("cpu".to_owned(), Quantity("750m".to_owned()));
-        requests.insert("memory".to_owned(), Quantity("256Mi".to_owned()));
+        requests.insert("memory".to_owned(), Quantity("512Mi".to_owned()));
         let resources_spec = serde_yaml::to_string(&ResourceRequirements {
             requests: Some(requests),
             limits: Some(limits),

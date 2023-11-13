@@ -6,10 +6,10 @@ enabled: true
 #   resources: |
 #       limits:
 #         cpu: 2000m
-#         memory: 2Gi
+#         memory: 3Gi
 #       requests:
 #         cpu: 750m
-#         memory: 256Mi
+#         memory: 512Mi
 config: |
   hopr:
     host:
