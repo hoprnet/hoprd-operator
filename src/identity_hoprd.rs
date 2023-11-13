@@ -115,9 +115,9 @@ impl IdentityHoprd {
                 let mut identity_pool_arc = identity_pool_option.unwrap();
                 let identity_pool:  &mut IdentityPool = Arc::<IdentityPool>::make_mut(&mut identity_pool_arc);
                 identity_pool.update_phase(context_data.client.clone(), IdentityPoolPhaseEnum::IdentityCreated).await?;
-                context_state.update_identity_pool(identity_pool.to_owned());
                 self.create_event(context_data.clone(), IdentityHoprdPhaseEnum::Ready, None).await?;
                 self.update_phase(context_data.clone(), IdentityHoprdPhaseEnum::Ready, None).await?;
+                context_state.update_identity_pool(identity_pool.to_owned());
                 Ok(Action::requeue(Duration::from_secs(constants::RECONCILE_FREQUENCY)))
             } else {
                 error!("Identity pool {} not exists in namespace {}", identity_pool_name, &self.namespace().unwrap());
