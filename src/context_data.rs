@@ -46,6 +46,27 @@ impl ContextData {
             config,
         }
     }
+
+    pub async fn sync_identities(context_data: Arc<ContextData>) {
+        let api_identities = Api::<IdentityHoprd>::all(context_data.client.clone());
+        let all_identities = api_identities.list(&ListParams::default()).await.unwrap().items.clone();
+        let api_hoprd = Api::<Hoprd>::all(context_data.client.clone());
+        let all_hoprds: Vec<String> = api_hoprd.list(&ListParams::default()).await.unwrap().items.clone()
+            .iter().map(|hoprd|  format!("{}-{}", hoprd.metadata.namespace.as_ref().unwrap(), hoprd.metadata.name.as_ref().unwrap())).collect();
+        for identity_hoprd in all_identities {
+            if let Some(status) = identity_hoprd.to_owned().status {
+                if let Some(hoprd_name) = status.hoprd_node_name {
+                    let identity_full_name = format!("{}-{}", identity_hoprd.to_owned().metadata.namespace.unwrap(), hoprd_name);
+                    if ! all_hoprds.contains(&identity_full_name) {
+                        // Remove hoprd relationship
+                        let a = identity_hoprd.clone();
+                        identity_hoprd.unlock(context_data.clone()).await.expect("Could not synchronize identity");
+                    }
+                }
+            }
+        }
+    }
+
 }
 
 #[derive(Debug,Clone)]

@@ -236,16 +236,21 @@ impl Hoprd {
         let identity_name = self.spec.identity_name.to_owned();
         {
             let mut context_state = context_data.state.write().await;
-            let mut identity_pool_arc = context_state.get_identity_pool(&self.namespace().unwrap(), &identity_pool_name).unwrap();
-            let identity_pool:  &mut IdentityPool = Arc::<IdentityPool>::make_mut(&mut identity_pool_arc);
-
-            if let Some(identity) = identity_pool.get_ready_identity(context_data.clone(), identity_name).await? {
-                identity.update_phase(context_data.clone(), IdentityHoprdPhaseEnum::InUse, hoprd_name.clone()).await?;
-                identity_pool.update_phase(context_data.client.clone(), IdentityPoolPhaseEnum::Locked).await?;
-                context_state.update_identity_pool(identity_pool.to_owned());
-                Ok(Some(identity))
+            let identity_pool_option = context_state.get_identity_pool(&self.namespace().unwrap(), &identity_pool_name);
+            if identity_pool_option.is_some() {
+                let mut identity_pool_arc = identity_pool_option.unwrap();
+                let identity_pool:  &mut IdentityPool = Arc::<IdentityPool>::make_mut(&mut identity_pool_arc);
+                if let Some(identity) = identity_pool.get_ready_identity(context_data.clone(), identity_name).await? {
+                    identity.update_phase(context_data.clone(), IdentityHoprdPhaseEnum::InUse, hoprd_name.clone()).await?;
+                    identity_pool.update_phase(context_data.client.clone(), IdentityPoolPhaseEnum::Locked).await?;
+                    context_state.update_identity_pool(identity_pool.to_owned());
+                    Ok(Some(identity))
+                } else {
+                    error!("Error locking the identity for node {}", hoprd_name.unwrap());
+                    Ok(None)
+                }
             } else {
-                error!("Error locking the identity for node {}", hoprd_name.unwrap());
+                error!("Identity pool {} not exists in namespace {}", identity_pool_name, &self.namespace().unwrap());
                 Ok(None)
             }
         }

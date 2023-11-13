@@ -36,17 +36,14 @@ use tracing_subscriber::{filter::EnvFilter, FmtSubscriber};
 #[tokio::main]
 async fn main() -> Result<()> {
     // Initialize Tracing crate
-    let subscriber = FmtSubscriber::builder()
-        .with_env_filter(EnvFilter::from_default_env())
-        .finish();
+    let subscriber = FmtSubscriber::builder().with_env_filter(EnvFilter::from_default_env()).finish();
     tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
 
     let version: &str = env!("CARGO_PKG_VERSION");
     info!("Starting hoprd-operator {}", version);
-    let client: Client = Client::try_default()
-        .await
-        .expect("Failed to create kube Client");
+    let client: Client = Client::try_default().await.expect("Failed to create kube Client");
     let context_data: Arc<ContextData> = Arc::new(ContextData::new(client.clone()).await);
+    ContextData::sync_identities(context_data.clone()).await;
     // Initiatilize Kubernetes controller state
     bootstrap_operator::start(client.clone(), context_data.clone()).await;
     let controller_identity_pool =

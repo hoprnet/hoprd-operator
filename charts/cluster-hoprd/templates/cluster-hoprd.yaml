@@ -5,16 +5,10 @@ metadata:
   name: {{ include "cluster-hoprd.name" . }}
   namespace: {{ .Release.Namespace | quote }}
 spec:
-  network: {{ .Values.network }}
-  ingress:
-    enabled: {{ .Values.ingress.enabled }}
-  monitoring:
-    enabled: {{ .Values.monitoring.enabled }}
-  nodes:
-    {{- range .Values.nodes }}
-    - name: {{ .name }}
-      version: {{ .version }}
-      replicas: {{ .replicas }}
-      enabled: {{ .enabled }}
-      config: {{ .config | toYaml | nindent 8 }}
-    {{- end }} 
+  identityPoolName: {{ .Values.identityPoolName | quote }}
+  replicas: {{ .Values.replicas }}
+  version: {{ .Values.version | quote }}
+  enabled: {{ .Values.enabled }}
+  deployment: 
+    resources: {{ .Values.deployment.resources | toYaml | nindent 4 }}
+  config: {{ .Values.config | toYaml | nindent 4 }}

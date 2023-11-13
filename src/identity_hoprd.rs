@@ -93,6 +93,7 @@ impl IdentityHoprd {
         let client: Client = context_data.client.clone();
         let identity_namespace: String = self.namespace().unwrap();
         let identity_name: String = self.name_any();
+        let identity_pool_name: String = self.spec.identity_pool_name.to_owned();
 
         info!("Starting to create identity {identity_name} in namespace {identity_namespace}");
         self.add_finalizer(client.clone(), &identity_name, &identity_namespace).await.unwrap();
@@ -105,18 +106,26 @@ impl IdentityHoprd {
         // - Is funded (safe and node)
         // - SafeAddress is correct
         // - ModuleAddress is correct
-        self.create_event(context_data.clone(), IdentityHoprdPhaseEnum::Ready, None).await?;
-        self.update_phase(context_data.clone(), IdentityHoprdPhaseEnum::Ready, None).await?;
 
         // Update pool to decrease identities
         {
             let mut context_state = context_data.state.write().await;
-            let mut identity_pool_arc = context_state.get_identity_pool(&identity_namespace, &self.spec.identity_pool_name).unwrap();
-            let identity_pool:  &mut IdentityPool = Arc::<IdentityPool>::make_mut(&mut identity_pool_arc);
-            identity_pool.update_phase(context_data.client.clone(), IdentityPoolPhaseEnum::IdentityCreated).await?;
-            context_state.update_identity_pool(identity_pool.to_owned());
+            let identity_pool_option = context_state.get_identity_pool(&self.namespace().unwrap(), &identity_pool_name);
+            if identity_pool_option.is_some() {
+                let mut identity_pool_arc = identity_pool_option.unwrap();
+                let identity_pool:  &mut IdentityPool = Arc::<IdentityPool>::make_mut(&mut identity_pool_arc);
+                identity_pool.update_phase(context_data.client.clone(), IdentityPoolPhaseEnum::IdentityCreated).await?;
+                context_state.update_identity_pool(identity_pool.to_owned());
+                self.create_event(context_data.clone(), IdentityHoprdPhaseEnum::Ready, None).await?;
+                self.update_phase(context_data.clone(), IdentityHoprdPhaseEnum::Ready, None).await?;
+                Ok(Action::requeue(Duration::from_secs(constants::RECONCILE_FREQUENCY)))
+            } else {
+                error!("Identity pool {} not exists in namespace {}", identity_pool_name, &self.namespace().unwrap());
+                Ok(Action::requeue(Duration::from_secs(constants::RECONCILE_FREQUENCY)))
+            }
         }
-        Ok(Action::requeue(Duration::from_secs(constants::RECONCILE_FREQUENCY)))
+
+
     }
 
     /// Handle the modification of IdentityHoprd resource
@@ -138,13 +147,18 @@ impl IdentityHoprd {
             self.update_phase(context_data.clone(), IdentityHoprdPhaseEnum::Deleting, None).await?;
             info!("Starting to delete identity {identity_name} from namespace {identity_namespace}");
 
-            // Update pool to decrease identities
             {
                 let mut context_state = context_data.state.write().await;
-                let mut identity_pool_arc = context_state.get_identity_pool(&identity_namespace, &self.spec.identity_pool_name).unwrap();
-                let identity_pool:  &mut IdentityPool = Arc::<IdentityPool>::make_mut(&mut identity_pool_arc);
-                identity_pool.update_phase(context_data.client.clone(), IdentityPoolPhaseEnum::IdentityDeleted).await?;
-                context_state.update_identity_pool(identity_pool.to_owned());
+                let identity_pool_option = context_state.get_identity_pool(&self.namespace().unwrap(), &self.spec.identity_pool_name);
+                if identity_pool_option.is_some() {
+                    let mut identity_pool_arc = identity_pool_option.unwrap();
+                    let identity_pool:  &mut IdentityPool = Arc::<IdentityPool>::make_mut(&mut identity_pool_arc);
+                    identity_pool.update_phase(context_data.client.clone(), IdentityPoolPhaseEnum::IdentityDeleted).await?;
+                    context_state.update_identity_pool(identity_pool.to_owned());
+                } else {
+                    warn!("Identity pool {} not exists in namespace {}", &self.spec.identity_pool_name, &self.namespace().unwrap());
+
+                }
             }
 
             // TODO Drain funds
@@ -295,7 +309,7 @@ impl IdentityHoprd {
                 let identity_pool:  &mut IdentityPool = Arc::<IdentityPool>::make_mut(&mut identity_pool_arc);
                 identity_pool.update_phase(context_data.client.clone(), IdentityPoolPhaseEnum::Unlocked).await?;
                 context_state.update_identity_pool(identity_pool.to_owned());
-            }           
+            }
             Ok(())
         } else {
             Ok(warn!("The identity cannot be unlock because it is in status {:?}", &self.status))

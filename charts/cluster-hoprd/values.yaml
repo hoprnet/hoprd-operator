@@ -5,26 +5,34 @@
 ##
 nameOverride: ""
 
-
 ## @section Cluster Hoprd parameters
 ##
 ## @param network Network of the ClusterHoprd
 ##
-network: ""
+identityPoolName: ""
 
 ##
-## @param ingress.enabled Whether to create or not the Ingress resource
+## @param nodes Number of instances
 ##
-ingress:
-  enabled: true
+replicas: 1
 
 ##
-## @param monitoring.enabled Whether to create or not the ServiceMonitor resource
+## @param version Hoprd node version to run
 ##
-monitoring:
-  enabled: true
+version: 2.0.2
 
 ##
-## @param nodes Array of node configuration
+## @param enabled Running status of the nodes
 ##
-nodes: []
+enabled: true
+
+deployment: 
+  ##
+  ## @param deployment.resources Deployment resources spec
+  ##
+  resources: ""
+
+##
+## @param config Custom configuration of nodes
+##
+config: ""
