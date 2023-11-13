@@ -11,6 +11,6 @@ spec:
   enabled: {{ .Values.enabled }}
   {{- if .Values.deployment.resources }}
   deployment: 
-    resources: {{- .Values.deployment.resources | toYaml | nindent 4 }}
+    resources: {{ .Values.deployment.resources | toYaml | nindent 4 }}
   {{- end }}
   config: {{ .Values.config | toYaml | nindent 4 }}
