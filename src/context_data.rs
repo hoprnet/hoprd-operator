@@ -59,7 +59,6 @@ impl ContextData {
                     let identity_full_name = format!("{}-{}", identity_hoprd.to_owned().metadata.namespace.unwrap(), hoprd_name);
                     if ! all_hoprds.contains(&identity_full_name) {
                         // Remove hoprd relationship
-                        let a = identity_hoprd.clone();
                         identity_hoprd.unlock(context_data.clone()).await.expect("Could not synchronize identity");
                     }
                 }

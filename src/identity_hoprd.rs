@@ -108,24 +108,26 @@ impl IdentityHoprd {
         // - ModuleAddress is correct
 
         // Update pool to decrease identities
+        let mut updated = false;
         {
             let mut context_state = context_data.state.write().await;
             let identity_pool_option = context_state.get_identity_pool(&self.namespace().unwrap(), &identity_pool_name);
             if identity_pool_option.is_some() {
                 let mut identity_pool_arc = identity_pool_option.unwrap();
                 let identity_pool:  &mut IdentityPool = Arc::<IdentityPool>::make_mut(&mut identity_pool_arc);
-                self.create_event(context_data.clone(), IdentityHoprdPhaseEnum::Ready, None).await?;
-                self.update_phase(context_data.clone(), IdentityHoprdPhaseEnum::Ready, None).await?;
                 identity_pool.update_phase(context_data.client.clone(), IdentityPoolPhaseEnum::IdentityCreated).await?;
                 context_state.update_identity_pool(identity_pool.to_owned());
-                Ok(Action::requeue(Duration::from_secs(constants::RECONCILE_FREQUENCY)))
-            } else {
-                error!("Identity pool {} not exists in namespace {}", identity_pool_name, &self.namespace().unwrap());
-                Ok(Action::requeue(Duration::from_secs(constants::RECONCILE_FREQUENCY)))
+                updated = true;
             }
         }
-
-
+        if updated {
+            // These instructions need to be done out of the context_data lock
+            self.create_event(context_data.clone(), IdentityHoprdPhaseEnum::Ready, None).await?;
+            self.update_phase(context_data.clone(), IdentityHoprdPhaseEnum::Ready, None).await?;
+        } else {
+            error!("Identity pool {} not exists in namespace {}", identity_pool_name, &self.namespace().unwrap());
+        }
+        Ok(Action::requeue(Duration::from_secs(constants::RECONCILE_FREQUENCY)))
     }
 
     /// Handle the modification of IdentityHoprd resource
@@ -141,34 +143,39 @@ impl IdentityHoprd {
         let identity_name = self.name_any();
         let identity_namespace = self.namespace().unwrap();
         let client: Client = context_data.client.clone();
-        if !self.status.as_ref().unwrap().phase.eq(&IdentityHoprdPhaseEnum::InUse)
-        {
-            self.create_event(context_data.clone(), IdentityHoprdPhaseEnum::Deleting, None).await?;
-            self.update_phase(context_data.clone(), IdentityHoprdPhaseEnum::Deleting, None).await?;
-            info!("Starting to delete identity {identity_name} from namespace {identity_namespace}");
+        if let Some(status) = self.status.as_ref() {
+            if !status.phase.eq(&IdentityHoprdPhaseEnum::InUse) {
+                self.create_event(context_data.clone(), IdentityHoprdPhaseEnum::Deleting, None).await?;
+                self.update_phase(context_data.clone(), IdentityHoprdPhaseEnum::Deleting, None).await?;
+                info!("Starting to delete identity {identity_name} from namespace {identity_namespace}");
 
-            {
-                let mut context_state = context_data.state.write().await;
-                let identity_pool_option = context_state.get_identity_pool(&self.namespace().unwrap(), &self.spec.identity_pool_name);
-                if identity_pool_option.is_some() {
-                    let mut identity_pool_arc = identity_pool_option.unwrap();
-                    let identity_pool:  &mut IdentityPool = Arc::<IdentityPool>::make_mut(&mut identity_pool_arc);
-                    identity_pool.update_phase(context_data.client.clone(), IdentityPoolPhaseEnum::IdentityDeleted).await?;
-                    context_state.update_identity_pool(identity_pool.to_owned());
-                } else {
-                    warn!("Identity pool {} not exists in namespace {}", &self.spec.identity_pool_name, &self.namespace().unwrap());
-
+                {
+                    let mut context_state = context_data.state.write().await;
+                    let identity_pool_option = context_state.get_identity_pool(&self.namespace().unwrap(), &self.spec.identity_pool_name);
+                    if identity_pool_option.is_some() {
+                        let mut identity_pool_arc = identity_pool_option.unwrap();
+                        let identity_pool:  &mut IdentityPool = Arc::<IdentityPool>::make_mut(&mut identity_pool_arc);
+                        identity_pool.update_phase(context_data.client.clone(), IdentityPoolPhaseEnum::IdentityDeleted).await?;
+                        context_state.update_identity_pool(identity_pool.to_owned());
+                    } else {
+                        warn!("Identity pool {} not exists in namespace {}", &self.spec.identity_pool_name, &self.namespace().unwrap());
+                    }
                 }
-            }
 
-            // TODO Drain funds
-            self.delete_finalizer(client.clone(), &identity_name, &identity_namespace).await?;
-            info!("Identity {identity_name} in namespace {identity_namespace} has been successfully deleted");
-            Ok(Action::await_change()) // Makes no sense to delete after a successful delete, as the resource is gone
+                // TODO Drain funds
+                self.delete_finalizer(client.clone(), &identity_name, &identity_namespace).await?;
+                info!("Identity {identity_name} in namespace {identity_namespace} has been successfully deleted");
+                Ok(Action::await_change()) // Makes no sense to delete after a successful delete, as the resource is gone
+            } else {
+                error!("Cannot delete an identity in state {}", status.phase);
+                Ok(Action::requeue(Duration::from_secs(constants::RECONCILE_FREQUENCY)))
+            }
         } else {
-            error!("Cannot delete an identity in state {}", self.status.as_ref().unwrap().phase);
-            Ok(Action::requeue(Duration::from_secs(constants::RECONCILE_FREQUENCY)))
+            error!("IdentityHoprd {} was not correctly initialized", &identity_name);
+            self.delete_finalizer(client.clone(), &identity_name, &identity_namespace).await?;
+            Ok(Action::await_change())
         }
+
     }
 
     /// Adds a finalizer in IdentityHoprd to prevent deletion of the resource by Kubernetes API and allow the controller to safely manage its deletion
