@@ -2,7 +2,7 @@
 
 cat <<EOF | kubectl apply -f -
 ---
-apiVersion: hoprnet.org/v1alpha
+apiVersion: hoprnet.org/v1alpha2
 kind: Hoprd
 metadata:
   name: hoprd-node-1

@@ -10,7 +10,7 @@ native_address=$(jq -r '.".hoprd0.id".native_address' /app/hoprd-identity-create
 identity_file=$(cat /app/hoprd-identity-created/.hoprd0.id | base64 | tr -d '\n')
 cat <<EOF > "/app/hoprd-identity-created/identityHorpd.yaml"
 ---
-apiVersion: hoprnet.org/v1alpha
+apiVersion: hoprnet.org/v1alpha2
 kind: IdentityHoprd
 metadata:
   namespace: ${JOB_NAMESPACE}

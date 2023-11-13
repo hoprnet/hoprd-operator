@@ -43,7 +43,7 @@ use tracing::{debug, error, info, warn};
 #[derive(CustomResource, Serialize, Deserialize, Debug, PartialEq, Clone, JsonSchema, Hash)]
 #[kube(
     group = "hoprnet.org",
-    version = "v1alpha",
+    version = "v1alpha2",
     kind = "IdentityPool",
     plural = "identitypools",
     derive = "PartialEq",

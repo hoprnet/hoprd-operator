@@ -22,7 +22,7 @@ spec:
       - clusterhoprd
   scope: Namespaced
   versions:
-    - name: v1alpha
+    - name: v1alpha2
       served: true
       storage: true
       additionalPrinterColumns:

@@ -31,7 +31,7 @@ use tracing::{debug, error, info, warn};
 #[derive(CustomResource, Serialize, Deserialize, Debug, PartialEq, Clone, JsonSchema, Hash)]
 #[kube(
     group = "hoprnet.org",
-    version = "v1alpha",
+    version = "v1alpha2",
     kind = "IdentityHoprd",
     plural = "identityhoprds",
     derive = "PartialEq",
@@ -114,9 +114,9 @@ impl IdentityHoprd {
             if identity_pool_option.is_some() {
                 let mut identity_pool_arc = identity_pool_option.unwrap();
                 let identity_pool:  &mut IdentityPool = Arc::<IdentityPool>::make_mut(&mut identity_pool_arc);
-                identity_pool.update_phase(context_data.client.clone(), IdentityPoolPhaseEnum::IdentityCreated).await?;
                 self.create_event(context_data.clone(), IdentityHoprdPhaseEnum::Ready, None).await?;
                 self.update_phase(context_data.clone(), IdentityHoprdPhaseEnum::Ready, None).await?;
+                identity_pool.update_phase(context_data.client.clone(), IdentityPoolPhaseEnum::IdentityCreated).await?;
                 context_state.update_identity_pool(identity_pool.to_owned());
                 Ok(Action::requeue(Duration::from_secs(constants::RECONCILE_FREQUENCY)))
             } else {

@@ -37,7 +37,7 @@ use tracing::{debug, error, info};
 #[derive(CustomResource, Serialize, Deserialize, Debug, PartialEq, Clone, JsonSchema, Hash)]
 #[kube(
     group = "hoprnet.org",
-    version = "v1alpha",
+    version = "v1alpha2",
     kind = "Hoprd",
     plural = "hoprds",
     derive = "PartialEq",
