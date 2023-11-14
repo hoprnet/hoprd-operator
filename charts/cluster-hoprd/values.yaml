@@ -7,12 +7,12 @@ nameOverride: ""
 
 ## @section Cluster Hoprd parameters
 ##
-## @param network Network of the ClusterHoprd
+## @param identityPoolName Name of the identity pool
 ##
 identityPoolName: ""
 
 ##
-## @param nodes Number of instances
+## @param replicas Number of instances
 ##
 replicas: 1
 
