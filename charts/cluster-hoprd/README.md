@@ -15,9 +15,11 @@ This chart packages the creation of a ClusterHoprd
 
 ### Cluster Hoprd parameters
 
-| Name                 | Description                                          | Value  |
-| -------------------- | ---------------------------------------------------- | ------ |
-| `network`            | Network of the ClusterHoprd                          | `""`   |
-| `ingress.enabled`    | Whether to create or not the Ingress resource        | `true` |
-| `monitoring.enabled` | Whether to create or not the ServiceMonitor resource | `true` |
-| `nodes`              | Array of node configuration                          | `[]`   |
+| Name                   | Description                   | Value   |
+| ---------------------- | ----------------------------- | ------- |
+| `identityPoolName`     | Name of the identity pool     | `""`    |
+| `replicas`             | Number of instances           | `1`     |
+| `version`              | Hoprd node version to run     | `2.0.2` |
+| `enabled`              | Running status of the nodes   | `true`  |
+| `deployment.resources` | Deployment resources spec     | `""`    |
+| `config`               | Custom configuration of nodes | `""`    |

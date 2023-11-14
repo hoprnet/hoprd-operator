@@ -4,6 +4,11 @@ name: 'Package Helm chart Operator'
 
 on:
   pull_request:
+    types:
+      - synchronize
+      - ready_for_review
+    branches:
+      - master
     paths:
       - "charts/hoprd-operator/**"
 concurrency:
@@ -11,14 +16,14 @@ concurrency:
   cancel-in-progress: true
 jobs:
   bump_version:
-    runs-on: ubuntu-latest
+    name: Bump version
+    runs-on: ubuntu-2-core
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
       - name: Bump Chart version
+        id: bumping_version
         run: |
           helm_chart_version=$(grep '^version:' Chart.yaml | sed 's/.*: //')
           git_tag=$(git tag -l helm-hoprd-operator-${helm_chart_version})
@@ -29,14 +34,15 @@ jobs:
             bump_version=${release_number}.$((patch_number + 1))
             echo "The helm chart version ${git_tag} already exists, bumping to version helm-hoprd-operator-${bump_version}";
             sed -i "s/^version: ${helm_chart_version}/version: ${bump_version}/" Chart.yaml
-            echo "version_bumped=true" >> $GITHUB_ENV
+            echo "bumped_version=true" >> $GITHUB_OUTPUT
           fi
         working-directory: 'charts/hoprd-operator/'
+
       - name: Commit and push
-        if: ${{ env.version_bumped }}
+        if: ${{ steps.bumping_version.outputs.bumped_version }}
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          commit_message: Bump Helm chart version
+          commit_message: "Bump Helm chart version to ${{ steps.bumping_version.outputs.bumped_version }}"
           repository: .
           commit_user_name: HOPR CI robot
           commit_user_email: noreply@hoprnet.org
@@ -46,78 +52,105 @@ jobs:
           create_branch: false
 
   lint:
-    runs-on: ubuntu-latest
+    name: Lint
+    runs-on: ubuntu-2-core
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v3
         with:
-          fetch-depth: 0
+          version: latest
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Lint
-        run: |
-          helm dependency update
-          helm lint
+        run: helm lint
         working-directory: 'charts/hoprd-operator/'
 
   package:
-    runs-on: ubuntu-latest
+    name: Package Helm Chart
+    runs-on: ubuntu-2-core
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v3
         with:
-          fetch-depth: 0
+          version: latest
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Get Helm chart version
+        id: get_version
         run: |
           HELM_CHART_VERSION=$(grep '^version:' Chart.yaml | sed 's/.*: //')
-          echo "HELM_CHART_VERSION=${HELM_CHART_VERSION}" >> $GITHUB_ENV
+          echo "HELM_CHART_VERSION=${HELM_CHART_VERSION}" >> $GITHUB_OUTPUT
         working-directory: 'charts/hoprd-operator/'
-
-      - name: Set up Google Cloud Credentials
-        uses: google-github-actions/auth@v1
-        with:
-          credentials_json: ${{ secrets.GOOGLE_HOPRASSOCIATION_CREDENTIALS_REGISTRY }}
-
-      - name: Set up Google Cloud SDK
-        uses: google-github-actions/setup-gcloud@v1
-        with:
-          project_id: ${{ secrets.GOOGLE_HOPRASSOCIATION_PROJECT }}
-          install_components: beta
-
-      - name: Artifact Registry authentication
-        run: gcloud auth application-default print-access-token | helm registry login -u oauth2accesstoken --password-stdin https://europe-west3-docker.pkg.dev
 
       - name: Helm Package
-        run: |
-          helm repo add mittwald https://helm.mittwald.de
-          helm repo update
-          helm dependency build
-          helm package . --version ${{ env.HELM_CHART_VERSION }}
+        run: helm package . --version ${{ steps.get_version.outputs.HELM_CHART_VERSION }}
         working-directory: 'charts/hoprd-operator/'
-  generate-readme:
+
+  trivy:
+    name: Helm Security Analysis
     runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      actions: read
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4   # 93ea575cb5d8a053eaa0ac8fa3b40d7e05a33cc8 # tag=v3.1.0
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v3
+        with:
+          version: latest
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up python
+        uses: actions/setup-python@65d7f2d534ac1bc67fcd62888c5f4f3d2cb2b236 # tag=v4.7.1
+        with:
+          python-version: 3.7
+
+      - name: Run Trivy vulnerability scanner in IaC mode
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'config'
+          hide-progress: false
+          format: 'table'
+          scan-ref: 'charts/hoprd-operator/'
+          exit-code: '1'
+          ignore-unfixed: true
+
+  generate-readme:
+    name: Generate Readme
+    runs-on: ubuntu-2-core
     permissions:
       contents: write
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup NodeJs
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+
       - name: Install readme-generator-for-helm
         run: npm install -g @bitnami/readme-generator-for-helm@2.5.0
 
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          ref: ${{github.event.pull_request.head.ref}}
-          repository: ${{github.event.pull_request.head.repo.full_name}}
-          fetch-depth: 0
-
       - name: Execute readme-generator-for-helm
+        id: generator
         run: |
           readme-generator --values "charts/hoprd-operator/values.yaml" --readme "charts/hoprd-operator/README.md" --schema "/tmp/schema.json"
           if git status -s | grep charts; then
-            echo "readme_updated=true" >>  $GITHUB_ENV
+            echo "readme_updated=true" >>  $GITHUB_OUTPUT
           fi
 
       - name: Commit and push
-        if: ${{ env.readme_updated }}
+        if: ${{ steps.generator.outputs.readme_updated }}
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
           commit_message: Update parameters README.md

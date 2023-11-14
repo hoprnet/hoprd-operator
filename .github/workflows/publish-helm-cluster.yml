@@ -13,23 +13,30 @@ concurrency:
   cancel-in-progress: false
 jobs:
   publish:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-2-core
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v3
         with:
-          fetch-depth: 0
+          version: latest
+          token: ${{ secrets.GITHUB_TOKEN }}s
 
       - name: Get Helm chart version
+        id: get_version
         run: |
           HELM_CHART_VERSION=$(grep '^version:' Chart.yaml | sed 's/.*: //')
-          echo "HELM_CHART_VERSION=${HELM_CHART_VERSION}" >> $GITHUB_ENV
+          echo "HELM_CHART_VERSION=${HELM_CHART_VERSION}" >> $GITHUB_OUTPUT
         working-directory: 'charts/cluster-hoprd/'
 
       - name: Set up Google Cloud Credentials
+        id: auth
         uses: google-github-actions/auth@v1
         with:
+          token_format: "access_token"
           credentials_json: ${{ secrets.GOOGLE_HOPRASSOCIATION_CREDENTIALS_REGISTRY }}
 
       - name: Set up Google Cloud SDK
@@ -38,21 +45,26 @@ jobs:
           project_id: ${{ secrets.GOOGLE_HOPRASSOCIATION_PROJECT }}
           install_components: beta
 
-      - name: Artifact Registry authentication
-        run: gcloud auth application-default print-access-token | helm registry login -u oauth2accesstoken --password-stdin https://europe-west3-docker.pkg.dev
+      - name: Login Google Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: europe-west3-docker.pkg.dev
+          username: oauth2accesstoken
+          password: ${{ steps.auth.outputs.access_token }}
 
       - name: Helm Package
         run: |
-          helm package . --version ${{ env.HELM_CHART_VERSION }}
+          helm package . --version ${{ steps.get_version.outputs.HELM_CHART_VERSION }}
         working-directory: 'charts/cluster-hoprd/'
+
       - name: Helm Publish
         run: |
-          helm push cluster-hoprd-${{ env.HELM_CHART_VERSION }}.tgz oci://europe-west3-docker.pkg.dev/${{ secrets.GOOGLE_HOPRASSOCIATION_PROJECT }}/helm-charts
+          helm push cluster-hoprd-${{ steps.get_version.outputs.HELM_CHART_VERSION }}.tgz oci://europe-west3-docker.pkg.dev/hoprassociation/helm-charts
         working-directory: 'charts/cluster-hoprd/'
 
       - name: Tag Helm version
         run: |
             git config user.email "noreply@hoprnet.org"
             git config user.name "HOPR CI robot"
-            git tag helm-cluster-hoprd-${{ env.HELM_CHART_VERSION }}
-            git push origin helm-cluster-hoprd-${{ env.HELM_CHART_VERSION }}
+            git tag helm-cluster-hoprd-${{ steps.get_version.outputs.HELM_CHART_VERSION }}
+            git push origin helm-cluster-hoprd-${{ steps.get_version.outputs.HELM_CHART_VERSION }}

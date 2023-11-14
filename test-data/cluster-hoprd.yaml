@@ -1,16 +1,15 @@
-1. Start creating hoprd nodes by executing this command:
-
-cat <<EOF | kubectl apply -f -
 ---
 apiVersion: hoprnet.org/v1alpha2
-kind: Hoprd
+kind: ClusterHoprd
 metadata:
-  name: {{ .Release.Namespace }}-1
-  namespace: {{ .Release.Namespace }}
+  name: pr-1234
+  labels:
+    hoprds.hoprnet.org/pullRequest: "1234"
+  namespace:  hoprd-operator
 spec:
+  identityPoolName: pool-hoprd-operator
+  replicas: 1
   version: latest
-  identityPoolName: {{ .Release.Namespace }}
-  identityName: {{ .Release.Namespace }}-1
   enabled: true
   config: |
     hopr:
@@ -75,7 +74,7 @@ spec:
         ticket_aggregation:
           timeout: 15
       chain:
-        network: {{ .Release.Namespace }}
+        network: rotsee
         announce: true
         provider:
         check_unrealized_balance: true
@@ -100,4 +99,3 @@ spec:
         port: 3001
     test:
       use_weak_crypto: false
-EOF

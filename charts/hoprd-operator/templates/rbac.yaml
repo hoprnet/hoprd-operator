@@ -52,7 +52,21 @@ rules:
   - secrets
   - services
   - configmaps
+  - serviceaccounts
   - persistentvolumeclaims
+  verbs:
+  - get
+  - create
+  - list
+  - update
+  - patch
+  - watch
+  - delete
+- apiGroups:
+  - "rbac.authorization.k8s.io"
+  resources:
+  - roles
+  - rolebindings
   verbs:
   - get
   - create
@@ -88,6 +102,8 @@ rules:
   - hoprnet.org
   resources:
   - hoprds
+  - identitypools
+  - identityhoprds
   - clusterhoprds
   verbs:
   - get

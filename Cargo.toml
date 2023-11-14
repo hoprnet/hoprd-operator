@@ -1,6 +1,6 @@
 [package]
 name = "hoprd_operator"
-version = "0.1.46"
+version = "0.2.0"
 authors = ["HOPR Association <tech@hoprnet.org>"]
 edition = "2021"
 
@@ -9,11 +9,11 @@ tokio = { version = "1.33", features = [
     "macros",
     "rt-multi-thread",
 ] }
-kube = { version = "0.85", default-features = true, features = [
+kube = { version = "0.87", default-features = true, features = [
     "derive",
     "runtime",
 ] }
-k8s-openapi = { version = "0.19", default-features = false, features = [
+k8s-openapi = { version = "0.20", default-features = false, features = [
     "v1_24",
 ] }
 futures = "0.3"
@@ -32,6 +32,7 @@ serde_yaml = "0.9.25"
 chrono = "0.4.31"
 tracing = "0.1.40"
 tracing-subscriber = { version = "0.3.17", default-features = true, features = ["env-filter"]}
+base64 = "0.21.5"
 
 [features]
 # Force openssl-sys to staticly link in the openssl library. Necessary when

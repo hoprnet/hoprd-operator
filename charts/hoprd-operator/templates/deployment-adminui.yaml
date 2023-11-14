@@ -28,8 +28,11 @@ spec:
         app.kubernetes.io/instance: {{ include "hoprd-operator.name" . }}
         app.kubernetes.io/name: {{ .Release.Name }}
     spec:
+      securityContext:
+        runAsUser: 1001
+        runAsGroup: 1001
       containers:
-      - name: operator
+      - name: admin-ui
         image: {{ printf "%s/%s:%s" .Values.adminUI.image.registry .Values.adminUI.image.repository .Values.adminUI.image.tag }}
         imagePullPolicy: {{ .Values.adminUI.image.pullPolicy }}
         securityContext:
@@ -55,31 +58,31 @@ spec:
           failureThreshold: 6
           httpGet:
             path: /
-            port: 3000
+            port: 80
             scheme: HTTP
           initialDelaySeconds: 0
-          periodSeconds: 0
+          periodSeconds: 60
           successThreshold: 1
           timeoutSeconds: 5
         ports:
-        - containerPort: 3000
+        - containerPort: 80
           name: {{ .Values.service.ports.name }}
           protocol: TCP
         readinessProbe:
           failureThreshold: 6
           httpGet:
             path: /
-            port: 3000
+            port: 80
             scheme: HTTP
           initialDelaySeconds: 5
           periodSeconds: 10
           successThreshold: 1
           timeoutSeconds: 5
-        env:
-          - name: OPERATOR_INSTANCE_NAME
-            value: {{ include "hoprd-operator.name" . }}
-          - name: OPERATOR_INSTANCE_NAMESPACE
-            value: {{ .Release.Namespace | quote }}
+        volumeMounts:
+          - mountPath: /var/cache/nginx
+            name: nginx-cache
+          - mountPath: /var/run
+            name: nginx-run
       serviceAccountName: {{ include "hoprd-operator.fullname" . }}
       {{- with .Values.adminUI.nodeSelector }}
       nodeSelector:
@@ -93,4 +96,9 @@ spec:
       tolerations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      volumes:
+        - name: nginx-cache
+          emptyDir: {}
+        - name: nginx-run
+          emptyDir: {}
 {{- end }}
