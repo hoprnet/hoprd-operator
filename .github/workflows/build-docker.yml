@@ -47,6 +47,7 @@ jobs:
       # Update Cargo.lock
       - name: Build Cargo
         uses: actions-rs/cargo@v1
+        if: ${{ steps.bumping_version.outputs.bumped_version }}
         with:
           command: build
       

@@ -16,6 +16,10 @@ run: ## Rust run
 helm-test: ## Print helm resources
 	helm install --dry-run --namespace hoprd-operator --create-namespace -f ./charts/hoprd-operator/values-stage.yaml hoprd-operator ./charts/hoprd-operator/
 
+helm-lint: ## Lint Helm
+	helm lint ./charts/hoprd-operator
+	helm lint ./charts/cluster-hoprd
+
 helm-install: ## Install helm chart using values-stage.yaml file
 	helm install --namespace hoprd-operator --create-namespace -f ./charts/hoprd-operator/values-stage.yaml hoprd-operator ./charts/hoprd-operator/
 
