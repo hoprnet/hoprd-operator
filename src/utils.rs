@@ -5,11 +5,7 @@ use std::{
     fmt::{self, Display, Formatter},
 };
 
-pub fn common_lables(
-    name: String,
-    instance: Option<String>,
-    component: Option<String>,
-) -> BTreeMap<String, String> {
+pub fn common_lables(name: String, instance: Option<String>, component: Option<String>) -> BTreeMap<String, String> {
     let mut labels: BTreeMap<String, String> = BTreeMap::new();
     labels.insert(constants::LABEL_KUBERNETES_NAME.to_owned(), name);
     match instance {
