@@ -9,6 +9,7 @@ spec:
   replicas: {{ .Values.replicas }}
   version: {{ .Values.version | quote }}
   enabled: {{ .Values.enabled }}
+  forceIdentityName: {{ .Values.forceIdentityName }}
   {{- if .Values.deployment.resources }}
   deployment: 
     resources: {{ .Values.deployment.resources | toYaml | nindent 4 }}

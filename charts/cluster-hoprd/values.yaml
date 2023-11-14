@@ -26,6 +26,12 @@ version: 2.0.2
 ##
 enabled: true
 
+##
+## @param forceIdentityName Forces identity names to be set in child Hopd resources
+##
+forceIdentityName: false
+
+
 deployment: 
   ##
   ## @param deployment.resources Deployment resources spec

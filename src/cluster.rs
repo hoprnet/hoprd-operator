@@ -51,6 +51,7 @@ pub struct ClusterHoprdSpec {
     pub config: String,
     pub version: String,
     pub enabled: Option<bool>,
+    pub force_identity_name: Option<bool>,
     pub deployment: Option<HoprdDeploymentSpec>
 }
 
@@ -393,6 +394,10 @@ impl ClusterHoprd {
         let cluster_name = self.metadata.name.as_ref().unwrap().to_owned();
         let node_instance = self.status.clone().unwrap().running_nodes + 1;
         let node_name = format!("{}-{}", cluster_name.to_owned(), node_instance).to_owned();
+        let identity_name: Option<String> = match self.spec.force_identity_name {
+            Some(force) => if force { Some(format!("{}-{}",self.spec.identity_pool_name, node_instance)) } else { None },
+            None => None
+        };
         info!("Creating node {} for cluster {}", node_name, cluster_name.to_owned());
         let hoprd_spec: HoprdSpec = HoprdSpec {
             config: self.spec.config.to_owned(),
@@ -400,7 +405,7 @@ impl ClusterHoprd {
             version: self.spec.version.to_owned(),
             deployment: self.spec.deployment.to_owned(),
             identity_pool_name: self.spec.identity_pool_name.to_owned(),
-            identity_name: Some(format!("{}-{}",self.spec.identity_pool_name, node_instance))
+            identity_name
         };
         match self.create_hoprd_resource(context.clone(), node_name.to_owned(), hoprd_spec).await {
         Ok(hoprd) => Ok(hoprd.name_any()), 

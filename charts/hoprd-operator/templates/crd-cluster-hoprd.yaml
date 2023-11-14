@@ -72,6 +72,9 @@ spec:
                 enabled:
                   type: boolean
                   description: 'Flag indicating if the node should be started or stopped'
+                forceIdentityName:
+                  type: boolean
+                  description: Flag indicating whether the identityName should be specified in child Hoprd
                 deployment:
                   type: object
                   description: Deployment configuration
