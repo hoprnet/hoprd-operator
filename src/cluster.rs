@@ -204,8 +204,7 @@ impl ClusterHoprd {
             return Ok(Action::requeue(Duration::from_secs(constants::RECONCILE_FREQUENCY)))
         } else {
             info!("ClusterHoprd {cluster_hoprd_name} in namespace {hoprd_namespace} is already being scaling");
-            self.create_event(context.clone(), ClusterHoprdPhaseEnum::Scaling, None).await?;
-            return Ok(Action::requeue(Duration::from_secs(constants::RECONCILE_FREQUENCY)))
+            return Ok(Action::await_change())
         }
     }
 
@@ -401,9 +400,9 @@ impl ClusterHoprd {
             version: self.spec.version.to_owned(),
             deployment: self.spec.deployment.to_owned(),
             identity_pool_name: self.spec.identity_pool_name.to_owned(),
-            identity_name: None
+            identity_name: Some(node_name.to_owned())
         };
-        match self.create_hoprd_resource(context.clone(), node_name.clone(), hoprd_spec).await {
+        match self.create_hoprd_resource(context.clone(), node_name.to_owned(), hoprd_spec).await {
         Ok(hoprd) => Ok(hoprd.name_any()), 
         Err(error) => {
             error!("{:?}", error);
