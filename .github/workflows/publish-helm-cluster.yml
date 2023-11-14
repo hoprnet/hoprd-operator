@@ -23,7 +23,7 @@ jobs:
         uses: azure/setup-helm@v3
         with:
           version: latest
-          token: ${{ secrets.GITHUB_TOKEN }}s
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Get Helm chart version
         id: get_version
