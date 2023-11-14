@@ -400,7 +400,7 @@ impl ClusterHoprd {
             version: self.spec.version.to_owned(),
             deployment: self.spec.deployment.to_owned(),
             identity_pool_name: self.spec.identity_pool_name.to_owned(),
-            identity_name: Some(format!("{}-{}",self.spec.identity_pool_name, node_name))
+            identity_name: Some(format!("{}-{}",self.spec.identity_pool_name, node_instance))
         };
         match self.create_hoprd_resource(context.clone(), node_name.to_owned(), hoprd_spec).await {
         Ok(hoprd) => Ok(hoprd.name_any()), 
