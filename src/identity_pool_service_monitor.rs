@@ -111,15 +111,6 @@ pub fn build_metric_relabel() -> Vec<ServiceMonitorEndpointsRelabelings> {
     });
     metrics.push(ServiceMonitorEndpointsRelabelings {
         action: Some(ServiceMonitorEndpointsRelabelingsAction::Replace),
-        source_labels: Some(vec!["__meta_kubernetes_pod_container_image".to_owned()]),
-        target_label: Some("hoprd_version".to_owned()),
-        regex: Some("(.*):(.*)".to_owned()),
-        replacement: Some("${2}".to_owned()),
-        separator: Some(":".to_owned()),
-        modulus: None,
-    });
-    metrics.push(ServiceMonitorEndpointsRelabelings {
-        action: Some(ServiceMonitorEndpointsRelabelingsAction::Replace),
         source_labels: Some(vec![
             "__meta_kubernetes_pod_label_app_kubernetes_io_instance".to_owned(),
         ]),
