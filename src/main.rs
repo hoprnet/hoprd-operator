@@ -20,6 +20,7 @@ mod identity_hoprd_persistence;
 mod identity_pool;
 mod identity_pool_service_account;
 mod identity_pool_service_monitor;
+mod identity_pool_cronjob_faucet;
 mod operator_config;
 mod servicemonitor;
 mod utils;

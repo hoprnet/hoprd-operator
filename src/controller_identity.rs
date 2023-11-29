@@ -74,7 +74,7 @@ async fn reconciler(identity_hoprd: Arc<IdentityHoprd>,context: Arc<ContextData>
     // Performs action as decided by the `determine_action` function.
     return match determine_action(&identity_hoprd_mutable) {
         IdentityHoprdAction::Create => identity_hoprd_mutable.create(context.clone()).await,
-        IdentityHoprdAction::Modify => identity_hoprd_mutable.modify().await,
+        IdentityHoprdAction::Modify => identity_hoprd_mutable.modify(context.clone()).await,
         IdentityHoprdAction::Delete => identity_hoprd_mutable.delete(context.clone()).await,
         // The resource is already in desired state, do nothing and re-check after 10 seconds
         IdentityHoprdAction::NoOp => Ok(Action::requeue(Duration::from_secs(

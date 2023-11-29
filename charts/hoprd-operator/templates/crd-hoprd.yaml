@@ -95,7 +95,7 @@ spec:
                   - Initializing
                   - Running
                   - Stopped
-                  - OutOfSync
+                  - Failed
                   - Deleting
                 identityName:
                   type: string

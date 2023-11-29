@@ -2,7 +2,7 @@ use crate::hoprd_deployment_spec::HoprdDeploymentSpec;
 use crate::identity_hoprd::{IdentityHoprd, IdentityHoprdPhaseEnum};
 use crate::model::Error;
 use crate::{constants, context_data::ContextData};
-use crate::{identity_pool_service_account, identity_pool_service_monitor, utils};
+use crate::{identity_pool_service_account, identity_pool_service_monitor, utils, identity_pool_cronjob_faucet};
 use chrono::Utc;
 use k8s_openapi::api::batch::v1::{Job, JobSpec};
 use k8s_openapi::api::core::v1::{
@@ -55,6 +55,14 @@ pub struct IdentityPoolSpec {
     pub network: String,
     pub secret_name: String,
     pub min_ready_identities: i32,
+    pub funding: Option<IdentityPoolFunding>
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone, JsonSchema, Hash)]
+#[serde(rename_all = "camelCase")]
+pub struct IdentityPoolFunding {
+    pub schedule: String,
+    pub native_amount: String
 }
 
 /// The status object of `Hoprd`
@@ -136,6 +144,9 @@ impl IdentityPool {
         self.add_finalizer(client.clone(), &identity_pool_name, &identity_pool_namespace).await.unwrap();
         identity_pool_service_monitor::create_service_monitor(context_data.clone(), &identity_pool_name, &identity_pool_namespace, &self.spec.secret_name, owner_references.to_owned()).await?;
         identity_pool_service_account::create_rbac(context_data.clone(), &identity_pool_namespace, &identity_pool_name,owner_references.to_owned()).await?;
+        if self.spec.funding.is_some() {
+            identity_pool_cronjob_faucet::create_cron_job(context_data.clone(), self).await.expect("Could not create Cronjob");
+        }
         // TODO: Validate data
         // - Check that the secret exist and contains the required keys
         // - Does the wallet private key have permissions in Network to register new nodes and create safes ?
@@ -158,44 +169,68 @@ impl IdentityPool {
     }
 
     /// Handle the modification of IdentityPool resource
-    pub async fn modify(&mut self, context: Arc<ContextData>) -> Result<Action, Error> {
-        let client: Client = context.client.clone();
+    pub async fn modify(&mut self, context_data: Arc<ContextData>) -> Result<Action, Error> {
+        let client: Client = context_data.client.clone();
         let identity_pool_namespace: String = self.namespace().unwrap();
         let identity_pool_name: String = self.name_any();
-        let annotations = utils::get_resource_kinds(
-            client.clone(),
-            utils::ResourceType::IdentityPool,
-            utils::ResourceKind::Annotations,
-            &identity_pool_name,
-            &identity_pool_namespace,
-        ).await;
-        if annotations.contains_key(constants::ANNOTATION_LAST_CONFIGURATION) {
-            let previous_text: String = annotations
-                .get_key_value(constants::ANNOTATION_LAST_CONFIGURATION)
-                .unwrap()
-                .1
-                .parse()
-                .unwrap();
-            match serde_json::from_str::<IdentityPool>(&previous_text) {
-                Ok(previous_identity_pool) => {
-                    self.check_inmutable_fields(&previous_identity_pool.spec).unwrap();
-                    info!("Identity pool {identity_pool_name} in namespace {identity_pool_namespace} has been successfully modified");
-                    if self.status.as_ref().unwrap().size - self.status.as_ref().unwrap().locked - self.spec.min_ready_identities < 0 {
-                        let pending = self.spec.min_ready_identities - self.status.as_ref().unwrap().locked - self.status.as_ref().unwrap().size;
-                        self.create_event(context.clone(),IdentityPoolPhaseEnum::OutOfSync,Some(pending.to_string())).await?;
-                        self.update_phase(context.client.clone(), IdentityPoolPhaseEnum::OutOfSync).await?;
-                        info!("Identity {identity_pool_name} in namespace {identity_pool_namespace} requires to create {} new identities", self.spec.min_ready_identities);
-                    }else {
-                        self.create_event(context.clone(),IdentityPoolPhaseEnum::Ready, None).await?;
-                        self.update_phase(context.client.clone(), IdentityPoolPhaseEnum::Ready).await?;
+        let annotations = utils::get_resource_kinds(client.clone(),utils::ResourceType::IdentityPool,utils::ResourceKind::Annotations,&identity_pool_name,&identity_pool_namespace).await;
+        if self.status.is_some() && self.status.as_ref().unwrap().phase.eq(&IdentityPoolPhaseEnum::Ready) {
+            if annotations.contains_key(constants::ANNOTATION_LAST_CONFIGURATION) {
+                let previous_text: String = annotations.get_key_value(constants::ANNOTATION_LAST_CONFIGURATION).unwrap().1.parse().unwrap();
+                match serde_json::from_str::<IdentityPool>(&previous_text) {
+                    Ok(previous_identity_pool) => {
+                        if self.changed_inmutable_fields(&previous_identity_pool.spec) {
+                            self.create_event(context_data.clone(),IdentityPoolPhaseEnum::Failed,None).await?;
+                            self.update_phase(context_data.client.clone(), IdentityPoolPhaseEnum::Failed).await?;
+                        } else {
+                            info!("Identity pool {identity_pool_name} in namespace {identity_pool_namespace} has been successfully modified");
+
+                            // Syncrhonize size
+                            if self.status.as_ref().unwrap().size - self.status.as_ref().unwrap().locked - self.spec.min_ready_identities < 0 {
+                                let pending = self.spec.min_ready_identities - self.status.as_ref().unwrap().locked - self.status.as_ref().unwrap().size;
+                                self.create_event(context_data.clone(),IdentityPoolPhaseEnum::OutOfSync,Some(pending.to_string())).await?;
+                                self.update_phase(context_data.client.clone(), IdentityPoolPhaseEnum::OutOfSync).await?;
+                                info!("Identity {identity_pool_name} in namespace {identity_pool_namespace} requires to create {} new identities", self.spec.min_ready_identities);
+                            }else {
+                                self.create_event(context_data.clone(),IdentityPoolPhaseEnum::Ready, None).await?;
+                                self.update_phase(context_data.client.clone(), IdentityPoolPhaseEnum::Ready).await?;
+                            }
+                            self.modify_funding(client.clone(), previous_identity_pool.spec.funding).await
+                        }
+                    },
+                    Err(_err) => {
+                        error!("Could not parse the last applied configuration from {identity_pool_name}.");
                     }
-                },
-                Err(_err) => {
-                    error!("Could not parse the last applied configuration from {identity_pool_name}.");
                 }
             }
+        } else if self.status.is_some() && self.status.as_ref().unwrap().phase.eq(&IdentityPoolPhaseEnum::Failed) {
+            // Assumes that the next modification of the resource is to recover to a good state
+            self.create_event(context_data.clone(),IdentityPoolPhaseEnum::Ready,None).await?;
+            self.update_phase(context_data.client.clone(), IdentityPoolPhaseEnum::Ready).await?;
+            warn!("Detected a change in IdentityPool {identity_pool_name}. Automatically recovering to a Ready phase");
+        } else {
+            error!("The resource cannot be modified");
         }
         Ok(Action::requeue(Duration::from_secs(constants::RECONCILE_FREQUENCY)))
+    }
+
+    // Syncrhonize funding
+    async fn modify_funding(&self, client:Client, previous_funding: Option<IdentityPoolFunding>) -> () {
+        let identity_pool_namespace: String = self.namespace().unwrap();
+        let identity_pool_name: String = self.name_any();
+
+        if previous_funding.is_none() && self.spec.funding.is_some() {
+            info!("Creating new Cronjob {identity_pool_name} in namespace {identity_pool_namespace}");
+        } else if self.spec.funding.is_none() && previous_funding.is_some() {
+            info!("Deleting previous Cronjob {identity_pool_name} in namespace {identity_pool_namespace}");
+        } else if self.spec.funding.is_some() && previous_funding.is_some() {
+            let previous_funding = previous_funding.unwrap();
+            let current_funding = self.spec.funding.clone().unwrap();
+            if previous_funding.native_amount.ne(&current_funding.native_amount) || previous_funding.schedule.ne(&current_funding.schedule) {
+                info!("Modifying Cronjob {identity_pool_name} in namespace {identity_pool_namespace}");
+                identity_pool_cronjob_faucet::modify_cron_job(client.clone(), self).await.expect("Could not modify cronjob");
+            }
+        }
     }
 
     // Handle the deletion of IdentityPool resource
@@ -209,6 +244,9 @@ impl IdentityPool {
             info!("Starting to delete identity {identity_pool_name} from namespace {identity_pool_namespace}");
             identity_pool_service_monitor::delete_service_monitor(client.clone(), &identity_pool_name, &identity_pool_namespace).await?;
             identity_pool_service_account::delete_rbac(client.clone(), &identity_pool_namespace, &identity_pool_name).await?;
+            if self.spec.funding.is_some() {
+                identity_pool_cronjob_faucet::delete_cron_job(client.clone(), &identity_pool_namespace, &identity_pool_name).await?;
+            }
             self.delete_finalizer(client.clone(), &identity_pool_name, &identity_pool_namespace).await?;
             context_data.state.write().await.remove_identity_pool(&identity_pool_namespace, &identity_pool_name);
             info!("Identity {identity_pool_name} in namespace {identity_pool_namespace} has been successfully deleted");
@@ -250,15 +288,16 @@ impl IdentityPool {
         )))
     }
 
-    fn check_inmutable_fields(&self, previous_identity: &IdentityPoolSpec) -> Result<(), Error> {
-        if !self.spec.network.eq(&previous_identity.network)
-        {
-            return Err(Error::HoprdConfigError(format!("Configuration is invalid, 'network' field cannot be changed on {}.", self.name_any())));
+    fn changed_inmutable_fields(&self, previous_identity: &IdentityPoolSpec) -> bool {
+        if !self.spec.network.eq(&previous_identity.network) {
+            error!("Configuration is invalid, 'network' field cannot be changed on {}.", self.name_any());
+            true
+        } else if !self.spec.secret_name.eq(&previous_identity.secret_name) {
+            error!("Configuration is invalid, 'secret_name' field cannot be changed on {}.", self.name_any());
+            true
+        } else {
+            false
         }
-        if !self.spec.secret_name.eq(&previous_identity.secret_name) {
-            return Err(Error::HoprdConfigError(format!("Configuration is invalid, 'secret_name' field cannot be changed on {}.", self.name_any())));
-        }
-        Ok(())
     }
 
     /// Adds a finalizer in IdentityPool to prevent deletion of the resource by Kubernetes API and allow the controller to safely manage its deletion
@@ -405,11 +444,7 @@ impl IdentityPool {
     pub async fn update_phase(&mut self, client: Client, phase: IdentityPoolPhaseEnum) -> Result<(), Error> {
         let identity_hoprd_name = self.metadata.name.as_ref().unwrap().to_owned();
         let hoprd_namespace = self.metadata.namespace.as_ref().unwrap().to_owned();
-        let mut identity_pool_status = self
-            .status
-            .as_ref()
-            .unwrap_or(&IdentityPoolStatus::default())
-            .to_owned();
+        let mut identity_pool_status = self.status.as_ref().unwrap_or(&IdentityPoolStatus::default()).to_owned();
 
         let api: Api<IdentityPool> = Api::namespaced(client.clone(), &hoprd_namespace.to_owned());
         if phase.eq(&IdentityPoolPhaseEnum::Deleting) {
@@ -464,31 +499,29 @@ impl IdentityPool {
                     "status": identity_pool_status
             }));
             
-            match api
-                .patch(&identity_hoprd_name, &PatchParams::default(), &patch)
-                .await
-            {
+            match api.patch(&identity_hoprd_name, &PatchParams::default(), &patch).await {
                 Ok(_identity) => {
                     self.status = Some(identity_pool_status);
                     Ok(())
                 },
-                Err(error) => Ok(error!(
-                    "Could not update status on {identity_hoprd_name}: {:?}",
-                    error
-                )),
+                Err(error) => Ok(error!("Could not update status on {identity_hoprd_name}: {:?}",error)),
             }
         }
     }
 
-    /// Gets the first identity in ready status
-    pub async fn get_ready_identity(&mut self, context_data: Arc<ContextData>, identity_name: Option<String>) -> Result<Option<IdentityHoprd>, Error> {
-        let api: Api<IdentityHoprd> = Api::namespaced(context_data.client.clone(),&self.namespace().unwrap().to_owned());
-        let namespace_identities_list = api.list(&ListParams::default()).await;
-        let namespace_identities = namespace_identities_list.expect("Could not list namespace identities");
+    pub async fn get_pool_identities(&self, client: Client) -> Vec<IdentityHoprd> {
+        let api: Api<IdentityHoprd> = Api::namespaced(client,&self.namespace().unwrap().to_owned());
+        let namespace_identities = api.list(&ListParams::default()).await.expect("Could not list namespace identities");
         let pool_identities: Vec<IdentityHoprd>  = namespace_identities.iter().cloned()
             .filter(|identity| {
                 identity.metadata.owner_references.as_ref().unwrap().first().unwrap().name.eq(&self.name_any())
             }).collect();
+        pool_identities
+    }
+
+    /// Gets the first identity in ready status
+    pub async fn get_ready_identity(&mut self, client: Client, identity_name: Option<String>) -> Result<Option<IdentityHoprd>, Error> {
+        let pool_identities: Vec<IdentityHoprd>  = self.get_pool_identities(client).await;
 
         let identity: Option<IdentityHoprd> = match identity_name.clone() {
             Some(provided_identity_name) => {
@@ -561,10 +594,10 @@ impl IdentityPool {
                 ..EnvVar::default()
             },
             EnvVar {
-                name: constants::IDENTITY_POOL_WALLET_PRIVATE_KEY_REF_KEY.to_owned(),
+                name: constants::IDENTITY_POOL_WALLET_DEPLOYER_PRIVATE_KEY_REF_KEY.to_owned(),
                 value_from: Some(EnvVarSource {
                     secret_key_ref: Some(SecretKeySelector {
-                        key: constants::IDENTITY_POOL_WALLET_PRIVATE_KEY_REF_KEY.to_owned(),
+                        key: constants::IDENTITY_POOL_WALLET_DEPLOYER_PRIVATE_KEY_REF_KEY.to_owned(),
                         name: Some(self.spec.secret_name.to_owned()),
                         ..SecretKeySelector::default()
                     }),

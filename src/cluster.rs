@@ -29,7 +29,7 @@ use std::fmt::{Display, Formatter};
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 use std::time::Duration;
-use tracing::{debug, error, info};
+use tracing::{debug, error, info, warn};
 
 /// Struct corresponding to the Specification (`spec`) part of the `Hoprd` resource, directly
 /// reflects context of the `hoprds.hoprnet.org.yaml` file to be found in this repository.
@@ -84,8 +84,8 @@ pub enum ClusterHoprdPhaseEnum {
     NotScaled,
     /// The HoprdCluster is performing a scaling action
     Scaling,
-    /// The HoprdCluster is not synchronized with its nodes
-    OutOfSync,
+    /// The HoprdCluster is in failed state with its nodes
+    Failed,
     // The HoprdCluster is synchronized with its nodes
     Ready,
     /// The HoprdCluster is being deleted
@@ -106,7 +106,7 @@ impl Display for ClusterHoprdPhaseEnum {
             ClusterHoprdPhaseEnum::Initialized => write!(f, "Initialized"),
             ClusterHoprdPhaseEnum::NotScaled => write!(f, "NotScaled"),
             ClusterHoprdPhaseEnum::Scaling => write!(f, "Scaling"),
-            ClusterHoprdPhaseEnum::OutOfSync => write!(f, "OutOfSync"),
+            ClusterHoprdPhaseEnum::Failed => write!(f, "Failed"),
             ClusterHoprdPhaseEnum::Ready => write!(f, "Ready"),
             ClusterHoprdPhaseEnum::Deleting => write!(f, "Deleting"),
             ClusterHoprdPhaseEnum::CreatingNode => write!(f, "CreatingNode"),
@@ -142,43 +142,69 @@ impl ClusterHoprd {
         let client: Client = context_data.client.clone();
         let hoprd_namespace: String = self.namespace().unwrap();
         let cluster_hoprd_name: String = self.name_any();
-        info!("ClusterHoprd {cluster_hoprd_name} in namespace {hoprd_namespace} has been successfully modified");
-        let annotations = utils::get_resource_kinds(client.clone(), utils::ResourceType::ClusterHoprd, utils::ResourceKind::Annotations, &cluster_hoprd_name, &hoprd_namespace).await;
-        if annotations.contains_key(constants::ANNOTATION_LAST_CONFIGURATION) {
-            let previous_config_text: String = annotations.get_key_value(constants::ANNOTATION_LAST_CONFIGURATION).unwrap().1.parse().unwrap();
-            match serde_json::from_str::<ClusterHoprd>(&previous_config_text) {
-                Ok(previous_cluster_hoprd) => {
-                    self.check_inmutable_fields(&previous_cluster_hoprd.spec).unwrap();
-                    // Handling modification
-                    self.appply_modification(context_data.clone()).await?;
-
-                    // Handle rescaling
-                    let unsynched_nodes: i32 = self.spec.replicas - self.status.as_ref().unwrap().running_nodes;
-                    if unsynched_nodes != 0 {
-                        if unsynched_nodes > 0 {
-                            info!("ClusterHoprd {cluster_hoprd_name} in namespace {hoprd_namespace} requires to create {} new nodes", unsynched_nodes);
-                        } else {
-                            info!("ClusterHoprd {cluster_hoprd_name} in namespace {hoprd_namespace} requires to delete {} nodes", unsynched_nodes.abs());
-                        }
-                        self.create_event(context_data.clone(),ClusterHoprdPhaseEnum::NotScaled,Some(unsynched_nodes.to_string())).await?;
-                        self.update_phase(context_data.clone(), ClusterHoprdPhaseEnum::NotScaled).await?;
-                    } else {
-                        self.create_event(context_data.clone(),ClusterHoprdPhaseEnum::Ready,None).await?;
-                        self.update_phase(context_data.clone(), ClusterHoprdPhaseEnum::Ready).await?;
-                    }
-                    Ok(Action::requeue(Duration::from_secs(constants::RECONCILE_FREQUENCY)))
-                }
-                Err(_err) => {
-                    self.create_event(context_data.clone(),ClusterHoprdPhaseEnum::OutOfSync,None).await?;
-                    self.update_phase(context_data.clone(), ClusterHoprdPhaseEnum::OutOfSync).await?;
-                    Err(Error::HoprdConfigError(format!("Could not parse the last applied configuration of ClusterHoprd {cluster_hoprd_name}")))
-                }
-            }
+        if self.status.is_some() && self.status.as_ref().unwrap().phase.eq(&ClusterHoprdPhaseEnum::Failed) {
+            // Assumes that the next modification of the resource is to recover to a good state
+            self.create_event(context_data.clone(),ClusterHoprdPhaseEnum::Ready, None).await?;
+            self.update_phase(context_data.clone(), ClusterHoprdPhaseEnum::Ready).await?;
+            warn!("Detected a change in ClusterHoprd {cluster_hoprd_name} while was in Failed phase. Automatically recovering to a Ready phase");
         } else {
-            self.create_event(context_data.clone(),ClusterHoprdPhaseEnum::OutOfSync,None).await?;
-            self.update_phase(context_data.clone(), ClusterHoprdPhaseEnum::OutOfSync).await?;
-            Err(Error::HoprdConfigError(format!("Could not modify ClusterHoprd {cluster_hoprd_name} because cannot recover last configuration")))
+            let annotations = utils::get_resource_kinds(client.clone(), utils::ResourceType::ClusterHoprd, utils::ResourceKind::Annotations, &cluster_hoprd_name, &hoprd_namespace).await;
+            if annotations.contains_key(constants::ANNOTATION_LAST_CONFIGURATION) {
+                let previous_config_text: String = annotations.get_key_value(constants::ANNOTATION_LAST_CONFIGURATION).unwrap().1.parse().unwrap();
+                match serde_json::from_str::<ClusterHoprd>(&previous_config_text) {
+                    Ok(previous_cluster_hoprd) => {
+                        if self.changed_inmutable_fields(&previous_cluster_hoprd.spec) {
+                                self.create_event(context_data.clone(), ClusterHoprdPhaseEnum::Failed, None).await?;
+                                self.update_phase(context_data.clone(), ClusterHoprdPhaseEnum::Failed).await?;
+                        } else {
+                            if self.needs_deployment_modification(previous_cluster_hoprd) {
+                                self.appply_modification(context_data.clone()).await?;
+                            }
+                            self.check_needs_rescale(context_data.clone()).await?;
+                            info!("ClusterHoprd {cluster_hoprd_name} in namespace {hoprd_namespace} has been successfully modified");
+                        }
+                    }
+                    Err(_err) => {
+                        self.create_event(context_data.clone(),ClusterHoprdPhaseEnum::Failed,None).await?;
+                        self.update_phase(context_data.clone(), ClusterHoprdPhaseEnum::Failed).await?;
+                        error!("Could not parse the last applied configuration of ClusterHoprd {cluster_hoprd_name}");
+                    }
+                }
+            } else {
+                self.create_event(context_data.clone(),ClusterHoprdPhaseEnum::Failed,None).await?;
+                self.update_phase(context_data.clone(), ClusterHoprdPhaseEnum::Failed).await?;
+                error!("Could not modify ClusterHoprd {cluster_hoprd_name} because cannot recover last configuration");
+            }
         }
+        Ok(Action::requeue(Duration::from_secs(constants::RECONCILE_FREQUENCY)))
+    }
+
+    // Handle rescaling
+    async fn check_needs_rescale(&self, context_data: Arc<ContextData>) -> Result<(), Error> {
+        let hoprd_namespace: String = self.namespace().unwrap();
+        let cluster_hoprd_name: String = self.name_any();
+        let unsynched_nodes: i32 = self.spec.replicas - self.status.as_ref().unwrap().running_nodes;
+        if unsynched_nodes != 0 {
+            if unsynched_nodes > 0 {
+                info!("ClusterHoprd {cluster_hoprd_name} in namespace {hoprd_namespace} requires to create {} new nodes", unsynched_nodes);
+            } else {
+                info!("ClusterHoprd {cluster_hoprd_name} in namespace {hoprd_namespace} requires to delete {} nodes", unsynched_nodes.abs());
+            }
+            self.create_event(context_data.clone(),ClusterHoprdPhaseEnum::NotScaled,Some(unsynched_nodes.to_string())).await?;
+            self.update_phase(context_data.clone(), ClusterHoprdPhaseEnum::NotScaled).await?;
+        } else {
+            self.create_event(context_data.clone(),ClusterHoprdPhaseEnum::Ready,None).await?;
+            self.update_phase(context_data.clone(), ClusterHoprdPhaseEnum::Ready).await?;
+        }
+        Ok(())
+    }
+
+    fn needs_deployment_modification(&self, previous_cluster_hoprd: ClusterHoprd) -> bool {
+        let version_changed = previous_cluster_hoprd.spec.version.ne(&self.spec.version);
+        let enabled_changed = previous_cluster_hoprd.spec.enabled.ne(&self.spec.enabled);
+        let config_changed = previous_cluster_hoprd.spec.config.ne(&self.spec.config);
+        let deployment_changed = previous_cluster_hoprd.spec.deployment.ne(&self.spec.deployment);
+        version_changed || enabled_changed || config_changed || deployment_changed
     }
 
     // Sync Cluster with its hoprd nodes
@@ -261,11 +287,13 @@ impl ClusterHoprd {
     }
 
     /// Check the fileds that cannot be modifed
-    fn check_inmutable_fields(&self, spec: &ClusterHoprdSpec) -> Result<(), Error> {
+    fn changed_inmutable_fields(&self, spec: &ClusterHoprdSpec) -> bool {
         if !self.spec.identity_pool_name.eq(&spec.identity_pool_name) {
-            return Err(Error::HoprdConfigError(format!("Cluster configuration is invalid, identity_pool_name field cannot be changed on {}.", self.name_any())));
+            error!("Cluster configuration is invalid, identity_pool_name field cannot be changed on {}.", self.name_any());
+            true
+        } else {
+            false
         }
-        Ok(())
     }
 
     /// Creates an event for ClusterHoprd given the new ClusterHoprdStatusEnum
@@ -293,9 +321,9 @@ impl ClusterHoprd {
                 action: "ClusterHoprd is not scaled".to_string(),
                 secondary: None,
             },
-            ClusterHoprdPhaseEnum::OutOfSync => Event {
+            ClusterHoprdPhaseEnum::Failed => Event {
                 type_: EventType::Warning,
-                reason: "OutOfSync".to_string(),
+                reason: "Failed".to_string(),
                 note: Some(format!("ClusterHoprd is not sync.")),
                 action: "ClusterHoprd is not sync".to_string(),
                 secondary: None,
@@ -427,6 +455,7 @@ impl ClusterHoprd {
             let uid = hoprd_node.metadata.uid.unwrap();
             api.delete(&node_name, &DeleteParams::default()).await?;
             await_condition(api, &node_name.to_owned(), conditions::is_deleted(&uid)).await.unwrap();
+            info!("Node {} deleted for cluster {}", node_name, cluster_name.to_owned());
         };
         Ok(node_name)
     }

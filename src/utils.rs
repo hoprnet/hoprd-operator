@@ -1,4 +1,4 @@
-use crate::{cluster::ClusterHoprd, constants, hoprd::Hoprd, identity_pool::IdentityPool};
+use crate::{cluster::ClusterHoprd, constants, hoprd::Hoprd, identity_pool::IdentityPool, identity_hoprd::IdentityHoprd};
 use kube::{Api, Client};
 use std::{
     collections::BTreeMap,
@@ -25,6 +25,7 @@ pub fn common_lables(name: String, instance: Option<String>, component: Option<S
 
 pub enum ResourceType {
     IdentityPool,
+    IdentityHoprd,
     Hoprd,
     ClusterHoprd,
 }
@@ -33,6 +34,7 @@ impl Display for ResourceType {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         match self {
             ResourceType::IdentityPool => write!(f, "IdentityPool"),
+            ResourceType::IdentityHoprd => write!(f, "IdentityHoprd"),
             ResourceType::Hoprd => write!(f, "Hoprd"),
             ResourceType::ClusterHoprd => write!(f, "ClusterHoprd"),
         }
@@ -74,6 +76,22 @@ pub async fn get_resource_kinds(
                 }
                 None => {
                     println!("The identity pool {resource_name} does not exist.");
+                    empty_map.clone()
+                }
+            }
+        },
+        ResourceType::IdentityHoprd => { 
+            let api_identity: Api<IdentityHoprd> = Api::namespaced(client.clone(), &resource_namespace);
+            match api_identity.get_opt(&resource_name).await.unwrap() {
+                Some(identity) => { 
+                    if resource_kind.eq(&ResourceKind::Labels) {
+                        identity.metadata.labels.as_ref().unwrap_or_else(|| empty_map).clone()
+                    } else {
+                        identity.metadata.annotations.as_ref().unwrap_or_else(|| empty_map).clone()
+                    }
+                }
+                None => {
+                    println!("The identity hoprd {resource_name} does not exist.");
                     empty_map.clone()
                 }
             }

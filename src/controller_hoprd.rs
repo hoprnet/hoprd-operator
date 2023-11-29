@@ -47,14 +47,9 @@ enum HoprdAction {
 fn determine_action(hoprd: &Hoprd) -> HoprdAction {
     return if hoprd.meta().deletion_timestamp.is_some() {
         HoprdAction::Delete
-    } else if hoprd
-        .meta()
-        .finalizers
-        .as_ref()
-        .map_or(true, |finalizers| finalizers.is_empty())
-    {
+    } else if hoprd.meta().finalizers.as_ref().map_or(true, |finalizers| finalizers.is_empty()) {
         HoprdAction::Create
-    } else if hoprd.status.as_ref().unwrap().phase == HoprdPhaseEnum::OutOfSync {
+    } else if hoprd.status.as_ref().unwrap().phase == HoprdPhaseEnum::Failed {
         HoprdAction::Modify
     } else if hoprd.status.as_ref().unwrap().phase == HoprdPhaseEnum::Deleting {
         HoprdAction::NoOp

@@ -55,8 +55,8 @@ impl ContextData {
             .iter().map(|hoprd|  format!("{}-{}", hoprd.metadata.namespace.as_ref().unwrap(), hoprd.metadata.name.as_ref().unwrap())).collect();
         for identity_hoprd in all_identities {
             if let Some(status) = identity_hoprd.to_owned().status {
-                if let Some(hoprd_name) = status.hoprd_node_name {
-                    let identity_full_name = format!("{}-{}", identity_hoprd.to_owned().metadata.namespace.unwrap(), hoprd_name);
+                if let Some(hoprd_node_name) = status.hoprd_node_name {
+                    let identity_full_name = format!("{}-{}", identity_hoprd.to_owned().metadata.namespace.unwrap(), hoprd_node_name);
                     if ! all_hoprds.contains(&identity_full_name) {
                         // Remove hoprd relationship
                         identity_hoprd.unlock(context_data.clone()).await.expect("Could not synchronize identity");

@@ -1,4 +1,4 @@
-use crate::identity_hoprd_persistence;
+use crate::{identity_hoprd_persistence, utils};
 use crate::identity_pool::{IdentityPool, IdentityPoolPhaseEnum};
 use crate::model::Error;
 use crate::{constants, context_data::ContextData};
@@ -100,7 +100,7 @@ impl IdentityHoprd {
         self.add_owner_reference(client.clone()).await?;
         identity_hoprd_persistence::create_pvc(context_data.clone(), &self).await?;
         self.create_event(context_data.clone(), IdentityHoprdPhaseEnum::Initialized, None).await?;
-        self.update_phase(context_data.clone(), IdentityHoprdPhaseEnum::Initialized, None).await?;
+        self.update_phase(client.clone(), IdentityHoprdPhaseEnum::Initialized, None).await?;
         // TODO: Validate data
         // - Is registered in network
         // - Is funded (safe and node)
@@ -123,7 +123,7 @@ impl IdentityHoprd {
         if updated {
             // These instructions need to be done out of the context_data lock
             self.create_event(context_data.clone(), IdentityHoprdPhaseEnum::Ready, None).await?;
-            self.update_phase(context_data.clone(), IdentityHoprdPhaseEnum::Ready, None).await?;
+            self.update_phase(client.clone(), IdentityHoprdPhaseEnum::Ready, None).await?;
         } else {
             error!("Identity pool {} not exists in namespace {}", identity_pool_name, &self.namespace().unwrap());
         }
@@ -131,11 +131,44 @@ impl IdentityHoprd {
     }
 
     /// Handle the modification of IdentityHoprd resource
-    pub async fn modify(&self) -> Result<Action, Error> {
-        error!("The resource cannot be modified");
-        Err(Error::OperationNotSupported(
-            format!("The resource cannot be modified").to_owned(),
-        ))
+    pub async fn modify(&self, context_data: Arc<ContextData>) -> Result<Action, Error> {
+        let identity_namespace: String = self.namespace().unwrap();
+        let identity_name: String = self.name_any();
+        let annotations = utils::get_resource_kinds(context_data.client.clone(), utils::ResourceType::IdentityHoprd, utils::ResourceKind::Annotations, &identity_name, &identity_namespace).await;
+        if self.status.is_some() && self.status.as_ref().unwrap().phase.eq(&IdentityHoprdPhaseEnum::Ready) {
+            if annotations.contains_key(constants::ANNOTATION_LAST_CONFIGURATION) {
+                let previous_config_text: String = annotations.get_key_value(constants::ANNOTATION_LAST_CONFIGURATION).unwrap().1.parse().unwrap();
+                match serde_json::from_str::<IdentityHoprd>(&previous_config_text) {
+                    Ok(previous_cluster_hoprd) => {
+                        if self.changed_inmutable_fields(&previous_cluster_hoprd.spec) {
+                            self.create_event(context_data.clone(),IdentityHoprdPhaseEnum::Failed,None).await?;
+                            self.update_phase(context_data.client.clone(), IdentityHoprdPhaseEnum::Failed, None).await?;
+                        } else {
+                            info!("IdentityHoprd {} in namespace {} has been successfully modified", self.name_any(), self.namespace().unwrap());
+                        }
+                        Ok(Action::requeue(Duration::from_secs(constants::RECONCILE_FREQUENCY)))
+                    }
+                    Err(_err) => {
+                        self.create_event(context_data.clone(),IdentityHoprdPhaseEnum::Failed,None).await?;
+                        self.update_phase(context_data.client.clone(), IdentityHoprdPhaseEnum::Failed, None).await?;
+                        Err(Error::HoprdConfigError(format!("Could not parse the last applied configuration of IdentityHoprd {identity_name}")))
+                    }
+                }
+            } else {
+                self.create_event(context_data.clone(),IdentityHoprdPhaseEnum::Failed,None).await?;
+                self.update_phase(context_data.client.clone(), IdentityHoprdPhaseEnum::Failed, None).await?;
+                Err(Error::HoprdConfigError(format!("Could not modify IdentityHoprd {identity_name} because cannot recover last configuration")))
+            }
+        } else if self.status.is_some() && self.status.as_ref().unwrap().phase.eq(&IdentityHoprdPhaseEnum::Failed) {
+            // Assumes that the next modification of the resource is to recover to a good state
+            self.create_event(context_data.clone(),IdentityHoprdPhaseEnum::Ready,None).await?;
+            self.update_phase(context_data.client.clone(), IdentityHoprdPhaseEnum::Ready, None).await?;
+            warn!("Detected a change in IdentityHoprd {identity_name}. Automatically recovering to a Ready phase");
+            Ok(Action::requeue(Duration::from_secs(constants::RECONCILE_FREQUENCY)))
+        } else {
+            error!("The resource cannot be modified");
+            Ok(Action::requeue(Duration::from_secs(constants::RECONCILE_FREQUENCY)))
+        }
     }
 
     // Handle the deletion of IdentityHoprd resource
@@ -146,7 +179,7 @@ impl IdentityHoprd {
         if let Some(status) = self.status.as_ref() {
             if !status.phase.eq(&IdentityHoprdPhaseEnum::InUse) {
                 self.create_event(context_data.clone(), IdentityHoprdPhaseEnum::Deleting, None).await?;
-                self.update_phase(context_data.clone(), IdentityHoprdPhaseEnum::Deleting, None).await?;
+                self.update_phase(context_data.client.clone(), IdentityHoprdPhaseEnum::Deleting, None).await?;
                 info!("Starting to delete identity {identity_name} from namespace {identity_namespace}");
 
                 {
@@ -176,6 +209,16 @@ impl IdentityHoprd {
             Ok(Action::await_change())
         }
 
+    }
+
+    /// Check the fileds that cannot be modifed
+    fn changed_inmutable_fields(&self, spec: &IdentityHoprdSpec) -> bool {
+        if !self.spec.identity_pool_name.eq(&spec.identity_pool_name) {
+            error!("IdentityHoprd configuration is invalid, identity_pool_name field cannot be changed on {}.", self.name_any());
+            true
+        } else {
+            false
+        }
     }
 
     /// Adds a finalizer in IdentityHoprd to prevent deletion of the resource by Kubernetes API and allow the controller to safely manage its deletion
@@ -269,8 +312,7 @@ impl IdentityHoprd {
     }
 
     /// Updates the status of IdentityHoprd
-    pub async fn update_phase(&self, context: Arc<ContextData>, phase: IdentityHoprdPhaseEnum, hoprd_name: Option<String>) -> Result<(), Error> {
-        let client: Client = context.client.clone();
+    pub async fn update_phase(&self, client: Client, phase: IdentityHoprdPhaseEnum, hoprd_name: Option<String>) -> Result<(), Error> {
         let identity_hoprd_name = self.metadata.name.as_ref().unwrap().to_owned();
         let hoprd_namespace = self.metadata.namespace.as_ref().unwrap().to_owned();
 
@@ -304,10 +346,9 @@ impl IdentityHoprd {
 
     // Unlocks a given identity from a Hoprd node
     pub async fn unlock(&self, context_data: Arc<ContextData>) -> Result<(), Error> {
-        if self.status.as_ref().unwrap().phase.eq(&IdentityHoprdPhaseEnum::InUse)
-        {
+        if self.status.as_ref().unwrap().phase.eq(&IdentityHoprdPhaseEnum::InUse) {
             self.create_event(context_data.clone(), IdentityHoprdPhaseEnum::Ready, None).await?;
-            self.update_phase(context_data.clone(), IdentityHoprdPhaseEnum::Ready, None).await?;
+            self.update_phase(context_data.client.clone(), IdentityHoprdPhaseEnum::Ready, None).await?;
 
             // Update pool to decrease locks
             {
