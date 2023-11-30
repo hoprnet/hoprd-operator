@@ -224,8 +224,10 @@ impl IdentityPool {
 
         if previous_funding.is_none() && self.spec.funding.is_some() {
             info!("Creating new Cronjob {identity_pool_name} in namespace {identity_pool_namespace}");
+            identity_pool_cronjob_faucet::create_cron_job(context_data.clone(), self).await.expect("Could not create Cronjob");
         } else if self.spec.funding.is_none() && previous_funding.is_some() {
             info!("Deleting previous Cronjob {identity_pool_name} in namespace {identity_pool_namespace}");
+            identity_pool_cronjob_faucet::delete_cron_job(client.clone(), &identity_pool_namespace, &identity_pool_name).await.expect("Could not delete cronjob");
         } else if self.spec.funding.is_some() && previous_funding.is_some() {
             let previous_funding = previous_funding.unwrap();
             let current_funding = self.spec.funding.clone().unwrap();
