@@ -45,4 +45,3 @@ pub async fn delete_finalizer<K : kube::Resource<Scope = NamespaceResourceScope,
          debug!("Hoprd node {name} already deleted")
      }
  }
-

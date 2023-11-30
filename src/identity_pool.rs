@@ -309,6 +309,12 @@ impl IdentityPool {
         Ok(recorder.publish(event.to_event(attribute)).await?)
     }
 
+    pub fn get_checksum(&self) -> String {
+        let mut hasher: DefaultHasher = DefaultHasher::new();
+        self.spec.clone().hash(&mut hasher);
+        return hasher.finish().to_string();
+    }
+
     /// Updates the status of IdentityPool
     pub async fn update_phase(&mut self, client: Client, phase: IdentityPoolPhaseEnum) -> Result<(), Error> {
         let identity_hoprd_name = self.metadata.name.as_ref().unwrap().to_owned();
@@ -319,11 +325,8 @@ impl IdentityPool {
         if phase.eq(&IdentityPoolPhaseEnum::Deleting) {
             Ok(())
         } else {
-            let mut hasher: DefaultHasher = DefaultHasher::new();
-            self.spec.clone().hash(&mut hasher);
-            let checksum: String = hasher.finish().to_string();
             identity_pool_status.update_timestamp = Utc::now().to_rfc3339();
-            identity_pool_status.checksum = checksum;
+            identity_pool_status.checksum = self.get_checksum();
             identity_pool_status.phase = phase;
             if phase.eq(&IdentityPoolPhaseEnum::IdentityCreated) {
                 if (identity_pool_status.size - identity_pool_status.locked + 1)

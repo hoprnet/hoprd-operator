@@ -53,11 +53,7 @@ fn determine_action(identity_hoprd: &IdentityHoprd) -> IdentityHoprdAction {
     {
         IdentityHoprdAction::Create
     } else {
-        let mut hasher: DefaultHasher = DefaultHasher::new();
-        let identity_spec: IdentityHoprdSpec = identity_hoprd.spec.clone();
-        identity_spec.clone().hash(&mut hasher);
-        let hash: String = hasher.finish().to_string();
-        let current_checksum = hash.to_string();
+        let current_checksum = identity_hoprd.get_checksum();
         let previous_checksum: String = identity_hoprd.status.as_ref().map_or("0".to_owned(), |status| status.checksum.to_owned());
         // When the resource is created, does not have previous checksum and needs to be skip the modification because it's being handled already by the creation operation
         if previous_checksum.eq(&"0".to_owned()) || current_checksum.eq(&previous_checksum) {

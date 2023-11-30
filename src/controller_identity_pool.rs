@@ -54,11 +54,7 @@ fn determine_action(identity_pool: &IdentityPool) -> IdentityPoolAction {
     {
         IdentityPoolAction::Sync
     } else {
-        let mut hasher: DefaultHasher = DefaultHasher::new();
-        let identity_pool_spec: IdentityPoolSpec = identity_pool.spec.clone();
-        identity_pool_spec.clone().hash(&mut hasher);
-        let hash: String = hasher.finish().to_string();
-        let current_checksum = hash.to_string();
+        let current_checksum = identity_pool.get_checksum();
         let previous_checksum: String = identity_pool.status.as_ref()
             .map_or("0".to_owned(), |status| status.checksum.to_owned());
         // When the resource is created, does not have previous checksum and needs to be skip the modification because it's being handled already by the creation operation

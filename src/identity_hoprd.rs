@@ -245,6 +245,13 @@ impl IdentityHoprd {
         Ok(recorder.publish(event.to_event(attribute)).await?)
     }
 
+
+    pub fn get_checksum(&self) -> String {
+        let mut hasher: DefaultHasher = DefaultHasher::new();
+        self.spec.clone().hash(&mut hasher);
+        return hasher.finish().to_string();
+    }
+
     /// Updates the status of IdentityHoprd
     pub async fn update_phase(&self, client: Client, phase: IdentityHoprdPhaseEnum, hoprd_name: Option<String>) -> Result<(), Error> {
         let identity_hoprd_name = self.metadata.name.as_ref().unwrap().to_owned();
@@ -254,13 +261,10 @@ impl IdentityHoprd {
         if phase.eq(&IdentityHoprdPhaseEnum::Deleting) {
             Ok(())
         } else {
-            let mut hasher: DefaultHasher = DefaultHasher::new();
-            self.spec.clone().hash(&mut hasher);
-            let checksum: String = hasher.finish().to_string();
             let status = IdentityHoprdStatus {
                 update_timestamp: Utc::now().to_rfc3339(),
                 phase,
-                checksum,
+                checksum: self.get_checksum(),
                 hoprd_node_name: hoprd_name,
             };
             let patch = Patch::Merge(json!({ "status": status }));
