@@ -2,6 +2,7 @@ use kube::{Client, Result};
 use std::{env, sync::Arc};
 pub mod model;
 
+mod resource_generics;
 mod bootstrap_operator;
 mod cluster;
 mod constants;
