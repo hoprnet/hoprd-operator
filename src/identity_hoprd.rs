@@ -132,12 +132,12 @@ impl IdentityHoprd {
             if identity_pool_option.is_some() {
                 let mut identity_pool_arc = identity_pool_option.unwrap();
                 let identity_pool:  &mut IdentityPool = Arc::<IdentityPool>::make_mut(&mut identity_pool_arc);
-                context_data.send_event(identity_pool, IdentityPoolEventEnum::IdentityCreated, Some(identity_name)).await;
                 identity_pool.update_phase(context_data.client.clone(), IdentityPoolPhaseEnum::IdentityCreated).await?;
                 context_state.update_identity_pool(identity_pool.to_owned());
                 updated = true;
             }
         }
+        context_data.send_event(&self.get_identity_pool(client.clone()).await.unwrap(), IdentityPoolEventEnum::IdentityCreated, Some(identity_name)).await;
         if updated {
             // These instructions need to be done out of the context_data lock
             context_data.send_event(self, IdentityHoprdEventEnum::Ready, None).await;
@@ -211,7 +211,7 @@ impl IdentityHoprd {
                         warn!("Identity pool {} not exists in namespace {}", &self.spec.identity_pool_name, &self.namespace().unwrap());
                     }
                 }
-
+                context_data.send_event(&self.get_identity_pool(client.clone()).await.unwrap(), IdentityPoolEventEnum::IdentityDeleted, Some(identity_name.to_owned())).await;
                 // TODO Drain funds
                 resource_generics::delete_finalizer(client.clone(), self).await;
                 info!("Identity {identity_name} in namespace {identity_namespace} has been successfully deleted");
@@ -290,6 +290,7 @@ impl IdentityHoprd {
                 identity_pool.update_phase(context_data.client.clone(), IdentityPoolPhaseEnum::Unlocked).await?;
                 context_state.update_identity_pool(identity_pool.to_owned());
             }
+            context_data.send_event(&self.get_identity_pool(context_data.client.clone()).await.unwrap(), IdentityPoolEventEnum::Unlocked, Some(self.name_any())).await;
             Ok(())
         } else {
             Ok(warn!("The identity cannot be unlock because it is in status {:?}", &self.status))

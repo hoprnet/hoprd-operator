@@ -252,6 +252,7 @@ impl Hoprd {
         let hoprd_name = Some(self.name_any());
         let identity_pool_name = self.spec.identity_pool_name.to_owned();
         let identity_name = self.spec.identity_name.to_owned();
+        let identity_created: Option<IdentityHoprd>;
         {
             let mut context_state = context_data.state.write().await;
             let identity_pool_option = context_state.get_identity_pool(&self.namespace().unwrap(), &identity_pool_name);
@@ -259,20 +260,27 @@ impl Hoprd {
                 let mut identity_pool_arc = identity_pool_option.unwrap();
                 let identity_pool:  &mut IdentityPool = Arc::<IdentityPool>::make_mut(&mut identity_pool_arc);
                 if let Some(identity) = identity_pool.get_ready_identity(context_data.client.clone(), identity_name).await? {
-                    context_data.send_event(&identity, IdentityHoprdEventEnum::InUse, hoprd_name.clone()).await;
                     identity.update_phase(context_data.client.clone(), IdentityHoprdPhaseEnum::InUse, hoprd_name.clone()).await?;
-                    context_data.send_event(identity_pool, IdentityPoolEventEnum::Locked, hoprd_name).await;
+                    
                     identity_pool.update_phase(context_data.client.clone(), IdentityPoolPhaseEnum::Locked).await?;
                     context_state.update_identity_pool(identity_pool.to_owned());
-                    Ok(Some(identity))
+                    identity_created = Some(identity.clone());
                 } else {
-                    error!("Error locking the identity for node {}", hoprd_name.unwrap());
-                    Ok(None)
+                    error!("Error locking the identity for node {}", self.name_any());
+                    identity_created = None
                 }
             } else {
                 error!("Identity pool {} not exists in namespace {}", identity_pool_name, &self.namespace().unwrap());
-                Ok(None)
+                identity_created = None
             }
+        }
+        if identity_created.as_ref().is_some() {
+            context_data.send_event(&identity_created.as_ref().unwrap().get_identity_pool(context_data.client.clone()).await.unwrap(), IdentityPoolEventEnum::Locked, hoprd_name.clone()).await;
+            context_data.send_event(identity_created.as_ref().unwrap(), IdentityHoprdEventEnum::InUse, hoprd_name.clone()).await;
+            Ok(identity_created)
+
+        } else {
+            Ok(None)
         }
     }
 

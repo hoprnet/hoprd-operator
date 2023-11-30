@@ -4,8 +4,7 @@ use tokio::sync::RwLock;
 
 use kube::{
     runtime::events::{Recorder, Reporter},
-    Client, Resource, Api, api::ListParams, ResourceExt,
-};
+    Client, Resource, Api, api::ListParams, ResourceExt};
 
 use crate::{
     constants, hoprd::Hoprd, identity_hoprd::IdentityHoprd,
