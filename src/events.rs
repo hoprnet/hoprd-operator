@@ -1,6 +1,6 @@
 use kube::runtime::events::{Event, EventType};
 
-pub trait ResourceEvent  {
+pub trait ResourceEvent {
     fn to_event(&self, attribute: Option<String>) -> Event;
 }
 

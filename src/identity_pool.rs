@@ -1,4 +1,4 @@
-use crate::events::{IdentityPoolEventEnum, ResourceEvent};
+use crate::events::IdentityPoolEventEnum;
 use crate::hoprd_deployment_spec::HoprdDeploymentSpec;
 use crate::identity_hoprd::{IdentityHoprd, IdentityHoprdPhaseEnum};
 use crate::model::Error;
@@ -14,7 +14,6 @@ use k8s_openapi::apimachinery::pkg::apis::meta::v1::OwnerReference;
 use kube::api::{ListParams, PostParams};
 use kube::core::ObjectMeta;
 use kube::runtime::conditions;
-use kube::runtime::events::Recorder;
 use kube::runtime::wait::await_condition;
 use kube::{
     api::{Api, Patch, PatchParams},
@@ -155,14 +154,15 @@ impl IdentityPool {
         // - Check that the secret exist and contains the required keys
         // - Does the wallet private key have permissions in Network to register new nodes and create safes ?
         // - Does the wallet private key have enough funds to work ?
-        self.send_event(context_data.clone(), IdentityPoolEventEnum::Initialized, None).await?;
+        // context_data.send_event(self, dentityPoolEventEnum::Initialized, None).await
+        context_data.send_event(self, IdentityPoolEventEnum::Initialized, None).await;
         self.update_phase(context_data.client.clone(), IdentityPoolPhaseEnum::Initialized).await?;
         info!("Identity {identity_pool_name} in namespace {identity_pool_namespace} has been successfully created");
         if self.spec.min_ready_identities == 0 {
-            self.send_event(context_data.clone(), IdentityPoolEventEnum::Ready, None).await?;
+            context_data.send_event(self, IdentityPoolEventEnum::Ready, None).await;
             self.update_phase(context_data.client.clone(), IdentityPoolPhaseEnum::Ready).await?;
         } else {
-            self.send_event(context_data.clone(),IdentityPoolEventEnum::OutOfSync,Some(self.spec.min_ready_identities.to_string()),).await?;
+            context_data.send_event(self,IdentityPoolEventEnum::OutOfSync,Some(self.spec.min_ready_identities.to_string()),).await;
             self.update_phase(context_data.client.clone(), IdentityPoolPhaseEnum::OutOfSync).await?;
             info!("Identity {identity_pool_name} in namespace {identity_pool_namespace} requires to create {} new identities", self.spec.min_ready_identities);
         }
@@ -183,7 +183,7 @@ impl IdentityPool {
                 match serde_json::from_str::<IdentityPool>(&previous_text) {
                     Ok(previous_identity_pool) => {
                         if self.changed_inmutable_fields(&previous_identity_pool.spec) {
-                            self.send_event(context_data.clone(),IdentityPoolEventEnum::Failed,None).await?;
+                            context_data.send_event(self,IdentityPoolEventEnum::Failed,None).await;
                             self.update_phase(context_data.client.clone(), IdentityPoolPhaseEnum::Failed).await?;
                         } else {
                             info!("Identity pool {identity_pool_name} in namespace {identity_pool_namespace} has been successfully modified");
@@ -191,11 +191,11 @@ impl IdentityPool {
                             // Syncrhonize size
                             if self.status.as_ref().unwrap().size - self.status.as_ref().unwrap().locked - self.spec.min_ready_identities < 0 {
                                 let pending = self.spec.min_ready_identities - self.status.as_ref().unwrap().locked - self.status.as_ref().unwrap().size;
-                                self.send_event(context_data.clone(),IdentityPoolEventEnum::OutOfSync,Some(pending.to_string())).await?;
+                                context_data.send_event(self,IdentityPoolEventEnum::OutOfSync,Some(pending.to_string())).await;
                                 self.update_phase(context_data.client.clone(), IdentityPoolPhaseEnum::OutOfSync).await?;
                                 info!("Identity {identity_pool_name} in namespace {identity_pool_namespace} requires to create {} new identities", self.spec.min_ready_identities);
                             }else {
-                                self.send_event(context_data.clone(),IdentityPoolEventEnum::Ready, None).await?;
+                                context_data.send_event(self,IdentityPoolEventEnum::Ready, None).await;
                                 self.update_phase(context_data.client.clone(), IdentityPoolPhaseEnum::Ready).await?;
                             }
                             self.modify_funding(client.clone(), previous_identity_pool.spec.funding).await
@@ -208,7 +208,7 @@ impl IdentityPool {
             }
         } else if self.status.is_some() && self.status.as_ref().unwrap().phase.eq(&IdentityPoolPhaseEnum::Failed) {
             // Assumes that the next modification of the resource is to recover to a good state
-            self.send_event(context_data.clone(),IdentityPoolEventEnum::Ready,None).await?;
+            context_data.send_event(self,IdentityPoolEventEnum::Ready,None).await;
             self.update_phase(context_data.client.clone(), IdentityPoolPhaseEnum::Ready).await?;
             warn!("Detected a change in IdentityPool {identity_pool_name}. Automatically recovering to a Ready phase");
         } else {
@@ -243,7 +243,7 @@ impl IdentityPool {
         if self.status.as_ref().unwrap().locked == 0 {
             let client: Client = context_data.client.clone();
             self.update_phase(context_data.client.clone(), IdentityPoolPhaseEnum::Deleting).await?;
-            self.send_event(context_data.clone(), IdentityPoolEventEnum::Deleting, None).await?;
+            context_data.send_event(self, IdentityPoolEventEnum::Deleting, None).await;
             info!("Starting to delete identity {identity_pool_name} from namespace {identity_pool_namespace}");
             identity_pool_service_monitor::delete_service_monitor(client.clone(), &identity_pool_name, &identity_pool_namespace).await?;
             identity_pool_service_account::delete_rbac(client.clone(), &identity_pool_namespace, &identity_pool_name).await?;
@@ -262,16 +262,16 @@ impl IdentityPool {
         }
     }
 
-    pub async fn sync(&mut self, context: Arc<ContextData>) -> Result<Action, Error> {
+    pub async fn sync(&mut self, context_data: Arc<ContextData>) -> Result<Action, Error> {
         let mut current_ready_identities = self.status.as_ref().unwrap().size - self.status.as_ref().unwrap().locked;
         let mut iterations = (self.spec.min_ready_identities - current_ready_identities) * 2;
-        if self.are_active_jobs(context.clone()).await.unwrap() {
+        if self.are_active_jobs(context_data.clone()).await.unwrap() {
             warn!("Skipping synchornization for {} in namespace {} as there is still one job in progress", self.name_any(), self.namespace().unwrap());
         } else {
             while current_ready_identities < self.spec.min_ready_identities && iterations > 0 {
                 iterations -= 1;
                 // Invoke Job
-                match self.create_new_identity(context.clone()).await {
+                match self.create_new_identity(context_data.clone()).await {
                     Ok(()) => current_ready_identities += 1,
                     Err(error) => {
                         error!("Could not create identity: {:?}", error);
@@ -280,9 +280,9 @@ impl IdentityPool {
                 };
             }
             if current_ready_identities >= self.spec.min_ready_identities {
-                self.send_event(context.clone(), IdentityPoolEventEnum::Ready, None).await?;
+                context_data.send_event(self, IdentityPoolEventEnum::Ready, None).await;
             } else {
-                self.send_event(context.clone(), IdentityPoolEventEnum::OutOfSync, Some((self.spec.min_ready_identities - current_ready_identities).to_string())).await?;
+                context_data.send_event(self, IdentityPoolEventEnum::OutOfSync, Some((self.spec.min_ready_identities - current_ready_identities).to_string())).await;
                 info!("Identity {} in namespace {} failed to create required identities", self.name_any(), self.namespace().unwrap());
             }
         }
@@ -301,12 +301,6 @@ impl IdentityPool {
         } else {
             false
         }
-    }
-
-    // Creates an event in the resource
-    pub async fn send_event(&self, context_data: Arc<ContextData>, event: IdentityPoolEventEnum, attribute: Option<String>) -> Result<(), Error> {
-        let recorder: Recorder = context_data.state.read().await.generate_event(context_data.client.clone(), self);
-        Ok(recorder.publish(event.to_event(attribute)).await?)
     }
 
     pub fn get_checksum(&self) -> String {
@@ -422,13 +416,13 @@ impl IdentityPool {
 
     }
 
-    async fn are_active_jobs(&self, context: Arc<ContextData>) -> Result<bool, Error> {
+    async fn are_active_jobs(&self, context_data: Arc<ContextData>) -> Result<bool, Error> {
         let namespace: String = self.metadata.namespace.as_ref().unwrap().to_owned();
-        let api: Api<Job> = Api::namespaced(context.client.clone(), &namespace);
+        let api: Api<Job> = Api::namespaced(context_data.client.clone(), &namespace);
         let label_selector: String = format!(
             "{}={},{}={},{}={}",
             constants::LABEL_KUBERNETES_NAME,
-            context.config.instance.name.to_owned(),
+            context_data.config.instance.name.to_owned(),
             constants::LABEL_KUBERNETES_COMPONENT,
             "create-identity".to_owned(),
             constants::LABEL_KUBERNETES_IDENTITY_POOL,
@@ -440,14 +434,14 @@ impl IdentityPool {
         Ok(active_jobs.len() > 0)
     }
 
-    async fn create_new_identity(&self, context: Arc<ContextData>) -> Result<(), Error> {
+    async fn create_new_identity(&self, context_data: Arc<ContextData>) -> Result<(), Error> {
         let identity_name = format!("{}-{}", self.name_any(), self.status.as_ref().unwrap().size + 1);
-        self.send_event(context.clone(), IdentityPoolEventEnum::CreatingIdentity,Some(identity_name.to_owned())).await?;
+        context_data.send_event(self, IdentityPoolEventEnum::CreatingIdentity,Some(identity_name.to_owned())).await;
         let random_string: String = rand::thread_rng().sample_iter(&Alphanumeric).take(5).map(char::from).collect();
         let job_name: String = format!("create-identity-{}-{}", &identity_name.to_owned(), random_string.to_ascii_lowercase());
         let namespace: String = self.metadata.namespace.as_ref().unwrap().to_owned();
         let owner_references: Option<Vec<OwnerReference>> = Some(vec![self.controller_owner_ref(&()).unwrap()]);
-        let mut labels: BTreeMap<String, String> = utils::common_lables(context.config.instance.name.to_owned(), Some(identity_name.to_owned()), Some("job-create-identity".to_owned()));
+        let mut labels: BTreeMap<String, String> = utils::common_lables(context_data.config.instance.name.to_owned(), Some(identity_name.to_owned()), Some("job-create-identity".to_owned()));
         labels.insert(constants::LABEL_KUBERNETES_COMPONENT.to_owned(), "create-identity".to_owned());
         labels.insert(constants::LABEL_KUBERNETES_IDENTITY_POOL.to_owned(), self.name_any());
         let create_identity_args: Vec<String> = vec![format!("curl {}/create-identity.sh -s | bash", constants::OPERATOR_JOB_SCRIPT_URL.to_owned())];
@@ -535,7 +529,7 @@ impl IdentityPool {
                     spec: Some(PodSpec {
                         init_containers: Some(vec![Container {
                             name: "hopli".to_owned(),
-                            image: Some(context.config.hopli_image.to_owned()),
+                            image: Some(context_data.config.hopli_image.to_owned()),
                             image_pull_policy: Some("Always".to_owned()),
                             command: Some(vec!["/bin/bash".to_owned(), "-c".to_owned()]),
                             args: Some(create_identity_args),
@@ -571,7 +565,7 @@ impl IdentityPool {
         };
         // Create the Job defined above
         info!("Job {} started", &job_name.to_owned());
-        let api: Api<Job> = Api::namespaced(context.client.clone(), &namespace);
+        let api: Api<Job> = Api::namespaced(context_data.client.clone(), &namespace);
         api.create(&PostParams::default(), &create_node_job).await.unwrap();
         let job_completed = await_condition(api, &job_name, conditions::is_job_completed());
         match tokio::time::timeout(std::time::Duration::from_secs(constants::OPERATOR_JOB_TIMEOUT), job_completed).await.unwrap()

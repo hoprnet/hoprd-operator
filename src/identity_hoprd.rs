@@ -1,4 +1,4 @@
-use crate::events::{ResourceEvent, IdentityHoprdEventEnum, IdentityPoolEventEnum};
+use crate::events::{ IdentityHoprdEventEnum, IdentityPoolEventEnum};
 use crate::{identity_hoprd_persistence, resource_generics};
 use crate::identity_pool::{IdentityPool, IdentityPoolPhaseEnum};
 use crate::model::Error;
@@ -6,7 +6,6 @@ use crate::{constants, context_data::ContextData};
 use chrono::Utc;
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::OwnerReference;
 use kube::core::ObjectMeta;
-use kube::runtime::events::Recorder;
 use kube::Resource;
 use kube::{
     api::{Api, Patch, PatchParams, ResourceExt},
@@ -117,7 +116,7 @@ impl IdentityHoprd {
         resource_generics::add_finalizer(client.clone(), self).await;
         self.add_owner_reference(client.clone()).await?;
         identity_hoprd_persistence::create_pvc(context_data.clone(), &self).await?;
-        self.send_event(context_data.clone(), IdentityHoprdEventEnum::Initialized, None).await?;
+        context_data.send_event(self, IdentityHoprdEventEnum::Initialized, None).await;
         self.update_phase(client.clone(), IdentityHoprdPhaseEnum::Initialized, None).await?;
         // TODO: Validate data
         // - Is registered in network
@@ -133,7 +132,7 @@ impl IdentityHoprd {
             if identity_pool_option.is_some() {
                 let mut identity_pool_arc = identity_pool_option.unwrap();
                 let identity_pool:  &mut IdentityPool = Arc::<IdentityPool>::make_mut(&mut identity_pool_arc);
-                identity_pool.send_event(context_data.clone(), IdentityPoolEventEnum::IdentityCreated, Some(identity_name)).await?;
+                context_data.send_event(identity_pool, IdentityPoolEventEnum::IdentityCreated, Some(identity_name)).await;
                 identity_pool.update_phase(context_data.client.clone(), IdentityPoolPhaseEnum::IdentityCreated).await?;
                 context_state.update_identity_pool(identity_pool.to_owned());
                 updated = true;
@@ -141,7 +140,7 @@ impl IdentityHoprd {
         }
         if updated {
             // These instructions need to be done out of the context_data lock
-            self.send_event(context_data.clone(), IdentityHoprdEventEnum::Ready, None).await?;
+            context_data.send_event(self, IdentityHoprdEventEnum::Ready, None).await;
             self.update_phase(client.clone(), IdentityHoprdPhaseEnum::Ready, None).await?;
         } else {
             error!("Identity pool {} not exists in namespace {}", identity_pool_name, &self.namespace().unwrap());
@@ -158,7 +157,7 @@ impl IdentityHoprd {
                 match serde_json::from_str::<IdentityHoprd>(&previous_config_text) {
                     Ok(previous_cluster_hoprd) => {
                         if self.changed_inmutable_fields(&previous_cluster_hoprd.spec) {
-                            self.send_event(context_data.clone(),IdentityHoprdEventEnum::Failed,None).await?;
+                            context_data.send_event(self,IdentityHoprdEventEnum::Failed,None).await;
                             self.update_phase(context_data.client.clone(), IdentityHoprdPhaseEnum::Failed, None).await?;
                         } else {
                             info!("IdentityHoprd {} in namespace {} has been successfully modified", self.name_any(), self.namespace().unwrap());
@@ -166,19 +165,19 @@ impl IdentityHoprd {
                         Ok(Action::requeue(Duration::from_secs(constants::RECONCILE_FREQUENCY)))
                     }
                     Err(_err) => {
-                        self.send_event(context_data.clone(),IdentityHoprdEventEnum::Failed,None).await?;
+                        context_data.send_event(self,IdentityHoprdEventEnum::Failed,None).await;
                         self.update_phase(context_data.client.clone(), IdentityHoprdPhaseEnum::Failed, None).await?;
                         Err(Error::HoprdConfigError(format!("Could not parse the last applied configuration of IdentityHoprd {identity_name}")))
                     }
                 }
             } else {
-                self.send_event(context_data.clone(),IdentityHoprdEventEnum::Failed,None).await?;
+                context_data.send_event(self,IdentityHoprdEventEnum::Failed,None).await;
                 self.update_phase(context_data.client.clone(), IdentityHoprdPhaseEnum::Failed, None).await?;
                 Err(Error::HoprdConfigError(format!("Could not modify IdentityHoprd {identity_name} because cannot recover last configuration")))
             }
         } else if self.status.is_some() && self.status.as_ref().unwrap().phase.eq(&IdentityHoprdPhaseEnum::Failed) {
             // Assumes that the next modification of the resource is to recover to a good state
-            self.send_event(context_data.clone(),IdentityHoprdEventEnum::Ready,None).await?;
+            context_data.send_event(self,IdentityHoprdEventEnum::Ready,None).await;
             self.update_phase(context_data.client.clone(), IdentityHoprdPhaseEnum::Ready, None).await?;
             warn!("Detected a change in IdentityHoprd {identity_name}. Automatically recovering to a Ready phase");
             Ok(Action::requeue(Duration::from_secs(constants::RECONCILE_FREQUENCY)))
@@ -195,7 +194,7 @@ impl IdentityHoprd {
         let client: Client = context_data.client.clone();
         if let Some(status) = self.status.as_ref() {
             if !status.phase.eq(&IdentityHoprdPhaseEnum::InUse) {
-                self.send_event(context_data.clone(), IdentityHoprdEventEnum::Deleting, None).await?;
+                context_data.send_event(self, IdentityHoprdEventEnum::Deleting, None).await;
                 self.update_phase(context_data.client.clone(), IdentityHoprdPhaseEnum::Deleting, None).await?;
                 info!("Starting to delete identity {identity_name} from namespace {identity_namespace}");
 
@@ -205,7 +204,7 @@ impl IdentityHoprd {
                     if identity_pool_option.is_some() {
                         let mut identity_pool_arc = identity_pool_option.unwrap();
                         let identity_pool:  &mut IdentityPool = Arc::<IdentityPool>::make_mut(&mut identity_pool_arc);
-                        identity_pool.send_event(context_data.clone(), IdentityPoolEventEnum::IdentityDeleted, Some(identity_name.to_owned())).await?;
+                        context_data.send_event(identity_pool, IdentityPoolEventEnum::IdentityDeleted, Some(identity_name.to_owned())).await;
                         identity_pool.update_phase(context_data.client.clone(), IdentityPoolPhaseEnum::IdentityDeleted).await?;
                         context_state.update_identity_pool(identity_pool.to_owned());
                     } else {
@@ -237,12 +236,6 @@ impl IdentityHoprd {
         } else {
             false
         }
-    }
-
-    // Creates an event in the resource
-    pub async fn send_event(&self, context_data: Arc<ContextData>, event: IdentityHoprdEventEnum, attribute: Option<String>) -> Result<(), Error> {
-        let recorder: Recorder = context_data.state.read().await.generate_event(context_data.client.clone(), self);
-        Ok(recorder.publish(event.to_event(attribute)).await?)
     }
 
 
@@ -285,7 +278,7 @@ impl IdentityHoprd {
     // Unlocks a given identity from a Hoprd node
     pub async fn unlock(&self, context_data: Arc<ContextData>) -> Result<(), Error> {
         if self.status.as_ref().unwrap().phase.eq(&IdentityHoprdPhaseEnum::InUse) {
-            self.send_event(context_data.clone(), IdentityHoprdEventEnum::Ready, None).await?;
+            context_data.send_event(self, IdentityHoprdEventEnum::Ready, None).await;
             self.update_phase(context_data.client.clone(), IdentityHoprdPhaseEnum::Ready, None).await?;
 
             // Update pool to decrease locks
@@ -293,7 +286,7 @@ impl IdentityHoprd {
                 let mut context_state = context_data.state.write().await;
                 let mut identity_pool_arc = context_state.get_identity_pool(&self.namespace().unwrap(), &self.spec.identity_pool_name).unwrap();
                 let identity_pool:  &mut IdentityPool = Arc::<IdentityPool>::make_mut(&mut identity_pool_arc);
-                identity_pool.send_event(context_data.clone(), IdentityPoolEventEnum::Unlocked, Some(self.name_any())).await?;
+                context_data.send_event(identity_pool, IdentityPoolEventEnum::Unlocked, Some(self.name_any())).await;
                 identity_pool.update_phase(context_data.client.clone(), IdentityPoolPhaseEnum::Unlocked).await?;
                 context_state.update_identity_pool(identity_pool.to_owned());
             }

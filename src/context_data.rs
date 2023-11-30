@@ -9,7 +9,7 @@ use kube::{
 
 use crate::{
     constants, hoprd::Hoprd, identity_hoprd::IdentityHoprd,
-    identity_pool::IdentityPool, operator_config::OperatorConfig,
+    identity_pool::IdentityPool, operator_config::OperatorConfig, events::ResourceEvent,
 };
 
 #[derive(Clone)]
@@ -67,13 +67,25 @@ impl ContextData {
         }
     }
 
+    pub async fn send_event<T: Resource<Scope = NamespaceResourceScope, DynamicType = ()>, K: ResourceEvent>(
+        &self,
+        resource: &T,
+        event: K,
+        attribute: Option<String>
+    ) {
+        let recorder = Recorder::new(self.client.clone(), self.state.read().await.reporter.clone(), resource.object_ref(&()));
+        recorder.publish(event.to_event(attribute)).await;
+    }
 }
 
-#[derive(Debug,Clone)]
+
+
+#[derive(Debug, Clone)]
 pub struct State {
     pub reporter: Reporter,
     pub identity_pool: BTreeMap<String, Arc<IdentityPool>>
 }
+
 impl State {
     pub fn new(identity_pools: Vec<IdentityPool>) -> State {
         State {
@@ -99,8 +111,4 @@ impl State {
         self.add_identity_pool(identity_pool);
     }
 
-
-    pub fn generate_event<T: Resource<Scope = NamespaceResourceScope, DynamicType = ()>>(&self, client: Client, resource: &T) -> Recorder {
-        Recorder::new(client, self.reporter.clone(), resource.object_ref(&()))
-    }
 }
