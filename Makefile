@@ -40,7 +40,7 @@ helm-publish: ## Deploys helm package to GCP artifact registry
 	helm push cluster-hoprd-$$(yq '.version' charts/cluster-hoprd/Chart.yaml).tgz oci://europe-west3-docker.pkg.dev/hoprassociation/helm-charts
 
 docker-build: ## Builds docker image
-	docker build -t europe-west3-docker.pkg.dev/hoprassociation/docker-images/hoprd-operator:latest --no-cache --platform linux/amd64 --progress plain .
+	docker build -t europe-west3-docker.pkg.dev/hoprassociation/docker-images/hoprd-operator:latest --platform linux/amd64 --progress plain .
 
 docker-push: ## Deploys docker image into GCP Artifact registry
 	docker push europe-west3-docker.pkg.dev/hoprassociation/docker-images/hoprd-operator:latest
