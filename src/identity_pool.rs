@@ -198,7 +198,7 @@ impl IdentityPool {
                                 context_data.send_event(self,IdentityPoolEventEnum::Ready, None).await;
                                 self.update_phase(context_data.client.clone(), IdentityPoolPhaseEnum::Ready).await?;
                             }
-                            self.modify_funding(client.clone(), previous_identity_pool.spec.funding).await
+                            self.modify_funding(context_data, previous_identity_pool.spec.funding).await
                         }
                     },
                     Err(_err) => {
@@ -218,7 +218,7 @@ impl IdentityPool {
     }
 
     // Syncrhonize funding
-    async fn modify_funding(&self, client:Client, previous_funding: Option<IdentityPoolFunding>) -> () {
+    async fn modify_funding(&self, context_data: Arc<ContextData>, previous_funding: Option<IdentityPoolFunding>) -> () {
         let identity_pool_namespace: String = self.namespace().unwrap();
         let identity_pool_name: String = self.name_any();
 
@@ -227,13 +227,13 @@ impl IdentityPool {
             identity_pool_cronjob_faucet::create_cron_job(context_data.clone(), self).await.expect("Could not create Cronjob");
         } else if self.spec.funding.is_none() && previous_funding.is_some() {
             info!("Deleting previous Cronjob {identity_pool_name} in namespace {identity_pool_namespace}");
-            identity_pool_cronjob_faucet::delete_cron_job(client.clone(), &identity_pool_namespace, &identity_pool_name).await.expect("Could not delete cronjob");
+            identity_pool_cronjob_faucet::delete_cron_job(context_data.client.clone(), &identity_pool_namespace, &identity_pool_name).await.expect("Could not delete cronjob");
         } else if self.spec.funding.is_some() && previous_funding.is_some() {
             let previous_funding = previous_funding.unwrap();
             let current_funding = self.spec.funding.clone().unwrap();
             if previous_funding.native_amount.ne(&current_funding.native_amount) || previous_funding.schedule.ne(&current_funding.schedule) {
                 info!("Modifying Cronjob {identity_pool_name} in namespace {identity_pool_namespace}");
-                identity_pool_cronjob_faucet::modify_cron_job(client.clone(), self).await.expect("Could not modify cronjob");
+                identity_pool_cronjob_faucet::modify_cron_job(context_data.client.clone(), self).await.expect("Could not modify cronjob");
             }
         }
     }
