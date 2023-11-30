@@ -12,6 +12,7 @@ mod controller_hoprd;
 mod controller_identity;
 mod controller_identity_pool;
 mod hoprd;
+mod events;
 mod hoprd_deployment;
 mod hoprd_deployment_spec;
 mod hoprd_ingress;

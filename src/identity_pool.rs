@@ -1,3 +1,4 @@
+use crate::events::{IdentityPoolEventEnum, ResourceEvent};
 use crate::hoprd_deployment_spec::HoprdDeploymentSpec;
 use crate::identity_hoprd::{IdentityHoprd, IdentityHoprdPhaseEnum};
 use crate::model::Error;
@@ -18,10 +19,7 @@ use kube::runtime::wait::await_condition;
 use kube::{
     api::{Api, Patch, PatchParams},
     client::Client,
-    runtime::{
-        controller::Action,
-        events::{Event, EventType},
-    },
+    runtime::controller::Action,
     CustomResource, Result,
 };
 use kube::{Resource, ResourceExt};
@@ -102,12 +100,8 @@ pub enum IdentityPoolPhaseEnum {
     Deleting,
     // Event that represent when the IdentityPool has locked an identity
     Locked,
-    // Event that represent when the IdentityPool is unlocking an identity
-    Unlocking,
     // Event that represent when the IdentityPool has unlocked an identity
     Unlocked,
-    // Event that represents when the IdentityPool is syncronizing by creating new required identities
-    CreatingIdentity,
     // Event that represents when the IdentityPool has created a new identity
     IdentityCreated,
     // Event that represents when the IdentityPool has created a new identity
@@ -123,9 +117,7 @@ impl Display for IdentityPoolPhaseEnum {
             IdentityPoolPhaseEnum::Ready => write!(f, "Ready"),
             IdentityPoolPhaseEnum::Deleting => write!(f, "Deleting"),
             IdentityPoolPhaseEnum::Locked => write!(f, "Locked"),
-            IdentityPoolPhaseEnum::Unlocking => write!(f, "Unlocking"),
             IdentityPoolPhaseEnum::Unlocked => write!(f, "Unlocked"),
-            IdentityPoolPhaseEnum::CreatingIdentity => write!(f, "CreatingIdentity"),
             IdentityPoolPhaseEnum::IdentityCreated => write!(f, "IdentityCreated"),
             IdentityPoolPhaseEnum::IdentityDeleted => write!(f, "IdentityDeleted"),
         }
@@ -163,14 +155,14 @@ impl IdentityPool {
         // - Check that the secret exist and contains the required keys
         // - Does the wallet private key have permissions in Network to register new nodes and create safes ?
         // - Does the wallet private key have enough funds to work ?
-        self.create_event(context_data.clone(), IdentityPoolPhaseEnum::Initialized, None).await?;
+        self.send_event(context_data.clone(), IdentityPoolEventEnum::Initialized, None).await?;
         self.update_phase(context_data.client.clone(), IdentityPoolPhaseEnum::Initialized).await?;
         info!("Identity {identity_pool_name} in namespace {identity_pool_namespace} has been successfully created");
         if self.spec.min_ready_identities == 0 {
-            self.create_event(context_data.clone(), IdentityPoolPhaseEnum::Ready, None).await?;
+            self.send_event(context_data.clone(), IdentityPoolEventEnum::Ready, None).await?;
             self.update_phase(context_data.client.clone(), IdentityPoolPhaseEnum::Ready).await?;
         } else {
-            self.create_event(context_data.clone(),IdentityPoolPhaseEnum::OutOfSync,Some(self.spec.min_ready_identities.to_string()),).await?;
+            self.send_event(context_data.clone(),IdentityPoolEventEnum::OutOfSync,Some(self.spec.min_ready_identities.to_string()),).await?;
             self.update_phase(context_data.client.clone(), IdentityPoolPhaseEnum::OutOfSync).await?;
             info!("Identity {identity_pool_name} in namespace {identity_pool_namespace} requires to create {} new identities", self.spec.min_ready_identities);
         }
@@ -191,7 +183,7 @@ impl IdentityPool {
                 match serde_json::from_str::<IdentityPool>(&previous_text) {
                     Ok(previous_identity_pool) => {
                         if self.changed_inmutable_fields(&previous_identity_pool.spec) {
-                            self.create_event(context_data.clone(),IdentityPoolPhaseEnum::Failed,None).await?;
+                            self.send_event(context_data.clone(),IdentityPoolEventEnum::Failed,None).await?;
                             self.update_phase(context_data.client.clone(), IdentityPoolPhaseEnum::Failed).await?;
                         } else {
                             info!("Identity pool {identity_pool_name} in namespace {identity_pool_namespace} has been successfully modified");
@@ -199,11 +191,11 @@ impl IdentityPool {
                             // Syncrhonize size
                             if self.status.as_ref().unwrap().size - self.status.as_ref().unwrap().locked - self.spec.min_ready_identities < 0 {
                                 let pending = self.spec.min_ready_identities - self.status.as_ref().unwrap().locked - self.status.as_ref().unwrap().size;
-                                self.create_event(context_data.clone(),IdentityPoolPhaseEnum::OutOfSync,Some(pending.to_string())).await?;
+                                self.send_event(context_data.clone(),IdentityPoolEventEnum::OutOfSync,Some(pending.to_string())).await?;
                                 self.update_phase(context_data.client.clone(), IdentityPoolPhaseEnum::OutOfSync).await?;
                                 info!("Identity {identity_pool_name} in namespace {identity_pool_namespace} requires to create {} new identities", self.spec.min_ready_identities);
                             }else {
-                                self.create_event(context_data.clone(),IdentityPoolPhaseEnum::Ready, None).await?;
+                                self.send_event(context_data.clone(),IdentityPoolEventEnum::Ready, None).await?;
                                 self.update_phase(context_data.client.clone(), IdentityPoolPhaseEnum::Ready).await?;
                             }
                             self.modify_funding(client.clone(), previous_identity_pool.spec.funding).await
@@ -216,7 +208,7 @@ impl IdentityPool {
             }
         } else if self.status.is_some() && self.status.as_ref().unwrap().phase.eq(&IdentityPoolPhaseEnum::Failed) {
             // Assumes that the next modification of the resource is to recover to a good state
-            self.create_event(context_data.clone(),IdentityPoolPhaseEnum::Ready,None).await?;
+            self.send_event(context_data.clone(),IdentityPoolEventEnum::Ready,None).await?;
             self.update_phase(context_data.client.clone(), IdentityPoolPhaseEnum::Ready).await?;
             warn!("Detected a change in IdentityPool {identity_pool_name}. Automatically recovering to a Ready phase");
         } else {
@@ -251,7 +243,7 @@ impl IdentityPool {
         if self.status.as_ref().unwrap().locked == 0 {
             let client: Client = context_data.client.clone();
             self.update_phase(context_data.client.clone(), IdentityPoolPhaseEnum::Deleting).await?;
-            self.create_event(context_data.clone(), IdentityPoolPhaseEnum::Deleting, None).await?;
+            self.send_event(context_data.clone(), IdentityPoolEventEnum::Deleting, None).await?;
             info!("Starting to delete identity {identity_pool_name} from namespace {identity_pool_namespace}");
             identity_pool_service_monitor::delete_service_monitor(client.clone(), &identity_pool_name, &identity_pool_namespace).await?;
             identity_pool_service_account::delete_rbac(client.clone(), &identity_pool_namespace, &identity_pool_name).await?;
@@ -288,9 +280,9 @@ impl IdentityPool {
                 };
             }
             if current_ready_identities >= self.spec.min_ready_identities {
-                self.create_event(context.clone(), IdentityPoolPhaseEnum::Ready, None).await?;
+                self.send_event(context.clone(), IdentityPoolEventEnum::Ready, None).await?;
             } else {
-                self.create_event(context.clone(), IdentityPoolPhaseEnum::OutOfSync, Some((self.spec.min_ready_identities - current_ready_identities).to_string())).await?;
+                self.send_event(context.clone(), IdentityPoolEventEnum::OutOfSync, Some((self.spec.min_ready_identities - current_ready_identities).to_string())).await?;
                 info!("Identity {} in namespace {} failed to create required identities", self.name_any(), self.namespace().unwrap());
             }
         }
@@ -311,90 +303,10 @@ impl IdentityPool {
         }
     }
 
-    /// Creates an event for IdentityPool given the new IdentityPoolStatusEnum
-    pub async fn create_event(&self, context: Arc<ContextData>, phase: IdentityPoolPhaseEnum, attribute: Option<String>) -> Result<(), Error> {
-        let client: Client = context.client.clone();
-        let ev: Event = match phase {
-            IdentityPoolPhaseEnum::Initialized => Event {
-                        type_: EventType::Normal,
-                        reason: "Initialized".to_string(),
-                        note: Some("Initializing identity pool".to_owned()),
-                        action: "The service monitor has been created".to_string(),
-                        secondary: None
-                    },
-            IdentityPoolPhaseEnum::Failed => Event {
-                        type_: EventType::Warning,
-                        reason: "Failed".to_string(),
-                        note: Some("Failed to bootstrap identity pool".to_owned()),
-                        action: "Identity pool bootstrap validations have failed".to_string(),
-                        secondary: None
-                    },
-            IdentityPoolPhaseEnum::OutOfSync => Event {
-                        type_: EventType::Normal,
-                        reason: "OutOfSync".to_string(),
-                        note: Some(format!("The identity pool is out of sync. There are {} identities pending to be created", attribute.unwrap())),
-                        action: "The identity pool need to create more identities".to_string(),
-                        secondary: None
-                    },
-            IdentityPoolPhaseEnum::Ready => Event {
-                        type_: EventType::Normal,
-                        reason: "Ready".to_string(),
-                        note: Some("Identity pool ready to be used".to_owned()),
-                        action: "Identity pool is ready to be used by a Hoprd node".to_string(),
-                        secondary: None
-                    },
-            IdentityPoolPhaseEnum::Deleting => Event {
-                        type_: EventType::Normal,
-                        reason: "Deleting".to_string(),
-                        note: Some("Identity pool is being deleted".to_owned()),
-                        action: "Identity pool deletion started".to_string(),
-                        secondary: None
-            },
-            IdentityPoolPhaseEnum::Locked => Event {
-                        type_: EventType::Normal,
-                        reason: "Locked".to_string(),
-                        note: Some(format!("Identity {} locked from pool", attribute.as_ref().unwrap())),
-                        action: format!("Identity {} locked from pool", attribute.as_ref().unwrap()),
-                        secondary: None
-                    },
-            IdentityPoolPhaseEnum::Unlocking => Event {
-                        type_: EventType::Normal,
-                        reason: "Unlocking".to_string(),
-                        note: Some(format!("Unlokcing identity {} from pool", attribute.as_ref().unwrap())),
-                        action: format!("Unlokcing identity {} from pool", attribute.as_ref().unwrap()),
-                        secondary: None
-                    },
-            IdentityPoolPhaseEnum::Unlocked => Event {
-                        type_: EventType::Normal,
-                        reason: "Unlocked".to_string(),
-                        note: Some(format!("Identity {} unlocked from pool", attribute.as_ref().unwrap())),
-                        action: format!("Identity {} unlocked from pool", attribute.as_ref().unwrap()),
-                        secondary: None
-                    },
-            IdentityPoolPhaseEnum::CreatingIdentity => Event {
-                        type_: EventType::Normal,
-                        reason: "CreatingIdentity".to_string(),
-                        note: Some(format!("Creating identity {}", attribute.as_ref().unwrap())),
-                        action: format!("Creating identity {}", attribute.as_ref().unwrap()),
-                        secondary: None
-                    },
-            IdentityPoolPhaseEnum::IdentityCreated => Event {
-                        type_: EventType::Normal,
-                        reason: "IdentityCreated".to_string(),
-                        note: Some(format!("Identity pool created identity {}", attribute.as_ref().unwrap())),
-                        action: format!("Identity pool created identity {}", attribute.as_ref().unwrap()),
-                        secondary: None
-                    },
-            IdentityPoolPhaseEnum::IdentityDeleted => Event {
-                        type_: EventType::Normal,
-                        reason: "IdentityDeleted".to_string(),
-                        note: Some(format!("Identity pool deregistered identity {}", attribute.as_ref().unwrap())),
-                        action: format!("Identity pool deregistered identity {}", attribute.as_ref().unwrap()),
-                        secondary: None
-                    },
-        };
-        let recorder: Recorder = context.state.read().await.generate_identity_pool_event(client.clone(), self);
-        Ok(recorder.publish(ev).await?)
+    // Creates an event in the resource
+    pub async fn send_event(&self, context_data: Arc<ContextData>, event: IdentityPoolEventEnum, attribute: Option<String>) -> Result<(), Error> {
+        let recorder: Recorder = context_data.state.read().await.generate_event(context_data.client.clone(), self);
+        Ok(recorder.publish(event.to_event(attribute)).await?)
     }
 
     /// Updates the status of IdentityPool
@@ -527,7 +439,7 @@ impl IdentityPool {
 
     async fn create_new_identity(&self, context: Arc<ContextData>) -> Result<(), Error> {
         let identity_name = format!("{}-{}", self.name_any(), self.status.as_ref().unwrap().size + 1);
-        self.create_event(context.clone(), IdentityPoolPhaseEnum::CreatingIdentity,Some(identity_name.to_owned())).await?;
+        self.send_event(context.clone(), IdentityPoolEventEnum::CreatingIdentity,Some(identity_name.to_owned())).await?;
         let random_string: String = rand::thread_rng().sample_iter(&Alphanumeric).take(5).map(char::from).collect();
         let job_name: String = format!("create-identity-{}-{}", &identity_name.to_owned(), random_string.to_ascii_lowercase());
         let namespace: String = self.metadata.namespace.as_ref().unwrap().to_owned();

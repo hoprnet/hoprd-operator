@@ -1,4 +1,5 @@
 use std::{env, sync::Arc, collections::BTreeMap};
+use k8s_openapi::NamespaceResourceScope;
 use tokio::sync::RwLock;
 
 use kube::{
@@ -7,8 +8,8 @@ use kube::{
 };
 
 use crate::{
-    cluster::ClusterHoprd, constants, hoprd::Hoprd, identity_hoprd::IdentityHoprd,
-    identity_pool::{IdentityPool}, operator_config::OperatorConfig,
+    constants, hoprd::Hoprd, identity_hoprd::IdentityHoprd,
+    identity_pool::IdentityPool, operator_config::OperatorConfig,
 };
 
 #[derive(Clone)]
@@ -98,19 +99,8 @@ impl State {
         self.add_identity_pool(identity_pool);
     }
 
-    pub fn generate_identity_hoprd_event(&self, client: Client, identity_hoprd: &IdentityHoprd) -> Recorder {
-        Recorder::new(client, self.reporter.clone(), identity_hoprd.object_ref(&()))
-    }
 
-    pub fn generate_identity_pool_event(&self, client: Client, identity_pool: &IdentityPool) -> Recorder {
-        Recorder::new(client, self.reporter.clone(), identity_pool.object_ref(&()))
-    }
-
-    pub fn generate_hoprd_event(&self, client: Client, hoprd: &Hoprd) -> Recorder {
-        Recorder::new(client, self.reporter.clone(), hoprd.object_ref(&()))
-    }
-
-    pub fn generate_cluster_hoprd_event(&self,client: Client,cluster_hoprd: &ClusterHoprd) -> Recorder {
-        Recorder::new(client, self.reporter.clone(), cluster_hoprd.object_ref(&()))
+    pub fn generate_event<T: Resource<Scope = NamespaceResourceScope, DynamicType = ()>>(&self, client: Client, resource: &T) -> Recorder {
+        Recorder::new(client, self.reporter.clone(), resource.object_ref(&()))
     }
 }
