@@ -73,7 +73,7 @@ impl ContextData {
         attribute: Option<String>
     ) {
         let recorder = Recorder::new(self.client.clone(), self.state.read().await.reporter.clone(), resource.object_ref(&()));
-        recorder.publish(event.to_event(attribute)).await;
+        recorder.publish(event.to_event(attribute)).await.unwrap();
     }
 }
 

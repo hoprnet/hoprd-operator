@@ -1,5 +1,5 @@
 use crate::cluster::ClusterHoprdPhaseEnum;
-use crate::events::{HoprdEventEnum, ResourceEvent, ClusterHoprdEventEnum, IdentityHoprdEventEnum, IdentityPoolEventEnum};
+use crate::events::{HoprdEventEnum, ClusterHoprdEventEnum, IdentityHoprdEventEnum, IdentityPoolEventEnum};
 use crate::resource_generics;
 use crate::hoprd_deployment_spec::HoprdDeploymentSpec;
 use crate::identity_hoprd::{IdentityHoprd, IdentityHoprdPhaseEnum};
@@ -365,13 +365,13 @@ impl Hoprd {
             match deployment {
                 WatchEvent::Added(deployment) => {
                     if deployment.status.as_ref().unwrap().ready_replicas.unwrap_or(0).eq(&1) {
-                        info!("Hoprd node {} deployment with uid {:?} is ready", self.name_any(), deployment.uid().unwrap());
+                        debug!("Hoprd node {} deployment with uid {:?} is ready", self.name_any(), deployment.uid().unwrap());
                         return Ok(())
                     }
                 }
                 WatchEvent::Modified(deployment) => {
                     if deployment.status.as_ref().unwrap().ready_replicas.unwrap_or(0).eq(&1) {
-                        info!("Hoprd node {} deployment with uid {:?} is ready", self.name_any(), deployment.uid().unwrap());
+                        debug!("Hoprd node {} deployment with uid {:?} is ready", self.name_any(), deployment.uid().unwrap());
                         return Ok(())
                     }
                 }
@@ -379,7 +379,8 @@ impl Hoprd {
                     return Err(Error::ClusterHoprdSynchError("Deleted operation not expected".to_owned()))
                 }
                 WatchEvent::Bookmark(_) => {
-                    return Err(Error::ClusterHoprdSynchError("Bookmark operation not expected".to_owned()))
+                    warn!("Hoprd node {} deployment bookmarked", self.name_any());
+                    return Ok(())
                 }
                 WatchEvent::Error(_) => {
                     return Err(Error::ClusterHoprdSynchError("Error operation not expected".to_owned()))

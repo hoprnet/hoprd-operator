@@ -8,18 +8,14 @@ use kube::{
     },
     Resource, Result,
 };
-use std::{
-    collections::hash_map::DefaultHasher,
-    hash::{Hash, Hasher},
-    sync::Arc,
-};
+use std::sync::Arc;
 use tokio::time::Duration;
 use tracing::error;
 
 use crate::{
     constants::{self},
     context_data::ContextData,
-    identity_pool::{IdentityPool, IdentityPoolSpec},
+    identity_pool::IdentityPool,
     model::Error,
     servicemonitor::ServiceMonitor, identity_hoprd::IdentityHoprd,
 };

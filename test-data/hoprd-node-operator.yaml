@@ -6,8 +6,8 @@ metadata:
   namespace: hoprd-operator
 spec:
   version: latest
-  identityPoolName: pool-hoprd-operator
-  identityName: pool-hoprd-operator-2
+  identityPoolName: identity-pool-hoprd-operator
+  identityName: identity-pool-hoprd-operator-1
   enabled: true 
   config: |
     hopr:
