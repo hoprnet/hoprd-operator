@@ -31,6 +31,7 @@ spec:
       securityContext:
         runAsUser: 1001
         runAsGroup: 1001
+        runAsNonRoot: true
       containers:
       - name: admin-ui
         image: {{ printf "%s/%s:%s" .Values.adminUI.image.registry .Values.adminUI.image.repository .Values.adminUI.image.tag }}
