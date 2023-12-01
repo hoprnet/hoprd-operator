@@ -1,7 +1,9 @@
 # TODO: Need to scope the access of K8s resources
 AVD-KSV-0050
 AVD-KSV-0041
-
+AVD-KSV-0048
+AVD-KSV-0049
+AVD-KSV-0056
 
 # Ignore
 AVD-KSV-0013
