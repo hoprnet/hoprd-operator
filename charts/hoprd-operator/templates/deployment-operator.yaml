@@ -34,7 +34,6 @@ spec:
         image: "{{ .Values.operator.image.registry }}/{{ .Values.operator.image.repository }}:{{ default .Chart.AppVersion .Values.operator.image.tag }}"
         imagePullPolicy: {{ .Values.operator.image.pullPolicy }}
         securityContext:
-          runAsNonRoot: true
           allowPrivilegeEscalation: false
           readOnlyRootFilesystem: true
           seccompProfile: 
