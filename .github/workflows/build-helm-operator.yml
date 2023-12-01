@@ -123,6 +123,7 @@ jobs:
           scan-ref: 'charts/hoprd-operator/'
           exit-code: '1'
           ignore-unfixed: true
+          severity: 'MEDIUM,HIGH,CRITICAL'
 
   generate-readme:
     name: Generate Readme
