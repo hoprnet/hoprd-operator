@@ -251,7 +251,7 @@ operator:
   persistence:
     ## @param operator.persistence.size Size of the persistence Volume
     ##
-    size: 50Mi
+    size: 100Mi
     ## @param operator.persistence.storageClassName Name of the storage class
     ##
     storageClassName: ""
@@ -268,7 +268,7 @@ service:
 
     ## @param service.ports.http service HTTP port number
     ##  
-    http: 80
+    http: 8080
 
     ## @param service.ports.name service HTTP port name
     ##

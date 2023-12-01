@@ -9,18 +9,14 @@ use kube::{
     },
     Resource, Result,
 };
-use std::{
-    collections::hash_map::DefaultHasher,
-    hash::{Hash, Hasher},
-    sync::Arc,
-};
+use std::sync::Arc;
 use tokio::time::Duration;
 use tracing::error;
 
 use crate::{
     constants::{self},
     context_data::ContextData,
-    identity_hoprd::{IdentityHoprd, IdentityHoprdSpec},
+    identity_hoprd::IdentityHoprd,
     model::Error,
 };
 
@@ -53,11 +49,7 @@ fn determine_action(identity_hoprd: &IdentityHoprd) -> IdentityHoprdAction {
     {
         IdentityHoprdAction::Create
     } else {
-        let mut hasher: DefaultHasher = DefaultHasher::new();
-        let identity_spec: IdentityHoprdSpec = identity_hoprd.spec.clone();
-        identity_spec.clone().hash(&mut hasher);
-        let hash: String = hasher.finish().to_string();
-        let current_checksum = hash.to_string();
+        let current_checksum = identity_hoprd.get_checksum();
         let previous_checksum: String = identity_hoprd.status.as_ref().map_or("0".to_owned(), |status| status.checksum.to_owned());
         // When the resource is created, does not have previous checksum and needs to be skip the modification because it's being handled already by the creation operation
         if previous_checksum.eq(&"0".to_owned()) || current_checksum.eq(&previous_checksum) {
@@ -74,7 +66,7 @@ async fn reconciler(identity_hoprd: Arc<IdentityHoprd>,context: Arc<ContextData>
     // Performs action as decided by the `determine_action` function.
     return match determine_action(&identity_hoprd_mutable) {
         IdentityHoprdAction::Create => identity_hoprd_mutable.create(context.clone()).await,
-        IdentityHoprdAction::Modify => identity_hoprd_mutable.modify().await,
+        IdentityHoprdAction::Modify => identity_hoprd_mutable.modify(context.clone()).await,
         IdentityHoprdAction::Delete => identity_hoprd_mutable.delete(context.clone()).await,
         // The resource is already in desired state, do nothing and re-check after 10 seconds
         IdentityHoprdAction::NoOp => Ok(Action::requeue(Duration::from_secs(

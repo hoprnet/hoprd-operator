@@ -62,6 +62,18 @@ spec:
                 minReadyIdentities:
                   type: number
                   description: Number of ready instances to keep
+                funding:
+                  type: object
+                  properties:
+                    schedule:
+                      type: string
+                      description: 'Cron schedule format'
+                    nativeAmount:
+                      type: string
+                      description: 'xDai limit amount (unit xDai)'
+                  required:
+                    - schedule
+                    - nativeAmount
               required:
                 - network
                 - secretName

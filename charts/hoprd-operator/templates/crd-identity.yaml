@@ -92,7 +92,6 @@ spec:
                   enum:
                   - Initialized
                   - Failed
-                  - Synching
                   - Ready
                   - InUse
                   - Deleting

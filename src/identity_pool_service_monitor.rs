@@ -18,13 +18,6 @@ use crate::servicemonitor::{
 use crate::{constants, servicemonitor::ServiceMonitor};
 
 /// Creates a new serviceMonitor to enable the monitoring with Prometheus of the hoprd node,
-///
-/// # Arguments
-/// - `client` - A Kubernetes client to create the deployment with.
-/// - `name` - Name of the deployment to be created
-/// - `namespace` - Namespace to create the Kubernetes Deployment in.
-/// - `hoprd_spec` - Details about the hoprd configuration node
-///
 pub async fn create_service_monitor(context_data: Arc<ContextData>, name: &str, namespace: &str, secret_name: &String, owner_references: Option<Vec<OwnerReference>>) -> Result<ServiceMonitor, Error> {
     let mut labels: BTreeMap<String, String> = BTreeMap::new();
     labels.insert(constants::LABEL_KUBERNETES_NAME.to_owned(), context_data.config.instance.name.to_owned());
@@ -111,15 +104,6 @@ pub fn build_metric_relabel() -> Vec<ServiceMonitorEndpointsRelabelings> {
     });
     metrics.push(ServiceMonitorEndpointsRelabelings {
         action: Some(ServiceMonitorEndpointsRelabelingsAction::Replace),
-        source_labels: Some(vec!["__meta_kubernetes_pod_container_image".to_owned()]),
-        target_label: Some("hoprd_version".to_owned()),
-        regex: Some("(.*):(.*)".to_owned()),
-        replacement: Some("${2}".to_owned()),
-        separator: Some(":".to_owned()),
-        modulus: None,
-    });
-    metrics.push(ServiceMonitorEndpointsRelabelings {
-        action: Some(ServiceMonitorEndpointsRelabelingsAction::Replace),
         source_labels: Some(vec![
             "__meta_kubernetes_pod_label_app_kubernetes_io_instance".to_owned(),
         ]),
@@ -188,12 +172,6 @@ pub fn build_metric_relabel() -> Vec<ServiceMonitorEndpointsRelabelings> {
 }
 
 /// Deletes an existing serviceMonitor.
-///
-/// # Arguments:
-/// - `client` - A Kubernetes client to delete the ServiceMonitor with
-/// - `name` - Name of the ServiceMonitor to delete
-/// - `namespace` - Namespace the existing ServiceMonitor resides in
-///
 pub async fn delete_service_monitor(client: Client, name: &str,namespace: &str) -> Result<(), Error> {
     let api: Api<ServiceMonitor> = Api::namespaced(client, namespace);
     if let Some(service_monitor) = api.get_opt(&name).await? {

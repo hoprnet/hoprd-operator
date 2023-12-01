@@ -1,14 +1,14 @@
 use std::{env, sync::Arc, collections::BTreeMap};
+use k8s_openapi::NamespaceResourceScope;
 use tokio::sync::RwLock;
 
 use kube::{
     runtime::events::{Recorder, Reporter},
-    Client, Resource, Api, api::ListParams, ResourceExt,
-};
+    Client, Resource, Api, api::ListParams, ResourceExt};
 
 use crate::{
-    cluster::ClusterHoprd, constants, hoprd::Hoprd, identity_hoprd::IdentityHoprd,
-    identity_pool::{IdentityPool}, operator_config::OperatorConfig,
+    constants, hoprd::Hoprd, identity_hoprd::IdentityHoprd,
+    identity_pool::IdentityPool, operator_config::OperatorConfig, events::ResourceEvent,
 };
 
 #[derive(Clone)]
@@ -55,8 +55,8 @@ impl ContextData {
             .iter().map(|hoprd|  format!("{}-{}", hoprd.metadata.namespace.as_ref().unwrap(), hoprd.metadata.name.as_ref().unwrap())).collect();
         for identity_hoprd in all_identities {
             if let Some(status) = identity_hoprd.to_owned().status {
-                if let Some(hoprd_name) = status.hoprd_node_name {
-                    let identity_full_name = format!("{}-{}", identity_hoprd.to_owned().metadata.namespace.unwrap(), hoprd_name);
+                if let Some(hoprd_node_name) = status.hoprd_node_name {
+                    let identity_full_name = format!("{}-{}", identity_hoprd.to_owned().metadata.namespace.unwrap(), hoprd_node_name);
                     if ! all_hoprds.contains(&identity_full_name) {
                         // Remove hoprd relationship
                         identity_hoprd.unlock(context_data.clone()).await.expect("Could not synchronize identity");
@@ -66,13 +66,25 @@ impl ContextData {
         }
     }
 
+    pub async fn send_event<T: Resource<Scope = NamespaceResourceScope, DynamicType = ()>, K: ResourceEvent>(
+        &self,
+        resource: &T,
+        event: K,
+        attribute: Option<String>
+    ) {
+        let recorder = Recorder::new(self.client.clone(), self.state.read().await.reporter.clone(), resource.object_ref(&()));
+        recorder.publish(event.to_event(attribute)).await.unwrap();
+    }
 }
 
-#[derive(Debug,Clone)]
+
+
+#[derive(Debug, Clone)]
 pub struct State {
     pub reporter: Reporter,
     pub identity_pool: BTreeMap<String, Arc<IdentityPool>>
 }
+
 impl State {
     pub fn new(identity_pools: Vec<IdentityPool>) -> State {
         State {
@@ -98,19 +110,4 @@ impl State {
         self.add_identity_pool(identity_pool);
     }
 
-    pub fn generate_identity_hoprd_event(&self, client: Client, identity_hoprd: &IdentityHoprd) -> Recorder {
-        Recorder::new(client, self.reporter.clone(), identity_hoprd.object_ref(&()))
-    }
-
-    pub fn generate_identity_pool_event(&self, client: Client, identity_pool: &IdentityPool) -> Recorder {
-        Recorder::new(client, self.reporter.clone(), identity_pool.object_ref(&()))
-    }
-
-    pub fn generate_hoprd_event(&self, client: Client, hoprd: &Hoprd) -> Recorder {
-        Recorder::new(client, self.reporter.clone(), hoprd.object_ref(&()))
-    }
-
-    pub fn generate_cluster_hoprd_event(&self,client: Client,cluster_hoprd: &ClusterHoprd) -> Recorder {
-        Recorder::new(client, self.reporter.clone(), cluster_hoprd.object_ref(&()))
-    }
 }

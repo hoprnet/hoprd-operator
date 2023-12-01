@@ -8,18 +8,14 @@ use kube::{
     },
     Resource, Result,
 };
-use std::{
-    collections::hash_map::DefaultHasher,
-    hash::{Hash, Hasher},
-    sync::Arc,
-};
+use std::sync::Arc;
 use tokio::time::Duration;
 use tracing::error;
 
 use crate::{
     constants::{self},
     context_data::ContextData,
-    identity_pool::{IdentityPool, IdentityPoolSpec},
+    identity_pool::IdentityPool,
     model::Error,
     servicemonitor::ServiceMonitor, identity_hoprd::IdentityHoprd,
 };
@@ -54,11 +50,7 @@ fn determine_action(identity_pool: &IdentityPool) -> IdentityPoolAction {
     {
         IdentityPoolAction::Sync
     } else {
-        let mut hasher: DefaultHasher = DefaultHasher::new();
-        let identity_pool_spec: IdentityPoolSpec = identity_pool.spec.clone();
-        identity_pool_spec.clone().hash(&mut hasher);
-        let hash: String = hasher.finish().to_string();
-        let current_checksum = hash.to_string();
+        let current_checksum = identity_pool.get_checksum();
         let previous_checksum: String = identity_pool.status.as_ref()
             .map_or("0".to_owned(), |status| status.checksum.to_owned());
         // When the resource is created, does not have previous checksum and needs to be skip the modification because it's being handled already by the creation operation

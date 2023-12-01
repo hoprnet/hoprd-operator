@@ -7,7 +7,7 @@ metadata:
     hoprds.hoprnet.org/pullRequest: "1234"
   namespace:  hoprd-operator
 spec:
-  identityPoolName: pool-hoprd-operator
+  identityPoolName: identity-pool-hoprd-operator
   replicas: 1
   version: latest
   enabled: true

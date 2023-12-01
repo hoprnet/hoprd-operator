@@ -123,6 +123,8 @@ jobs:
           scan-ref: 'charts/hoprd-operator/'
           exit-code: '1'
           ignore-unfixed: true
+          severity: 'MEDIUM,HIGH,CRITICAL'
+          # trivyignores: 'charts/.trivyignore'
 
   generate-readme:
     name: Generate Readme

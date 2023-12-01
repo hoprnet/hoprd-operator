@@ -91,7 +91,7 @@ Chart version `Chart.yaml` should be increased according to [semver](http://semv
 | `operator.image.repository`             | Docker image repository to operator deployment                     | `hoprassociation/docker-images/hoprd-operator` |
 | `operator.image.tag`                    | Docker image tag to operator deployment                            | `""`                                           |
 | `operator.image.pullPolicy`             | Pull policy to operator deployment as deinfed in                   | `IfNotPresent`                                 |
-| `operator.persistence.size`             | Size of the persistence Volume                                     | `50Mi`                                         |
+| `operator.persistence.size`             | Size of the persistence Volume                                     | `100Mi`                                        |
 | `operator.persistence.storageClassName` | Name of the storage class                                          | `""`                                           |
 
 ### Service Parameters
@@ -99,7 +99,7 @@ Chart version `Chart.yaml` should be increased according to [semver](http://semv
 | Name                               | Description                                                      | Value       |
 | ---------------------------------- | ---------------------------------------------------------------- | ----------- |
 | `service.type`                     | service type                                                     | `ClusterIP` |
-| `service.ports.http`               | service HTTP port number                                         | `80`        |
+| `service.ports.http`               | service HTTP port number                                         | `8080`      |
 | `service.ports.name`               | service HTTP port name                                           | `http`      |
 | `service.nodePorts.http`           | Node port for HTTP                                               | `""`        |
 | `service.clusterIP`                | service Cluster IP                                               | `""`        |

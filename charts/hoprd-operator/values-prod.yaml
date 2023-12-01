@@ -14,6 +14,8 @@ operator:
     ingressClassName: nginx
     dnsDomain: prod.hoprtech.net
     annotations:
+      nginx.ingress.kubernetes.io/enable-cors: "true"
+      nginx.ingress.kubernetes.io/cors-allow-headers: "x-auth-token,content-type,accept-content"
       cert-manager.io/cluster-issuer: "linode-issuer"
       nginx.ingress.kubernetes.io/proxy-connect-timeout: "3600"
       nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"

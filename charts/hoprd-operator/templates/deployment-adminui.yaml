@@ -29,13 +29,16 @@ spec:
         app.kubernetes.io/name: {{ .Release.Name }}
     spec:
       securityContext:
-        runAsUser: 1001
-        runAsGroup: 1001
+        runAsUser: 10001
+        runAsGroup: 10001
+        runAsNonRoot: true
       containers:
       - name: admin-ui
         image: {{ printf "%s/%s:%s" .Values.adminUI.image.registry .Values.adminUI.image.repository .Values.adminUI.image.tag }}
         imagePullPolicy: {{ .Values.adminUI.image.pullPolicy }}
         securityContext:
+          runAsUser: 10001
+          runAsGroup: 10001
           allowPrivilegeEscalation: false
           readOnlyRootFilesystem: true
           seccompProfile: 
@@ -58,21 +61,21 @@ spec:
           failureThreshold: 6
           httpGet:
             path: /
-            port: 80
+            port: 8080
             scheme: HTTP
           initialDelaySeconds: 0
           periodSeconds: 60
           successThreshold: 1
           timeoutSeconds: 5
         ports:
-        - containerPort: 80
+        - containerPort: 8080
           name: {{ .Values.service.ports.name }}
           protocol: TCP
         readinessProbe:
           failureThreshold: 6
           httpGet:
             path: /
-            port: 80
+            port: 8080
             scheme: HTTP
           initialDelaySeconds: 5
           periodSeconds: 10
