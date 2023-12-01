@@ -29,8 +29,8 @@ spec:
         app.kubernetes.io/name: {{ .Release.Name }}
     spec:
       securityContext:
-        runAsUser: 1001
-        runAsGroup: 1001
+        runAsUser: 10001
+        runAsGroup: 10001
         runAsNonRoot: true
       containers:
       - name: admin-ui
