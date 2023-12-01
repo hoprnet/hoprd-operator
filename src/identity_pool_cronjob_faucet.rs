@@ -42,7 +42,7 @@ pub async fn create_cron_job(context_data: Arc<ContextData>, identity_pool: &Ide
             schedule: identity_pool.spec.funding.to_owned().unwrap().schedule,
             job_template: JobTemplateSpec {
                 metadata: Some(ObjectMeta::default()),
-                spec: get_job_template(context_data.clone(), &identity_pool).await,
+                spec: Some(get_job_template(context_data.clone(), &identity_pool).await),
             },
             ..CronJobSpec::default()
         }),
@@ -63,7 +63,7 @@ async fn build_args_line(identity_pool: &IdentityPool) -> Option<Vec<String>> {
     Some(vec![command_line])
 }
 
-async fn get_job_template(context_data: Arc<ContextData>, identity_pool: &IdentityPool) -> Option<JobSpec> {
+async fn get_job_template(context_data: Arc<ContextData>, identity_pool: &IdentityPool) -> JobSpec {
     let volumes: Vec<Volume> = vec![Volume {
         name: "data".to_owned(),
         empty_dir: Some(EmptyDirVolumeSource::default()),
@@ -76,7 +76,7 @@ async fn get_job_template(context_data: Arc<ContextData>, identity_pool: &Identi
     }];
     let kubectl_args = Some(vec![format!("kubectl get IdentityHoprd -o jsonpath='{{.items[?(.spec.identityPoolName == \"{}\")].spec.nativeAddress}}' | tr ' ' ',' > /data/addresses.txt", identity_pool.name_any())]);
 
-    Some(JobSpec {
+    JobSpec {
         parallelism: Some(1),
         completions: Some(1),
         backoff_limit: Some(1),
@@ -101,7 +101,7 @@ async fn get_job_template(context_data: Arc<ContextData>, identity_pool: &Identi
                         image_pull_policy: Some("Always".to_owned()),
                         command: Some(vec!["/bin/bash".to_owned(), "-c".to_owned()]),
                         args: build_args_line(identity_pool).await,
-                        env: get_env_var(identity_pool.spec.secret_name.to_owned()).await,
+                        env: Some(get_env_var(identity_pool.spec.secret_name.to_owned()).await),
                         volume_mounts: Some(volume_mounts.to_owned()),
                         resources: Some(HoprdDeploymentSpec::get_resource_requirements(None)),
                         ..Container::default()
@@ -114,11 +114,11 @@ async fn get_job_template(context_data: Arc<ContextData>, identity_pool: &Identi
             ..PodTemplateSpec::default()
             },
         ..JobSpec::default()
-    })
+    }
 }
 
-async fn get_env_var(secret_name: String)-> Option<Vec<EnvVar>> {
-    Some(vec![
+async fn get_env_var(secret_name: String)-> Vec<EnvVar> {
+    vec![
             EnvVar {
                 name: constants::IDENTITY_POOL_WALLET_DEPLOYER_PRIVATE_KEY_REF_KEY.to_owned(),
                 value_from: Some(EnvVarSource {
@@ -143,7 +143,7 @@ async fn get_env_var(secret_name: String)-> Option<Vec<EnvVar>> {
                 }),
                 ..EnvVar::default()
             }
-        ])
+        ]
 }
 
 pub async fn modify_cron_job(client: Client, identity_pool: &IdentityPool) -> Result<CronJob, Error> {
