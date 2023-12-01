@@ -99,7 +99,7 @@ Chart version `Chart.yaml` should be increased according to [semver](http://semv
 | Name                               | Description                                                      | Value       |
 | ---------------------------------- | ---------------------------------------------------------------- | ----------- |
 | `service.type`                     | service type                                                     | `ClusterIP` |
-| `service.ports.http`               | service HTTP port number                                         | `80`        |
+| `service.ports.http`               | service HTTP port number                                         | `8080`      |
 | `service.ports.name`               | service HTTP port name                                           | `http`      |
 | `service.nodePorts.http`           | Node port for HTTP                                               | `""`        |
 | `service.clusterIP`                | service Cluster IP                                               | `""`        |
