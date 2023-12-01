@@ -56,7 +56,7 @@ pub async fn create_cron_job(context_data: Arc<ContextData>, identity_pool: &Ide
     Ok(created_cron_job)
 }
 
-async fn build_command_line(identity_pool: &IdentityPool) -> Option<Vec<String>> {
+async fn build_args_line(identity_pool: &IdentityPool) -> Option<Vec<String>> {
     let native_amount: String =identity_pool.spec.funding.clone().unwrap().native_amount.to_string();
     let network: String = identity_pool.spec.network.to_owned();
     let command_line: String = format!("PATH=${{PATH}}:/app/hoprnet/.foundry/bin/ /bin/hopli faucet --network {} --contracts-root /app/hoprnet/packages/ethereum/contracts/ --hopr-amount 0 --native-amount \"{}\" --address $(cat /data/addresses.txt)", network, native_amount);
@@ -98,9 +98,9 @@ async fn get_job_template(context_data: Arc<ContextData>, identity_pool: &Identi
                     containers: vec![Container {
                         name: "hopli".to_owned(),
                         image: Some(context_data.config.hopli_image.to_owned()),
-                        image_pull_policy: Some("IfNotPresent".to_owned()),
+                        image_pull_policy: Some("Always".to_owned()),
                         command: Some(vec!["/bin/bash".to_owned(), "-c".to_owned()]),
-                        args: build_command_line(identity_pool).await,
+                        args: build_args_line(identity_pool).await,
                         env: get_env_var(identity_pool.spec.secret_name.to_owned()).await,
                         volume_mounts: Some(volume_mounts.to_owned()),
                         resources: Some(HoprdDeploymentSpec::get_resource_requirements(None)),
@@ -155,7 +155,8 @@ pub async fn modify_cron_job(client: Client, identity_pool: &IdentityPool) -> Re
     if let Some(cron_job) = api.get_opt(&cron_job_name).await? {
         let mut cron_job_spec = cron_job.spec.clone().unwrap();
         cron_job_spec.schedule = identity_pool.spec.funding.clone().unwrap().schedule;
-        cron_job_spec.job_template.spec.to_owned().unwrap().template.spec.to_owned().unwrap().containers.first().unwrap().to_owned().command = build_command_line(identity_pool).await;
+        let container = cron_job_spec.job_template.spec.as_mut().unwrap().template.spec.as_mut().unwrap().containers.first_mut().unwrap();
+        container.args = build_args_line(identity_pool).await;
         let patch = &Patch::Merge(json!({ "spec": cron_job_spec }));
         let cron_job = api.patch(&cron_job_name, &PatchParams::default(), patch).await.expect("Could not modify cronjob");
         Ok(cron_job)

@@ -5,7 +5,7 @@ use crate::model::Error;
 use crate::{constants, context_data::ContextData};
 use crate::{identity_pool_service_account, identity_pool_service_monitor, utils, identity_pool_cronjob_faucet, resource_generics};
 use chrono::Utc;
-use k8s_openapi::api::batch::v1::{Job, JobSpec};
+use k8s_openapi::api::batch::v1::{Job, JobSpec, CronJob};
 use k8s_openapi::api::core::v1::{
     Container, EmptyDirVolumeSource, EnvVar, EnvVarSource, PodSpec, PodTemplateSpec,
     SecretKeySelector, Volume, VolumeMount,
@@ -184,7 +184,7 @@ impl IdentityPool {
                     Ok(previous_identity_pool) => {
                         if self.changed_inmutable_fields(&previous_identity_pool.spec) {
                             context_data.send_event(self,IdentityPoolEventEnum::Failed,None).await;
-                            self.update_phase(context_data.client.clone(), IdentityPoolPhaseEnum::Failed).await?;
+                            self.update_phase(client.clone(), IdentityPoolPhaseEnum::Failed).await?;
                         } else {
                             info!("Identity pool {identity_pool_name} in namespace {identity_pool_namespace} has been successfully modified");
 
@@ -192,13 +192,13 @@ impl IdentityPool {
                             if self.status.as_ref().unwrap().size - self.status.as_ref().unwrap().locked - self.spec.min_ready_identities < 0 {
                                 let pending = self.spec.min_ready_identities - self.status.as_ref().unwrap().locked - self.status.as_ref().unwrap().size;
                                 context_data.send_event(self,IdentityPoolEventEnum::OutOfSync,Some(pending.to_string())).await;
-                                self.update_phase(context_data.client.clone(), IdentityPoolPhaseEnum::OutOfSync).await?;
+                                self.update_phase(client.clone(), IdentityPoolPhaseEnum::OutOfSync).await?;
                                 info!("Identity {identity_pool_name} in namespace {identity_pool_namespace} requires to create {} new identities", self.spec.min_ready_identities);
                             }else {
                                 context_data.send_event(self,IdentityPoolEventEnum::Ready, None).await;
-                                self.update_phase(context_data.client.clone(), IdentityPoolPhaseEnum::Ready).await?;
+                                self.update_phase(client.clone(), IdentityPoolPhaseEnum::Ready).await?;
                             }
-                            self.modify_funding(context_data, previous_identity_pool.spec.funding).await
+                            self.modify_funding(context_data).await?
                         }
                     },
                     Err(_err) => {
@@ -218,24 +218,24 @@ impl IdentityPool {
     }
 
     // Syncrhonize funding
-    async fn modify_funding(&self, context_data: Arc<ContextData>, previous_funding: Option<IdentityPoolFunding>) -> () {
+    async fn modify_funding(&self, context_data: Arc<ContextData>) -> Result<(), Error> {
         let identity_pool_namespace: String = self.namespace().unwrap();
         let identity_pool_name: String = self.name_any();
 
-        if previous_funding.is_none() && self.spec.funding.is_some() {
-            info!("Creating new Cronjob {identity_pool_name} in namespace {identity_pool_namespace}");
-            identity_pool_cronjob_faucet::create_cron_job(context_data.clone(), self).await.expect("Could not create Cronjob");
-        } else if self.spec.funding.is_none() && previous_funding.is_some() {
-            info!("Deleting previous Cronjob {identity_pool_name} in namespace {identity_pool_namespace}");
-            identity_pool_cronjob_faucet::delete_cron_job(context_data.client.clone(), &identity_pool_namespace, &identity_pool_name).await.expect("Could not delete cronjob");
-        } else if self.spec.funding.is_some() && previous_funding.is_some() {
-            let previous_funding = previous_funding.unwrap();
-            let current_funding = self.spec.funding.clone().unwrap();
-            if previous_funding.native_amount.ne(&current_funding.native_amount) || previous_funding.schedule.ne(&current_funding.schedule) {
+        let api: Api<CronJob> = Api::namespaced(context_data.client.clone(), &identity_pool_namespace);
+        if let Some(_) = api.get_opt(format!("auto-funding-{}", identity_pool_name).as_str()).await? {
+            if self.spec.funding.is_none() {
+                info!("Deleting previous Cronjob {identity_pool_name} in namespace {identity_pool_namespace}");
+                identity_pool_cronjob_faucet::delete_cron_job(context_data.client.clone(), &identity_pool_namespace, &identity_pool_name).await.expect("Could not delete cronjob");
+            } else {
                 info!("Modifying Cronjob {identity_pool_name} in namespace {identity_pool_namespace}");
                 identity_pool_cronjob_faucet::modify_cron_job(context_data.client.clone(), self).await.expect("Could not modify cronjob");
             }
+        } else if self.spec.funding.is_some() {
+            info!("Creating new Cronjob {identity_pool_name} in namespace {identity_pool_namespace}");
+            identity_pool_cronjob_faucet::create_cron_job(context_data.clone(), self).await.expect("Could not create Cronjob");
         }
+        Ok(())
     }
 
     // Handle the deletion of IdentityPool resource
