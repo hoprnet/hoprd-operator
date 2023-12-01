@@ -124,6 +124,7 @@ jobs:
           exit-code: '1'
           ignore-unfixed: true
           severity: 'MEDIUM,HIGH,CRITICAL'
+          trivyignores: '.trivyignore'
 
   generate-readme:
     name: Generate Readme
