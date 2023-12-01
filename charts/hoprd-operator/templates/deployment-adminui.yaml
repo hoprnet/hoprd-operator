@@ -37,6 +37,8 @@ spec:
         image: {{ printf "%s/%s:%s" .Values.adminUI.image.registry .Values.adminUI.image.repository .Values.adminUI.image.tag }}
         imagePullPolicy: {{ .Values.adminUI.image.pullPolicy }}
         securityContext:
+          runAsUser: 10001
+          runAsGroup: 10001
           allowPrivilegeEscalation: false
           readOnlyRootFilesystem: true
           seccompProfile: 
