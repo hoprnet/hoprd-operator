@@ -115,7 +115,7 @@ impl IdentityHoprd {
         info!("Starting to create identity {identity_name} in namespace {identity_namespace}");
         resource_generics::add_finalizer(client.clone(), self).await;
         self.add_owner_reference(client.clone()).await?;
-        identity_hoprd_persistence::create_pvc(context_data.clone(), &self).await?;
+        identity_hoprd_persistence::create_pvc(context_data.clone(), self).await?;
         context_data.send_event(self, IdentityHoprdEventEnum::Initialized, None).await;
         self.update_phase(client.clone(), IdentityHoprdPhaseEnum::Initialized, None).await?;
         // TODO: Validate data
@@ -241,7 +241,7 @@ impl IdentityHoprd {
     pub fn get_checksum(&self) -> String {
         let mut hasher: DefaultHasher = DefaultHasher::new();
         self.spec.clone().hash(&mut hasher);
-        return hasher.finish().to_string();
+        hasher.finish().to_string()
     }
 
     /// Updates the status of IdentityHoprd
@@ -271,7 +271,7 @@ impl IdentityHoprd {
 
     pub async fn get_identity_pool(&self, client: Client) -> Result<IdentityPool, Error> {
         let api: Api<IdentityPool> = Api::namespaced(client.clone(), &self.namespace().unwrap());
-        return Ok(api.get(&self.spec.identity_pool_name).await.unwrap());
+        Ok(api.get(&self.spec.identity_pool_name).await.unwrap())
     }
 
     // Unlocks a given identity from a Hoprd node

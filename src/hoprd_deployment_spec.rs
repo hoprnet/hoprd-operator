@@ -66,7 +66,7 @@ impl HoprdDeploymentSpec {
         let resource_requirements_string = hoprd_deployment_spec
             .resources
             .as_ref()
-            .unwrap_or(&default_deployment_spec.resources.as_ref().unwrap());
+            .unwrap_or(default_deployment_spec.resources.as_ref().unwrap());
         let resource_requirements: ResourceRequirements =
             serde_yaml::from_str(resource_requirements_string).unwrap();
         resource_requirements

@@ -96,7 +96,7 @@ pub async fn build_deployment_spec(labels: BTreeMap<String, String>, hoprd_spec:
     // ));
     let volume_mounts: Option<Vec<VolumeMount>> = build_volume_mounts();
     let port = hoprd_host.split(':').collect::<Vec<&str>>().get(1).unwrap().to_string().parse::<i32>().unwrap();
-    let encoded_configuration = general_purpose::STANDARD.encode(hoprd_spec.config.to_string());
+    let encoded_configuration = general_purpose::STANDARD.encode(&hoprd_spec.config);
 
     DeploymentSpec {
             replicas: Some(replicas),
@@ -136,7 +136,7 @@ pub async fn build_deployment_spec(labels: BTreeMap<String, String>, hoprd_spec:
                         image: Some(image),
                         image_pull_policy: Some("Always".to_owned()),
                         ports: Some(build_ports(port)),
-                        env: Some(build_env_vars(&identity_pool, &identity_hoprd, hoprd_host)),
+                        env: Some(build_env_vars(&identity_pool, identity_hoprd, hoprd_host)),
                         // command: Some(vec!["/bin/bash".to_owned(), "-c".to_owned()]),
                         // args: Some(vec!["sleep 99999999".to_owned()]),
                         // liveness_probe,
@@ -168,7 +168,7 @@ pub async fn modify_deployment(context_data: Arc<ContextData>, deployment_name: 
     let identity_pool: IdentityPool = identity_hoprd.get_identity_pool(context_data.client.clone()).await.unwrap();
     let spec = build_deployment_spec(deployment.labels().to_owned(), hoprd_spec, identity_pool, identity_hoprd, &hoprd_host).await;
     let patch = &Patch::Merge(json!({ "spec": spec }));
-    api.patch(&deployment_name, &PatchParams::default(), patch).await
+    api.patch(deployment_name, &PatchParams::default(), patch).await
 }
 
 /// Deletes an existing deployment.
@@ -180,10 +180,10 @@ pub async fn modify_deployment(context_data: Arc<ContextData>, deployment_name: 
 ///
 pub async fn delete_depoyment(client: Client, name: &str, namespace: &str) -> Result<(), Error> {
     let api: Api<Deployment> = Api::namespaced(client, namespace);
-    if let Some(deployment) = api.get_opt(&name).await? {
+    if let Some(deployment) = api.get_opt(name).await? {
         let uid = deployment.metadata.uid.unwrap();
         api.delete(name, &DeleteParams::default()).await?;
-        await_condition(api, &name.to_owned(), conditions::is_deleted(&uid)).await.unwrap();
+        await_condition(api, name, conditions::is_deleted(&uid)).await.unwrap();
         Ok(info!("Deployment {name} successfully deleted"))
     } else {
         Ok(info!("Deployment {name} in namespace {namespace} about to delete not found"))
@@ -192,18 +192,15 @@ pub async fn delete_depoyment(client: Client, name: &str, namespace: &str) -> Re
 
 /// Builds the struct VolumeMount to be attached into the Container
 fn build_volume_mounts() -> Option<Vec<VolumeMount>> {
-    let mut volume_mounts = Vec::with_capacity(2);
-    volume_mounts.push(VolumeMount {
+    Some(vec![VolumeMount {
         name: "hoprd-identity".to_owned(),
         mount_path: "/app/hoprd-identity".to_owned(),
         ..VolumeMount::default()
-    });
-    volume_mounts.push(VolumeMount {
+    }, VolumeMount {
         name: "hoprd-db".to_owned(),
         mount_path: "/app/hoprd-db".to_owned(),
         ..VolumeMount::default()
-    });
-    return Some(volume_mounts);
+    }])
 }
 
 /// Builds the struct Volume to be included as part of the PodSpec
@@ -211,53 +208,43 @@ fn build_volume_mounts() -> Option<Vec<VolumeMount>> {
 /// # Arguments
 /// - `secret` - Secret struct used to build the volume for HOPRD_IDENTITY path
 async fn build_volumes(pvc_name: &String) -> Vec<Volume> {
-    let mut volumes = Vec::with_capacity(2);
-    volumes.push(Volume {
+    vec![Volume {
         name: "hoprd-identity".to_owned(),
         empty_dir: Some(EmptyDirVolumeSource::default()),
         ..Volume::default()
-    });
-
-    volumes.push(Volume {
+    },Volume {
         name: "hoprd-db".to_owned(),
         persistent_volume_claim: Some(PersistentVolumeClaimVolumeSource {
             claim_name: pvc_name.to_owned(),
             read_only: Some(false),
         }),
         ..Volume::default()
-    });
-    return volumes;
+    }]
 }
 
 /// Build struct ContainerPort
 fn build_ports(p2p_port: i32) -> Vec<ContainerPort> {
-    let mut container_ports = Vec::with_capacity(3);
-
-    container_ports.push(ContainerPort {
+    vec![ContainerPort {
         container_port: 3001,
         name: Some("api".to_owned()),
         protocol: Some("TCP".to_owned()),
         ..ContainerPort::default()
-    });
-    container_ports.push(ContainerPort {
+    }, ContainerPort {
         container_port: 8080,
         name: Some("heatlh".to_owned()),
         protocol: Some("TCP".to_owned()),
         ..ContainerPort::default()
-    });
-    container_ports.push(ContainerPort {
+    }, ContainerPort {
         container_port: p2p_port,
         name: Some("p2p-tcp".to_owned()),
         protocol: Some("TCP".to_owned()),
         ..ContainerPort::default()
-    });
-    container_ports.push(ContainerPort {
+    }, ContainerPort {
         container_port: p2p_port,
         name: Some("p2p-udp".to_owned()),
         protocol: Some("UDP".to_owned()),
         ..ContainerPort::default()
-    });
-    return container_ports;
+    }]
 }
 
 ///Build struct environment variable
@@ -270,7 +257,7 @@ fn build_env_vars(
     let mut env_vars = build_secret_env_var(identity_pool);
     env_vars.extend_from_slice(&build_crd_env_var(identity_pool, identity_hoprd));
     env_vars.extend_from_slice(&build_default_env_var(hoprd_host));
-    return env_vars;
+    env_vars
 }
 
 /// Build environment variables from secrets
@@ -278,9 +265,7 @@ fn build_env_vars(
 /// # Arguments
 /// - `secret` - Secret struct used to build HOPRD_PASSWORD and HOPRD_API_TOKEN
 fn build_secret_env_var(identity_pool: &IdentityPool) -> Vec<EnvVar> {
-    let mut env_vars = Vec::with_capacity(2);
-
-    env_vars.push(EnvVar {
+    vec![EnvVar {
         name: constants::HOPRD_PASSWORD.to_owned(),
         value_from: Some(EnvVarSource {
             secret_key_ref: Some(SecretKeySelector {
@@ -291,9 +276,7 @@ fn build_secret_env_var(identity_pool: &IdentityPool) -> Vec<EnvVar> {
             ..EnvVarSource::default()
         }),
         ..EnvVar::default()
-    });
-
-    env_vars.push(EnvVar {
+    }, EnvVar {
         name: constants::HOPRD_API_TOKEN.to_owned(),
         value_from: Some(EnvVarSource {
             secret_key_ref: Some(SecretKeySelector {
@@ -304,8 +287,7 @@ fn build_secret_env_var(identity_pool: &IdentityPool) -> Vec<EnvVar> {
             ..EnvVarSource::default()
         }),
         ..EnvVar::default()
-    });
-    return env_vars;
+    }]
 }
 
 /// Build environment variables from CRD
@@ -313,89 +295,68 @@ fn build_secret_env_var(identity_pool: &IdentityPool) -> Vec<EnvVar> {
 /// # Arguments
 /// - `hoprd_spec` - Details about the hoprd configuration node
 fn build_crd_env_var(identity_pool: &IdentityPool, identity_hoprd: &IdentityHoprd) -> Vec<EnvVar> {
-    let mut env_vars = Vec::with_capacity(1);
-
-    env_vars.push(EnvVar {
+    vec![EnvVar {
         name: constants::HOPRD_CONFIGURATION_FILE_PATH.to_owned(),
         value: Some("/app/hoprd-identity/config.yaml".to_owned()),
         ..EnvVar::default()
-    });
-
-    env_vars.push(EnvVar {
+    }, EnvVar {
         name: constants::HOPRD_NETWORK.to_owned(),
         value: Some(identity_pool.spec.network.to_owned()),
         ..EnvVar::default()
-    });
-
-    env_vars.push(EnvVar {
+    }, EnvVar {
         name: constants::HOPRD_SAFE_ADDRESS.to_owned(),
         value: Some(identity_hoprd.spec.safe_address.to_owned()),
         ..EnvVar::default()
-    });
-
-    env_vars.push(EnvVar {
+    }, EnvVar {
         name: constants::HOPRD_MODULE_ADDRESS.to_owned(),
         value: Some(identity_hoprd.spec.module_address.to_owned()),
         ..EnvVar::default()
-    });
-
-    env_vars.push(EnvVar {
+    }, EnvVar {
         name: constants::HOPRD_ANNOUNCE.to_owned(),
         value: Some("true".to_owned()),
         ..EnvVar::default()
-    });
+    }]
 
-    return env_vars;
 }
 
 /// Build default environment variables
 ///
 fn build_default_env_var(hoprd_host: &String) -> Vec<EnvVar> {
-    let mut env_vars = Vec::with_capacity(7);
-    env_vars.push(EnvVar {
+    vec![EnvVar {
         name: "DEBUG".to_owned(),
         value: Some("hopr*".to_owned()),
         ..EnvVar::default()
-    });
-    env_vars.push(EnvVar {
+    }, EnvVar {
         name: constants::HOPRD_IDENTITY.to_owned(),
         value: Some("/app/hoprd-identity/.hopr-id".to_owned()),
         ..EnvVar::default()
-    });
-    env_vars.push(EnvVar {
+    }, EnvVar {
         name: constants::HOPRD_DATA.to_owned(),
         value: Some("/app/hoprd-db".to_owned()),
         ..EnvVar::default()
-    });
-    env_vars.push(EnvVar {
+    }, EnvVar {
         name: constants::HOPRD_HOST.to_owned(),
         value: Some(hoprd_host.to_owned()),
         ..EnvVar::default()
-    });
-    env_vars.push(EnvVar {
+    }, EnvVar {
         name: constants::HOPRD_API.to_owned(),
         value: Some("true".to_owned()),
         ..EnvVar::default()
-    });
-    env_vars.push(EnvVar {
+    }, EnvVar {
         name: constants::HOPRD_API_HOST.to_owned(),
         value: Some("0.0.0.0".to_owned()),
         ..EnvVar::default()
-    });
-    env_vars.push(EnvVar {
+    }, EnvVar {
         name: constants::HOPRD_INIT.to_owned(),
         value: Some("true".to_owned()),
         ..EnvVar::default()
-    });
-    env_vars.push(EnvVar {
+    }, EnvVar {
         name: constants::HOPRD_HEALTH_CHECK.to_owned(),
         value: Some("true".to_owned()),
         ..EnvVar::default()
-    });
-    env_vars.push(EnvVar {
+    }, EnvVar {
         name: constants::HOPRD_HEALTH_CHECK_HOST.to_owned(),
         value: Some("0.0.0.0".to_owned()),
         ..EnvVar::default()
-    });
-    return env_vars;
+    }]
 }

@@ -27,8 +27,7 @@ impl ContextData {
     pub async fn new(client: Client) -> Self {
         let operator_environment = env::var(constants::OPERATOR_ENVIRONMENT).unwrap();
         let config_path = if operator_environment.eq("production") {
-            let path = "/app/config/config.yaml".to_owned();
-            path
+            "/app/config/config.yaml".to_owned()
         } else {
             let mut path = env::current_dir().as_ref().unwrap().to_str().unwrap().to_owned();
             path.push_str(&format!("/test-data/sample_config-{operator_environment}.yaml"));
@@ -102,11 +101,11 @@ impl State {
     }
 
     pub fn get_identity_pool(&self, namespace: &String, identity_pool_name: &String) -> Option<Arc<IdentityPool>> {
-        self.identity_pool.get(&format!("{}-{}",namespace, identity_pool_name)).map(|x| x.clone())
+        self.identity_pool.get(&format!("{}-{}",namespace, identity_pool_name)).cloned()
     }
 
     pub fn update_identity_pool(&mut self, identity_pool: IdentityPool) {
-        self.remove_identity_pool(&identity_pool.metadata.namespace.as_ref().unwrap(), &identity_pool.metadata.name.as_ref().unwrap());
+        self.remove_identity_pool(identity_pool.metadata.namespace.as_ref().unwrap(), identity_pool.metadata.name.as_ref().unwrap());
         self.add_identity_pool(identity_pool);
     }
 

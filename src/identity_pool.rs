@@ -223,7 +223,7 @@ impl IdentityPool {
         let identity_pool_name: String = self.name_any();
 
         let api: Api<CronJob> = Api::namespaced(context_data.client.clone(), &identity_pool_namespace);
-        if let Some(_) = api.get_opt(format!("auto-funding-{}", identity_pool_name).as_str()).await? {
+        if (api.get_opt(format!("auto-funding-{}", identity_pool_name).as_str()).await?).is_some() {
             if self.spec.funding.is_none() {
                 info!("Deleting previous Cronjob {identity_pool_name} in namespace {identity_pool_namespace}");
                 identity_pool_cronjob_faucet::delete_cron_job(context_data.client.clone(), &identity_pool_namespace, &identity_pool_name).await.expect("Could not delete cronjob");
@@ -308,7 +308,7 @@ impl IdentityPool {
     pub fn get_checksum(&self) -> String {
         let mut hasher: DefaultHasher = DefaultHasher::new();
         self.spec.clone().hash(&mut hasher);
-        return hasher.finish().to_string();
+        hasher.finish().to_string()
     }
 
     /// Updates the status of IdentityPool
@@ -332,7 +332,7 @@ impl IdentityPool {
                 } else {
                     identity_pool_status.phase = IdentityPoolPhaseEnum::OutOfSync;
                 }
-                identity_pool_status.size = identity_pool_status.size + 1
+                identity_pool_status.size += 1
             } else if phase.eq(&IdentityPoolPhaseEnum::IdentityDeleted) {
                 if (identity_pool_status.size - identity_pool_status.locked - 1)
                     >= self.spec.min_ready_identities
@@ -341,7 +341,7 @@ impl IdentityPool {
                 } else {
                     identity_pool_status.phase = IdentityPoolPhaseEnum::OutOfSync;
                 }
-                identity_pool_status.size = identity_pool_status.size - 1
+                identity_pool_status.size -= 1
             };
 
             if phase.eq(&IdentityPoolPhaseEnum::Locked) {
@@ -352,7 +352,7 @@ impl IdentityPool {
                 } else {
                     identity_pool_status.phase = IdentityPoolPhaseEnum::OutOfSync;
                 }
-                identity_pool_status.locked = identity_pool_status.locked + 1
+                identity_pool_status.locked += 1
             } else if phase.eq(&IdentityPoolPhaseEnum::Unlocked) {
                 if (identity_pool_status.size - identity_pool_status.locked + 1)
                     >= self.spec.min_ready_identities
@@ -361,7 +361,7 @@ impl IdentityPool {
                 } else {
                     identity_pool_status.phase = IdentityPoolPhaseEnum::OutOfSync;
                 }
-                identity_pool_status.locked = identity_pool_status.locked - 1
+                identity_pool_status.locked -= - 1
             };
             let patch = Patch::Merge(json!({
                     "status": identity_pool_status
@@ -380,10 +380,10 @@ impl IdentityPool {
     pub async fn get_pool_identities(&self, client: Client) -> Vec<IdentityHoprd> {
         let api: Api<IdentityHoprd> = Api::namespaced(client,&self.namespace().unwrap().to_owned());
         let namespace_identities = api.list(&ListParams::default()).await.expect("Could not list namespace identities");
-        let pool_identities: Vec<IdentityHoprd>  = namespace_identities.iter().cloned()
-            .filter(|identity| {
+        let pool_identities: Vec<IdentityHoprd>  = namespace_identities.iter()
+            .filter(|&identity| {
                 identity.metadata.owner_references.as_ref().unwrap().first().unwrap().name.eq(&self.name_any())
-            }).collect();
+            }).cloned().collect();
         pool_identities
     }
 
@@ -406,15 +406,15 @@ impl IdentityPool {
                 }
             },
             None => { // No identity has been provided
-                let ready_pool_identity: Option<IdentityHoprd> = pool_identities.iter().cloned()
-                .find(|identity| identity.status.as_ref().unwrap().phase.eq(&IdentityHoprdPhaseEnum::Ready));
+                let ready_pool_identity: Option<IdentityHoprd> = pool_identities.iter()
+                .find(|&identity| identity.status.as_ref().unwrap().phase.eq(&IdentityHoprdPhaseEnum::Ready)).cloned();
                 if ready_pool_identity.is_none() {
                     warn!("There are no identities ready to be used in this pool {}", self.name_any()); 
                 }
                 ready_pool_identity
             }
         };
-        return Ok(identity)
+        Ok(identity)
 
     }
 
@@ -433,7 +433,7 @@ impl IdentityPool {
         let lp = ListParams::default().labels(&label_selector);
         let jobs = api.list(&lp).await.unwrap().items;
         let active_jobs: Vec<&Job> = jobs.iter().filter(|&job| job.status.as_ref().unwrap().active.is_some()).collect();
-        Ok(active_jobs.len() > 0)
+        Ok(!active_jobs.is_empty())
     }
 
     async fn create_new_identity(&self, context_data: Arc<ContextData>) -> Result<(), Error> {

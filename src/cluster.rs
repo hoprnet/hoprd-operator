@@ -6,11 +6,9 @@ use crate::{utils, resource_generics};
 use crate::{constants, context_data::ContextData, hoprd::Hoprd};
 use chrono::Utc;
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::OwnerReference;
-use kube::api::{DeleteParams, ListParams, PostParams};
+use kube::api::{ ListParams, PostParams};
 use kube::core::ObjectMeta;
-use kube::runtime::conditions;
 use kube::Resource;
-use kube::runtime::wait::await_condition;
 use kube::{
     api::{Api, Patch, PatchParams, ResourceExt},
     client::Client,
@@ -147,8 +145,7 @@ impl ClusterHoprd {
             context_data.send_event(self,ClusterHoprdEventEnum::Ready, None).await;
             self.update_status(context_data.clone(), ClusterHoprdPhaseEnum::Ready).await?;
             warn!("Detected a change in ClusterHoprd {cluster_hoprd_name} while was in Failed phase. Automatically recovering to a Ready phase");
-        } else {
-            if self.annotations().contains_key(constants::ANNOTATION_LAST_CONFIGURATION) {
+        } else if self.annotations().contains_key(constants::ANNOTATION_LAST_CONFIGURATION) {
                 let previous_config_text: String = self.annotations().get_key_value(constants::ANNOTATION_LAST_CONFIGURATION).unwrap().1.parse().unwrap();
                 match serde_json::from_str::<ClusterHoprd>(&previous_config_text) {
                     Ok(previous_cluster_hoprd) => {
@@ -174,7 +171,6 @@ impl ClusterHoprd {
                 self.update_status(context_data.clone(), ClusterHoprdPhaseEnum::Failed).await?;
                 error!("Could not modify ClusterHoprd {cluster_hoprd_name} because cannot recover last configuration");
             }
-        }
         Ok(Action::requeue(Duration::from_secs(constants::RECONCILE_FREQUENCY)))
     }
 
@@ -215,18 +211,22 @@ impl ClusterHoprd {
             self.update_status(context_data.clone(), ClusterHoprdPhaseEnum::Scaling).await?;
             let current_unsynched_nodes = self.spec.replicas - self.status.as_ref().unwrap().running_nodes;
             info!("ClusterHoprd {cluster_hoprd_name} in namespace {hoprd_namespace} is not scaled");
-            if current_unsynched_nodes > 0 {
-                self.create_node(context_data.clone()).await.expect("Could not scale up cluster");
-            } else if current_unsynched_nodes < 0 {
-                self.delete_node(context_data.clone()).await.expect("Could not scale down cluster");
-            } else {
-                context_data.send_event(self, ClusterHoprdEventEnum::Ready, None).await;
-                self.update_status(context_data.clone(), ClusterHoprdPhaseEnum::Ready).await?;
-            };
-            return Ok(Action::requeue(Duration::from_secs(constants::RECONCILE_FREQUENCY)))
+            match current_unsynched_nodes {
+                1..=i32::MAX => {
+                    self.create_node(context_data.clone()).await.expect("Could not scale up cluster");
+                },
+                i32::MIN..=-1=> {
+                    self.delete_node(context_data.clone()).await.expect("Could not scale down cluster");
+                },
+                0 => {
+                    context_data.send_event(self, ClusterHoprdEventEnum::Ready, None).await;
+                    self.update_status(context_data.clone(), ClusterHoprdPhaseEnum::Ready).await?;
+                }
+            }
+            Ok(Action::requeue(Duration::from_secs(constants::RECONCILE_FREQUENCY)))
         } else {
             info!("ClusterHoprd {cluster_hoprd_name} in namespace {hoprd_namespace} is already being scaling");
-            return Ok(Action::await_change())
+            Ok(Action::await_change())
         }
     }
 
@@ -263,7 +263,7 @@ impl ClusterHoprd {
         let mut cluster_hoprd_status = self
             .status
             .as_ref()
-            .unwrap_or(&&ClusterHoprdStatus::default())
+            .unwrap_or(&ClusterHoprdStatus::default())
             .to_owned();
 
         let api: Api<ClusterHoprd> = Api::namespaced(client.clone(), &hoprd_namespace.to_owned());
@@ -380,7 +380,7 @@ impl ClusterHoprd {
     pub fn get_checksum(&self) -> String {
         let mut hasher: DefaultHasher = DefaultHasher::new();
         self.spec.clone().hash(&mut hasher);
-        return hasher.finish().to_string();
+        hasher.finish().to_string()
     }
 
     /// Modifies a specific hoprd resource

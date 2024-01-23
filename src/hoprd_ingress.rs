@@ -83,13 +83,11 @@ pub async fn create_ingress(
                         path_type: "ImplementationSpecific".to_string(),
                         ..HTTPIngressPath::default()
                     }],
-                }),
-                ..IngressRule::default()
+                })
             }]),
             tls: Some(vec![IngressTLS {
                 hosts: Some(vec![hostname.to_owned()]),
-                secret_name: Some(format!("{}-tls", service_name)),
-                ..IngressTLS::default()
+                secret_name: Some(format!("{}-tls", service_name))
             }]),
             ..IngressSpec::default()
         }),
@@ -110,10 +108,10 @@ pub async fn create_ingress(
 ///
 pub async fn delete_ingress(client: Client, name: &str, namespace: &str) -> Result<(), Error> {
     let api: Api<Ingress> = Api::namespaced(client, namespace);
-    if let Some(ingress) = api.get_opt(&name).await? {
+    if let Some(ingress) = api.get_opt(name).await? {
         let uid = ingress.metadata.uid.unwrap();
         api.delete(name, &DeleteParams::default()).await?;
-        await_condition(api, &name.to_owned(), conditions::is_deleted(&uid))
+        await_condition(api, name, conditions::is_deleted(&uid))
             .await
             .unwrap();
         Ok(info!("Ingress {name} successfully deleted"))
@@ -145,18 +143,14 @@ pub async fn open_port(
         Ok(_) => {}
         Err(error) => {
             error!("Could not open Nginx tcp port: {:?}", error);
-            return Err(HoprError::HoprdConfigError(
-                format!("Could not open Nginx tcp port").to_owned(),
-            ));
+            return Err(HoprError::HoprdConfigError("Could not open Nginx tcp port".to_string()));
         }
     };
     match api.patch("ingress-nginx-udp", &pp, &patch.clone()).await {
         Ok(_) => {}
         Err(error) => {
             error!("Could not open Nginx udp port: {:?}", error);
-            return Err(HoprError::HoprdConfigError(
-                format!("Could not open Nginx udp port").to_owned(),
-            ));
+            return Err(HoprError::HoprdConfigError("Could not open Nginx udp port".to_string()));
         }
     };
     info!("Nginx p2p port {port} for Hoprd node {service_name} opened");
@@ -164,7 +158,7 @@ pub async fn open_port(
 }
 
 async fn get_port(client: Client, ingress_config: &IngressConfig) -> Result<i32, HoprError> {
-    let api: Api<ConfigMap> = Api::namespaced(client, &ingress_config.namespace.as_ref().unwrap());
+    let api: Api<ConfigMap> = Api::namespaced(client, ingress_config.namespace.as_ref().unwrap());
     if let Some(config_map) = api.get_opt("ingress-nginx-tcp").await? {
         let data = config_map.data.unwrap();
         let min_port = ingress_config
@@ -190,15 +184,11 @@ async fn get_port(client: Client, ingress_config: &IngressConfig) -> Result<i32,
             Ok(port) => Ok(port),
             Err(error) => {
                 error!("Could not parse port number: {:?}", error);
-                Err(HoprError::HoprdConfigError(
-                    format!("Could not parse port number").to_owned(),
-                ))
+                Err(HoprError::HoprdConfigError("Could not parse port number".to_string()))
             }
         }
     } else {
-        Err(HoprError::HoprdConfigError(
-            format!("Could not get new free port").to_owned(),
-        ))
+        Err(HoprError::HoprdConfigError("Could not get new free port".to_string()))
     }
 }
 
@@ -217,7 +207,7 @@ fn find_next_port(ports: Vec<&str>, min_port: Option<&String>) -> String {
             return (ports[i - 1].parse::<i32>().unwrap() + 1).to_string();
         }
     }
-    return (ports[ports.len() - 1].parse::<i32>().unwrap() + 1).to_string();
+    (ports[ports.len() - 1].parse::<i32>().unwrap() + 1).to_string()
 }
 
 /// Creates a new Ingress for accessing the hoprd node,
@@ -254,9 +244,7 @@ pub async fn close_port(
         Ok(_) => {}
         Err(error) => {
             error!("Could not close Nginx tcp-port: {:?}", error);
-            return Err(HoprError::HoprdConfigError(
-                format!("Could not close Nginx tcp-port").to_owned(),
-            ));
+            return Err(HoprError::HoprdConfigError("Could not close Nginx tcp-port".to_string()));
         }
     };
 
@@ -282,9 +270,7 @@ pub async fn close_port(
         Ok(_) => {}
         Err(error) => {
             error!("Could not close Nginx udp-port: {:?}", error);
-            return Err(HoprError::HoprdConfigError(
-                format!("Could not close Nginx udp-port").to_owned(),
-            ));
+            return Err(HoprError::HoprdConfigError("Could not close Nginx udp-port".to_string()));
         }
     };
     info!("Nginx p2p port for Hoprd node {service_name} have been closed");

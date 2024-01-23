@@ -35,7 +35,7 @@ pub async fn delete_finalizer<K : kube::Resource<Scope = NamespaceResourceScope,
              "finalizers": null
          }
      }));
-     if let Some(_) = api.get_opt(&name).await.unwrap_or(None) {
+     if api.get_opt(&name).await.unwrap_or(None).is_some() {
          match api.patch(&name, &PatchParams::default(), &patch).await
          {
              Ok(_hopr) => (),

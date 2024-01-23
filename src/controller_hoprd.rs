@@ -69,14 +69,14 @@ fn determine_action(hoprd: &Hoprd) -> HoprdAction {
 }
 
 async fn reconciler(hoprd: Arc<Hoprd>, context: Arc<ContextData>) -> Result<Action, Error> {
-    return match determine_action(&hoprd) {
+    match determine_action(&hoprd) {
         HoprdAction::Create => hoprd.create(context.clone()).await,
         HoprdAction::Modify => hoprd.modify(context.clone()).await,
         HoprdAction::Delete => hoprd.delete(context.clone()).await,
         HoprdAction::NoOp => Ok(Action::requeue(Duration::from_secs(
             constants::RECONCILE_FREQUENCY,
         ))),
-    };
+    }
 }
 
 /// Actions to be taken when a reconciliation fails - for whatever reason.

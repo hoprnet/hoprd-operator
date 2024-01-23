@@ -4,17 +4,11 @@ use std::collections::BTreeMap;
 pub fn common_lables(name: String, instance: Option<String>, component: Option<String>) -> BTreeMap<String, String> {
     let mut labels: BTreeMap<String, String> = BTreeMap::new();
     labels.insert(constants::LABEL_KUBERNETES_NAME.to_owned(), name);
-    match instance {
-        Some(instance) => {
-            labels.insert(constants::LABEL_KUBERNETES_INSTANCE.to_owned(), instance);
-        }
-        None => {}
+    if let Some(instance) = instance {
+        labels.insert(constants::LABEL_KUBERNETES_INSTANCE.to_owned(), instance);
     }
-    match component {
-        Some(component) => {
-            labels.insert(constants::LABEL_KUBERNETES_COMPONENT.to_owned(), component);
-        }
-        None => {}
+    if let Some(component) = component {
+        labels.insert(constants::LABEL_KUBERNETES_COMPONENT.to_owned(), component);
     }
-    return labels;
+    labels
 }

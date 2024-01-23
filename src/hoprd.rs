@@ -1,12 +1,11 @@
-use crate::cluster::ClusterHoprdPhaseEnum;
-use crate::events::{HoprdEventEnum, ClusterHoprdEventEnum, IdentityHoprdEventEnum, IdentityPoolEventEnum};
+use crate::events::{HoprdEventEnum,  IdentityHoprdEventEnum, IdentityPoolEventEnum};
 use crate::resource_generics;
 use crate::hoprd_deployment_spec::HoprdDeploymentSpec;
 use crate::identity_hoprd::{IdentityHoprd, IdentityHoprdPhaseEnum};
 use crate::identity_pool::{IdentityPool, IdentityPoolPhaseEnum};
 use crate::model::Error;
 use crate::{
-    cluster::ClusterHoprd, constants, context_data::ContextData, hoprd_deployment, hoprd_ingress,
+    constants, context_data::ContextData, hoprd_deployment, hoprd_ingress,
     hoprd_service
 };
 use chrono::Utc;
@@ -130,7 +129,7 @@ impl Hoprd {
         {
             resource_generics::add_finalizer(client.clone(), self).await;
             let p2p_port = hoprd_ingress::open_port(client.clone(),&hoprd_namespace,&hoprd_name,&context_data.config.ingress).await.unwrap();
-            hoprd_deployment::create_deployment(context_data.clone(),&self,&identity,p2p_port,context_data.config.ingress.to_owned()).await?;
+            hoprd_deployment::create_deployment(context_data.clone(),self,&identity,p2p_port,context_data.config.ingress.to_owned()).await?;
             match self.wait_deployment(client.clone()).await {
                 Ok(()) =>  {
                     hoprd_service::create_service(context_data.clone(), &hoprd_name, &hoprd_namespace, &self.spec.identity_pool_name, p2p_port, owner_reference.to_owned()).await?;
@@ -166,23 +165,20 @@ impl Hoprd {
             }           
             warn!("Detected a change in Hoprd {hoprd_name} while was in Failed phase. Automatically recovering to a Running/Stopped phase");
 
-        } else {
-            if self.annotations().contains_key(constants::ANNOTATION_LAST_CONFIGURATION) {
+        } else  if self.annotations().contains_key(constants::ANNOTATION_LAST_CONFIGURATION) {
                 let previous_hoprd_text: String = self.annotations().get_key_value(constants::ANNOTATION_LAST_CONFIGURATION).unwrap().1.parse().unwrap();
                 match serde_json::from_str::<Hoprd>(&previous_hoprd_text) {
                     Ok(previous_hoprd) => {
                         if self.changed_inmutable_fields(&previous_hoprd.spec) {
                             context_data.send_event(self, HoprdEventEnum::Failed,None).await;
                             self.update_status(client.clone(), HoprdPhaseEnum::Failed, None).await?;
-                        } else {
-                            if let Some(identity) = self.get_identity(client.clone()).await? {
+                        } else if let Some(identity) = self.get_identity(client.clone()).await? {
                                 self.apply_modification(context_data.clone(), &identity).await?;
                             } else {
                                 error!("Hoprd node {hoprd_name} does not have a linked identity and is inconsistent");
                                 context_data.send_event(self, HoprdEventEnum::Failed, None).await;
                                 self.update_status(client.clone(), HoprdPhaseEnum::Failed, None).await?;
                             }
-                        }
                     },
                     Err(_err) => {
                         error!("Could not parse the last applied configuration of Hoprd {hoprd_name}");
@@ -195,7 +191,6 @@ impl Hoprd {
                 context_data.send_event(self, HoprdEventEnum::Failed, None).await;
                 self.update_status(client.clone(), HoprdPhaseEnum::Failed, None).await?;
             }
-        }
         Ok(Action::requeue(Duration::from_secs(constants::RECONCILE_FREQUENCY)))
     }
 
@@ -203,7 +198,7 @@ impl Hoprd {
         let client: Client = context_data.client.clone();
         let hoprd_namespace: String = self.namespace().unwrap();
         let hoprd_name: String = self.name_any();
-        hoprd_deployment::modify_deployment(context_data.clone(), &hoprd_name.to_owned(),&hoprd_namespace.to_owned(),&self.spec.to_owned(),&identity).await?;
+        hoprd_deployment::modify_deployment(context_data.clone(), &hoprd_name.to_owned(),&hoprd_namespace.to_owned(),&self.spec.to_owned(),identity).await?;
         match self.wait_deployment(context_data.client.clone()).await {
             Ok(()) =>  {
                 info!("Hoprd node {hoprd_name} in namespace {hoprd_namespace} has been successfully modified");
@@ -322,17 +317,17 @@ impl Hoprd {
     pub fn get_checksum(&self) -> String {
         let mut hasher: DefaultHasher = DefaultHasher::new();
         self.spec.clone().hash(&mut hasher);
-        return hasher.finish().to_string();
+        hasher.finish().to_string()
     }
 
     async fn get_identity(&self, client: Client) -> Result<Option<IdentityHoprd>, Error> {
         match &self.status {
             Some(status) => {
                 let api: Api<IdentityHoprd> = Api::namespaced(client.clone(), &self.namespace().unwrap());
-                return match status.to_owned().identity_name {
+                match status.to_owned().identity_name {
                     Some(identity_name) => Ok(api.get_opt(identity_name.as_str()).await.unwrap()),
                     None => Ok(None),
-                };
+                }
             }
             None => Ok(None)
         }

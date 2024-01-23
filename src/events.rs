@@ -106,14 +106,14 @@ impl ResourceEvent for ClusterHoprdEventEnum {
             ClusterHoprdEventEnum::Scaling => Event {
                 type_: EventType::Warning,
                 reason: "Scaling".to_string(),
-                note: Some(format!("ClusterHoprd is scaling")),
+                note: Some("ClusterHoprd is scaling".to_string()),
                 action: "ClusterHoprd is scaling to meet the required replicas".to_string(),
                 secondary: None,
             },
             ClusterHoprdEventEnum::Failed => Event {
                 type_: EventType::Warning,
                 reason: "Failed".to_string(),
-                note: Some(format!("ClusterHoprd is in failed status.")),
+                note: Some("ClusterHoprd is in failed status.".to_string()),
                 action: "ClusterHoprd configuration is corrupted".to_string(),
                 secondary: None,
             },

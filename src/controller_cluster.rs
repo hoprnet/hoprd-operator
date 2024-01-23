@@ -71,7 +71,7 @@ async fn reconciler(
     context: Arc<ContextData>,
 ) -> Result<Action, Error> {
     // Performs action as decided by the `determine_action` function.
-    return match determine_action(&cluster_hoprd) {
+    match determine_action(&cluster_hoprd) {
         ClusterHoprdAction::Create => cluster_hoprd.create(context.clone()).await,
         ClusterHoprdAction::Modify => cluster_hoprd.modify(context.clone()).await,
         ClusterHoprdAction::Delete => cluster_hoprd.delete(context.clone()).await,
@@ -80,7 +80,7 @@ async fn reconciler(
         ClusterHoprdAction::NoOp => Ok(Action::requeue(Duration::from_secs(
             constants::RECONCILE_FREQUENCY,
         ))),
-    };
+    }
 }
 
 /// Actions to be taken when a reconciliation fails - for whatever reason.

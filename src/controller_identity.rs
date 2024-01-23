@@ -64,7 +64,7 @@ async fn reconciler(identity_hoprd: Arc<IdentityHoprd>,context: Arc<ContextData>
     let mut identity_hoprd_cloned = identity_hoprd.clone();
     let identity_hoprd_mutable:  &mut IdentityHoprd = Arc::<IdentityHoprd>::make_mut(&mut identity_hoprd_cloned);
     // Performs action as decided by the `determine_action` function.
-    return match determine_action(&identity_hoprd_mutable) {
+    match determine_action(identity_hoprd_mutable) {
         IdentityHoprdAction::Create => identity_hoprd_mutable.create(context.clone()).await,
         IdentityHoprdAction::Modify => identity_hoprd_mutable.modify(context.clone()).await,
         IdentityHoprdAction::Delete => identity_hoprd_mutable.delete(context.clone()).await,
@@ -72,7 +72,7 @@ async fn reconciler(identity_hoprd: Arc<IdentityHoprd>,context: Arc<ContextData>
         IdentityHoprdAction::NoOp => Ok(Action::requeue(Duration::from_secs(
             constants::RECONCILE_FREQUENCY,
         ))),
-    };
+    }
 }
 
 /// Actions to be taken when a reconciliation fails - for whatever reason.

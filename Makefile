@@ -7,6 +7,11 @@ gcp-login: ## Login into GCP
 	gcloud auth configure-docker europe-west3-docker.pkg.dev
 	gcloud auth application-default print-access-token | helm registry login -u oauth2accesstoken --password-stdin https://europe-west3-docker.pkg.dev
 
+.PHONY: lint-rust
+lint-rust: ## run linter for Rust
+	cargo fmt --check
+	cargo clippy -- -Dwarnings
+
 build: ## Rust build
 	cargo build
 
