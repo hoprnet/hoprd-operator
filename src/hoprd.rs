@@ -235,13 +235,12 @@ impl Hoprd {
         hoprd_ingress::delete_ingress(client.clone(), &hoprd_name, &hoprd_namespace).await?;
         hoprd_service::delete_service(client.clone(), &hoprd_name, &hoprd_namespace).await?;
         hoprd_deployment::delete_depoyment(client.clone(), &hoprd_name, &hoprd_namespace).await.unwrap();
-        if let Some(identity) = self.get_identity(client.clone()).await.unwrap() {
+        if let Some(identity) = self.get_identity(client.clone()).await? {
             identity.unlock(context_data.clone()).await?;
         }
         // Once all the resources are successfully removed, remove the finalizer to make it possible
         // for Kubernetes to delete the `Hoprd` resource.
         context_data.send_event(self, HoprdEventEnum::Deleted, None).await;
-        self.notify_cluster(context_data.clone()).await.unwrap();        
         resource_generics::delete_finalizer(client.clone(), self).await;
         info!("Hoprd node {hoprd_name} in namespace {hoprd_namespace} has been successfully deleted");
         Ok(Action::await_change()) // Makes no sense to delete after a successful delete, as the resource is gone
@@ -318,24 +317,6 @@ impl Hoprd {
             Ok(_) => Ok(()),
             Err(error) => Ok(error!("Could not update status on node {hoprd_name}: {:?}",error))
         }
-    }
-
-    async fn notify_cluster(&self, context_data: Arc<ContextData>) -> Result<(), Error> {
-        if let Some(owner_reference) = self.owner_references().to_owned().first() {
-            let hoprd_namespace = self.metadata.namespace.as_ref().unwrap().to_owned();
-            let api: Api<ClusterHoprd> = Api::namespaced(context_data.client.clone(), &hoprd_namespace.to_owned());
-            if let Some(cluster) = api.get_opt(&owner_reference.name).await? {
-                let current_phase = cluster.to_owned().status.unwrap().phase;
-                if current_phase.ne(&ClusterHoprdPhaseEnum::Deleting) && current_phase.ne(&ClusterHoprdPhaseEnum::NotScaled) {
-                    context_data.send_event(&cluster, ClusterHoprdEventEnum::NodeDeleted, None).await;
-                    cluster.update_status(context_data.clone(), ClusterHoprdPhaseEnum::NodeDeleted).await.unwrap();
-                    info!("Notifying ClusterHoprd {} that hoprd node {} is being deleted", &owner_reference.name, self.name_any().to_owned())
-                }
-            } else {
-                debug!("ClusterHoprd {} not found", &owner_reference.name);
-            }
-        };
-        Ok(())
     }
 
     pub fn get_checksum(&self) -> String {

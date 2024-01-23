@@ -30,6 +30,10 @@ spec:
           type: string
           description: Hoprd phase
           jsonPath: .status.phase
+        - name: Version
+          type: string
+          description: Version
+          jsonPath: .spec.version
         - name: IdentityHoprd
           type: string
           description: Hoprd Name

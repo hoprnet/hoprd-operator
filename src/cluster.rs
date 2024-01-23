@@ -238,7 +238,7 @@ impl ClusterHoprd {
         self.update_status(context_data.clone(), ClusterHoprdPhaseEnum::Deleting).await?;
         context_data.send_event(self, ClusterHoprdEventEnum::Deleting, None).await;
         info!("Starting to delete ClusterHoprd {cluster_hoprd_name} from namespace {hoprd_namespace}");
-        self.delete_nodes(client.clone()).await.unwrap_or(());
+        self.delete_nodes(context_data.clone()).await.unwrap_or(());
         resource_generics::delete_finalizer(client.clone(), self).await;
         info!("ClusterHoprd {cluster_hoprd_name} in namespace {hoprd_namespace} has been successfully deleted");
         Ok(Action::await_change()) // Makes no sense to delete after a successful delete, as the resource is gone
@@ -336,9 +336,7 @@ impl ClusterHoprd {
         info!("Deleting node {} for cluster {}", node_name, cluster_name.to_owned());
         let api: Api<Hoprd> = Api::namespaced(context_data.client.clone(), &self.namespace().unwrap());
         if let Some(hoprd_node) = api.get_opt(&node_name).await? {
-            let uid = hoprd_node.metadata.uid.unwrap();
-            api.delete(&node_name, &DeleteParams::default()).await?;
-            await_condition(api, &node_name.to_owned(), conditions::is_deleted(&uid)).await.unwrap();
+            hoprd_node.delete(context_data.clone()).await?;
             info!("Node {} deleted for cluster {}", node_name, cluster_name.to_owned());
         };
         context_data.send_event(self, ClusterHoprdEventEnum::NodeDeleted, Some(node_name)).await;
@@ -410,17 +408,11 @@ impl ClusterHoprd {
     }
 
     // Delete hoprd nodes related to the cluster
-    async fn delete_nodes(&self, client: Client) -> Result<(), Error> {
-        let api: Api<Hoprd> = Api::namespaced(client.clone(), &self.namespace().unwrap());
-        let nodes = self.get_my_nodes(api.clone()).await.unwrap();
+    async fn delete_nodes(&self, context_data: Arc<ContextData>) -> Result<(), Error> {
+        let api: Api<Hoprd> = Api::namespaced(context_data.client.clone(), &self.namespace().unwrap());
+        let nodes = self.get_my_nodes(api.clone()).await?;
         for node in nodes {
-            let node_name = &node.name_any();
-            match api.delete(node_name, &DeleteParams::default()).await {
-                Ok(node_deleted) => {
-                    node_deleted.map_right(|s| info!("Deleted Node: {:?}", s));
-                }
-                Err(_error) => info!("The Hoprd node {:?} deletion failed", node.name_any())
-            };
+            node.delete(context_data.clone()).await?;
         }
         Ok(())
     }
