@@ -7,8 +7,7 @@ use crate::{identity_pool_service_account, identity_pool_service_monitor, utils,
 use chrono::Utc;
 use k8s_openapi::api::batch::v1::{Job, JobSpec, CronJob};
 use k8s_openapi::api::core::v1::{
-    Container, EmptyDirVolumeSource, EnvVar, EnvVarSource, PodSpec, PodTemplateSpec,
-    SecretKeySelector, Volume, VolumeMount,
+    Container, EmptyDirVolumeSource, EnvVar, EnvVarSource, PodSpec, PodTemplateSpec, Secret, SecretKeySelector, Volume, VolumeMount
 };
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::OwnerReference;
 use kube::api::{ListParams, PostParams};
@@ -141,8 +140,11 @@ impl IdentityPool {
         let client: Client = context_data.client.clone();
         let identity_pool_namespace: String = self.namespace().unwrap();
         let identity_pool_name: String = self.name_any();
-        let owner_references: Option<Vec<OwnerReference>> =
-            Some(vec![self.controller_owner_ref(&()).unwrap()]);
+        let owner_references: Option<Vec<OwnerReference>> = Some(vec![self.controller_owner_ref(&()).unwrap()]);
+        if ! self.check_wallet(client.clone()).await.unwrap() {
+            context_data.send_event(self, IdentityPoolEventEnum::Failed, None).await;
+            return Ok(Action::requeue(Duration::from_secs(constants::RECONCILE_FREQUENCY_ERROR)))
+        }
         info!("Starting to create IdentityPool {identity_pool_name} in namespace {identity_pool_namespace}");
         resource_generics::add_finalizer(client.clone(), self).await;
         identity_pool_service_monitor::create_service_monitor(context_data.clone(), &identity_pool_name, &identity_pool_namespace, &self.spec.secret_name, owner_references.to_owned()).await?;
@@ -167,9 +169,7 @@ impl IdentityPool {
         }
         info!("IdentityPool {identity_pool_name} in namespace {identity_pool_namespace} successfully created");
         context_data.state.write().await.add_identity_pool(self.clone());
-        Ok(Action::requeue(Duration::from_secs(
-            constants::RECONCILE_FREQUENCY,
-        )))
+        Ok(Action::requeue(Duration::from_secs(constants::RECONCILE_FREQUENCY)))
     }
 
     /// Handle the modification of IdentityPool resource
@@ -580,4 +580,29 @@ impl IdentityPool {
             Err(_error) => Err(Error::JobExecutionError(format!("Job timeout for {}", &job_name.to_owned()).to_owned()))
         }
     }
+
+    async fn check_wallet(&self, client: Client) -> Result<bool,Error> {
+        let api: Api<Secret> = Api::namespaced(client, &self.namespace().unwrap());
+        if let Some(wallet) = api.get_opt(&self.spec.secret_name).await? {
+            if let Some(wallet_data) = wallet.data {
+                if wallet_data.contains_key(constants::IDENTITY_POOL_WALLET_DEPLOYER_PRIVATE_KEY_REF_KEY) && 
+                    wallet_data.contains_key(constants::IDENTITY_POOL_IDENTITY_PASSWORD_REF_KEY) && 
+                    wallet_data.contains_key(constants::IDENTITY_POOL_API_TOKEN_REF_KEY) && 
+                    wallet_data.contains_key(constants::IDENTITY_POOL_METRICS_PASSWORD_REF_KEY) 
+                {
+                    Ok(true)
+                } else {
+                    error!("IdentityPool {} has a secret {} with some missing data", self.name_any(), self.spec.secret_name);
+                    Ok(false)
+                }
+            } else {
+                error!("IdentityPool {} has a secret {} with empty data", self.name_any(), self.spec.secret_name);
+                Ok(false)
+            }
+        } else {
+            error!("IdentityPool {} cannot find secret {} in namespace {}", self.name_any(), self.spec.secret_name, self.namespace().unwrap());
+            Ok(false)
+        }
+    }
+
 }

@@ -1,6 +1,6 @@
 use crate::events::{ IdentityHoprdEventEnum, IdentityPoolEventEnum};
 use crate::{identity_hoprd_persistence, resource_generics};
-use crate::identity_pool::{IdentityPool, IdentityPoolPhaseEnum};
+use crate::identity_pool::{IdentityPool, IdentityPoolPhaseEnum, IdentityPoolStatus};
 use crate::model::Error;
 use crate::{constants, context_data::ContextData};
 use chrono::Utc;
@@ -111,7 +111,10 @@ impl IdentityHoprd {
         let identity_namespace: String = self.namespace().unwrap();
         let identity_name: String = self.name_any();
         let identity_pool_name: String = self.spec.identity_pool_name.to_owned();
-
+        if ! self.check_identity_pool(client.clone()).await.unwrap() {
+            context_data.send_event(self, IdentityHoprdEventEnum::Failed, None).await;
+            return Ok(Action::requeue(Duration::from_secs(constants::RECONCILE_FREQUENCY_ERROR)))
+        }
         info!("Starting to create identity {identity_name} in namespace {identity_namespace}");
         resource_generics::add_finalizer(client.clone(), self).await;
         self.add_owner_reference(client.clone()).await?;
@@ -183,7 +186,7 @@ impl IdentityHoprd {
             warn!("Detected a change in IdentityHoprd {identity_name}. Automatically recovering to a Ready phase");
             Ok(Action::requeue(Duration::from_secs(constants::RECONCILE_FREQUENCY)))
         } else {
-            error!("The resource cannot be modified");
+            error!("The IdentityHoprd {} in namespace {} cannot be modified", self.name_any(), self.namespace().unwrap());
             Ok(Action::requeue(Duration::from_secs(constants::RECONCILE_FREQUENCY)))
         }
     }
@@ -316,4 +319,20 @@ impl IdentityHoprd {
         };
         Ok(())
     }
+
+    async fn check_identity_pool(&self, client: Client) -> Result<bool,Error> {
+        let api: Api<IdentityPool> = Api::namespaced(client, &self.namespace().unwrap());
+        if let Some(identity_pool) = api.get_opt(&self.spec.identity_pool_name).await? {
+            if identity_pool.status.is_some() && identity_pool.status.as_ref().unwrap().phase.eq(&IdentityPoolPhaseEnum::Ready) {
+                Ok(true)
+            } else {
+                error!("IdentityHoprd {} has an IdentityPool {} in namespace {} with status {:?}", self.name_any(), self.spec.identity_pool_name, self.namespace().unwrap(), identity_pool.status.as_ref().unwrap_or(&IdentityPoolStatus::default()));
+            Ok(false)
+            }
+        } else {
+            error!("IdentityHoprd {} cannot find IdentityPool {} in namespace {}", self.name_any(), self.spec.identity_pool_name, self.namespace().unwrap());
+            Ok(false)
+        }
+    }
+
 }

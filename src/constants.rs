@@ -1,5 +1,6 @@
 // Operator Constants
 pub const RECONCILE_FREQUENCY: u64 = 10;
+pub const RECONCILE_FREQUENCY_ERROR: u64 = 30;
 pub const OPERATOR_ENVIRONMENT: &str = "OPERATOR_ENVIRONMENT";
 pub const OPERATOR_FINALIZER: &str = "hoprds.hoprnet.org/finalizer";
 pub const OPERATOR_JOB_TIMEOUT: u64 = 300;
