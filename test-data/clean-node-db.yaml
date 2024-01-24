@@ -1,0 +1,30 @@
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: testing-pod
+  namespace:  hoprd-operator
+spec:
+  containers:
+  - image: ubuntu:latest
+    name: hoprd
+    command:
+    - /bin/sh
+    - -c
+    args:
+    - rm -rf /app/*
+    resources:
+      limits:
+        cpu: 500m
+        memory: 1000Mi
+      requests:
+        cpu: 100m
+        memory: 100Mi
+    volumeMounts:
+    - mountPath: /app
+      name: hoprd-data
+  volumes:
+  - name: hoprd-data
+    persistentVolumeClaim:
+      claimName: identity-pool-hoprd-operator-1 
+    

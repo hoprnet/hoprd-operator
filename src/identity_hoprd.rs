@@ -137,11 +137,12 @@ impl IdentityHoprd {
                 updated = true;
             }
         }
-        context_data.send_event(&self.get_identity_pool(client.clone()).await.unwrap(), IdentityPoolEventEnum::IdentityCreated, Some(identity_name)).await;
+        context_data.send_event(&self.get_identity_pool(client.clone()).await.unwrap(), IdentityPoolEventEnum::IdentityCreated, Some(identity_name.to_owned())).await;
         if updated {
             // These instructions need to be done out of the context_data lock
             context_data.send_event(self, IdentityHoprdEventEnum::Ready, None).await;
             self.update_phase(client.clone(), IdentityHoprdPhaseEnum::Ready, None).await?;
+            info!("IdentityHoprd {identity_name} in namespace {identity_namespace} successfully created");
         } else {
             error!("Identity pool {} not exists in namespace {}", identity_pool_name, &self.namespace().unwrap());
         }

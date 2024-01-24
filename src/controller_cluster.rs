@@ -41,7 +41,7 @@ enum ClusterHoprdAction {
 /// # Arguments
 /// - `cluster_hoprd`: A reference to `ClusterHoprd` being reconciled to decide next action upon.
 fn determine_action(cluster_hoprd: &ClusterHoprd) -> ClusterHoprdAction {
-    return if cluster_hoprd.meta().deletion_timestamp.is_some() {
+    return if cluster_hoprd.meta().deletion_timestamp.is_some() && cluster_hoprd.status.is_some() && cluster_hoprd.status.as_ref().unwrap().phase.ne (&ClusterHoprdPhaseEnum::Deleting){
         ClusterHoprdAction::Delete
     } else if cluster_hoprd
         .meta()

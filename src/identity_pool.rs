@@ -143,7 +143,7 @@ impl IdentityPool {
         let identity_pool_name: String = self.name_any();
         let owner_references: Option<Vec<OwnerReference>> =
             Some(vec![self.controller_owner_ref(&()).unwrap()]);
-        info!("Starting to create identity {identity_pool_name} in namespace {identity_pool_namespace}");
+        info!("Starting to create IdentityPool {identity_pool_name} in namespace {identity_pool_namespace}");
         resource_generics::add_finalizer(client.clone(), self).await;
         identity_pool_service_monitor::create_service_monitor(context_data.clone(), &identity_pool_name, &identity_pool_namespace, &self.spec.secret_name, owner_references.to_owned()).await?;
         identity_pool_service_account::create_rbac(context_data.clone(), &identity_pool_namespace, &identity_pool_name,owner_references.to_owned()).await?;
@@ -157,7 +157,6 @@ impl IdentityPool {
         // context_data.send_event(self, dentityPoolEventEnum::Initialized, None).await
         context_data.send_event(self, IdentityPoolEventEnum::Initialized, None).await;
         self.update_phase(context_data.client.clone(), IdentityPoolPhaseEnum::Initialized).await?;
-        info!("Identity {identity_pool_name} in namespace {identity_pool_namespace} has been successfully created");
         if self.spec.min_ready_identities == 0 {
             context_data.send_event(self, IdentityPoolEventEnum::Ready, None).await;
             self.update_phase(context_data.client.clone(), IdentityPoolPhaseEnum::Ready).await?;
@@ -166,6 +165,7 @@ impl IdentityPool {
             self.update_phase(context_data.client.clone(), IdentityPoolPhaseEnum::OutOfSync).await?;
             info!("Identity {identity_pool_name} in namespace {identity_pool_namespace} requires to create {} new identities", self.spec.min_ready_identities);
         }
+        info!("IdentityPool {identity_pool_name} in namespace {identity_pool_namespace} successfully created");
         context_data.state.write().await.add_identity_pool(self.clone());
         Ok(Action::requeue(Duration::from_secs(
             constants::RECONCILE_FREQUENCY,
@@ -325,48 +325,43 @@ impl IdentityPool {
             identity_pool_status.checksum = self.get_checksum();
             identity_pool_status.phase = phase;
             if phase.eq(&IdentityPoolPhaseEnum::IdentityCreated) {
-                if (identity_pool_status.size - identity_pool_status.locked + 1)
-                    >= self.spec.min_ready_identities
+                if (identity_pool_status.size - identity_pool_status.locked + 1) >= self.spec.min_ready_identities
                 {
                     identity_pool_status.phase = IdentityPoolPhaseEnum::Ready;
                 } else {
                     identity_pool_status.phase = IdentityPoolPhaseEnum::OutOfSync;
                 }
-                identity_pool_status.size += 1
+                identity_pool_status.size += 1;
             } else if phase.eq(&IdentityPoolPhaseEnum::IdentityDeleted) {
-                if (identity_pool_status.size - identity_pool_status.locked - 1)
-                    >= self.spec.min_ready_identities
+                if (identity_pool_status.size - identity_pool_status.locked - 1) >= self.spec.min_ready_identities
                 {
                     identity_pool_status.phase = IdentityPoolPhaseEnum::Ready;
                 } else {
                     identity_pool_status.phase = IdentityPoolPhaseEnum::OutOfSync;
                 }
-                identity_pool_status.size -= 1
+                identity_pool_status.size -= 1;
             };
 
             if phase.eq(&IdentityPoolPhaseEnum::Locked) {
-                if (identity_pool_status.size - identity_pool_status.locked - 1)
-                    >= self.spec.min_ready_identities
+                if (identity_pool_status.size - identity_pool_status.locked - 1) >= self.spec.min_ready_identities
                 {
                     identity_pool_status.phase = IdentityPoolPhaseEnum::Ready;
                 } else {
                     identity_pool_status.phase = IdentityPoolPhaseEnum::OutOfSync;
                 }
-                identity_pool_status.locked += 1
+                identity_pool_status.locked += 1;
             } else if phase.eq(&IdentityPoolPhaseEnum::Unlocked) {
-                if (identity_pool_status.size - identity_pool_status.locked + 1)
-                    >= self.spec.min_ready_identities
+                if (identity_pool_status.size - identity_pool_status.locked + 1) >= self.spec.min_ready_identities
                 {
                     identity_pool_status.phase = IdentityPoolPhaseEnum::Ready;
                 } else {
                     identity_pool_status.phase = IdentityPoolPhaseEnum::OutOfSync;
                 }
-                identity_pool_status.locked -= - 1
+                identity_pool_status.locked -= 1;
             };
             let patch = Patch::Merge(json!({
                     "status": identity_pool_status
             }));
-            
             match api.patch(&identity_hoprd_name, &PatchParams::default(), &patch).await {
                 Ok(_identity) => {
                     self.status = Some(identity_pool_status);

@@ -1,4 +1,5 @@
-use crate::events::{HoprdEventEnum,  IdentityHoprdEventEnum, IdentityPoolEventEnum};
+use crate::cluster::{ClusterHoprd, ClusterHoprdPhaseEnum};
+use crate::events::{ClusterHoprdEventEnum, HoprdEventEnum, IdentityHoprdEventEnum, IdentityPoolEventEnum};
 use crate::resource_generics;
 use crate::hoprd_deployment_spec::HoprdDeploymentSpec;
 use crate::identity_hoprd::{IdentityHoprd, IdentityHoprdPhaseEnum};
@@ -25,6 +26,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::collections::hash_map::DefaultHasher;
+use std::collections::BTreeMap;
 use std::fmt::{Display, Formatter};
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
@@ -185,7 +187,8 @@ impl Hoprd {
                         context_data.send_event(self, HoprdEventEnum::Failed, None).await;
                         self.update_status(client.clone(), HoprdPhaseEnum::Failed, None).await?;
                     }
-                };
+                }
+                self.update_last_configuration(context_data.client.clone()).await?;
             } else {
                 error!("Could not modify IdentityHoprd {hoprd_name} because cannot recover last configuration");
                 context_data.send_event(self, HoprdEventEnum::Failed, None).await;
@@ -222,7 +225,6 @@ impl Hoprd {
         let hoprd_namespace = self.namespace().unwrap();
         let client: Client = context_data.client.clone();
         context_data.send_event(self, HoprdEventEnum::Deleting, None).await;
-        self.update_status(client.clone(), HoprdPhaseEnum::Deleting, None).await?;
         info!("Starting to delete Hoprd node {hoprd_name} from namespace {hoprd_namespace}");
         // Deletes any subresources related to this `Hoprd` resources. If and only if all subresources
         // are deleted, the finalizer is removed and Kubernetes is free to remove the `Hoprd` resource.
@@ -236,6 +238,7 @@ impl Hoprd {
         // Once all the resources are successfully removed, remove the finalizer to make it possible
         // for Kubernetes to delete the `Hoprd` resource.
         context_data.send_event(self, HoprdEventEnum::Deleted, None).await;
+        self.notify_cluster(context_data.clone()).await.unwrap();
         resource_generics::delete_finalizer(client.clone(), self).await;
         info!("Hoprd node {hoprd_name} in namespace {hoprd_namespace} has been successfully deleted");
         Ok(Action::await_change()) // Makes no sense to delete after a successful delete, as the resource is gone
@@ -312,6 +315,49 @@ impl Hoprd {
             Ok(_) => Ok(()),
             Err(error) => Ok(error!("Could not update status on node {hoprd_name}: {:?}",error))
         }
+    }
+
+    async fn update_last_configuration(&self, client: Client) -> Result<(), Error> {
+        let api: Api<Hoprd> = Api::namespaced(client, &self.namespace().unwrap());
+        let mut cloned_hoprd = self.clone();
+        cloned_hoprd.status = None;
+        cloned_hoprd.metadata.managed_fields = None;
+        cloned_hoprd.metadata.creation_timestamp = None;
+        cloned_hoprd.metadata.finalizers = None;
+        cloned_hoprd.metadata.annotations = None;
+        let hoprd_last_configuration = serde_json::to_string(&cloned_hoprd).unwrap();
+        let mut annotations = BTreeMap::new();
+        annotations.insert(constants::ANNOTATION_LAST_CONFIGURATION.to_string(), hoprd_last_configuration);
+        let patch = Patch::Merge(json!({
+            "metadata": { 
+                "annotations": annotations 
+            }
+        }));
+        match api.patch(&self.name_any(), &PatchParams::default(), &patch).await
+        {
+            Ok(_cluster_hopr) => Ok(()),
+            Err(error) => Ok(error!("Could not update last configuration annotation on Hoprd {}: {:?}", self.name_any(), error))
+        }
+    }
+
+
+    async fn notify_cluster(&self, context_data: Arc<ContextData>) -> Result<(), Error> {
+        if let Some(owner_reference) = self.owner_references().to_owned().first() {
+            let hoprd_namespace = self.metadata.namespace.as_ref().unwrap().to_owned();
+            let api: Api<ClusterHoprd> = Api::namespaced(context_data.client.clone(), &hoprd_namespace.to_owned());
+            if let Some(cluster) = api.get_opt(&owner_reference.name).await? {
+                let current_phase = cluster.to_owned().status.unwrap().phase;
+                if current_phase.ne(&ClusterHoprdPhaseEnum::Deleting) && current_phase.ne(&ClusterHoprdPhaseEnum::NotScaled) && current_phase.ne(&ClusterHoprdPhaseEnum::Scaling) {
+                    debug!("Current Phase {} of {}", current_phase, self.name_any().to_owned());
+                    context_data.send_event(&cluster, ClusterHoprdEventEnum::NodeDeleted, None).await;
+                    cluster.update_status(context_data.clone(), ClusterHoprdPhaseEnum::NodeDeleted).await.unwrap();
+                    info!("Notifying ClusterHoprd {} that hoprd node {} is being deleted", &owner_reference.name, self.name_any().to_owned())
+                }
+            } else {
+                debug!("ClusterHoprd {} not found", &owner_reference.name);
+            }
+        };
+        Ok(())
     }
 
     pub fn get_checksum(&self) -> String {
