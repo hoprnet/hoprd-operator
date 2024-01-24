@@ -85,15 +85,9 @@ pub async fn build_deployment_spec(labels: BTreeMap<String, String>, hoprd_spec:
     let resources: Option<ResourceRequirements> = Some(
         HoprdDeploymentSpec::get_resource_requirements(hoprd_spec.deployment.clone()),
     );
-    // let liveness_probe: Option<Probe> = Some(HoprdDeploymentSpec::get_liveness_probe(
-    //     hoprd_spec.deployment.clone(),
-    // ));
-    // let readiness_probe: Option<Probe> = Some(HoprdDeploymentSpec::get_readiness_probe(
-    //     hoprd_spec.deployment.clone(),
-    // ));
-    // let startup_probe: Option<Probe> = Some(HoprdDeploymentSpec::get_startup_probe(
-    //     hoprd_spec.deployment.clone(),
-    // ));
+    let liveness_probe = HoprdDeploymentSpec::get_liveness_probe(hoprd_spec.supported_release, hoprd_spec.deployment.clone());
+    let readiness_probe = HoprdDeploymentSpec::get_readiness_probe(hoprd_spec.supported_release, hoprd_spec.deployment.clone());
+    let startup_probe = HoprdDeploymentSpec::get_startup_probe(hoprd_spec.supported_release, hoprd_spec.deployment.clone());
     let volume_mounts: Option<Vec<VolumeMount>> = build_volume_mounts();
     let port = hoprd_host.split(':').collect::<Vec<&str>>().get(1).unwrap().to_string().parse::<i32>().unwrap();
     let encoded_configuration = general_purpose::STANDARD.encode(&hoprd_spec.config);
@@ -112,7 +106,7 @@ pub async fn build_deployment_spec(labels: BTreeMap<String, String>, hoprd_spec:
                 spec: Some(PodSpec {
                     init_containers: Some(vec![Container {
                         name: "init".to_owned(),
-                        image: Some(image.to_owned()),
+                        image: Some("alpine".to_owned()),
                         env: Some(vec![EnvVar {
                             name: constants::HOPRD_IDENTITY_FILE.to_owned(),
                             value: Some(identity_hoprd.spec.identity_file.to_owned()),
@@ -123,7 +117,7 @@ pub async fn build_deployment_spec(labels: BTreeMap<String, String>, hoprd_spec:
                             value: Some(encoded_configuration),
                             ..EnvVar::default()
                         }]),
-                        command: Some(vec!["/bin/bash".to_owned(), "-c".to_owned()]),
+                        command: Some(vec!["/bin/sh".to_owned(), "-c".to_owned()]),
                         args: Some(vec![format!("{} && {}",
                             "echo $HOPRD_IDENTITY_FILE | base64 -d > /app/hoprd-identity/.hopr-id", 
                             "echo $HOPRD_CONFIGURATION | base64 -d > /app/hoprd-identity/config.yaml")
@@ -139,9 +133,9 @@ pub async fn build_deployment_spec(labels: BTreeMap<String, String>, hoprd_spec:
                         env: Some(build_env_vars(&identity_pool, identity_hoprd, hoprd_host)),
                         // command: Some(vec!["/bin/bash".to_owned(), "-c".to_owned()]),
                         // args: Some(vec!["sleep 99999999".to_owned()]),
-                        // liveness_probe,
-                        // readiness_probe,
-                        // startup_probe,
+                        liveness_probe,
+                        readiness_probe,
+                        startup_probe,
                         volume_mounts,
                         resources,
                         ..Container::default()

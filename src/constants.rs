@@ -1,3 +1,6 @@
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
+
 // Operator Constants
 pub const RECONCILE_FREQUENCY: u64 = 10;
 pub const RECONCILE_FREQUENCY_ERROR: u64 = 30;
@@ -53,3 +56,17 @@ pub const HOPRD_API_HOST: &str = "HOPRD_API_HOST";
 pub const HOPRD_INIT: &str = "HOPRD_INIT";
 pub const HOPRD_HEALTH_CHECK: &str = "HOPRD_HEALTH_CHECK";
 pub const HOPRD_HEALTH_CHECK_HOST: &str = "HOPRD_HEALTH_CHECK_HOST";
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone, Hash,  Copy, JsonSchema)]
+pub enum SupportedReleaseEnum {
+    #[serde(rename= "providence")]
+    Providence,
+    #[serde(rename= "saint-louis")]
+    SaintLouis 
+}
+
+impl Default for SupportedReleaseEnum {
+    fn default() -> Self {
+        SupportedReleaseEnum::Providence
+    }
+}

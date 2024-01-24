@@ -1,3 +1,4 @@
+use crate::constants::SupportedReleaseEnum;
 use crate::events::ClusterHoprdEventEnum;
 use crate::hoprd::HoprdSpec;
 use crate::hoprd_deployment_spec::HoprdDeploymentSpec;
@@ -48,6 +49,7 @@ pub struct ClusterHoprdSpec {
     pub config: String,
     pub version: String,
     pub enabled: Option<bool>,
+    pub supported_release: SupportedReleaseEnum,
     pub force_identity_name: Option<bool>,
     pub deployment: Option<HoprdDeploymentSpec>
 }
@@ -352,6 +354,7 @@ impl ClusterHoprd {
             version: self.spec.version.to_owned(),
             deployment: self.spec.deployment.to_owned(),
             identity_pool_name: self.spec.identity_pool_name.to_owned(),
+            supported_release: self.spec.supported_release.to_owned(),
             identity_name
         };
         match self.create_hoprd_resource(context_data.clone(), node_name.to_owned(), hoprd_spec).await {
@@ -422,6 +425,7 @@ impl ClusterHoprd {
             version: self.spec.version.to_owned(),
             deployment: self.spec.deployment.to_owned(),
             identity_pool_name: self.spec.identity_pool_name.to_owned(),
+            supported_release: self.spec.supported_release.to_owned(),
             identity_name: None
         };
         let patch = &Patch::Merge(json!({ "spec": hoprd_spec }));

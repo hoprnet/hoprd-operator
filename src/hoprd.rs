@@ -1,4 +1,5 @@
 use crate::cluster::{ClusterHoprd, ClusterHoprdPhaseEnum};
+use crate::constants::SupportedReleaseEnum;
 use crate::events::{ClusterHoprdEventEnum, HoprdEventEnum, IdentityHoprdEventEnum, IdentityPoolEventEnum};
 use crate::resource_generics;
 use crate::hoprd_deployment_spec::HoprdDeploymentSpec;
@@ -53,6 +54,7 @@ pub struct HoprdSpec {
     pub version: String,
     pub config: String,
     pub enabled: Option<bool>,
+    pub supported_release: SupportedReleaseEnum,
     pub deployment: Option<HoprdDeploymentSpec>,
 }
 

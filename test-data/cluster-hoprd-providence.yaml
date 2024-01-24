@@ -8,8 +8,9 @@ metadata:
   namespace:  hoprd-operator
 spec:
   identityPoolName: identity-pool-hoprd-operator
-  replicas: 2
+  replicas: 1
   version: 2.0.7
+  supportedRelease: providence
   enabled: true
   config: |
     host:

@@ -72,6 +72,12 @@ spec:
                 enabled:
                   type: boolean
                   description: 'Flag indicating if the node should be started or stopped'
+                supportedRelease:
+                  type: string
+                  description: 'Release Name of the supported version'
+                  enum:
+                    - providence
+                    - saint-louis
                 forceIdentityName:
                   type: boolean
                   description: Flag indicating whether the identityName should be specified in child Hoprd
@@ -96,6 +102,7 @@ spec:
                 - replicas
                 - config
                 - version
+                - supportedRelease
             status:
               description: The status object of ClusterHord node
               nullable: true
