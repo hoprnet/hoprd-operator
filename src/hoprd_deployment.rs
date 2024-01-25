@@ -13,7 +13,7 @@ use crate::{
 use k8s_openapi::api::apps::v1::{Deployment, DeploymentSpec, DeploymentStrategy};
 use k8s_openapi::api::core::v1::{
     Container, ContainerPort, EmptyDirVolumeSource, EnvVar, EnvVarSource,
-    PersistentVolumeClaimVolumeSource, PodSpec, PodTemplateSpec, ResourceRequirements,
+    PersistentVolumeClaimVolumeSource, PodSpec, PodTemplateSpec,
     SecretKeySelector, Volume, VolumeMount,
 };
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::{LabelSelector, OwnerReference};
@@ -82,9 +82,7 @@ pub async fn create_deployment(context_data: Arc<ContextData>, hoprd: &Hoprd, id
 pub async fn build_deployment_spec(labels: BTreeMap<String, String>, hoprd_spec: &HoprdSpec, identity_pool: IdentityPool, identity_hoprd: &IdentityHoprd, hoprd_host: &String) -> DeploymentSpec {
     let image = format!("{}/{}:{}", constants::HOPR_DOCKER_REGISTRY.to_owned(), constants::HOPR_DOCKER_IMAGE_NAME.to_owned(), &hoprd_spec.version.to_owned());
     let replicas: i32 = if hoprd_spec.enabled.unwrap_or(true) { 1 } else { 0 };
-    let resources: Option<ResourceRequirements> = Some(
-        HoprdDeploymentSpec::get_resource_requirements(hoprd_spec.deployment.clone()),
-    );
+    let resources = Some(HoprdDeploymentSpec::get_resource_requirements(hoprd_spec.deployment.clone()));
     let liveness_probe = HoprdDeploymentSpec::get_liveness_probe(hoprd_spec.supported_release, hoprd_spec.deployment.clone());
     let readiness_probe = HoprdDeploymentSpec::get_readiness_probe(hoprd_spec.supported_release, hoprd_spec.deployment.clone());
     let startup_probe = HoprdDeploymentSpec::get_startup_probe(hoprd_spec.supported_release, hoprd_spec.deployment.clone());
@@ -130,7 +128,7 @@ pub async fn build_deployment_spec(labels: BTreeMap<String, String>, hoprd_spec:
                         image: Some(image),
                         image_pull_policy: Some("Always".to_owned()),
                         ports: Some(build_ports(port)),
-                        env: Some(build_env_vars(&identity_pool, identity_hoprd, hoprd_host)),
+                        env: Some(build_env_vars(&identity_pool, identity_hoprd, hoprd_host, hoprd_spec.deployment.clone())),
                         // command: Some(vec!["/bin/bash".to_owned(), "-c".to_owned()]),
                         // args: Some(vec!["sleep 99999999".to_owned()]),
                         liveness_probe,
@@ -243,14 +241,11 @@ fn build_ports(p2p_port: i32) -> Vec<ContainerPort> {
 
 ///Build struct environment variable
 ///
-fn build_env_vars(
-    identity_pool: &IdentityPool,
-    identity_hoprd: &IdentityHoprd,
-    hoprd_host: &String,
-) -> Vec<EnvVar> {
+fn build_env_vars(identity_pool: &IdentityPool, identity_hoprd: &IdentityHoprd, hoprd_host: &String, hoprd_deployment_spec: Option<HoprdDeploymentSpec>) -> Vec<EnvVar> {
     let mut env_vars = build_secret_env_var(identity_pool);
     env_vars.extend_from_slice(&build_crd_env_var(identity_pool, identity_hoprd));
     env_vars.extend_from_slice(&build_default_env_var(hoprd_host));
+    env_vars.extend_from_slice(&HoprdDeploymentSpec::get_environment_variables(hoprd_deployment_spec));
     env_vars
 }
 
@@ -317,10 +312,6 @@ fn build_crd_env_var(identity_pool: &IdentityPool, identity_hoprd: &IdentityHopr
 ///
 fn build_default_env_var(hoprd_host: &String) -> Vec<EnvVar> {
     vec![EnvVar {
-        name: "DEBUG".to_owned(),
-        value: Some("hopr*".to_owned()),
-        ..EnvVar::default()
-    }, EnvVar {
         name: constants::HOPRD_IDENTITY.to_owned(),
         value: Some("/app/hoprd-identity/.hopr-id".to_owned()),
         ..EnvVar::default()

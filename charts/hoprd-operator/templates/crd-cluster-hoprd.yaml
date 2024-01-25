@@ -85,6 +85,9 @@ spec:
                   type: object
                   description: Deployment configuration
                   properties:
+                    env:
+                      type: string
+                      description: The definition for environment variables to be used by the node deployment
                     resources:
                       type: string
                       description: The definition for hardware resources to be used by the node deployment

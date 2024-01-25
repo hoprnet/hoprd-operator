@@ -1,5 +1,5 @@
 use k8s_openapi::{
-    api::core::v1::{HTTPGetAction, Probe, ResourceRequirements},
+    api::core::v1::{EnvVar, HTTPGetAction, Probe, ResourceRequirements},
     apimachinery::pkg::{api::resource::Quantity, util::intstr::IntOrString},
 };
 use schemars::JsonSchema;
@@ -8,10 +8,23 @@ use std::collections::BTreeMap;
 
 use crate::constants::SupportedReleaseEnum;
 
+#[derive(Serialize, Deserialize, Debug)]
+struct CustomEnvVar {
+    name: String,
+    value: String
+}
+
+impl CustomEnvVar {
+    pub fn new(name: String, value: String) -> Self {
+        Self { name, value }
+    }
+}
+
 /// Struct to define Pod resources types
 #[derive(Serialize, Debug, Deserialize, PartialEq, Clone, JsonSchema, Hash)]
 #[serde(rename_all = "camelCase")]
 pub struct HoprdDeploymentSpec {
+    env: Option<String>,
     resources: Option<String>,
     startup_probe: Option<String>,
     liveness_probe: Option<String>,
@@ -35,25 +48,47 @@ impl Default for HoprdDeploymentSpec {
         let default_probe = HoprdDeploymentSpec::build_probe("some/path".to_string(), Some(5), Some(1), Some(10));
         let default_probe_string = Some(serde_yaml::to_string(&default_probe).unwrap());
 
+        let default_env = vec!(
+            CustomEnvVar::new("RUST_BACKTRACE".to_owned(), "full".to_owned()),
+            CustomEnvVar::new("RUST_LOG".to_owned(), "hoprd=DEBUG".to_owned()),
+            CustomEnvVar::new("DEBUG".to_owned(), "hopr*".to_owned())
+        );
+        let default_env_string = Some(serde_yaml::to_string(&default_env).unwrap());
+
+
         Self {
             resources: Some(resources_spec),
             startup_probe: default_probe_string.clone(),
             liveness_probe: default_probe_string.clone(),
             readiness_probe: default_probe_string.clone(),
+            env: default_env_string
         }
     }
 }
 
 impl HoprdDeploymentSpec {
-    pub fn get_resource_requirements(
-        hoprd_deployment_spec: Option<HoprdDeploymentSpec>,
-    ) -> ResourceRequirements {
+    pub fn get_resource_requirements(hoprd_deployment_spec: Option<HoprdDeploymentSpec>) -> ResourceRequirements {
         let default_deployment_spec = HoprdDeploymentSpec::default();
         let hoprd_deployment_spec = hoprd_deployment_spec.unwrap_or(default_deployment_spec.clone());
         let resource_requirements_string = hoprd_deployment_spec.resources.as_ref().unwrap_or(default_deployment_spec.resources.as_ref().unwrap());
         let resource_requirements: ResourceRequirements = serde_yaml::from_str(resource_requirements_string).unwrap();
         resource_requirements
     }
+
+    pub fn get_environment_variables(hoprd_deployment_spec: Option<HoprdDeploymentSpec>) -> Vec<EnvVar> {
+        let default_deployment_spec = HoprdDeploymentSpec::default();
+        let hoprd_deployment_spec = hoprd_deployment_spec.unwrap_or(default_deployment_spec.clone());
+        let environment_variables_string = hoprd_deployment_spec.env.as_ref().unwrap_or(default_deployment_spec.env.as_ref().unwrap());
+        let environment_variables: Vec<CustomEnvVar> = serde_yaml::from_str(environment_variables_string).unwrap();
+        environment_variables.iter().map(|env| {
+            EnvVar {
+                name: env.name.to_owned(),
+                value: Some(env.value.to_owned()),
+                ..EnvVar::default()
+            }
+        }).collect()
+    }
+
 
     pub fn build_probe(path: String, period_seconds: Option<i32>, success_threshold: Option<i32>, failure_threshold: Option<i32>) -> Probe {
          Probe {

@@ -1,0 +1,68 @@
+---
+
+hopr:
+  host:
+    address: !IPv4 0.0.0.0
+    port: 9091
+  db:
+    data: "/app/hoprd-db"
+    initialize: true
+    force_initialize: false
+  strategy:
+    on_fail_continue: true
+    allow_recursive: false
+    finalize_channel_closure: false
+    strategies:
+  heartbeat:
+    variance: 2       # CHANGE: now in seconds
+    interval: 20      # CHANGE: now in seconds
+    threshold: 60     # CHANGE: now in seconds
+  network_options:
+    min_delay: 1
+    max_delay: 300
+    quality_bad_threshold: 0.2
+    quality_offline_threshold: 0.5
+    quality_step: 0.1
+    quality_avg_window_size: 25
+    ignore_timeframe: 600
+    backoff_exponent: 1.5
+    backoff_min: 2.0
+    backoff_max: 300.0
+  transport:          # CHANGE: new key with values previously in the `test` key
+    announce_local_addresses: false
+    prefer_local_addresses: false
+  protocol:
+    ack:
+      timeout: 15
+    heartbeat:
+      timeout: 15
+    msg:
+      timeout: 15
+    ticket_aggregation:
+      timeout: 15
+  chain:
+    announce: false
+    network: doufur       # CHANGE: Contains the target network now, moved form the 'network' key
+    provider: null
+    check_unrealized_balance: true
+  safe_module:
+    safe_transaction_service_provider: https://safe-transaction.stage.hoprtech.net/
+    safe_address: '0x0000000000000000000000000000000000000000'      # CHANGE: a hex string now
+    module_address: '0x0000000000000000000000000000000000000000'    # CHANGE: a hex string now
+identity:
+  file: "/app/hoprd-db/.hoprd.id"
+  password: "<REDACTED>"
+  private_key:
+inbox:
+  capacity: 512
+  max_age: 900
+  excluded_tags:
+  - 0
+api:
+  enable: true
+  auth: !Token "<REDACTED>"
+  host:
+    address: !IPv4 0.0.0.0
+    port: 3001
+test:       # CHANGE: Some options moved to 'hopr.transport'
+  use_weak_crypto: false

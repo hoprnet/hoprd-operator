@@ -539,7 +539,7 @@ impl IdentityPool {
                             name: "kubectl".to_owned(),
                             image: Some("registry.hub.docker.com/bitnami/kubectl:1.24".to_owned()),
                             image_pull_policy: Some("IfNotPresent".to_owned()),
-                            command: Some(vec!["/bin/bash".to_owned(), "-c".to_owned()]),
+                            command: Some(vec!["/bin/sh".to_owned(), "-c".to_owned()]),
                             args: Some(create_resource_args),
                             env: Some(env_vars),
                             volume_mounts: Some(volume_mounts),
