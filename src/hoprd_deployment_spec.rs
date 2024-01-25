@@ -50,7 +50,7 @@ impl Default for HoprdDeploymentSpec {
 
         let default_env = vec!(
             CustomEnvVar::new("RUST_BACKTRACE".to_owned(), "full".to_owned()),
-            CustomEnvVar::new("RUST_LOG".to_owned(), "hoprd=DEBUG".to_owned()),
+            CustomEnvVar::new("RUST_LOG".to_owned(), "info".to_owned()),
             CustomEnvVar::new("DEBUG".to_owned(), "hopr*".to_owned())
         );
         let default_env_string = Some(serde_yaml::to_string(&default_env).unwrap());

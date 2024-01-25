@@ -31,7 +31,7 @@ use std::fmt::{Display, Formatter};
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 use std::time::Duration;
-use tracing::{error, info, warn};
+use tracing::{debug, error, info, warn};
 
 /// Struct corresponding to the Specification (`spec`) part of the `Hoprd` resource, directly
 /// reflects context of the `hoprds.hoprnet.org.yaml` file to be found in this repository.
@@ -158,13 +158,13 @@ impl IdentityPool {
         // - Does the wallet private key have enough funds to work ?
         // context_data.send_event(self, dentityPoolEventEnum::Initialized, None).await
         context_data.send_event(self, IdentityPoolEventEnum::Initialized, None).await;
-        self.update_phase(context_data.client.clone(), IdentityPoolPhaseEnum::Initialized).await?;
+        self.update_status(context_data.client.clone(), IdentityPoolPhaseEnum::Initialized).await?;
         if self.spec.min_ready_identities == 0 {
             context_data.send_event(self, IdentityPoolEventEnum::Ready, None).await;
-            self.update_phase(context_data.client.clone(), IdentityPoolPhaseEnum::Ready).await?;
+            self.update_status(context_data.client.clone(), IdentityPoolPhaseEnum::Ready).await?;
         } else {
             context_data.send_event(self,IdentityPoolEventEnum::OutOfSync,Some(self.spec.min_ready_identities.to_string()),).await;
-            self.update_phase(context_data.client.clone(), IdentityPoolPhaseEnum::OutOfSync).await?;
+            self.update_status(context_data.client.clone(), IdentityPoolPhaseEnum::OutOfSync).await?;
             info!("Identity {identity_pool_name} in namespace {identity_pool_namespace} requires to create {} new identities", self.spec.min_ready_identities);
         }
         info!("IdentityPool {identity_pool_name} in namespace {identity_pool_namespace} successfully created");
@@ -184,7 +184,7 @@ impl IdentityPool {
                     Ok(previous_identity_pool) => {
                         if self.changed_inmutable_fields(&previous_identity_pool.spec) {
                             context_data.send_event(self,IdentityPoolEventEnum::Failed,None).await;
-                            self.update_phase(client.clone(), IdentityPoolPhaseEnum::Failed).await?;
+                            self.update_status(client.clone(), IdentityPoolPhaseEnum::Failed).await?;
                         } else {
                             info!("Identity pool {identity_pool_name} in namespace {identity_pool_namespace} has been successfully modified");
 
@@ -192,11 +192,11 @@ impl IdentityPool {
                             if self.status.as_ref().unwrap().size - self.status.as_ref().unwrap().locked - self.spec.min_ready_identities < 0 {
                                 let pending = self.spec.min_ready_identities - self.status.as_ref().unwrap().locked - self.status.as_ref().unwrap().size;
                                 context_data.send_event(self,IdentityPoolEventEnum::OutOfSync,Some(pending.to_string())).await;
-                                self.update_phase(client.clone(), IdentityPoolPhaseEnum::OutOfSync).await?;
+                                self.update_status(client.clone(), IdentityPoolPhaseEnum::OutOfSync).await?;
                                 info!("Identity {identity_pool_name} in namespace {identity_pool_namespace} requires to create {} new identities", self.spec.min_ready_identities);
                             }else {
                                 context_data.send_event(self,IdentityPoolEventEnum::Ready, None).await;
-                                self.update_phase(client.clone(), IdentityPoolPhaseEnum::Ready).await?;
+                                self.update_status(client.clone(), IdentityPoolPhaseEnum::Ready).await?;
                             }
                             self.modify_funding(context_data).await?
                         }
@@ -209,7 +209,7 @@ impl IdentityPool {
         } else if self.status.is_some() && self.status.as_ref().unwrap().phase.eq(&IdentityPoolPhaseEnum::Failed) {
             // Assumes that the next modification of the resource is to recover to a good state
             context_data.send_event(self,IdentityPoolEventEnum::Ready,None).await;
-            self.update_phase(context_data.client.clone(), IdentityPoolPhaseEnum::Ready).await?;
+            self.update_status(context_data.client.clone(), IdentityPoolPhaseEnum::Ready).await?;
             warn!("Detected a change in IdentityPool {identity_pool_name}. Automatically recovering to a Ready phase");
         } else {
             error!("The resource cannot be modified");
@@ -244,7 +244,7 @@ impl IdentityPool {
         let identity_pool_name = self.name_any();
         if self.status.as_ref().unwrap().locked == 0 {
             let client: Client = context_data.client.clone();
-            self.update_phase(context_data.client.clone(), IdentityPoolPhaseEnum::Deleting).await?;
+            self.update_status(context_data.client.clone(), IdentityPoolPhaseEnum::Deleting).await?;
             context_data.send_event(self, IdentityPoolEventEnum::Deleting, None).await;
             info!("Starting to delete identity {identity_pool_name} from namespace {identity_pool_namespace}");
             identity_pool_service_monitor::delete_service_monitor(client.clone(), &identity_pool_name, &identity_pool_namespace).await?;
@@ -312,7 +312,7 @@ impl IdentityPool {
     }
 
     /// Updates the status of IdentityPool
-    pub async fn update_phase(&mut self, client: Client, phase: IdentityPoolPhaseEnum) -> Result<(), Error> {
+    pub async fn update_status(&mut self, client: Client, phase: IdentityPoolPhaseEnum) -> Result<(), Error> {
         let identity_hoprd_name = self.metadata.name.as_ref().unwrap().to_owned();
         let hoprd_namespace = self.metadata.namespace.as_ref().unwrap().to_owned();
         let mut identity_pool_status = self.status.as_ref().unwrap_or(&IdentityPoolStatus::default()).to_owned();
@@ -364,8 +364,8 @@ impl IdentityPool {
             }));
             match api.patch(&identity_hoprd_name, &PatchParams::default(), &patch).await {
                 Ok(_identity) => {
-                    self.status = Some(identity_pool_status);
-                    Ok(())
+                    self.status = Some(identity_pool_status.clone());
+                    Ok(debug!("IdentityPool current status: {:?}", identity_pool_status))
                 },
                 Err(error) => Ok(error!("Could not update status on {identity_hoprd_name}: {:?}",error)),
             }

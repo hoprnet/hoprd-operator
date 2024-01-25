@@ -135,7 +135,7 @@ impl IdentityHoprd {
             if identity_pool_option.is_some() {
                 let mut identity_pool_arc = identity_pool_option.unwrap();
                 let identity_pool:  &mut IdentityPool = Arc::<IdentityPool>::make_mut(&mut identity_pool_arc);
-                identity_pool.update_phase(context_data.client.clone(), IdentityPoolPhaseEnum::IdentityCreated).await?;
+                identity_pool.update_status(context_data.client.clone(), IdentityPoolPhaseEnum::IdentityCreated).await?;
                 context_state.update_identity_pool(identity_pool.to_owned());
                 updated = true;
             }
@@ -208,7 +208,7 @@ impl IdentityHoprd {
                     if identity_pool_option.is_some() {
                         let mut identity_pool_arc = identity_pool_option.unwrap();
                         let identity_pool:  &mut IdentityPool = Arc::<IdentityPool>::make_mut(&mut identity_pool_arc);
-                        identity_pool.update_phase(context_data.client.clone(), IdentityPoolPhaseEnum::IdentityDeleted).await?;
+                        identity_pool.update_status(context_data.client.clone(), IdentityPoolPhaseEnum::IdentityDeleted).await?;
                         context_state.update_identity_pool(identity_pool.to_owned());
                     } else {
                         warn!("Identity pool {} not exists in namespace {}", &self.spec.identity_pool_name, &self.namespace().unwrap());
@@ -289,7 +289,7 @@ impl IdentityHoprd {
                 let mut context_state = context_data.state.write().await;
                 let mut identity_pool_arc = context_state.get_identity_pool(&self.namespace().unwrap(), &self.spec.identity_pool_name).unwrap();
                 let identity_pool:  &mut IdentityPool = Arc::<IdentityPool>::make_mut(&mut identity_pool_arc);
-                identity_pool.update_phase(context_data.client.clone(), IdentityPoolPhaseEnum::Unlocked).await?;
+                identity_pool.update_status(context_data.client.clone(), IdentityPoolPhaseEnum::Unlocked).await?;
                 context_state.update_identity_pool(identity_pool.to_owned());
             }
             context_data.send_event(&self.get_identity_pool(context_data.client.clone()).await.unwrap(), IdentityPoolEventEnum::Unlocked, Some(self.name_any())).await;

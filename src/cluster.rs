@@ -191,7 +191,7 @@ impl ClusterHoprd {
         let mut annotations = BTreeMap::new();
         annotations.insert(constants::ANNOTATION_LAST_CONFIGURATION.to_string(), cluster_last_configuration);
         let patch = Patch::Merge(json!({
-            "metadata": { 
+            "metadata": {
                 "annotations": annotations 
             }
         }));
@@ -312,7 +312,7 @@ impl ClusterHoprd {
         let patch = Patch::Merge(json!({"status": cluster_hoprd_status }));
         match api.patch(&cluster_hoprd_name, &PatchParams::default(), &patch).await
         {
-            Ok(_cluster_hopr) => Ok(()),
+            Ok(_cluster_hopr) => Ok(debug!("ClusterHoprd current status {:?}", cluster_hoprd_status)),
             Err(error) => Ok(error!("Could not update phase {} on cluster {cluster_hoprd_name}: {:?}", cluster_hoprd_status.phase, error))
         }
   }
