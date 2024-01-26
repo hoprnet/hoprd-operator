@@ -139,7 +139,7 @@ impl Hoprd {
                     hoprd_service::create_service(context_data.clone(), &hoprd_name, &hoprd_namespace, &self.spec.identity_pool_name, p2p_port, owner_reference.to_owned()).await?;
                     hoprd_ingress::create_ingress(context_data.clone(),&hoprd_name,&hoprd_namespace,&context_data.config.ingress,owner_reference.to_owned()).await?;
                     info!("Hoprd node {hoprd_name} in namespace {hoprd_namespace} has been successfully created");
-                    self.set_running_status(context_data.clone()).await?;
+                    self.set_running_status(context_data.clone(), Some(identity.name_any())).await?;
                 },
                 Err(error) => {
                     context_data.send_event(self, HoprdEventEnum::Failed, None).await;
@@ -198,13 +198,13 @@ impl Hoprd {
         Ok(Action::requeue(Duration::from_secs(constants::RECONCILE_FREQUENCY)))
     }
 
-    async fn set_running_status(&self, context_data: Arc<ContextData>) -> Result<(), Error> {
+    async fn set_running_status(&self, context_data: Arc<ContextData>, identity_name: Option<String>) -> Result<(), Error> {
         if self.spec.enabled.unwrap_or(true) {
             context_data.send_event(self, HoprdEventEnum::Running, None).await;
-            self.update_status(context_data.client.clone(), HoprdPhaseEnum::Running, None).await?;
+            self.update_status(context_data.client.clone(), HoprdPhaseEnum::Running, identity_name).await?;
         } else {
             context_data.send_event(self, HoprdEventEnum::Stopped, None).await;
-            self.update_status(context_data.client.clone(), HoprdPhaseEnum::Stopped, None).await?;
+            self.update_status(context_data.client.clone(), HoprdPhaseEnum::Stopped, identity_name).await?;
         }
         Ok(())
     }
@@ -217,7 +217,7 @@ impl Hoprd {
             Ok(()) =>  {
                 info!("Hoprd node {hoprd_name} in namespace {hoprd_namespace} has been successfully modified");
                 context_data.send_event(self, HoprdEventEnum::Modified, None).await;
-                self.set_running_status(context_data.clone()).await
+                self.set_running_status(context_data.clone(), None).await
             },
             Err(_) => Ok(warn!("Error waiting for deployment of {hoprd_name} to become ready")),
         }
