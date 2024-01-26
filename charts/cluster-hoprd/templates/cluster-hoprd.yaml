@@ -9,6 +9,7 @@ spec:
   replicas: {{ .Values.replicas }}
   version: {{ .Values.version | quote }}
   enabled: {{ .Values.enabled }}
+  supportedRelease: {{ .Values.supportedRelease }}
   forceIdentityName: {{ .Values.forceIdentityName }}
   {{- if .Values.deployment.resources }}
   deployment: 
