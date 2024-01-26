@@ -7,8 +7,7 @@ use crate::{identity_pool_service_account, identity_pool_service_monitor, utils,
 use chrono::Utc;
 use k8s_openapi::api::batch::v1::{Job, JobSpec, CronJob};
 use k8s_openapi::api::core::v1::{
-    Container, EmptyDirVolumeSource, EnvVar, EnvVarSource, PodSpec, PodTemplateSpec,
-    SecretKeySelector, Volume, VolumeMount,
+    Container, EmptyDirVolumeSource, EnvVar, EnvVarSource, PodSpec, PodTemplateSpec, Secret, SecretKeySelector, Volume, VolumeMount
 };
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::OwnerReference;
 use kube::api::{ListParams, PostParams};
@@ -32,7 +31,7 @@ use std::fmt::{Display, Formatter};
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 use std::time::Duration;
-use tracing::{error, info, warn};
+use tracing::{debug, error, info, warn};
 
 /// Struct corresponding to the Specification (`spec`) part of the `Hoprd` resource, directly
 /// reflects context of the `hoprds.hoprnet.org.yaml` file to be found in this repository.
@@ -141,9 +140,12 @@ impl IdentityPool {
         let client: Client = context_data.client.clone();
         let identity_pool_namespace: String = self.namespace().unwrap();
         let identity_pool_name: String = self.name_any();
-        let owner_references: Option<Vec<OwnerReference>> =
-            Some(vec![self.controller_owner_ref(&()).unwrap()]);
-        info!("Starting to create identity {identity_pool_name} in namespace {identity_pool_namespace}");
+        let owner_references: Option<Vec<OwnerReference>> = Some(vec![self.controller_owner_ref(&()).unwrap()]);
+        if ! self.check_wallet(client.clone()).await.unwrap() {
+            context_data.send_event(self, IdentityPoolEventEnum::Failed, None).await;
+            return Ok(Action::requeue(Duration::from_secs(constants::RECONCILE_FREQUENCY_ERROR)))
+        }
+        info!("Starting to create IdentityPool {identity_pool_name} in namespace {identity_pool_namespace}");
         resource_generics::add_finalizer(client.clone(), self).await;
         identity_pool_service_monitor::create_service_monitor(context_data.clone(), &identity_pool_name, &identity_pool_namespace, &self.spec.secret_name, owner_references.to_owned()).await?;
         identity_pool_service_account::create_rbac(context_data.clone(), &identity_pool_namespace, &identity_pool_name,owner_references.to_owned()).await?;
@@ -156,20 +158,18 @@ impl IdentityPool {
         // - Does the wallet private key have enough funds to work ?
         // context_data.send_event(self, dentityPoolEventEnum::Initialized, None).await
         context_data.send_event(self, IdentityPoolEventEnum::Initialized, None).await;
-        self.update_phase(context_data.client.clone(), IdentityPoolPhaseEnum::Initialized).await?;
-        info!("Identity {identity_pool_name} in namespace {identity_pool_namespace} has been successfully created");
+        self.update_status(context_data.client.clone(), IdentityPoolPhaseEnum::Initialized).await?;
         if self.spec.min_ready_identities == 0 {
             context_data.send_event(self, IdentityPoolEventEnum::Ready, None).await;
-            self.update_phase(context_data.client.clone(), IdentityPoolPhaseEnum::Ready).await?;
+            self.update_status(context_data.client.clone(), IdentityPoolPhaseEnum::Ready).await?;
         } else {
             context_data.send_event(self,IdentityPoolEventEnum::OutOfSync,Some(self.spec.min_ready_identities.to_string()),).await;
-            self.update_phase(context_data.client.clone(), IdentityPoolPhaseEnum::OutOfSync).await?;
+            self.update_status(context_data.client.clone(), IdentityPoolPhaseEnum::OutOfSync).await?;
             info!("Identity {identity_pool_name} in namespace {identity_pool_namespace} requires to create {} new identities", self.spec.min_ready_identities);
         }
+        info!("IdentityPool {identity_pool_name} in namespace {identity_pool_namespace} successfully created");
         context_data.state.write().await.add_identity_pool(self.clone());
-        Ok(Action::requeue(Duration::from_secs(
-            constants::RECONCILE_FREQUENCY,
-        )))
+        Ok(Action::requeue(Duration::from_secs(constants::RECONCILE_FREQUENCY)))
     }
 
     /// Handle the modification of IdentityPool resource
@@ -184,7 +184,7 @@ impl IdentityPool {
                     Ok(previous_identity_pool) => {
                         if self.changed_inmutable_fields(&previous_identity_pool.spec) {
                             context_data.send_event(self,IdentityPoolEventEnum::Failed,None).await;
-                            self.update_phase(client.clone(), IdentityPoolPhaseEnum::Failed).await?;
+                            self.update_status(client.clone(), IdentityPoolPhaseEnum::Failed).await?;
                         } else {
                             info!("Identity pool {identity_pool_name} in namespace {identity_pool_namespace} has been successfully modified");
 
@@ -192,11 +192,11 @@ impl IdentityPool {
                             if self.status.as_ref().unwrap().size - self.status.as_ref().unwrap().locked - self.spec.min_ready_identities < 0 {
                                 let pending = self.spec.min_ready_identities - self.status.as_ref().unwrap().locked - self.status.as_ref().unwrap().size;
                                 context_data.send_event(self,IdentityPoolEventEnum::OutOfSync,Some(pending.to_string())).await;
-                                self.update_phase(client.clone(), IdentityPoolPhaseEnum::OutOfSync).await?;
+                                self.update_status(client.clone(), IdentityPoolPhaseEnum::OutOfSync).await?;
                                 info!("Identity {identity_pool_name} in namespace {identity_pool_namespace} requires to create {} new identities", self.spec.min_ready_identities);
                             }else {
                                 context_data.send_event(self,IdentityPoolEventEnum::Ready, None).await;
-                                self.update_phase(client.clone(), IdentityPoolPhaseEnum::Ready).await?;
+                                self.update_status(client.clone(), IdentityPoolPhaseEnum::Ready).await?;
                             }
                             self.modify_funding(context_data).await?
                         }
@@ -209,7 +209,7 @@ impl IdentityPool {
         } else if self.status.is_some() && self.status.as_ref().unwrap().phase.eq(&IdentityPoolPhaseEnum::Failed) {
             // Assumes that the next modification of the resource is to recover to a good state
             context_data.send_event(self,IdentityPoolEventEnum::Ready,None).await;
-            self.update_phase(context_data.client.clone(), IdentityPoolPhaseEnum::Ready).await?;
+            self.update_status(context_data.client.clone(), IdentityPoolPhaseEnum::Ready).await?;
             warn!("Detected a change in IdentityPool {identity_pool_name}. Automatically recovering to a Ready phase");
         } else {
             error!("The resource cannot be modified");
@@ -223,7 +223,7 @@ impl IdentityPool {
         let identity_pool_name: String = self.name_any();
 
         let api: Api<CronJob> = Api::namespaced(context_data.client.clone(), &identity_pool_namespace);
-        if let Some(_) = api.get_opt(format!("auto-funding-{}", identity_pool_name).as_str()).await? {
+        if (api.get_opt(format!("auto-funding-{}", identity_pool_name).as_str()).await?).is_some() {
             if self.spec.funding.is_none() {
                 info!("Deleting previous Cronjob {identity_pool_name} in namespace {identity_pool_namespace}");
                 identity_pool_cronjob_faucet::delete_cron_job(context_data.client.clone(), &identity_pool_namespace, &identity_pool_name).await.expect("Could not delete cronjob");
@@ -244,7 +244,7 @@ impl IdentityPool {
         let identity_pool_name = self.name_any();
         if self.status.as_ref().unwrap().locked == 0 {
             let client: Client = context_data.client.clone();
-            self.update_phase(context_data.client.clone(), IdentityPoolPhaseEnum::Deleting).await?;
+            self.update_status(context_data.client.clone(), IdentityPoolPhaseEnum::Deleting).await?;
             context_data.send_event(self, IdentityPoolEventEnum::Deleting, None).await;
             info!("Starting to delete identity {identity_pool_name} from namespace {identity_pool_namespace}");
             identity_pool_service_monitor::delete_service_monitor(client.clone(), &identity_pool_name, &identity_pool_namespace).await?;
@@ -308,11 +308,11 @@ impl IdentityPool {
     pub fn get_checksum(&self) -> String {
         let mut hasher: DefaultHasher = DefaultHasher::new();
         self.spec.clone().hash(&mut hasher);
-        return hasher.finish().to_string();
+        hasher.finish().to_string()
     }
 
     /// Updates the status of IdentityPool
-    pub async fn update_phase(&mut self, client: Client, phase: IdentityPoolPhaseEnum) -> Result<(), Error> {
+    pub async fn update_status(&mut self, client: Client, phase: IdentityPoolPhaseEnum) -> Result<(), Error> {
         let identity_hoprd_name = self.metadata.name.as_ref().unwrap().to_owned();
         let hoprd_namespace = self.metadata.namespace.as_ref().unwrap().to_owned();
         let mut identity_pool_status = self.status.as_ref().unwrap_or(&IdentityPoolStatus::default()).to_owned();
@@ -325,52 +325,47 @@ impl IdentityPool {
             identity_pool_status.checksum = self.get_checksum();
             identity_pool_status.phase = phase;
             if phase.eq(&IdentityPoolPhaseEnum::IdentityCreated) {
-                if (identity_pool_status.size - identity_pool_status.locked + 1)
-                    >= self.spec.min_ready_identities
+                if (identity_pool_status.size - identity_pool_status.locked + 1) >= self.spec.min_ready_identities
                 {
                     identity_pool_status.phase = IdentityPoolPhaseEnum::Ready;
                 } else {
                     identity_pool_status.phase = IdentityPoolPhaseEnum::OutOfSync;
                 }
-                identity_pool_status.size = identity_pool_status.size + 1
+                identity_pool_status.size += 1;
             } else if phase.eq(&IdentityPoolPhaseEnum::IdentityDeleted) {
-                if (identity_pool_status.size - identity_pool_status.locked - 1)
-                    >= self.spec.min_ready_identities
+                if (identity_pool_status.size - identity_pool_status.locked - 1) >= self.spec.min_ready_identities
                 {
                     identity_pool_status.phase = IdentityPoolPhaseEnum::Ready;
                 } else {
                     identity_pool_status.phase = IdentityPoolPhaseEnum::OutOfSync;
                 }
-                identity_pool_status.size = identity_pool_status.size - 1
+                identity_pool_status.size -= 1;
             };
 
             if phase.eq(&IdentityPoolPhaseEnum::Locked) {
-                if (identity_pool_status.size - identity_pool_status.locked - 1)
-                    >= self.spec.min_ready_identities
+                if (identity_pool_status.size - identity_pool_status.locked - 1) >= self.spec.min_ready_identities
                 {
                     identity_pool_status.phase = IdentityPoolPhaseEnum::Ready;
                 } else {
                     identity_pool_status.phase = IdentityPoolPhaseEnum::OutOfSync;
                 }
-                identity_pool_status.locked = identity_pool_status.locked + 1
+                identity_pool_status.locked += 1;
             } else if phase.eq(&IdentityPoolPhaseEnum::Unlocked) {
-                if (identity_pool_status.size - identity_pool_status.locked + 1)
-                    >= self.spec.min_ready_identities
+                if (identity_pool_status.size - identity_pool_status.locked + 1) >= self.spec.min_ready_identities
                 {
                     identity_pool_status.phase = IdentityPoolPhaseEnum::Ready;
                 } else {
                     identity_pool_status.phase = IdentityPoolPhaseEnum::OutOfSync;
                 }
-                identity_pool_status.locked = identity_pool_status.locked - 1
+                identity_pool_status.locked -= 1;
             };
             let patch = Patch::Merge(json!({
                     "status": identity_pool_status
             }));
-            
             match api.patch(&identity_hoprd_name, &PatchParams::default(), &patch).await {
                 Ok(_identity) => {
-                    self.status = Some(identity_pool_status);
-                    Ok(())
+                    self.status = Some(identity_pool_status.clone());
+                    Ok(debug!("IdentityPool current status: {:?}", identity_pool_status))
                 },
                 Err(error) => Ok(error!("Could not update status on {identity_hoprd_name}: {:?}",error)),
             }
@@ -380,10 +375,10 @@ impl IdentityPool {
     pub async fn get_pool_identities(&self, client: Client) -> Vec<IdentityHoprd> {
         let api: Api<IdentityHoprd> = Api::namespaced(client,&self.namespace().unwrap().to_owned());
         let namespace_identities = api.list(&ListParams::default()).await.expect("Could not list namespace identities");
-        let pool_identities: Vec<IdentityHoprd>  = namespace_identities.iter().cloned()
-            .filter(|identity| {
+        let pool_identities: Vec<IdentityHoprd>  = namespace_identities.iter()
+            .filter(|&identity| {
                 identity.metadata.owner_references.as_ref().unwrap().first().unwrap().name.eq(&self.name_any())
-            }).collect();
+            }).cloned().collect();
         pool_identities
     }
 
@@ -406,15 +401,15 @@ impl IdentityPool {
                 }
             },
             None => { // No identity has been provided
-                let ready_pool_identity: Option<IdentityHoprd> = pool_identities.iter().cloned()
-                .find(|identity| identity.status.as_ref().unwrap().phase.eq(&IdentityHoprdPhaseEnum::Ready));
+                let ready_pool_identity: Option<IdentityHoprd> = pool_identities.iter()
+                .find(|&identity| identity.status.as_ref().unwrap().phase.eq(&IdentityHoprdPhaseEnum::Ready)).cloned();
                 if ready_pool_identity.is_none() {
                     warn!("There are no identities ready to be used in this pool {}", self.name_any()); 
                 }
                 ready_pool_identity
             }
         };
-        return Ok(identity)
+        Ok(identity)
 
     }
 
@@ -433,7 +428,7 @@ impl IdentityPool {
         let lp = ListParams::default().labels(&label_selector);
         let jobs = api.list(&lp).await.unwrap().items;
         let active_jobs: Vec<&Job> = jobs.iter().filter(|&job| job.status.as_ref().unwrap().active.is_some()).collect();
-        Ok(active_jobs.len() > 0)
+        Ok(!active_jobs.is_empty())
     }
 
     async fn create_new_identity(&self, context_data: Arc<ContextData>) -> Result<(), Error> {
@@ -544,7 +539,7 @@ impl IdentityPool {
                             name: "kubectl".to_owned(),
                             image: Some("registry.hub.docker.com/bitnami/kubectl:1.24".to_owned()),
                             image_pull_policy: Some("IfNotPresent".to_owned()),
-                            command: Some(vec!["/bin/bash".to_owned(), "-c".to_owned()]),
+                            command: Some(vec!["/bin/sh".to_owned(), "-c".to_owned()]),
                             args: Some(create_resource_args),
                             env: Some(env_vars),
                             volume_mounts: Some(volume_mounts),
@@ -585,4 +580,29 @@ impl IdentityPool {
             Err(_error) => Err(Error::JobExecutionError(format!("Job timeout for {}", &job_name.to_owned()).to_owned()))
         }
     }
+
+    async fn check_wallet(&self, client: Client) -> Result<bool,Error> {
+        let api: Api<Secret> = Api::namespaced(client, &self.namespace().unwrap());
+        if let Some(wallet) = api.get_opt(&self.spec.secret_name).await? {
+            if let Some(wallet_data) = wallet.data {
+                if wallet_data.contains_key(constants::IDENTITY_POOL_WALLET_DEPLOYER_PRIVATE_KEY_REF_KEY) && 
+                    wallet_data.contains_key(constants::IDENTITY_POOL_IDENTITY_PASSWORD_REF_KEY) && 
+                    wallet_data.contains_key(constants::IDENTITY_POOL_API_TOKEN_REF_KEY) && 
+                    wallet_data.contains_key(constants::IDENTITY_POOL_METRICS_PASSWORD_REF_KEY) 
+                {
+                    Ok(true)
+                } else {
+                    error!("IdentityPool {} has a secret {} with some missing data", self.name_any(), self.spec.secret_name);
+                    Ok(false)
+                }
+            } else {
+                error!("IdentityPool {} has a secret {} with empty data", self.name_any(), self.spec.secret_name);
+                Ok(false)
+            }
+        } else {
+            error!("IdentityPool {} cannot find secret {} in namespace {}", self.name_any(), self.spec.secret_name, self.namespace().unwrap());
+            Ok(false)
+        }
+    }
+
 }

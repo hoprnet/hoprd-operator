@@ -106,14 +106,14 @@ impl ResourceEvent for ClusterHoprdEventEnum {
             ClusterHoprdEventEnum::Scaling => Event {
                 type_: EventType::Warning,
                 reason: "Scaling".to_string(),
-                note: Some(format!("ClusterHoprd is scaling")),
+                note: Some("ClusterHoprd is scaling".to_string()),
                 action: "ClusterHoprd is scaling to meet the required replicas".to_string(),
                 secondary: None,
             },
             ClusterHoprdEventEnum::Failed => Event {
                 type_: EventType::Warning,
                 reason: "Failed".to_string(),
-                note: Some(format!("ClusterHoprd is in failed status.")),
+                note: Some("ClusterHoprd is in failed status.".to_string()),
                 action: "ClusterHoprd configuration is corrupted".to_string(),
                 secondary: None,
             },
@@ -134,15 +134,15 @@ impl ResourceEvent for ClusterHoprdEventEnum {
             ClusterHoprdEventEnum::CreatingNode => Event {
                 type_: EventType::Normal,
                 reason: "CreatingNode".to_string(),
-                note: Some(format!("Node {} is being created for the cluster", attribute.as_ref().unwrap_or(&"unknown".to_string()))),
-                action: "A new node is being created for the cluster".to_string(),
+                note: Some(format!("Node {} is being created in the cluster", attribute.as_ref().unwrap_or(&"unknown".to_string()))),
+                action: "A new node is being created in the cluster".to_string(),
                 secondary: None,
             },
             ClusterHoprdEventEnum::NodeCreated => Event {
                 type_: EventType::Normal,
                 reason: "NodeCreated".to_string(),
-                note: Some(format!("Node {} is created for the cluster", attribute.as_ref().unwrap_or(&"unknown".to_string()))),
-                action: "A new node is created for the cluster".to_string(),
+                note: Some(format!("Node {} is created in the cluster", attribute.as_ref().unwrap_or(&"unknown".to_string()))),
+                action: "A new node is created in the cluster".to_string(),
                 secondary: None,
             },
             ClusterHoprdEventEnum::DeletingNode => Event {

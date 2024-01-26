@@ -15,11 +15,13 @@ This chart packages the creation of a ClusterHoprd
 
 ### Cluster Hoprd parameters
 
-| Name                   | Description                   | Value   |
-| ---------------------- | ----------------------------- | ------- |
-| `identityPoolName`     | Name of the identity pool     | `""`    |
-| `replicas`             | Number of instances           | `1`     |
-| `version`              | Hoprd node version to run     | `2.0.2` |
-| `enabled`              | Running status of the nodes   | `true`  |
-| `deployment.resources` | Deployment resources spec     | `""`    |
-| `config`               | Custom configuration of nodes | `""`    |
+| Name                   | Description                                             | Value   |
+| ---------------------- | ------------------------------------------------------- | ------- |
+| `identityPoolName`     | Name of the identity pool                               | `""`    |
+| `replicas`             | Number of instances                                     | `1`     |
+| `version`              | Hoprd node version to run                               | `2.0.2` |
+| `enabled`              | Running status of the nodes                             | `true`  |
+| `supportedRelease`     | The kind of supported release <providence|saint-louis>  | `""`    |
+| `forceIdentityName`    | Forces identity names to be set in child Hopd resources | `false` |
+| `deployment.resources` | Deployment resources spec                               | `""`    |
+| `config`               | Custom configuration of nodes                           | `""`    |

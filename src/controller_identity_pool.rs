@@ -66,7 +66,7 @@ async fn reconciler(identity_pool: Arc<IdentityPool>, context: Arc<ContextData>)
     let mut identity_pool_cloned = identity_pool.clone();
     let identity_pool_mutable:  &mut IdentityPool = Arc::<IdentityPool>::make_mut(&mut identity_pool_cloned);
     // Performs action as decided by the `determine_action` function.
-    return match determine_action(identity_pool_mutable) {
+    match determine_action(identity_pool_mutable) {
         IdentityPoolAction::Create => identity_pool_mutable.create(context.clone()).await,
         IdentityPoolAction::Modify => identity_pool_mutable.modify(context.clone()).await,
         IdentityPoolAction::Sync => identity_pool_mutable.sync(context.clone()).await,
@@ -75,7 +75,7 @@ async fn reconciler(identity_pool: Arc<IdentityPool>, context: Arc<ContextData>)
         IdentityPoolAction::NoOp => Ok(Action::requeue(Duration::from_secs(
             constants::RECONCILE_FREQUENCY,
         ))),
-    };
+    }
 }
 
 /// Actions to be taken when a reconciliation fails - for whatever reason.

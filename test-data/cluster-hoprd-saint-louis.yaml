@@ -1,0 +1,20 @@
+---
+apiVersion: hoprnet.org/v1alpha2
+kind: ClusterHoprd
+metadata:
+  name: pr-1234
+  labels:
+    hoprds.hoprnet.org/pullRequest: "1234"
+  namespace:  hoprd-operator
+spec:
+  identityPoolName: identity-pool-hoprd-operator
+  replicas: 1
+  version: saint-louis-latest
+  supportedRelease: saint-louis
+  enabled: true
+  config: |
+    hopr:
+      chain:
+        announce: true
+        network: doufur
+        provider: https://rpc.ankr.com/gnosis

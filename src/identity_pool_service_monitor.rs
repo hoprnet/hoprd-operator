@@ -90,8 +90,7 @@ pub async fn create_service_monitor(context_data: Arc<ContextData>, name: &str, 
 }
 
 pub fn build_metric_relabel() -> Vec<ServiceMonitorEndpointsRelabelings> {
-    let mut metrics = Vec::with_capacity(2);
-    metrics.push(ServiceMonitorEndpointsRelabelings {
+    vec![ServiceMonitorEndpointsRelabelings {
         action: Some(ServiceMonitorEndpointsRelabelingsAction::Replace),
         source_labels: Some(vec![
             "__meta_kubernetes_pod_label_hoprds_hoprnet_org_network".to_owned(),
@@ -101,8 +100,7 @@ pub fn build_metric_relabel() -> Vec<ServiceMonitorEndpointsRelabelings> {
         regex: None,
         replacement: None,
         separator: None,
-    });
-    metrics.push(ServiceMonitorEndpointsRelabelings {
+    }, ServiceMonitorEndpointsRelabelings {
         action: Some(ServiceMonitorEndpointsRelabelingsAction::Replace),
         source_labels: Some(vec![
             "__meta_kubernetes_pod_label_app_kubernetes_io_instance".to_owned(),
@@ -112,8 +110,7 @@ pub fn build_metric_relabel() -> Vec<ServiceMonitorEndpointsRelabelings> {
         regex: None,
         replacement: None,
         separator: None,
-    });
-    metrics.push(ServiceMonitorEndpointsRelabelings {
+    }, ServiceMonitorEndpointsRelabelings {
         action: Some(ServiceMonitorEndpointsRelabelingsAction::Replace),
         source_labels: Some(vec![
             "__meta_kubernetes_pod_label_app_kubernetes_io_instance".to_owned(),
@@ -123,8 +120,7 @@ pub fn build_metric_relabel() -> Vec<ServiceMonitorEndpointsRelabelings> {
         regex: None,
         replacement: None,
         separator: None,
-    });
-    metrics.push(ServiceMonitorEndpointsRelabelings {
+    }, ServiceMonitorEndpointsRelabelings {
         action: Some(ServiceMonitorEndpointsRelabelingsAction::Replace),
         source_labels: Some(vec![
             "__meta_kubernetes_pod_label_hoprds_hoprnet_org_safe_address".to_owned(),
@@ -134,8 +130,7 @@ pub fn build_metric_relabel() -> Vec<ServiceMonitorEndpointsRelabelings> {
         regex: None,
         replacement: None,
         separator: None,
-    });
-    metrics.push(ServiceMonitorEndpointsRelabelings {
+    }, ServiceMonitorEndpointsRelabelings {
         action: Some(ServiceMonitorEndpointsRelabelingsAction::Replace),
         source_labels: Some(vec![
             "__meta_kubernetes_pod_label_hoprds_hoprnet_org_module_address".to_owned(),
@@ -145,8 +140,7 @@ pub fn build_metric_relabel() -> Vec<ServiceMonitorEndpointsRelabelings> {
         regex: None,
         replacement: None,
         separator: None,
-    });
-    metrics.push(ServiceMonitorEndpointsRelabelings {
+    }, ServiceMonitorEndpointsRelabelings {
         action: Some(ServiceMonitorEndpointsRelabelingsAction::Replace),
         source_labels: Some(vec![
             "__meta_kubernetes_pod_label_hoprds_hoprnet_org_address".to_owned(),
@@ -156,8 +150,7 @@ pub fn build_metric_relabel() -> Vec<ServiceMonitorEndpointsRelabelings> {
         regex: None,
         replacement: None,
         separator: None,
-    });
-    metrics.push(ServiceMonitorEndpointsRelabelings {
+    }, ServiceMonitorEndpointsRelabelings {
         action: Some(ServiceMonitorEndpointsRelabelingsAction::Replace),
         source_labels: Some(vec![
             "__meta_kubernetes_pod_label_hoprds_hoprnet_org_peerId".to_owned(),
@@ -167,17 +160,16 @@ pub fn build_metric_relabel() -> Vec<ServiceMonitorEndpointsRelabelings> {
         regex: None,
         replacement: None,
         separator: None,
-    });
-    metrics
+    }]
 }
 
 /// Deletes an existing serviceMonitor.
 pub async fn delete_service_monitor(client: Client, name: &str,namespace: &str) -> Result<(), Error> {
     let api: Api<ServiceMonitor> = Api::namespaced(client, namespace);
-    if let Some(service_monitor) = api.get_opt(&name).await? {
+    if let Some(service_monitor) = api.get_opt(name).await? {
         let uid = service_monitor.metadata.uid.unwrap();
         api.delete(name, &DeleteParams::default()).await?;
-        await_condition(api, &name.to_owned(), conditions::is_deleted(&uid))
+        await_condition(api, name, conditions::is_deleted(&uid))
             .await
             .unwrap();
         Ok(info!("ServiceMonitor {name} successfully deleted"))

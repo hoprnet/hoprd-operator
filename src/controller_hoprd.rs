@@ -45,7 +45,7 @@ enum HoprdAction {
 /// # Arguments
 /// - `hoprd`: A reference to `Hoprd` being reconciled to decide next action upon.
 fn determine_action(hoprd: &Hoprd) -> HoprdAction {
-    return if hoprd.meta().deletion_timestamp.is_some() {
+    return if hoprd.meta().deletion_timestamp.is_some() && hoprd.status.is_some() && hoprd.status.as_ref().unwrap().phase.ne (&HoprdPhaseEnum::Deleting) {
         HoprdAction::Delete
     } else if hoprd.meta().finalizers.as_ref().map_or(true, |finalizers| finalizers.is_empty()) {
         HoprdAction::Create
@@ -69,14 +69,14 @@ fn determine_action(hoprd: &Hoprd) -> HoprdAction {
 }
 
 async fn reconciler(hoprd: Arc<Hoprd>, context: Arc<ContextData>) -> Result<Action, Error> {
-    return match determine_action(&hoprd) {
+    match determine_action(&hoprd) {
         HoprdAction::Create => hoprd.create(context.clone()).await,
         HoprdAction::Modify => hoprd.modify(context.clone()).await,
         HoprdAction::Delete => hoprd.delete(context.clone()).await,
         HoprdAction::NoOp => Ok(Action::requeue(Duration::from_secs(
             constants::RECONCILE_FREQUENCY,
         ))),
-    };
+    }
 }
 
 /// Actions to be taken when a reconciliation fails - for whatever reason.

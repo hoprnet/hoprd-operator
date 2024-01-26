@@ -30,6 +30,10 @@ spec:
           type: string
           description: Hoprd phase
           jsonPath: .status.phase
+        - name: Version
+          type: string
+          description: Version
+          jsonPath: .spec.version
         - name: IdentityHoprd
           type: string
           description: Hoprd Name
@@ -51,10 +55,19 @@ spec:
                 enabled:
                   type: boolean
                   description: 'Flag indicating if the node should be started or stopped'
+                supportedRelease:
+                  type: string
+                  description: 'Release Name of the supported version'
+                  enum:
+                    - providence
+                    - saint-louis
                 deployment:
                   type: object
                   description: Deployment configuration
                   properties:
+                    env:
+                      type: string
+                      description: The definition for environment variables to be used by the node deployment
                     resources:
                       type: string
                       description: The definition for hardware resources to be used by the node deployment
@@ -76,7 +89,10 @@ spec:
                 version:
                   type: string
                   description: 'An specific hoprd version. Should match with a docker tag'
-              required: ["version", "identityPoolName"]
+              required: 
+                - version
+                - identityPoolName
+                - supportedRelease
             status:
               description: The status object of Hoprd node
               nullable: true

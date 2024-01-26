@@ -1,6 +1,6 @@
 use crate::events::{ IdentityHoprdEventEnum, IdentityPoolEventEnum};
 use crate::{identity_hoprd_persistence, resource_generics};
-use crate::identity_pool::{IdentityPool, IdentityPoolPhaseEnum};
+use crate::identity_pool::{IdentityPool, IdentityPoolPhaseEnum, IdentityPoolStatus};
 use crate::model::Error;
 use crate::{constants, context_data::ContextData};
 use chrono::Utc;
@@ -111,11 +111,14 @@ impl IdentityHoprd {
         let identity_namespace: String = self.namespace().unwrap();
         let identity_name: String = self.name_any();
         let identity_pool_name: String = self.spec.identity_pool_name.to_owned();
-
+        if ! self.check_identity_pool(client.clone()).await.unwrap() {
+            context_data.send_event(self, IdentityHoprdEventEnum::Failed, None).await;
+            return Ok(Action::requeue(Duration::from_secs(constants::RECONCILE_FREQUENCY_ERROR)))
+        }
         info!("Starting to create identity {identity_name} in namespace {identity_namespace}");
         resource_generics::add_finalizer(client.clone(), self).await;
         self.add_owner_reference(client.clone()).await?;
-        identity_hoprd_persistence::create_pvc(context_data.clone(), &self).await?;
+        identity_hoprd_persistence::create_pvc(context_data.clone(), self).await?;
         context_data.send_event(self, IdentityHoprdEventEnum::Initialized, None).await;
         self.update_phase(client.clone(), IdentityHoprdPhaseEnum::Initialized, None).await?;
         // TODO: Validate data
@@ -132,16 +135,17 @@ impl IdentityHoprd {
             if identity_pool_option.is_some() {
                 let mut identity_pool_arc = identity_pool_option.unwrap();
                 let identity_pool:  &mut IdentityPool = Arc::<IdentityPool>::make_mut(&mut identity_pool_arc);
-                identity_pool.update_phase(context_data.client.clone(), IdentityPoolPhaseEnum::IdentityCreated).await?;
+                identity_pool.update_status(context_data.client.clone(), IdentityPoolPhaseEnum::IdentityCreated).await?;
                 context_state.update_identity_pool(identity_pool.to_owned());
                 updated = true;
             }
         }
-        context_data.send_event(&self.get_identity_pool(client.clone()).await.unwrap(), IdentityPoolEventEnum::IdentityCreated, Some(identity_name)).await;
+        context_data.send_event(&self.get_identity_pool(client.clone()).await.unwrap(), IdentityPoolEventEnum::IdentityCreated, Some(identity_name.to_owned())).await;
         if updated {
             // These instructions need to be done out of the context_data lock
             context_data.send_event(self, IdentityHoprdEventEnum::Ready, None).await;
             self.update_phase(client.clone(), IdentityHoprdPhaseEnum::Ready, None).await?;
+            info!("IdentityHoprd {identity_name} in namespace {identity_namespace} successfully created");
         } else {
             error!("Identity pool {} not exists in namespace {}", identity_pool_name, &self.namespace().unwrap());
         }
@@ -182,7 +186,7 @@ impl IdentityHoprd {
             warn!("Detected a change in IdentityHoprd {identity_name}. Automatically recovering to a Ready phase");
             Ok(Action::requeue(Duration::from_secs(constants::RECONCILE_FREQUENCY)))
         } else {
-            error!("The resource cannot be modified");
+            error!("The IdentityHoprd {} in namespace {} cannot be modified", self.name_any(), self.namespace().unwrap());
             Ok(Action::requeue(Duration::from_secs(constants::RECONCILE_FREQUENCY)))
         }
     }
@@ -204,7 +208,7 @@ impl IdentityHoprd {
                     if identity_pool_option.is_some() {
                         let mut identity_pool_arc = identity_pool_option.unwrap();
                         let identity_pool:  &mut IdentityPool = Arc::<IdentityPool>::make_mut(&mut identity_pool_arc);
-                        identity_pool.update_phase(context_data.client.clone(), IdentityPoolPhaseEnum::IdentityDeleted).await?;
+                        identity_pool.update_status(context_data.client.clone(), IdentityPoolPhaseEnum::IdentityDeleted).await?;
                         context_state.update_identity_pool(identity_pool.to_owned());
                     } else {
                         warn!("Identity pool {} not exists in namespace {}", &self.spec.identity_pool_name, &self.namespace().unwrap());
@@ -241,7 +245,7 @@ impl IdentityHoprd {
     pub fn get_checksum(&self) -> String {
         let mut hasher: DefaultHasher = DefaultHasher::new();
         self.spec.clone().hash(&mut hasher);
-        return hasher.finish().to_string();
+        hasher.finish().to_string()
     }
 
     /// Updates the status of IdentityHoprd
@@ -271,7 +275,7 @@ impl IdentityHoprd {
 
     pub async fn get_identity_pool(&self, client: Client) -> Result<IdentityPool, Error> {
         let api: Api<IdentityPool> = Api::namespaced(client.clone(), &self.namespace().unwrap());
-        return Ok(api.get(&self.spec.identity_pool_name).await.unwrap());
+        Ok(api.get(&self.spec.identity_pool_name).await.unwrap())
     }
 
     // Unlocks a given identity from a Hoprd node
@@ -285,7 +289,7 @@ impl IdentityHoprd {
                 let mut context_state = context_data.state.write().await;
                 let mut identity_pool_arc = context_state.get_identity_pool(&self.namespace().unwrap(), &self.spec.identity_pool_name).unwrap();
                 let identity_pool:  &mut IdentityPool = Arc::<IdentityPool>::make_mut(&mut identity_pool_arc);
-                identity_pool.update_phase(context_data.client.clone(), IdentityPoolPhaseEnum::Unlocked).await?;
+                identity_pool.update_status(context_data.client.clone(), IdentityPoolPhaseEnum::Unlocked).await?;
                 context_state.update_identity_pool(identity_pool.to_owned());
             }
             context_data.send_event(&self.get_identity_pool(context_data.client.clone()).await.unwrap(), IdentityPoolEventEnum::Unlocked, Some(self.name_any())).await;
@@ -315,4 +319,20 @@ impl IdentityHoprd {
         };
         Ok(())
     }
+
+    async fn check_identity_pool(&self, client: Client) -> Result<bool,Error> {
+        let api: Api<IdentityPool> = Api::namespaced(client, &self.namespace().unwrap());
+        if let Some(identity_pool) = api.get_opt(&self.spec.identity_pool_name).await? {
+            if identity_pool.status.is_some() && identity_pool.status.as_ref().unwrap().phase.eq(&IdentityPoolPhaseEnum::Ready) {
+                Ok(true)
+            } else {
+                error!("IdentityHoprd {} has an IdentityPool {} in namespace {} with status {:?}", self.name_any(), self.spec.identity_pool_name, self.namespace().unwrap(), identity_pool.status.as_ref().unwrap_or(&IdentityPoolStatus::default()));
+            Ok(false)
+            }
+        } else {
+            error!("IdentityHoprd {} cannot find IdentityPool {} in namespace {}", self.name_any(), self.spec.identity_pool_name, self.namespace().unwrap());
+            Ok(false)
+        }
+    }
+
 }

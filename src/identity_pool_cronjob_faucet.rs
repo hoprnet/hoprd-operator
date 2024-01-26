@@ -42,7 +42,7 @@ pub async fn create_cron_job(context_data: Arc<ContextData>, identity_pool: &Ide
             schedule: identity_pool.spec.funding.to_owned().unwrap().schedule,
             job_template: JobTemplateSpec {
                 metadata: Some(ObjectMeta::default()),
-                spec: Some(get_job_template(context_data.clone(), &identity_pool).await),
+                spec: Some(get_job_template(context_data.clone(), identity_pool).await),
             },
             ..CronJobSpec::default()
         }),
@@ -59,7 +59,7 @@ pub async fn create_cron_job(context_data: Arc<ContextData>, identity_pool: &Ide
 async fn build_args_line(identity_pool: &IdentityPool) -> Option<Vec<String>> {
     let native_amount: String =identity_pool.spec.funding.clone().unwrap().native_amount.to_string();
     let network: String = identity_pool.spec.network.to_owned();
-    let command_line: String = format!("PATH=${{PATH}}:/app/hoprnet/.foundry/bin/ /bin/hopli faucet --network {} --contracts-root /app/hoprnet/packages/ethereum/contracts/ --hopr-amount 0 --native-amount \"{}\" --address $(cat /data/addresses.txt)", network, native_amount);
+    let command_line: String = format!("PATH=${{PATH}}:/app/hoprnet/.foundry/bin/ /bin/hopli faucet --network {} --contracts-root /app/hoprnet/ethereum/contracts/ --hopr-amount 0 --native-amount \"{}\" --address $(cat /data/addresses.txt)", network, native_amount);
     Some(vec![command_line])
 }
 
@@ -110,8 +110,7 @@ async fn get_job_template(context_data: Arc<ContextData>, identity_pool: &Identi
                     volumes: Some(volumes),
                     restart_policy: Some("Never".to_owned()),
                 ..PodSpec::default()
-                }),
-            ..PodTemplateSpec::default()
+                })
             },
         ..JobSpec::default()
     }
@@ -168,10 +167,10 @@ pub async fn modify_cron_job(client: Client, identity_pool: &IdentityPool) -> Re
 /// Deletes an existing CronJob.
 pub async fn delete_cron_job(client: Client, name: &str,namespace: &str) -> Result<(), Error> {
     let api: Api<CronJob> = Api::namespaced(client, namespace);
-    if let Some(create_cron_job) = api.get_opt(&name).await? {
+    if let Some(create_cron_job) = api.get_opt(name).await? {
         let uid = create_cron_job.metadata.uid.unwrap();
         api.delete(name, &DeleteParams::default()).await?;
-        await_condition(api, &name.to_owned(), conditions::is_deleted(&uid))
+        await_condition(api, name, conditions::is_deleted(&uid))
             .await
             .unwrap();
         Ok(info!("CronJob {name} successfully deleted"))

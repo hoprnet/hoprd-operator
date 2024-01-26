@@ -25,7 +25,7 @@ pub async fn create_rbac(
     Ok(())
 }
 
-pub async fn delete_rbac(client: Client, namespace: &String, name: &String) -> Result<(), Error> {
+pub async fn delete_rbac(client: Client, namespace: &str, name: &str) -> Result<(), Error> {
     delete_service_account(client.clone(), namespace, name).await?;
     delete_role(client.clone(), namespace, name).await?;
     delete_role_binding(client.clone(), namespace, name).await?;
@@ -123,10 +123,10 @@ async fn create_role_binding(context_data: Arc<ContextData>, namespace: &String,
 
 async fn delete_service_account(client: Client, name: &str, namespace: &str) -> Result<(), Error> {
     let api: Api<ServiceAccount> = Api::namespaced(client, namespace);
-    if let Some(service_account) = api.get_opt(&name).await? {
+    if let Some(service_account) = api.get_opt(name).await? {
         let uid = service_account.metadata.uid.unwrap();
         api.delete(name, &DeleteParams::default()).await?;
-        await_condition(api, &name.to_owned(), conditions::is_deleted(&uid))
+        await_condition(api, name, conditions::is_deleted(&uid))
             .await
             .unwrap();
         Ok(info!("ServiceAccount {name} successfully deleted"))
@@ -139,10 +139,10 @@ async fn delete_service_account(client: Client, name: &str, namespace: &str) -> 
 
 async fn delete_role(client: Client, name: &str, namespace: &str) -> Result<(), Error> {
     let api: Api<Role> = Api::namespaced(client, namespace);
-    if let Some(role) = api.get_opt(&name).await? {
+    if let Some(role) = api.get_opt(name).await? {
         let uid = role.metadata.uid.unwrap();
         api.delete(name, &DeleteParams::default()).await?;
-        await_condition(api, &name.to_owned(), conditions::is_deleted(&uid))
+        await_condition(api, name, conditions::is_deleted(&uid))
             .await
             .unwrap();
         Ok(info!("Role {name} successfully deleted"))
@@ -155,10 +155,10 @@ async fn delete_role(client: Client, name: &str, namespace: &str) -> Result<(), 
 
 async fn delete_role_binding(client: Client, name: &str, namespace: &str) -> Result<(), Error> {
     let api: Api<RoleBinding> = Api::namespaced(client, namespace);
-    if let Some(role_binding) = api.get_opt(&name).await? {
+    if let Some(role_binding) = api.get_opt(name).await? {
         let uid = role_binding.metadata.uid.unwrap();
         api.delete(name, &DeleteParams::default()).await?;
-        await_condition(api, &name.to_owned(), conditions::is_deleted(&uid))
+        await_condition(api, name, conditions::is_deleted(&uid))
             .await
             .unwrap();
         Ok(info!("RoleBinding {name} successfully deleted"))

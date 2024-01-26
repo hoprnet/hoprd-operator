@@ -82,10 +82,10 @@ fn service_ports(p2p_port: i32) -> Vec<ServicePort> {
 ///
 pub async fn delete_service(client: Client, name: &str, namespace: &str) -> Result<(), Error> {
     let api: Api<Service> = Api::namespaced(client, namespace);
-    if let Some(service) = api.get_opt(&name).await? {
+    if let Some(service) = api.get_opt(name).await? {
         let uid = service.metadata.uid.unwrap();
         api.delete(name, &DeleteParams::default()).await?;
-        await_condition(api, &name.to_owned(), conditions::is_deleted(&uid))
+        await_condition(api, name, conditions::is_deleted(&uid))
             .await
             .unwrap();
         Ok(info!("Service {name} successfully deleted"))

@@ -42,10 +42,10 @@ spec:
           type: number
           description: Replicas
           jsonPath: .spec.replicas
-        - name: Running
+        - name: Current
           type: number
           description: Nodes running
-          jsonPath: .status.runningNodes
+          jsonPath: .status.currentNodes
         - name: Age
           type: date
           jsonPath: .metadata.creationTimestamp
@@ -72,6 +72,12 @@ spec:
                 enabled:
                   type: boolean
                   description: 'Flag indicating if the node should be started or stopped'
+                supportedRelease:
+                  type: string
+                  description: 'Release Name of the supported version'
+                  enum:
+                    - providence
+                    - saint-louis
                 forceIdentityName:
                   type: boolean
                   description: Flag indicating whether the identityName should be specified in child Hoprd
@@ -79,6 +85,9 @@ spec:
                   type: object
                   description: Deployment configuration
                   properties:
+                    env:
+                      type: string
+                      description: The definition for environment variables to be used by the node deployment
                     resources:
                       type: string
                       description: The definition for hardware resources to be used by the node deployment
@@ -96,6 +105,7 @@ spec:
                 - replicas
                 - config
                 - version
+                - supportedRelease
             status:
               description: The status object of ClusterHord node
               nullable: true
@@ -117,10 +127,10 @@ spec:
                   - Failed
                   - Ready
                   - Deleting
-                runningNodes:
+                currentNodes:
                   type: number
                   description: Number of nodes running
-              required: [ "updateTimestamp", "checksum", "phase", "runningNodes"]
+              required: [ "updateTimestamp", "checksum", "phase", "currentNodes"]
               type: object
           required:
             - spec

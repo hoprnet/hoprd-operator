@@ -1,20 +1,33 @@
 use k8s_openapi::{
-    api::core::v1::{HTTPGetAction, Probe, ResourceRequirements},
+    api::core::v1::{EnvVar, HTTPGetAction, Probe, ResourceRequirements},
     apimachinery::pkg::{api::resource::Quantity, util::intstr::IntOrString},
 };
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
+use crate::constants::SupportedReleaseEnum;
+
+#[derive(Serialize, Deserialize, Debug)]
+struct CustomEnvVar {
+    name: String,
+    value: String
+}
+
+impl CustomEnvVar {
+    pub fn new(name: String, value: String) -> Self {
+        Self { name, value }
+    }
+}
+
 /// Struct to define Pod resources types
 #[derive(Serialize, Debug, Deserialize, PartialEq, Clone, JsonSchema, Hash)]
+#[serde(rename_all = "camelCase")]
 pub struct HoprdDeploymentSpec {
+    env: Option<String>,
     resources: Option<String>,
-    #[serde(rename(deserialize = "startupProbe"))]
     startup_probe: Option<String>,
-    #[serde(rename(deserialize = "livenessProbe"))]
     liveness_probe: Option<String>,
-    #[serde(rename(deserialize = "readinessProbe"))]
     readiness_probe: Option<String>,
 }
 
@@ -32,81 +45,119 @@ impl Default for HoprdDeploymentSpec {
         })
         .unwrap();
 
-        let default_probe = Probe {
-            http_get: Some(HTTPGetAction {
-                path: Some("/healthcheck/v1/version".to_owned()),
-                port: IntOrString::Int(8080),
-                ..HTTPGetAction::default()
-            }),
-            failure_threshold: Some(6),
-            initial_delay_seconds: Some(30),
-            period_seconds: Some(20),
-            success_threshold: Some(1),
-            timeout_seconds: Some(5),
-            ..Probe::default()
-        };
+        let default_probe = HoprdDeploymentSpec::build_probe("some/path".to_string(), Some(5), Some(1), Some(10));
         let default_probe_string = Some(serde_yaml::to_string(&default_probe).unwrap());
+
+        let default_env = vec!(
+            CustomEnvVar::new("RUST_BACKTRACE".to_owned(), "full".to_owned()),
+            CustomEnvVar::new("RUST_LOG".to_owned(), "info".to_owned()),
+            CustomEnvVar::new("DEBUG".to_owned(), "hopr*".to_owned())
+        );
+        let default_env_string = Some(serde_yaml::to_string(&default_env).unwrap());
+
 
         Self {
             resources: Some(resources_spec),
             startup_probe: default_probe_string.clone(),
             liveness_probe: default_probe_string.clone(),
             readiness_probe: default_probe_string.clone(),
+            env: default_env_string
         }
     }
 }
 
 impl HoprdDeploymentSpec {
-    pub fn get_resource_requirements(
-        hoprd_deployment_spec: Option<HoprdDeploymentSpec>,
-    ) -> ResourceRequirements {
+    pub fn get_resource_requirements(hoprd_deployment_spec: Option<HoprdDeploymentSpec>) -> ResourceRequirements {
         let default_deployment_spec = HoprdDeploymentSpec::default();
-        let hoprd_deployment_spec =
-            hoprd_deployment_spec.unwrap_or(default_deployment_spec.clone());
-        let resource_requirements_string = hoprd_deployment_spec
-            .resources
-            .as_ref()
-            .unwrap_or(&default_deployment_spec.resources.as_ref().unwrap());
-        let resource_requirements: ResourceRequirements =
-            serde_yaml::from_str(resource_requirements_string).unwrap();
+        let hoprd_deployment_spec = hoprd_deployment_spec.unwrap_or(default_deployment_spec.clone());
+        let resource_requirements_string = hoprd_deployment_spec.resources.as_ref().unwrap_or(default_deployment_spec.resources.as_ref().unwrap());
+        let resource_requirements: ResourceRequirements = serde_yaml::from_str(resource_requirements_string).unwrap();
         resource_requirements
     }
 
-    // pub fn get_liveness_probe(hoprd_deployment_spec: Option<HoprdDeploymentSpec>) -> Probe {
-    //     let default_deployment_spec = HoprdDeploymentSpec::default();
-    //     let hoprd_deployment_spec =
-    //         hoprd_deployment_spec.unwrap_or(default_deployment_spec.clone());
-    //     let liveness_probe_string = hoprd_deployment_spec
-    //         .liveness_probe
-    //         .as_ref()
-    //         .unwrap_or(&default_deployment_spec.liveness_probe.as_ref().unwrap());
-    //     let liveness_probe: Probe = serde_yaml::from_str(liveness_probe_string).unwrap();
-    //     liveness_probe
-    // }
+    pub fn get_environment_variables(hoprd_deployment_spec: Option<HoprdDeploymentSpec>) -> Vec<EnvVar> {
+        let default_deployment_spec = HoprdDeploymentSpec::default();
+        let hoprd_deployment_spec = hoprd_deployment_spec.unwrap_or(default_deployment_spec.clone());
+        let environment_variables_string = hoprd_deployment_spec.env.as_ref().unwrap_or(default_deployment_spec.env.as_ref().unwrap());
+        let environment_variables: Vec<CustomEnvVar> = serde_yaml::from_str(environment_variables_string).unwrap();
+        environment_variables.iter().map(|env| {
+            EnvVar {
+                name: env.name.to_owned(),
+                value: Some(env.value.to_owned()),
+                ..EnvVar::default()
+            }
+        }).collect()
+    }
 
-    // pub fn get_startup_probe(hoprd_deployment_spec: Option<HoprdDeploymentSpec>) -> Probe {
-    //     let default_deployment_spec = HoprdDeploymentSpec::default();
-    //     let hoprd_deployment_spec =
-    //         hoprd_deployment_spec.unwrap_or(default_deployment_spec.clone());
-    //     let startup_probe_string = hoprd_deployment_spec
-    //         .startup_probe
-    //         .as_ref()
-    //         .unwrap_or(&default_deployment_spec.startup_probe.as_ref().unwrap());
-    //     let startup_probe: Probe = serde_yaml::from_str(startup_probe_string).unwrap();
-    //     startup_probe
-    // }
 
-    // pub fn get_readiness_probe(hoprd_deployment_spec: Option<HoprdDeploymentSpec>) -> Probe {
-    //     let default_deployment_spec = HoprdDeploymentSpec::default();
-    //     let hoprd_deployment_spec =
-    //         hoprd_deployment_spec.unwrap_or(default_deployment_spec.clone());
-    //     let readiness_probe_string = hoprd_deployment_spec
-    //         .readiness_probe
-    //         .as_ref()
-    //         .unwrap_or(&default_deployment_spec.readiness_probe.as_ref().unwrap());
-    //     let readiness_probe: Probe = serde_yaml::from_str(readiness_probe_string).unwrap();
-    //     readiness_probe
-    // }
+    pub fn build_probe(path: String, period_seconds: Option<i32>, success_threshold: Option<i32>, failure_threshold: Option<i32>) -> Probe {
+         Probe {
+            http_get: Some(HTTPGetAction {
+                path: Some(path.to_string()),
+                port: IntOrString::Int(3001),
+                ..HTTPGetAction::default()
+            }),
+            timeout_seconds: Some(5),
+            period_seconds,
+            success_threshold,
+            failure_threshold,
+            ..Probe::default()
+        }
+    }
+
+    pub fn get_liveness_probe(supported_release: SupportedReleaseEnum, hoprd_deployment_spec_option: Option<HoprdDeploymentSpec>) -> Option<Probe> {
+        match supported_release {
+            SupportedReleaseEnum::Providence => None,
+            SupportedReleaseEnum::SaintLouis => {
+                let default_liveness_probe = HoprdDeploymentSpec::build_probe("/api/v3/healthyz/".to_owned(),Some(5), Some(1), Some(3));
+                if let Some(hoprd_deployment_spec) = hoprd_deployment_spec_option {
+                    if let Some (liveness_probe_string) = hoprd_deployment_spec.liveness_probe {
+                        Some(serde_yaml::from_str(&liveness_probe_string).unwrap())
+                    } else {
+                        Some(default_liveness_probe)
+                    }
+                } else {
+                    Some(default_liveness_probe)
+                }
+            }
+        }
+    }
+
+    pub fn get_startup_probe(supported_release: SupportedReleaseEnum, hoprd_deployment_spec_option: Option<HoprdDeploymentSpec>) -> Option<Probe> {
+        match supported_release {
+            SupportedReleaseEnum::Providence => None,
+            SupportedReleaseEnum::SaintLouis => {
+                let default_startup_probe = HoprdDeploymentSpec::build_probe("/api/v3/startedz/".to_owned(),Some(30), Some(1), Some(960));
+                if let Some(hoprd_deployment_spec) = hoprd_deployment_spec_option {
+                    if let Some (startup_probe_string) = hoprd_deployment_spec.startup_probe {
+                        Some(serde_yaml::from_str(&startup_probe_string).unwrap())
+                    } else {
+                        Some(default_startup_probe)
+                    }
+                } else {
+                    Some(default_startup_probe)
+                }
+            }
+        }
+    }
+
+    pub fn get_readiness_probe(supported_release: SupportedReleaseEnum, hoprd_deployment_spec_option: Option<HoprdDeploymentSpec>) -> Option<Probe> {
+        match supported_release {
+            SupportedReleaseEnum::Providence => None,
+            SupportedReleaseEnum::SaintLouis => {
+                let default_readiness_probe = HoprdDeploymentSpec::build_probe("/api/v3/readyz/".to_owned(),Some(30), Some(1), Some(20));
+                if let Some(hoprd_deployment_spec) = hoprd_deployment_spec_option {
+                    if let Some (readiness_probe_string) = hoprd_deployment_spec.readiness_probe {
+                        Some(serde_yaml::from_str(&readiness_probe_string).unwrap())
+                    } else {
+                        Some(default_readiness_probe)
+                    }
+                } else {
+                    Some(default_readiness_probe)
+                }
+            }
+        }
+    }
 }
 #[derive(Serialize, Debug, Deserialize, PartialEq, Clone, JsonSchema, Hash)]
 pub struct EnablingFlag {

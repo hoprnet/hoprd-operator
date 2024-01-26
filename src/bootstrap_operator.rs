@@ -20,10 +20,7 @@ use tracing::error;
 use crate::{context_data::ContextData, operator_config::IngressConfig};
 
 // Modifies Nginx deployment to add a range of ports that will be used by the operator while creating new nodes
-async fn open_nginx_deployment_ports(
-    client: Client,
-    ingress_config: &IngressConfig,
-) -> Result<(), HoprError> {
+async fn open_nginx_deployment_ports(client: Client, ingress_config: &IngressConfig) -> Result<(), HoprError> {
     let namespace = ingress_config.namespace.as_ref().unwrap();
     let min_port = ingress_config.p2p_port_min.as_ref().unwrap().parse::<i32>().unwrap();
     let max_port = ingress_config.p2p_port_max.as_ref().unwrap().parse::<i32>().unwrap();
@@ -40,13 +37,13 @@ async fn open_nginx_deployment_ports(
     for port_number in min_port..max_port {
         new_deployment_ports.push(ContainerPort {
             container_port: port_number,
-            name: Some(format!("{}-tcp", port_number.to_string())),
+            name: Some(format!("{}-tcp", port_number)),
             protocol: Some("TCP".to_string()),
             ..ContainerPort::default()
         });
         new_deployment_ports.push(ContainerPort {
             container_port: port_number,
-            name: Some(format!("{}-udp", port_number.to_string())),
+            name: Some(format!("{}-udp", port_number)),
             protocol: Some("UDP".to_string()),
             ..ContainerPort::default()
         });
@@ -66,10 +63,7 @@ async fn open_nginx_deployment_ports(
 }
 
 // Modifies Nginx service to add a range of ports that will be used by the operator while creating new nodes
-async fn open_nginx_service_ports(
-    client: Client,
-    ingress_config: &IngressConfig,
-) -> Result<(), HoprError> {
+async fn open_nginx_service_ports(client: Client, ingress_config: &IngressConfig) -> Result<(), HoprError> {
     let namespace = ingress_config.namespace.as_ref().unwrap();
     let min_port = ingress_config.p2p_port_min.as_ref().unwrap().parse::<i32>().unwrap();
     let max_port = ingress_config.p2p_port_max.as_ref().unwrap().parse::<i32>().unwrap();
@@ -85,14 +79,14 @@ async fn open_nginx_service_ports(
     for port_number in min_port..max_port {
         new_service_ports.push(ServicePort {
             port: port_number,
-            name: Some(format!("{}-tcp", port_number.to_string())),
+            name: Some(format!("{}-tcp", port_number)),
             protocol: Some("TCP".to_string()),
             target_port: Some(IntOrString::Int(port_number)),
             ..ServicePort::default()
         });
         new_service_ports.push(ServicePort {
             port: port_number,
-            name: Some(format!("{}-udp", port_number.to_string())),
+            name: Some(format!("{}-udp", port_number)),
             protocol: Some("UDP".to_string()),
             target_port: Some(IntOrString::Int(port_number)),
             ..ServicePort::default()
@@ -111,7 +105,7 @@ async fn open_nginx_service_ports(
 }
 
 /// Boot operator
-pub async fn start(client: Client, context_data: Arc<ContextData>) -> () {
+pub async fn start(client: Client, context_data: Arc<ContextData>) {
     // Open Nginx Ports
     if context_data.config.ingress.ingress_class_name == "nginx" {
         open_nginx_deployment_ports(client.clone(), &context_data.config.ingress).await.unwrap();
