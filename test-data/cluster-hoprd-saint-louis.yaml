@@ -15,6 +15,5 @@ spec:
   config: |
     hopr:
       chain:
-        announce: true
         network: doufur
         provider: https://rpc.ankr.com/gnosis

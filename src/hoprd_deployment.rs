@@ -128,7 +128,7 @@ pub async fn build_deployment_spec(labels: BTreeMap<String, String>, hoprd_spec:
                         image: Some(image),
                         image_pull_policy: Some("Always".to_owned()),
                         ports: Some(build_ports(port)),
-                        env: Some(build_env_vars(&identity_pool, identity_hoprd, hoprd_host, hoprd_spec.deployment.clone())),
+                        env: Some(build_env_vars(&identity_pool, identity_hoprd, hoprd_host, hoprd_spec)),
                         // command: Some(vec!["/bin/bash".to_owned(), "-c".to_owned()]),
                         // args: Some(vec!["sleep 99999999".to_owned()]),
                         liveness_probe,
@@ -150,7 +150,7 @@ pub async fn build_deployment_spec(labels: BTreeMap<String, String>, hoprd_spec:
         }
 }
 
-pub async fn modify_deployment(context_data: Arc<ContextData>, deployment_name: &str, namespace: &str, hoprd_spec: &HoprdSpec, identity_hoprd: &IdentityHoprd) -> Result<Deployment, kube::Error> {
+pub async fn modify_deployment(context_data: Arc<ContextData>, deployment_name: &str, namespace: &str, hoprd_spec: &HoprdSpec, identity_hoprd: &IdentityHoprd) -> Result<(), kube::Error> {
     let api: Api<Deployment> = Api::namespaced(context_data.client.clone(), namespace);
     let deployment = api.get(deployment_name).await.unwrap();
     let hoprd_host = deployment.spec.clone().unwrap().template.spec.unwrap().containers.first().as_ref().unwrap()
@@ -160,7 +160,8 @@ pub async fn modify_deployment(context_data: Arc<ContextData>, deployment_name: 
     let identity_pool: IdentityPool = identity_hoprd.get_identity_pool(context_data.client.clone()).await.unwrap();
     let spec = build_deployment_spec(deployment.labels().to_owned(), hoprd_spec, identity_pool, identity_hoprd, &hoprd_host).await;
     let patch = &Patch::Merge(json!({ "spec": spec }));
-    api.patch(deployment_name, &PatchParams::default(), patch).await
+    api.patch(deployment_name, &PatchParams::default(), patch).await.unwrap();
+    Ok(())
 }
 
 /// Deletes an existing deployment.
@@ -241,11 +242,18 @@ fn build_ports(p2p_port: i32) -> Vec<ContainerPort> {
 
 ///Build struct environment variable
 ///
-fn build_env_vars(identity_pool: &IdentityPool, identity_hoprd: &IdentityHoprd, hoprd_host: &String, hoprd_deployment_spec: Option<HoprdDeploymentSpec>) -> Vec<EnvVar> {
+fn build_env_vars(identity_pool: &IdentityPool, identity_hoprd: &IdentityHoprd, hoprd_host: &String, hoprd_spec: &HoprdSpec) -> Vec<EnvVar> {
     let mut env_vars = build_secret_env_var(identity_pool);
     env_vars.extend_from_slice(&build_crd_env_var(identity_pool, identity_hoprd));
     env_vars.extend_from_slice(&build_default_env_var(hoprd_host));
-    env_vars.extend_from_slice(&HoprdDeploymentSpec::get_environment_variables(hoprd_deployment_spec));
+    env_vars.extend_from_slice(&HoprdDeploymentSpec::get_environment_variables(hoprd_spec.deployment.to_owned()));
+    if hoprd_spec.supported_release.eq(&constants::SupportedReleaseEnum::Providence) {
+        env_vars.push(EnvVar {
+            name: constants::HOPRD_ANNOUNCE.to_owned(),
+            value: Some("true".to_owned()),
+            ..EnvVar::default()
+        });
+    }
     env_vars
 }
 
@@ -299,10 +307,6 @@ fn build_crd_env_var(identity_pool: &IdentityPool, identity_hoprd: &IdentityHopr
     }, EnvVar {
         name: constants::HOPRD_MODULE_ADDRESS.to_owned(),
         value: Some(identity_hoprd.spec.module_address.to_owned()),
-        ..EnvVar::default()
-    }, EnvVar {
-        name: constants::HOPRD_ANNOUNCE.to_owned(),
-        value: Some("true".to_owned()),
         ..EnvVar::default()
     }]
 

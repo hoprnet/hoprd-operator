@@ -187,6 +187,9 @@ impl ClusterHoprd {
         cloned_cluster.metadata.creation_timestamp = None;
         cloned_cluster.metadata.finalizers = None;
         cloned_cluster.metadata.annotations = None;
+        cloned_cluster.metadata.generation = None;
+        cloned_cluster.metadata.resource_version = None;
+        cloned_cluster.metadata.uid = None;
         let cluster_last_configuration = serde_json::to_string(&cloned_cluster).unwrap();
         let mut annotations = BTreeMap::new();
         annotations.insert(constants::ANNOTATION_LAST_CONFIGURATION.to_string(), cluster_last_configuration);
@@ -321,10 +324,11 @@ impl ClusterHoprd {
     async fn get_next_free_node(&self, client: Client) -> i32 {
         let api: Api<Hoprd> = Api::namespaced(client, &self.namespace().unwrap());
         let current_nodes = self.get_my_nodes(api).await.unwrap();
+        debug!("ClusterHoprd {} in namespace {} has currently {} nodes", self.name_any(), self.namespace().unwrap(), current_nodes.len());
         let current_node_numbers = current_nodes.iter().map(|n| {
             n.name_any().replace(&format!("{}-", self.metadata.name.as_ref().unwrap()), "").parse::<i32>().unwrap()
         }).collect::<Vec<i32>>();
-        current_node_numbers.iter().enumerate().find_map(|(index, &value)| {
+        let next = current_node_numbers.iter().enumerate().find_map(|(index, &value)| {
             if index + 1 < current_node_numbers.len() && (value + 1) > current_node_numbers[index + 1] {
                 Some(value + 1)
             } else {
@@ -334,7 +338,9 @@ impl ClusterHoprd {
             let current_size: i32 = current_node_numbers.len().try_into().unwrap();
             if current_size == 1 && current_node_numbers[0] != 1 { 1 } else { current_size + 1 }
 
-        })
+        });
+        debug!("Next free node for ClusterHopr {} in namespace {} is {}", self.name_any(), self.namespace().unwrap(), next);
+        next
     }
 
     /// Creates a set of hoprd resources with similar configuration
