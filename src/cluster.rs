@@ -184,7 +184,7 @@ impl ClusterHoprd {
         let mut cloned_cluster = self.clone();
         cloned_cluster.status = None;
         cloned_cluster.metadata.managed_fields = None;
-        // cloned_cluster.metadata.creation_timestamp = None;
+        cloned_cluster.metadata.creation_timestamp = None;
         cloned_cluster.metadata.finalizers = None;
         cloned_cluster.metadata.annotations = None;
         cloned_cluster.metadata.generation = None;
