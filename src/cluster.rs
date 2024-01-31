@@ -170,36 +170,12 @@ impl ClusterHoprd {
                         error!("Could not parse the last applied configuration of ClusterHoprd {cluster_hoprd_name}");
                     }
                 }
-                self.update_last_configuration(context_data.client.clone()).await?;
             } else {
                 context_data.send_event(self,ClusterHoprdEventEnum::Failed,None).await;
                 self.update_status(context_data.clone(), ClusterHoprdPhaseEnum::Failed).await?;
                 error!("Could not modify ClusterHoprd {cluster_hoprd_name} because cannot recover last configuration");
             }
         Ok(Action::requeue(Duration::from_secs(constants::RECONCILE_FREQUENCY)))
-    }
-
-    async fn update_last_configuration(&self, client: Client) -> Result<(), Error> {
-        let api: Api<ClusterHoprd> = Api::namespaced(client, &self.namespace().unwrap());
-        let mut cloned_cluster = self.clone();
-        cloned_cluster.status = None;
-        cloned_cluster.metadata.managed_fields = None;
-        cloned_cluster.metadata.creation_timestamp = None;
-        cloned_cluster.metadata.finalizers = None;
-        cloned_cluster.metadata.annotations = None;
-        let cluster_last_configuration = serde_json::to_string(&cloned_cluster).unwrap();
-        let mut annotations = BTreeMap::new();
-        annotations.insert(constants::ANNOTATION_LAST_CONFIGURATION.to_string(), cluster_last_configuration);
-        let patch = Patch::Merge(json!({
-            "metadata": {
-                "annotations": annotations 
-            }
-        }));
-        match api.patch(&self.name_any(), &PatchParams::default(), &patch).await
-        {
-            Ok(_cluster_hopr) => Ok(()),
-            Err(error) => Ok(error!("Could not update last configuration annotation on ClusterHoprd {}: {:?}", self.name_any(), error))
-        }
     }
 
     // Handle rescaling

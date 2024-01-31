@@ -150,7 +150,7 @@ pub async fn build_deployment_spec(labels: BTreeMap<String, String>, hoprd_spec:
         }
 }
 
-pub async fn modify_deployment(context_data: Arc<ContextData>, deployment_name: &str, namespace: &str, hoprd_spec: &HoprdSpec, identity_hoprd: &IdentityHoprd) -> Result<Deployment, kube::Error> {
+pub async fn modify_deployment(context_data: Arc<ContextData>, deployment_name: &str, namespace: &str, hoprd_spec: &HoprdSpec, identity_hoprd: &IdentityHoprd) -> Result<(), kube::Error> {
     let api: Api<Deployment> = Api::namespaced(context_data.client.clone(), namespace);
     let deployment = api.get(deployment_name).await.unwrap();
     let hoprd_host = deployment.spec.clone().unwrap().template.spec.unwrap().containers.first().as_ref().unwrap()
@@ -160,7 +160,8 @@ pub async fn modify_deployment(context_data: Arc<ContextData>, deployment_name: 
     let identity_pool: IdentityPool = identity_hoprd.get_identity_pool(context_data.client.clone()).await.unwrap();
     let spec = build_deployment_spec(deployment.labels().to_owned(), hoprd_spec, identity_pool, identity_hoprd, &hoprd_host).await;
     let patch = &Patch::Merge(json!({ "spec": spec }));
-    api.patch(deployment_name, &PatchParams::default(), patch).await
+    api.patch(deployment_name, &PatchParams::default(), patch).await.unwrap();
+    Ok(())
 }
 
 /// Deletes an existing deployment.

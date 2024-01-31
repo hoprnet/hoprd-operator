@@ -189,9 +189,8 @@ impl Hoprd {
                         self.update_status(client.clone(), HoprdPhaseEnum::Failed, None).await?;
                     }
                 }
-                self.update_last_configuration(context_data.client.clone()).await?;
             } else {
-                error!("Could not modify IdentityHoprd {hoprd_name} because cannot recover last configuration");
+                error!("Could not modify Hoprd {hoprd_name} because cannot recover last configuration");
                 context_data.send_event(self, HoprdEventEnum::Failed, None).await;
                 self.update_status(client.clone(), HoprdPhaseEnum::Failed, None).await?;
             }
@@ -320,30 +319,6 @@ impl Hoprd {
             Err(error) => Ok(error!("Could not update status on node {hoprd_name}: {:?}",error))
         }
     }
-
-    async fn update_last_configuration(&self, client: Client) -> Result<(), Error> {
-        let api: Api<Hoprd> = Api::namespaced(client, &self.namespace().unwrap());
-        let mut cloned_hoprd = self.clone();
-        cloned_hoprd.status = None;
-        cloned_hoprd.metadata.managed_fields = None;
-        cloned_hoprd.metadata.creation_timestamp = None;
-        cloned_hoprd.metadata.finalizers = None;
-        cloned_hoprd.metadata.annotations = None;
-        let hoprd_last_configuration = serde_json::to_string(&cloned_hoprd).unwrap();
-        let mut annotations = BTreeMap::new();
-        annotations.insert(constants::ANNOTATION_LAST_CONFIGURATION.to_string(), hoprd_last_configuration);
-        let patch = Patch::Merge(json!({
-            "metadata": { 
-                "annotations": annotations 
-            }
-        }));
-        match api.patch(&self.name_any(), &PatchParams::default(), &patch).await
-        {
-            Ok(_cluster_hopr) => Ok(()),
-            Err(error) => Ok(error!("Could not update last configuration annotation on Hoprd {}: {:?}", self.name_any(), error))
-        }
-    }
-
 
     async fn notify_cluster(&self, context_data: Arc<ContextData>) -> Result<(), Error> {
         if let Some(owner_reference) = self.owner_references().to_owned().first() {
