@@ -126,14 +126,10 @@ async fn delete_service_account(client: Client, name: &str, namespace: &str) -> 
     if let Some(service_account) = api.get_opt(name).await? {
         let uid = service_account.metadata.uid.unwrap();
         api.delete(name, &DeleteParams::default()).await?;
-        await_condition(api, name, conditions::is_deleted(&uid))
-            .await
-            .unwrap();
+        await_condition(api, name, conditions::is_deleted(&uid)).await.unwrap();
         Ok(info!("ServiceAccount {name} successfully deleted"))
     } else {
-        Ok(info!(
-            "ServiceAccount {name} in namespace {namespace} about to delete not found"
-        ))
+        Ok(info!("ServiceAccount {name} in namespace {namespace} about to delete not found"))
     }
 }
 
@@ -142,14 +138,10 @@ async fn delete_role(client: Client, name: &str, namespace: &str) -> Result<(), 
     if let Some(role) = api.get_opt(name).await? {
         let uid = role.metadata.uid.unwrap();
         api.delete(name, &DeleteParams::default()).await?;
-        await_condition(api, name, conditions::is_deleted(&uid))
-            .await
-            .unwrap();
+        await_condition(api, name, conditions::is_deleted(&uid)).await.unwrap();
         Ok(info!("Role {name} successfully deleted"))
     } else {
-        Ok(info!(
-            "Role {name} in namespace {namespace} about to delete not found"
-        ))
+        Ok(info!("Role {name} in namespace {namespace} about to delete not found"))
     }
 }
 
@@ -158,13 +150,9 @@ async fn delete_role_binding(client: Client, name: &str, namespace: &str) -> Res
     if let Some(role_binding) = api.get_opt(name).await? {
         let uid = role_binding.metadata.uid.unwrap();
         api.delete(name, &DeleteParams::default()).await?;
-        await_condition(api, name, conditions::is_deleted(&uid))
-            .await
-            .unwrap();
+        await_condition(api, name, conditions::is_deleted(&uid)).await.unwrap();
         Ok(info!("RoleBinding {name} successfully deleted"))
     } else {
-        Ok(info!(
-            "RoleBinding {name} in namespace {namespace} about to delete not found"
-        ))
+        Ok(info!("RoleBinding {name} in namespace {namespace} about to delete not found"))
     }
 }

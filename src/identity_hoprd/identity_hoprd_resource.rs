@@ -1,6 +1,6 @@
 use crate::events::{ IdentityHoprdEventEnum, IdentityPoolEventEnum};
-use crate::{identity_hoprd_persistence, resource_generics};
-use crate::identity_pool::{IdentityPool, IdentityPoolPhaseEnum, IdentityPoolStatus};
+use crate::{identity_hoprd::identity_hoprd_persistence, resource_generics};
+use crate::identity_pool::identity_pool_resource::{IdentityPool, IdentityPoolPhaseEnum, IdentityPoolStatus};
 use crate::model::Error;
 use crate::{constants, context_data::ContextData};
 use chrono::Utc;

@@ -1,10 +1,9 @@
 use crate::constants::SupportedReleaseEnum;
 use crate::events::ClusterHoprdEventEnum;
-use crate::hoprd::HoprdSpec;
-use crate::hoprd_deployment_spec::HoprdDeploymentSpec;
+use crate::hoprd::{hoprd_deployment_spec::HoprdDeploymentSpec, hoprd_resource::{HoprdSpec, Hoprd}};
 use crate::model::Error;
 use crate::{utils, resource_generics};
-use crate::{constants, context_data::ContextData, hoprd::Hoprd};
+use crate::{constants, context_data::ContextData};
 use chrono::Utc;
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::OwnerReference;
 use kube::api::{ DeleteParams, ListParams, PostParams};

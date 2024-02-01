@@ -7,8 +7,8 @@ use kube::{
     Client, Resource, Api, api::ListParams, ResourceExt};
 
 use crate::{
-    constants, hoprd::Hoprd, identity_hoprd::IdentityHoprd,
-    identity_pool::IdentityPool, operator_config::OperatorConfig, events::ResourceEvent,
+    constants, hoprd::hoprd_resource::Hoprd, identity_hoprd::identity_hoprd_resource::IdentityHoprd,
+    identity_pool::identity_pool_resource::IdentityPool, operator_config::OperatorConfig, events::ResourceEvent,
 };
 
 #[derive(Clone)]

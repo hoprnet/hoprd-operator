@@ -1,0 +1,5 @@
+pub mod identity_pool_resource;
+pub mod identity_pool_controller;
+mod identity_pool_service_account;
+mod identity_pool_service_monitor;
+mod identity_pool_cronjob_faucet;

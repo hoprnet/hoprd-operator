@@ -109,7 +109,7 @@ impl HoprdDeploymentSpec {
         match supported_release {
             SupportedReleaseEnum::Providence => None,
             SupportedReleaseEnum::SaintLouis => {
-                let default_liveness_probe = HoprdDeploymentSpec::build_probe("/api/v3/healthyz/".to_owned(),Some(5), Some(1), Some(3));
+                let default_liveness_probe = HoprdDeploymentSpec::build_probe("/healthyz".to_owned(),Some(5), Some(1), Some(3));
                 if let Some(hoprd_deployment_spec) = hoprd_deployment_spec_option {
                     if let Some (liveness_probe_string) = hoprd_deployment_spec.liveness_probe {
                         Some(serde_yaml::from_str(&liveness_probe_string).unwrap())
@@ -127,7 +127,7 @@ impl HoprdDeploymentSpec {
         match supported_release {
             SupportedReleaseEnum::Providence => None,
             SupportedReleaseEnum::SaintLouis => {
-                let default_startup_probe = HoprdDeploymentSpec::build_probe("/api/v3/startedz/".to_owned(),Some(30), Some(1), Some(960));
+                let default_startup_probe = HoprdDeploymentSpec::build_probe("/startedz".to_owned(),Some(15), Some(1), Some(8));
                 if let Some(hoprd_deployment_spec) = hoprd_deployment_spec_option {
                     if let Some (startup_probe_string) = hoprd_deployment_spec.startup_probe {
                         Some(serde_yaml::from_str(&startup_probe_string).unwrap())
@@ -145,7 +145,7 @@ impl HoprdDeploymentSpec {
         match supported_release {
             SupportedReleaseEnum::Providence => None,
             SupportedReleaseEnum::SaintLouis => {
-                let default_readiness_probe = HoprdDeploymentSpec::build_probe("/api/v3/readyz/".to_owned(),Some(30), Some(1), Some(20));
+                let default_readiness_probe = HoprdDeploymentSpec::build_probe("/readyz".to_owned(),Some(10), Some(1), Some(6));
                 if let Some(hoprd_deployment_spec) = hoprd_deployment_spec_option {
                     if let Some (readiness_probe_string) = hoprd_deployment_spec.readiness_probe {
                         Some(serde_yaml::from_str(&readiness_probe_string).unwrap())

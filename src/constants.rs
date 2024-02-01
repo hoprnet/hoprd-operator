@@ -57,16 +57,11 @@ pub const HOPRD_INIT: &str = "HOPRD_INIT";
 pub const HOPRD_HEALTH_CHECK: &str = "HOPRD_HEALTH_CHECK";
 pub const HOPRD_HEALTH_CHECK_HOST: &str = "HOPRD_HEALTH_CHECK_HOST";
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone, Hash,  Copy, JsonSchema)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Default, Clone, Hash,  Copy, JsonSchema)]
 pub enum SupportedReleaseEnum {
     #[serde(rename= "providence")]
+    #[default]
     Providence,
     #[serde(rename= "saint-louis")]
     SaintLouis 
-}
-
-impl Default for SupportedReleaseEnum {
-    fn default() -> Self {
-        SupportedReleaseEnum::Providence
-    }
 }

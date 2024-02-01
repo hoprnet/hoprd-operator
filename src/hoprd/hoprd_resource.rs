@@ -1,14 +1,13 @@
-use crate::cluster::{ClusterHoprd, ClusterHoprdPhaseEnum};
+use crate::cluster::cluster_hoprd::{ClusterHoprd, ClusterHoprdPhaseEnum};
 use crate::constants::SupportedReleaseEnum;
 use crate::events::{ClusterHoprdEventEnum, HoprdEventEnum, IdentityHoprdEventEnum, IdentityPoolEventEnum};
 use crate::resource_generics;
-use crate::hoprd_deployment_spec::HoprdDeploymentSpec;
-use crate::identity_hoprd::{IdentityHoprd, IdentityHoprdPhaseEnum};
-use crate::identity_pool::{IdentityPool, IdentityPoolPhaseEnum};
+use crate::identity_hoprd::identity_hoprd_resource::{IdentityHoprd, IdentityHoprdPhaseEnum};
+use crate::identity_pool::identity_pool_resource::{IdentityPool, IdentityPoolPhaseEnum};
 use crate::model::Error;
 use crate::{
-    constants, context_data::ContextData, hoprd_deployment, hoprd_ingress,
-    hoprd_service
+    hoprd::{hoprd_deployment_spec::HoprdDeploymentSpec, hoprd_deployment, hoprd_service, hoprd_ingress},
+    constants, context_data::ContextData, 
 };
 use chrono::Utc;
 use futures::{StreamExt, TryStreamExt};
@@ -238,12 +237,19 @@ impl Hoprd {
         hoprd_deployment::delete_depoyment(client.clone(), &hoprd_name, &hoprd_namespace).await.unwrap();
         if let Some(identity) = self.get_identity(client.clone()).await? {
             identity.unlock(context_data.clone()).await?;
+        } else {
+            warn!("HoprdNode {hoprd_name} in namespace {hoprd_namespace} does not have a locked identity")
         }
         // Once all the resources are successfully removed, remove the finalizer to make it possible
         // for Kubernetes to delete the `Hoprd` resource.
         context_data.send_event(self, HoprdEventEnum::Deleted, None).await;
-        self.notify_cluster(context_data.clone()).await.unwrap();
-        resource_generics::delete_finalizer(client.clone(), self).await;
+        if let Some(cluster) = self.belongs_to_cluster(context_data.clone()).await? {
+            resource_generics::delete_finalizer(client.clone(), self).await;
+            context_data.send_event(&cluster, ClusterHoprdEventEnum::NodeDeleted, None).await;
+            cluster.update_status(context_data.clone(), ClusterHoprdPhaseEnum::NodeDeleted).await.unwrap();
+        } else {
+            resource_generics::delete_finalizer(client.clone(), self).await;
+        }
         info!("Hoprd node {hoprd_name} in namespace {hoprd_namespace} has been successfully deleted");
         Ok(Action::await_change()) // Makes no sense to delete after a successful delete, as the resource is gone
     }
@@ -347,7 +353,7 @@ impl Hoprd {
         }
     }
 
-    async fn notify_cluster(&self, context_data: Arc<ContextData>) -> Result<(), Error> {
+    async fn belongs_to_cluster(&self, context_data: Arc<ContextData>) -> Result<Option<ClusterHoprd>, Error> {
         if let Some(owner_reference) = self.owner_references().to_owned().first() {
             let hoprd_namespace = self.metadata.namespace.as_ref().unwrap().to_owned();
             let api: Api<ClusterHoprd> = Api::namespaced(context_data.client.clone(), &hoprd_namespace.to_owned());
@@ -355,15 +361,14 @@ impl Hoprd {
                 let current_phase = cluster.to_owned().status.unwrap().phase;
                 if current_phase.ne(&ClusterHoprdPhaseEnum::Deleting) && current_phase.ne(&ClusterHoprdPhaseEnum::NotScaled) && current_phase.ne(&ClusterHoprdPhaseEnum::Scaling) {
                     debug!("Current Phase {} of {}", current_phase, self.name_any().to_owned());
-                    context_data.send_event(&cluster, ClusterHoprdEventEnum::NodeDeleted, None).await;
-                    cluster.update_status(context_data.clone(), ClusterHoprdPhaseEnum::NodeDeleted).await.unwrap();
-                    info!("Notifying ClusterHoprd {} that hoprd node {} is being deleted", &owner_reference.name, self.name_any().to_owned())
+                    info!("Notifying ClusterHoprd {} that hoprd node {} is being deleted", &owner_reference.name, self.name_any().to_owned());
+                    return Ok(Some(cluster));
                 }
             } else {
                 debug!("ClusterHoprd {} not found", &owner_reference.name);
             }
-        };
-        Ok(())
+        }
+        Ok(None)
     }
 
     pub fn get_checksum(&self) -> String {
@@ -378,10 +383,16 @@ impl Hoprd {
                 let api: Api<IdentityHoprd> = Api::namespaced(client.clone(), &self.namespace().unwrap());
                 match status.to_owned().identity_name {
                     Some(identity_name) => Ok(api.get_opt(identity_name.as_str()).await.unwrap()),
-                    None => Ok(None),
+                    None => {
+                        warn!("HoprdNode status for {} is incomplete as it does not contain a identity_name", &self.name_any());
+                        Ok(None)
+                    }
                 }
+            },
+            None => {
+            warn!("HoprdNode {} has empty status", &self.name_any());
+            Ok(None)
             }
-            None => Ok(None)
         }
     }
     // Wait for the Hoprd deployment to be created

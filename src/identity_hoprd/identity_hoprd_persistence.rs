@@ -9,7 +9,7 @@ use kube::{Api, Resource, ResourceExt};
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
-use crate::identity_hoprd::IdentityHoprd;
+use crate::identity_hoprd::identity_hoprd_resource::IdentityHoprd;
 use crate::utils;
 
 /// Creates the Persitence Volume Claim

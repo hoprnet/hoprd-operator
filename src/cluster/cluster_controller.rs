@@ -1,3 +1,4 @@
+
 use futures::StreamExt;
 use kube::{
     api::Api,
@@ -13,10 +14,10 @@ use tokio::time::Duration;
 use tracing::error;
 
 use crate::{
-    cluster::{ClusterHoprd, ClusterHoprdPhaseEnum},
+    cluster::cluster_hoprd::{ClusterHoprd, ClusterHoprdPhaseEnum},
     constants::{self},
     context_data::ContextData,
-    hoprd::Hoprd,
+    hoprd::hoprd_resource::Hoprd,
     model::Error,
 };
 

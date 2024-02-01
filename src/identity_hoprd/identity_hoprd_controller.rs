@@ -16,7 +16,7 @@ use tracing::error;
 use crate::{
     constants::{self},
     context_data::ContextData,
-    identity_hoprd::IdentityHoprd,
+    identity_hoprd::identity_hoprd_resource::IdentityHoprd,
     model::Error,
 };
 

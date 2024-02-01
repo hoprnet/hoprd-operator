@@ -15,9 +15,9 @@ use tracing::error;
 use crate::{
     constants::{self},
     context_data::ContextData,
-    identity_pool::IdentityPool,
+    identity_pool::identity_pool_resource::{IdentityPool,IdentityPoolPhaseEnum},
     model::Error,
-    servicemonitor::ServiceMonitor, identity_hoprd::IdentityHoprd,
+    servicemonitor::ServiceMonitor, identity_hoprd::identity_hoprd_resource::IdentityHoprd,
 };
 
 /// Action to be taken upon an `IdentityPool` resource during reconciliation
@@ -46,7 +46,7 @@ fn determine_action(identity_pool: &IdentityPool) -> IdentityPoolAction {
     } else if identity_pool.meta().finalizers.as_ref().map_or(true, |finalizers| finalizers.is_empty())
     {
         IdentityPoolAction::Create
-    } else if identity_pool.status.as_ref().unwrap().phase.eq(&crate::identity_pool::IdentityPoolPhaseEnum::OutOfSync)
+    } else if identity_pool.status.as_ref().unwrap().phase.eq(&IdentityPoolPhaseEnum::OutOfSync)
     {
         IdentityPoolAction::Sync
     } else {

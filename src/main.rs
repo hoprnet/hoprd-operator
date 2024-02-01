@@ -1,28 +1,18 @@
 use kube::{Client, Result};
 use std::{env, sync::Arc};
-pub mod model;
 
+pub mod model;
+mod cluster;
+mod hoprd;
+mod identity_pool;
+mod identity_hoprd;
 mod resource_generics;
 mod bootstrap_operator;
-mod cluster;
 mod constants;
 mod context_data;
-mod controller_cluster;
-mod controller_hoprd;
-mod controller_identity;
-mod controller_identity_pool;
-mod hoprd;
 mod events;
-mod hoprd_deployment;
-mod hoprd_deployment_spec;
-mod hoprd_ingress;
-mod hoprd_service;
-mod identity_hoprd;
-mod identity_hoprd_persistence;
-mod identity_pool;
-mod identity_pool_service_account;
-mod identity_pool_service_monitor;
-mod identity_pool_cronjob_faucet;
+
+
 mod operator_config;
 mod servicemonitor;
 mod utils;
@@ -50,11 +40,11 @@ async fn main() -> Result<()> {
     // Initiatilize Kubernetes controller state
     bootstrap_operator::start(client.clone(), context_data.clone()).await;
     let controller_identity_pool =
-        controller_identity_pool::run(client.clone(), context_data.clone()).fuse();
+        identity_pool::identity_pool_controller::run(client.clone(), context_data.clone()).fuse();
     let controller_identity_hoprd =
-        controller_identity::run(client.clone(), context_data.clone()).fuse();
-    let controller_hoprd = controller_hoprd::run(client.clone(), context_data.clone()).fuse();
-    let controller_cluster = controller_cluster::run(client.clone(), context_data.clone()).fuse();
+        identity_hoprd::identity_hoprd_controller::run(client.clone(), context_data.clone()).fuse();
+    let controller_hoprd = hoprd::hoprd_controller::run(client.clone(), context_data.clone()).fuse();
+    let controller_cluster = cluster::cluster_controller::run(client.clone(), context_data.clone()).fuse();
 
     pin_mut!(
         controller_identity_pool,

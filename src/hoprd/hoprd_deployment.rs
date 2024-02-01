@@ -1,13 +1,13 @@
 use crate::context_data::ContextData;
-use crate::hoprd_deployment_spec::HoprdDeploymentSpec;
-use crate::identity_hoprd::IdentityHoprd;
-use crate::identity_pool::IdentityPool;
+use crate::hoprd::hoprd_deployment_spec::HoprdDeploymentSpec;
+use crate::identity_hoprd::identity_hoprd_resource::IdentityHoprd;
+use crate::identity_pool::identity_pool_resource::IdentityPool;
 use crate::model::Error;
 use crate::operator_config::IngressConfig;
 use base64::{Engine as _, engine::general_purpose};
 use crate::{
     constants,
-    hoprd::{Hoprd, HoprdSpec},
+    hoprd::hoprd_resource::{Hoprd, HoprdSpec},
     utils,
 };
 use k8s_openapi::api::apps::v1::{Deployment, DeploymentSpec, DeploymentStrategy};
@@ -253,6 +253,22 @@ fn build_env_vars(identity_pool: &IdentityPool, identity_hoprd: &IdentityHoprd, 
             value: Some("true".to_owned()),
             ..EnvVar::default()
         });
+        env_vars.push(EnvVar {
+            name: constants::HOPRD_API.to_owned(),
+            value: Some("true".to_owned()),
+            ..EnvVar::default()
+        });
+        env_vars.push(EnvVar {
+            name: constants::HOPRD_INIT.to_owned(),
+            value: Some("true".to_owned()),
+            ..EnvVar::default()
+        });
+    } else {
+        env_vars.push(EnvVar {
+            name: constants::HOPRD_API.to_owned(),
+            value: Some("1".to_owned()),
+            ..EnvVar::default()
+        });
     }
     env_vars
 }
@@ -328,16 +344,8 @@ fn build_default_env_var(hoprd_host: &String) -> Vec<EnvVar> {
         value: Some(hoprd_host.to_owned()),
         ..EnvVar::default()
     }, EnvVar {
-        name: constants::HOPRD_API.to_owned(),
-        value: Some("true".to_owned()),
-        ..EnvVar::default()
-    }, EnvVar {
         name: constants::HOPRD_API_HOST.to_owned(),
         value: Some("0.0.0.0".to_owned()),
-        ..EnvVar::default()
-    }, EnvVar {
-        name: constants::HOPRD_INIT.to_owned(),
-        value: Some("true".to_owned()),
         ..EnvVar::default()
     }, EnvVar {
         name: constants::HOPRD_HEALTH_CHECK.to_owned(),

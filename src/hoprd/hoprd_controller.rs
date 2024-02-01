@@ -21,7 +21,7 @@ use tracing::error;
 use crate::{
     constants::{self},
     context_data::ContextData,
-    hoprd::{Hoprd, HoprdPhaseEnum},
+    hoprd::hoprd_resource::{Hoprd, HoprdPhaseEnum},
     model::Error,
     servicemonitor::ServiceMonitor,
 };

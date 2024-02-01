@@ -85,13 +85,9 @@ pub async fn delete_service(client: Client, name: &str, namespace: &str) -> Resu
     if let Some(service) = api.get_opt(name).await? {
         let uid = service.metadata.uid.unwrap();
         api.delete(name, &DeleteParams::default()).await?;
-        await_condition(api, name, conditions::is_deleted(&uid))
-            .await
-            .unwrap();
+        await_condition(api, name, conditions::is_deleted(&uid)).await.unwrap();
         Ok(info!("Service {name} successfully deleted"))
     } else {
-        Ok(info!(
-            "Service {name} in namespace {namespace} about to delete not found"
-        ))
+        Ok(info!("Service {name} in namespace {namespace} about to delete not found"))
     }
 }

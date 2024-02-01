@@ -13,8 +13,8 @@ use std::sync::Arc;
 use tracing::info;
 
 use crate::context_data::ContextData;
-use crate::hoprd_deployment_spec::HoprdDeploymentSpec;
-use crate::identity_pool::IdentityPool;
+use crate::hoprd::hoprd_deployment_spec::HoprdDeploymentSpec;
+use crate::identity_pool::identity_pool_resource::IdentityPool;
 use crate::model::Error;
 use crate::{utils, constants};
 
@@ -170,13 +170,9 @@ pub async fn delete_cron_job(client: Client, name: &str,namespace: &str) -> Resu
     if let Some(create_cron_job) = api.get_opt(name).await? {
         let uid = create_cron_job.metadata.uid.unwrap();
         api.delete(name, &DeleteParams::default()).await?;
-        await_condition(api, name, conditions::is_deleted(&uid))
-            .await
-            .unwrap();
+        await_condition(api, name, conditions::is_deleted(&uid)).await.unwrap();
         Ok(info!("CronJob {name} successfully deleted"))
     } else {
-        Ok(info!(
-            "CronJob {name} in namespace {namespace} about to delete not found"
-        ))
+        Ok(info!("CronJob {name} in namespace {namespace} about to delete not found"))
     }
 }

@@ -1,9 +1,9 @@
 use crate::events::IdentityPoolEventEnum;
-use crate::hoprd_deployment_spec::HoprdDeploymentSpec;
-use crate::identity_hoprd::{IdentityHoprd, IdentityHoprdPhaseEnum};
+use crate::hoprd::hoprd_deployment_spec::HoprdDeploymentSpec;
+use crate::identity_hoprd::identity_hoprd_resource::{IdentityHoprd, IdentityHoprdPhaseEnum};
 use crate::model::Error;
 use crate::{constants, context_data::ContextData};
-use crate::{identity_pool_service_account, identity_pool_service_monitor, utils, identity_pool_cronjob_faucet, resource_generics};
+use crate::{identity_pool::{identity_pool_service_account,  identity_pool_cronjob_faucet, identity_pool_service_monitor}, utils, resource_generics};
 use chrono::Utc;
 use k8s_openapi::api::batch::v1::{Job, JobSpec, CronJob};
 use k8s_openapi::api::core::v1::{
@@ -565,9 +565,9 @@ impl IdentityPool {
         let api: Api<Job> = Api::namespaced(context_data.client.clone(), &namespace);
         api.create(&PostParams::default(), &create_node_job).await.unwrap();
         let job_completed = await_condition(api, &job_name, conditions::is_job_completed());
-        match tokio::time::timeout(std::time::Duration::from_secs(constants::OPERATOR_JOB_TIMEOUT), job_completed).await.unwrap()
+        match tokio::time::timeout(std::time::Duration::from_secs(constants::OPERATOR_JOB_TIMEOUT), job_completed).await
         {
-            Ok(job_option) => match job_option {
+            Ok(job_option) => match job_option.unwrap() {
                 Some(job) => {
                     if job.status.unwrap().failed.is_none() {
                         Ok(info!("Job {} completed successfully", &job_name.to_owned()))
