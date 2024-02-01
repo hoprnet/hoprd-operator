@@ -36,12 +36,11 @@ supportedRelease: ""
 ##
 forceIdentityName: false
 
-
+##
+## @param deployment Deployment spec
+##
 deployment: 
-  ##
-  ## @param deployment.resources Deployment resources spec
-  ##
-  resources: ""
+
 
 ##
 ## @param config Custom configuration of nodes
