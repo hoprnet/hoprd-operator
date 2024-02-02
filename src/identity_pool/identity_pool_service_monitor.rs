@@ -10,7 +10,7 @@ use tracing::info;
 
 use crate::context_data::ContextData;
 use crate::servicemonitor::{
-    ServiceMonitorEndpoints, ServiceMonitorEndpointsBasicAuth, ServiceMonitorEndpointsBasicAuthPassword, ServiceMonitorEndpointsBasicAuthUsername, ServiceMonitorEndpointsBearerTokenSecret, ServiceMonitorEndpointsRelabelings, ServiceMonitorEndpointsRelabelingsAction, ServiceMonitorNamespaceSelector, ServiceMonitorSelector, ServiceMonitorSpec
+    ServiceMonitorEndpoints, ServiceMonitorEndpointsBearerTokenSecret, ServiceMonitorEndpointsRelabelings, ServiceMonitorEndpointsRelabelingsAction, ServiceMonitorNamespaceSelector, ServiceMonitorSelector, ServiceMonitorSpec
 };
 use crate::{constants, servicemonitor::ServiceMonitor};
 
