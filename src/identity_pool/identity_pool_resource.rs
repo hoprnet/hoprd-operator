@@ -587,8 +587,7 @@ impl IdentityPool {
             if let Some(wallet_data) = wallet.data {
                 if wallet_data.contains_key(constants::IDENTITY_POOL_WALLET_DEPLOYER_PRIVATE_KEY_REF_KEY) && 
                     wallet_data.contains_key(constants::IDENTITY_POOL_IDENTITY_PASSWORD_REF_KEY) && 
-                    wallet_data.contains_key(constants::IDENTITY_POOL_API_TOKEN_REF_KEY) && 
-                    wallet_data.contains_key(constants::IDENTITY_POOL_METRICS_PASSWORD_REF_KEY) 
+                    wallet_data.contains_key(constants::IDENTITY_POOL_API_TOKEN_REF_KEY)
                 {
                     Ok(true)
                 } else {
