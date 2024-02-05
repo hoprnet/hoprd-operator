@@ -10,10 +10,7 @@ use tracing::info;
 
 use crate::context_data::ContextData;
 use crate::servicemonitor::{
-    ServiceMonitorEndpoints, ServiceMonitorEndpointsBasicAuth,
-    ServiceMonitorEndpointsBasicAuthPassword, ServiceMonitorEndpointsBasicAuthUsername,
-    ServiceMonitorEndpointsRelabelings, ServiceMonitorEndpointsRelabelingsAction,
-    ServiceMonitorNamespaceSelector, ServiceMonitorSelector, ServiceMonitorSpec,
+    ServiceMonitorEndpoints, ServiceMonitorEndpointsBearerTokenSecret, ServiceMonitorEndpointsRelabelings, ServiceMonitorEndpointsRelabelingsAction, ServiceMonitorNamespaceSelector, ServiceMonitorSelector, ServiceMonitorSpec
 };
 use crate::{constants, servicemonitor::ServiceMonitor};
 
@@ -38,21 +35,14 @@ pub async fn create_service_monitor(context_data: Arc<ContextData>, name: &str, 
                 interval: Some("15s".to_owned()),
                 path: Some("/api/v3/node/metrics".to_owned()),
                 port: Some("api".to_owned()),
-                basic_auth: Some(ServiceMonitorEndpointsBasicAuth {
-                    username: Some(ServiceMonitorEndpointsBasicAuthUsername {
-                        key: constants::IDENTITY_POOL_API_TOKEN_REF_KEY.to_owned(),
-                        name: Some(secret_name.to_owned()),
-                        optional: Some(false),
-                    }),
-                    password: Some(ServiceMonitorEndpointsBasicAuthPassword {
-                        key: constants::IDENTITY_POOL_METRICS_PASSWORD_REF_KEY.to_owned(),
-                        name: Some(secret_name.to_owned()),
-                        optional: Some(false),
-                    }),
-                }),
+                basic_auth: None,
                 authorization: None,
                 bearer_token_file: None,
-                bearer_token_secret: None,
+                bearer_token_secret: Some(ServiceMonitorEndpointsBearerTokenSecret{
+                    key: constants::IDENTITY_POOL_API_TOKEN_REF_KEY.to_owned(),
+                    name: Some(secret_name.to_owned()),
+                    optional: Some(false),
+                }),
                 follow_redirects: None,
                 honor_labels: None,
                 honor_timestamps: None,
