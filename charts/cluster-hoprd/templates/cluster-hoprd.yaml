@@ -11,7 +11,7 @@ spec:
   enabled: {{ .Values.enabled }}
   supportedRelease: {{ .Values.supportedRelease }}
   forceIdentityName: {{ .Values.forceIdentityName }}
-  {{- if .Values.deployment.resources }}
-  deployment: {{ .Values.deployment | toYaml | nindent 2 }}
+  {{- if .Values.deployment }}
+  deployment: {{ .Values.deployment | toYaml | nindent 4 }}
   {{- end }}
   config: {{ .Values.config | toYaml | nindent 4 }}
