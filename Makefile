@@ -25,7 +25,7 @@ helm-test: ## Install dry helm resources
 	helm install --dry-run --namespace hoprd-operator --create-namespace -f ./charts/$(chart)/values-stage.yaml $(chart) ./charts/$(chart)/
 
 helm-lint: ## Lint Helm
-	helm lint ./charts/$(chart)
+	helm lint -f ./charts/$(chart)/values-stage.yaml ./charts/$(chart)
 
 helm-install: ## Install helm chart using values-stage.yaml file
 	helm install --namespace hoprd-operator --create-namespace -f ./charts/$(chart)/values-stage.yaml $(chart) ./charts/$(chart)/
