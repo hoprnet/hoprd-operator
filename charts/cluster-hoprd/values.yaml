@@ -10,22 +10,22 @@ wallet:
   ##
   ## @param wallet.deployerPrivateKey The staking wallet private key used to create identities and to auto fund nodes
   ##
-  deployerPrivateKey:
+  deployerPrivateKey: ""
 
   ##
   ## @param wallet.identityPassword Password used by all identities defined bellow
   ##
-  identityPassword:
+  identityPassword: ""
 
   ##
   ## @param wallet.hoprdApiToken API Token used by all nodes of the cluster
   ##
-  hoprdApiToken:
+  hoprdApiToken: ""
 
 ##
 ## @param network Hoprd Network: rotsee, dufour
 ##
-network:
+network: ""
 
 identityPool:
   ##
@@ -52,7 +52,7 @@ identityPool:
   ##
   ## @param identities Map of identities to create
   ##
-identities:
+identities: {}
 
 ##
 ## @param replicas Number of instances
