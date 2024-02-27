@@ -1,0 +1,15 @@
+---
+apiVersion: hoprnet.org/v1alpha2
+kind: IdentityPool
+metadata:
+  name: {{ include "cluster-hoprd.name" . }}
+  namespace: {{ .Release.Namespace }}
+spec:
+  network: {{ .Values.network }}
+  secretName: {{ include "cluster-hoprd.name" . }}-wallet
+  minReadyIdentities: {{ .Values.identityPool.minReadyIdentities }}
+  {{- if .Values.identityPool.funding.enabled }}
+  funding:
+    schedule: {{ .Values.identityPool.funding.schedule }}
+    nativeAmount: {{ .Values.identityPool.funding.nativeAmount | quote }}
+  {{- end }}

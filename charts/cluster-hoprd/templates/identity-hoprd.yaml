@@ -1,0 +1,17 @@
+{{- $release := .Release -}}
+{{- $releaseName := include "cluster-hoprd.name" . -}}
+{{- range $key, $value := .Values.identities }}
+---
+apiVersion: hoprnet.org/v1alpha2
+kind: IdentityHoprd
+metadata:
+  name: {{ $key }}
+  namespace: {{ $release.Namespace | quote }}
+spec:
+  identityPoolName: {{ $releaseName }}
+  identityFile: {{ $value.identityFile | quote }}
+  peerId: {{ $value.peerId | quote }}
+  nativeAddress: {{ $value.nativeAddress | quote }}
+  safeAddress: {{ $value.safeAddress | quote }}
+  moduleAddress: {{ $value.moduleAddress | quote }}
+{{- end }}

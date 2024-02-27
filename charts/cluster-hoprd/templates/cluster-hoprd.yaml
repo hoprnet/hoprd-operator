@@ -3,12 +3,12 @@ apiVersion: hoprnet.org/v1alpha2
 kind: ClusterHoprd
 metadata:
   name: {{ include "cluster-hoprd.name" . }}
-  namespace: {{ .Release.Namespace | quote }}
+  namespace: {{ .Release.Namespace }}
 spec:
-  identityPoolName: {{ .Values.identityPoolName | quote }}
+  identityPoolName: {{ include "cluster-hoprd.name" . }}
   replicas: {{ .Values.replicas }}
   version: {{ .Values.version | quote }}
-  enabled: {{ .Values.enabled }}
+  enabled: {{ .Values.enabled | default true }}
   supportedRelease: {{ .Values.supportedRelease }}
   forceIdentityName: {{ .Values.forceIdentityName }}
   {{- if .Values.deployment }}
