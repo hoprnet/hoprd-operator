@@ -120,7 +120,7 @@ jobs:
           scan-type: 'config'
           hide-progress: false
           format: 'table'
-          scan-ref: 'charts/hoprd-operator/'
+          scan-ref: 'charts/cluster-hoprd/'
           exit-code: '1'
           ignore-unfixed: true
           # severity: 'MEDIUM,HIGH,CRITICAL'
