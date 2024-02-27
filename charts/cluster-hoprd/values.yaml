@@ -5,11 +5,54 @@
 ##
 nameOverride: ""
 
-## @section Cluster Hoprd parameters
+
+wallet:
+  ##
+  ## @param wallet.deployerPrivateKey The staking wallet private key used to create identities and to auto fund nodes
+  ##
+  deployerPrivateKey: ""
+
+  ##
+  ## @param wallet.identityPassword Password used by all identities defined bellow
+  ##
+  identityPassword: ""
+
+  ##
+  ## @param wallet.hoprdApiToken API Token used by all nodes of the cluster
+  ##
+  hoprdApiToken: ""
+
 ##
-## @param identityPoolName Name of the identity pool
+## @param network Hoprd Network: rotsee, dufour
 ##
-identityPoolName: ""
+network: ""
+
+identityPool:
+  ##
+  ## @param identityPool.minReadyIdentities Minimum number of identites in ready state
+  ##
+  minReadyIdentities: 0
+
+  funding:
+    ##
+    ## @param identityPool.funding.enabled Enable cron auto-funding
+    ##
+    enabled: false
+
+    ##
+    ## @param identityPool.funding.schedule Cron schedule to run auto-funding job.
+    ##
+    schedule: 0 1 * * 1
+
+    ##
+    ## @param identityPool.funding.nativeAmount Number of xDai to fund each node
+    ##
+    nativeAmount: 0.01
+
+  ##
+  ## @param identities Map of identities to create
+  ##
+identities: {}
 
 ##
 ## @param replicas Number of instances
@@ -39,7 +82,7 @@ forceIdentityName: false
 ##
 ## @param deployment Deployment spec
 ##
-deployment: 
+deployment: {}
 
 
 ##

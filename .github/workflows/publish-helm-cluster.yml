@@ -13,7 +13,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   publish:
-    runs-on: ubuntu-2-core
+    runs-on: self-hosted-hoprnet-small
 
     steps:
       - name: Checkout

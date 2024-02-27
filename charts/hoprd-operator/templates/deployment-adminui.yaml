@@ -28,10 +28,24 @@ spec:
         app.kubernetes.io/instance: {{ include "hoprd-operator.name" . }}
         app.kubernetes.io/name: {{ .Release.Name }}
     spec:
+      securityContext:
+        runAsUser: 0
+        runAsGroup: 0
+        runAsNonRoot: false
       containers:
       - name: admin-ui
         image: {{ printf "%s/%s:%s" .Values.adminUI.image.registry .Values.adminUI.image.repository .Values.adminUI.image.tag }}
         imagePullPolicy: {{ .Values.adminUI.image.pullPolicy }}
+        securityContext:
+          runAsUser: 0
+          runAsGroup: 0
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          seccompProfile: 
+            type: RuntimeDefault
+          capabilities:
+            drop:
+            - ALL
         {{- if .Values.adminUI.resources }}
         resources: {{- toYaml .Values.adminUI.resources | nindent 12 }}
         {{- else }}

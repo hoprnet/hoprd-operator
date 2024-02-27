@@ -9,19 +9,22 @@ This chart packages the creation of a ClusterHoprd
 
 ### Common parameters
 
-| Name           | Description                                        | Value |
-| -------------- | -------------------------------------------------- | ----- |
-| `nameOverride` | String to partially override common.names.fullname | `""`  |
-
-### Cluster Hoprd parameters
-
-| Name                   | Description                                             | Value   |
-| ---------------------- | ------------------------------------------------------- | ------- |
-| `identityPoolName`     | Name of the identity pool                               | `""`    |
-| `replicas`             | Number of instances                                     | `1`     |
-| `version`              | Hoprd node version to run                               | `2.0.2` |
-| `enabled`              | Running status of the nodes                             | `true`  |
-| `supportedRelease`     | The kind of supported release <providence|saint-louis>  | `""`    |
-| `forceIdentityName`    | Forces identity names to be set in child Hopd resources | `false` |
-| `deployment.resources` | Deployment resources spec                               | `""`    |
-| `config`               | Custom configuration of nodes                           | `""`    |
+| Name                                | Description                                                                     | Value       |
+| ----------------------------------- | ------------------------------------------------------------------------------- | ----------- |
+| `nameOverride`                      | String to partially override common.names.fullname                              | `""`        |
+| `wallet.deployerPrivateKey`         | The staking wallet private key used to create identities and to auto fund nodes | `""`        |
+| `wallet.identityPassword`           | Password used by all identities defined bellow                                  | `""`        |
+| `wallet.hoprdApiToken`              | API Token used by all nodes of the cluster                                      | `""`        |
+| `network`                           | Hoprd Network: rotsee, dufour                                                   | `""`        |
+| `identityPool.minReadyIdentities`   | Minimum number of identites in ready state                                      | `0`         |
+| `identityPool.funding.enabled`      | Enable cron auto-funding                                                        | `false`     |
+| `identityPool.funding.schedule`     | Cron schedule to run auto-funding job.                                          | `0 1 * * 1` |
+| `identityPool.funding.nativeAmount` | Number of xDai to fund each node                                                | `0.01`      |
+| `identities`                        | Map of identities to create                                                     | `{}`        |
+| `replicas`                          | Number of instances                                                             | `1`         |
+| `version`                           | Hoprd node version to run                                                       | `2.0.2`     |
+| `enabled`                           | Running status of the nodes                                                     | `true`      |
+| `supportedRelease`                  | The kind of supported release <providence|saint-louis>                          | `""`        |
+| `forceIdentityName`                 | Forces identity names to be set in child Hopd resources                         | `false`     |
+| `deployment`                        | Deployment spec                                                                 | `{}`        |
+| `config`                            | Custom configuration of nodes                                                   | `""`        |

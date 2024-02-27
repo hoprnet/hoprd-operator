@@ -3,14 +3,14 @@ apiVersion: hoprnet.org/v1alpha2
 kind: ClusterHoprd
 metadata:
   name: {{ include "cluster-hoprd.name" . }}
-  namespace: {{ .Release.Namespace | quote }}
+  namespace: {{ .Release.Namespace }}
 spec:
-  identityPoolName: {{ .Values.identityPoolName | quote }}
+  identityPoolName: {{ include "cluster-hoprd.name" . }}
   replicas: {{ .Values.replicas }}
   version: {{ .Values.version | quote }}
-  enabled: {{ .Values.enabled }}
-  supportedRelease: {{ .Values.supportedRelease }}
-  forceIdentityName: {{ .Values.forceIdentityName }}
+  enabled: {{ .Values.enabled | default true }}
+  supportedRelease: {{ .Values.supportedRelease | default "saint-louis" }}
+  forceIdentityName: {{ .Values.forceIdentityName | default true }}
   {{- if .Values.deployment }}
   deployment: {{ .Values.deployment | toYaml | nindent 4 }}
   {{- end }}
