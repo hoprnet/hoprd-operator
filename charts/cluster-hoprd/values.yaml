@@ -82,7 +82,7 @@ forceIdentityName: false
 ##
 ## @param deployment Deployment spec
 ##
-deployment: 
+deployment: {}
 
 
 ##
