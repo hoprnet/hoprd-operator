@@ -156,7 +156,7 @@ pub async fn open_port(
 async fn get_port(client: Client, ingress_config: &IngressConfig) -> Result<i32, HoprError> {
     let api: Api<ConfigMap> = Api::namespaced(client, ingress_config.namespace.as_ref().unwrap());
     if let Some(config_map) = api.get_opt("ingress-nginx-tcp").await? {
-        let data = config_map.data.unwrap();
+        let data = config_map.data.unwrap_or_default();
         let min_port = ingress_config
             .p2p_port_min
             .as_ref()
