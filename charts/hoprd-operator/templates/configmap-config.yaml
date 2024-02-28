@@ -25,7 +25,7 @@ data:
       namespace: "{{- .Values.operator.ingress.namespace }}"
       p2p_port_min: "{{ .Values.operator.ingress.p2pPorts.min }}"
       p2p_port_max: "{{ .Values.operator.ingress.p2pPorts.max }}"
-      deployment_name: {{- .Values.operator.ingress.deploymentName | toYaml | nindent 8 }}
+      deployment_name: "{{- .Values.operator.ingress.deploymentName }}"
       annotations: {{- .Values.operator.ingress.annotations | toYaml | nindent 8 }}
     hopli_image: {{ printf "%s/%s:%s" .Values.operator.hopli.registry .Values.operator.hopli.repository .Values.operator.hopli.tag | quote }}
     persistence:
