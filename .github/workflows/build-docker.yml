@@ -6,8 +6,6 @@ on:
     types:
       - synchronize
       - ready_for_review
-    branches:
-      - master
     paths-ignore:
       - "charts/**/*"
 concurrency:
