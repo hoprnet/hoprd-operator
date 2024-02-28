@@ -186,9 +186,9 @@ operator:
     ##
     annotations: {}
 
-    ## @param operator.ingress.publicIp Public IP of the LoadBalancer Service for the Ingress 
+    ## @param operator.ingress.loadBalancerIP Public IP of the LoadBalancer Service for the Ingress 
     ##
-    publicIp: ""
+    loadBalancerIP: ""
 
     p2pPorts:
       ## @param operator.ingress.p2pPorts.min Starting port to open on Ingress controller
@@ -199,9 +199,9 @@ operator:
       ##
       max: 9100
 
-    ## @param operator.ingress.selectorLabels Labels selector to choose the Nginx deployment and service
+    ## @param operator.ingress.deploymentName Labels selector to choose the Nginx deployment and service
     ##
-    selectorLabels: {}
+    deploymentName: ""
 
   ## @param operator.nodeSelector Object containing node selection constraint to operator deployment
   ## https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#nodeselector

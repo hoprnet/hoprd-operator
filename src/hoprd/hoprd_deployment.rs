@@ -44,7 +44,7 @@ pub async fn create_deployment(context_data: Arc<ContextData>, hoprd: &Hoprd, id
     labels.insert(constants::LABEL_NODE_PEER_ID.to_owned(), identity_hoprd.spec.peer_id.to_owned());
     labels.insert(constants::LABEL_NODE_SAFE_ADDRESS.to_owned(), identity_hoprd.spec.safe_address.to_owned());
     labels.insert(constants::LABEL_NODE_MODULE_ADDRESS.to_owned(),identity_hoprd.spec.module_address.to_owned());
-    let hoprd_host = format!("{}:{}", ingress_config.public_ip.unwrap(), p2p_port);
+    let hoprd_host = format!("{}:{}", ingress_config.loadbalancer_ip.unwrap(), p2p_port);
 
     // Propagating ClusterHopd instance
     if hoprd.labels().contains_key(constants::LABEL_NODE_CLUSTER) {
