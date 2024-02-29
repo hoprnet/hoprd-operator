@@ -7,6 +7,8 @@ kind: IdentityHoprd
 metadata:
   name: {{ $key }}
   namespace: {{ $release.Namespace | quote }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
 spec:
   identityPoolName: {{ $releaseName }}
   identityFile: {{ $value.identityFile | quote }}

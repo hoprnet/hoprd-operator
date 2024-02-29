@@ -4,6 +4,8 @@ kind: IdentityPool
 metadata:
   name: {{ include "cluster-hoprd.name" . }}
   namespace: {{ .Release.Namespace }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
 spec:
   network: {{ .Values.network }}
   secretName: {{ include "cluster-hoprd.name" . }}-wallet

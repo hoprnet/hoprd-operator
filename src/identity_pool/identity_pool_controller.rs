@@ -73,7 +73,7 @@ async fn reconciler(identity_pool: Arc<IdentityPool>, context: Arc<ContextData>)
         IdentityPoolAction::Delete => identity_pool_mutable.delete(context.clone()).await,
         // The resource is already in desired state, do nothing and re-check after 10 seconds
         IdentityPoolAction::NoOp => Ok(Action::requeue(Duration::from_secs(
-            constants::RECONCILE_FREQUENCY,
+            constants::RECONCILE_SHORT_FREQUENCY,
         ))),
     }
 }
@@ -92,7 +92,7 @@ pub fn on_error(
     _context: Arc<ContextData>,
 ) -> Action {
     error!("[IdentityPool] Reconciliation error:\n{:?}.\n{:?}",error, identity_hoprd);
-    Action::requeue(Duration::from_secs(constants::RECONCILE_FREQUENCY))
+    Action::requeue(Duration::from_secs(constants::RECONCILE_SHORT_FREQUENCY))
 }
 
 /// Initialize the controller
@@ -111,7 +111,7 @@ pub async fn run(client: Client, context_data: Arc<ContextData>) {
                 Ok(_identity_hoprd_resource) => {}
                 Err(reconciliation_err) => {
                     let err_string = reconciliation_err.to_string();
-                    if !err_string.contains("that was not found in local store") {
+                    if !err_string.contains("that was not found in local store") && !err_string.contains("event queue error") {
                         // https://github.com/kube-rs/kube/issues/712
                         error!("[IdentityPool] Reconciliation error: {:?}",reconciliation_err)
                     }

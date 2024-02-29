@@ -12,24 +12,21 @@ operator:
       value: "hoprd_operator=DEBUG"
   ingress:
     ingressClassName: nginx
-    dnsDomain: prod.hoprtech.net
+    dnsDomain: prod.hoprnet.link
     annotations:
       nginx.ingress.kubernetes.io/enable-cors: "true"
       nginx.ingress.kubernetes.io/cors-allow-headers: "x-auth-token,content-type,accept-content"
-      cert-manager.io/cluster-issuer: "linode-issuer"
+      cert-manager.io/cluster-issuer: "gcp-issuer"
       nginx.ingress.kubernetes.io/proxy-connect-timeout: "3600"
       nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
       nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
-    namespace: ingress
-    publicIp: 142.132.140.85
-    selectorLabels:
-      app.kubernetes.io/component: controller
-      app.kubernetes.io/instance: ingress-nginx
-      app.kubernetes.io/name: ingress-nginx
+    namespace: ingress-nginx
+    loadBalancerIP: 35.242.216.67
+    deploymentName: ingress-nginx-controller
 adminUI:
   ingress:
     ingressClassName: nginx
-    hostname: hoprd.prod.hoprtech.net
+    hostname: hoprd.prod.hoprnet.link
     annotations:
       nginx.ingress.kubernetes.io/server-snippets: |
           more_set_headers "Content-Security-Policy: upgrade-insecure-requests";

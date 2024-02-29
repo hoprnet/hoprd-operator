@@ -3,21 +3,18 @@ instance:
   namespace: "hoprd-operator"
 ingress:
   ingress_class_name: "nginx"
-  dns_domain: "stage.hoprtech.net"
-  public_ip: 157.90.129.92
+  dns_domain: staging.hoprnet.link
+  loadbalancer_ip: 34.159.20.69
   annotations:
-    cert-manager.io/cluster-issuer: "linode-issuer"
+    cert-manager.io/cluster-issuer: "gcp-issuer"
     nginx.ingress.kubernetes.io/proxy-connect-timeout: "3600"
     nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
     nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
-  namespace: ingress
+  namespace: ingress-nginx
   p2p_port_min: "9000"
-  p2p_port_max: "9010"
-  selector_labels:
-    app.kubernetes.io/component: controller
-    app.kubernetes.io/instance: ingress-nginx
-    app.kubernetes.io/name: ingress-nginx
+  p2p_port_max: "9001"
+  deployment_name: ingress-nginx-controller
 hopli_image: europe-west3-docker.pkg.dev/hoprassociation/docker-images/hopli:latest
 persistence:
-  size: 50Mi
+  size: 500Mi
   storage_class_name: ceph-ephimeral

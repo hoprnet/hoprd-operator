@@ -79,10 +79,10 @@ Chart version `Chart.yaml` should be increased according to [semver](http://semv
 | `operator.ingress.dnsDomain`            | Name of the DNS suffix domain to be added to Hoprd nodes           | `""`                                           |
 | `operator.ingress.namespace`            | Namespace of the running ingress controller                        | `""`                                           |
 | `operator.ingress.annotations`          | Annotations to be added to ingress resources of Hoprd nodes        | `{}`                                           |
-| `operator.ingress.publicIp`             | Public IP of the LoadBalancer Service for the Ingress              | `""`                                           |
+| `operator.ingress.loadBalancerIP`       | Public IP of the LoadBalancer Service for the Ingress              | `""`                                           |
 | `operator.ingress.p2pPorts.min`         | Starting port to open on Ingress controller                        | `9000`                                         |
 | `operator.ingress.p2pPorts.max`         | End port to open on Ingress controller                             | `9100`                                         |
-| `operator.ingress.selectorLabels`       | Labels selector to choose the Nginx deployment and service         | `{}`                                           |
+| `operator.ingress.deploymentName`       | Labels selector to choose the Nginx deployment and service         | `""`                                           |
 | `operator.nodeSelector`                 | Object containing node selection constraint to operator deployment | `{}`                                           |
 | `operator.resources`                    | Resource specification to operator deployment                      | `{}`                                           |
 | `operator.tolerations`                  | Tolerations specifications to operator deployment                  | `[]`                                           |
@@ -91,7 +91,7 @@ Chart version `Chart.yaml` should be increased according to [semver](http://semv
 | `operator.image.repository`             | Docker image repository to operator deployment                     | `hoprassociation/docker-images/hoprd-operator` |
 | `operator.image.tag`                    | Docker image tag to operator deployment                            | `""`                                           |
 | `operator.image.pullPolicy`             | Pull policy to operator deployment as deinfed in                   | `IfNotPresent`                                 |
-| `operator.persistence.size`             | Size of the persistence Volume                                     | `100Mi`                                        |
+| `operator.persistence.size`             | Size of the persistence Volume                                     | `500Mi`                                        |
 | `operator.persistence.storageClassName` | Name of the storage class                                          | `""`                                           |
 
 ### Service Parameters

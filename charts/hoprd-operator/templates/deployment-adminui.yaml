@@ -43,9 +43,6 @@ spec:
           readOnlyRootFilesystem: true
           seccompProfile: 
             type: RuntimeDefault
-          capabilities:
-            drop:
-            - ALL
         {{- if .Values.adminUI.resources }}
         resources: {{- toYaml .Values.adminUI.resources | nindent 12 }}
         {{- else }}

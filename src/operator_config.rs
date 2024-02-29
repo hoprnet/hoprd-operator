@@ -21,10 +21,10 @@ pub struct IngressConfig {
     pub dns_domain: String,
     pub namespace: Option<String>,
     pub annotations: Option<BTreeMap<String, String>>,
-    pub public_ip: Option<String>,
+    pub loadbalancer_ip: Option<String>,
     pub p2p_port_min: Option<String>,
     pub p2p_port_max: Option<String>,
-    pub selector_labels: Option<BTreeMap<String, String>>,
+    pub deployment_name: Option<String>,
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Hash)]
