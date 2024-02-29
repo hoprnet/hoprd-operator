@@ -251,7 +251,7 @@ operator:
   persistence:
     ## @param operator.persistence.size Size of the persistence Volume
     ##
-    size: 100Mi
+    size: 500Mi
     ## @param operator.persistence.storageClassName Name of the storage class
     ##
     storageClassName: ""

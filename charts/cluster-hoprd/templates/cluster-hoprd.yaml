@@ -5,7 +5,7 @@ metadata:
   name: {{ include "cluster-hoprd.name" . }}
   namespace: {{ .Release.Namespace }}
   annotations:
-    argocd.argoproj.io/sync-wave: 4
+    argocd.argoproj.io/sync-wave: "4"
 spec:
   identityPoolName: {{ include "cluster-hoprd.name" . }}
   replicas: {{ .Values.replicas }}

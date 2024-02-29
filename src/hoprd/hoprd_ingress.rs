@@ -96,7 +96,9 @@ pub async fn create_ingress(
 
     // Create the Ingress defined above
     let api: Api<Ingress> = Api::namespaced(context.client.clone(), namespace);
-    api.create(&PostParams::default(), &ingress).await
+    let ingress = api.create(&PostParams::default(), &ingress).await?;
+    info!("Ingress {} created successfully", service_name.to_owned());
+    Ok(ingress)
 }
 
 /// Deletes an existing ingress.

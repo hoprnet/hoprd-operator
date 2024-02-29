@@ -44,7 +44,9 @@ pub async fn create_service(context_data: Arc<ContextData>, name: &str, namespac
 
     // Create the service defined above
     let service_api: Api<Service> = Api::namespaced(context_data.client.clone(), namespace);
-    service_api.create(&PostParams::default(), &service).await
+    let service = service_api.create(&PostParams::default(), &service).await?;
+    info!("Service {} created successfully", name.to_owned());
+    Ok(service)
 }
 
 fn service_ports(p2p_port: i32) -> Vec<ServicePort> {

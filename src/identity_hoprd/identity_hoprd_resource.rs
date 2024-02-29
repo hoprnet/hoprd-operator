@@ -113,7 +113,7 @@ impl IdentityHoprd {
         let identity_pool_name: String = self.spec.identity_pool_name.to_owned();
         if ! self.check_identity_pool(client.clone()).await.unwrap() {
             context_data.send_event(self, IdentityHoprdEventEnum::Failed, None).await;
-            return Ok(Action::requeue(Duration::from_secs(constants::RECONCILE_FREQUENCY_ERROR)))
+            return Ok(Action::requeue(Duration::from_secs(constants::RECONCILE_LONG_FREQUENCY)))
         }
         info!("Starting to create identity {identity_name} in namespace {identity_namespace}");
         resource_generics::add_finalizer(client.clone(), self).await;
@@ -149,7 +149,7 @@ impl IdentityHoprd {
         } else {
             error!("Identity pool {} not exists in namespace {}", identity_pool_name, &self.namespace().unwrap());
         }
-        Ok(Action::requeue(Duration::from_secs(constants::RECONCILE_FREQUENCY)))
+        Ok(Action::requeue(Duration::from_secs(constants::RECONCILE_SHORT_FREQUENCY)))
     }
 
     /// Handle the modification of IdentityHoprd resource
@@ -166,7 +166,7 @@ impl IdentityHoprd {
                         } else {
                             info!("IdentityHoprd {} in namespace {} has been successfully modified", self.name_any(), self.namespace().unwrap());
                         }
-                        Ok(Action::requeue(Duration::from_secs(constants::RECONCILE_FREQUENCY)))
+                        Ok(Action::requeue(Duration::from_secs(constants::RECONCILE_SHORT_FREQUENCY)))
                     }
                     Err(_err) => {
                         context_data.send_event(self,IdentityHoprdEventEnum::Failed,None).await;
@@ -184,10 +184,10 @@ impl IdentityHoprd {
             context_data.send_event(self,IdentityHoprdEventEnum::Ready,None).await;
             self.update_phase(context_data.client.clone(), IdentityHoprdPhaseEnum::Ready, None).await?;
             warn!("Detected a change in IdentityHoprd {identity_name}. Automatically recovering to a Ready phase");
-            Ok(Action::requeue(Duration::from_secs(constants::RECONCILE_FREQUENCY)))
+            Ok(Action::requeue(Duration::from_secs(constants::RECONCILE_SHORT_FREQUENCY)))
         } else {
             error!("The IdentityHoprd {} in namespace {} cannot be modified", self.name_any(), self.namespace().unwrap());
-            Ok(Action::requeue(Duration::from_secs(constants::RECONCILE_FREQUENCY)))
+            Ok(Action::requeue(Duration::from_secs(constants::RECONCILE_SHORT_FREQUENCY)))
         }
     }
 
@@ -221,7 +221,7 @@ impl IdentityHoprd {
                 Ok(Action::await_change()) // Makes no sense to delete after a successful delete, as the resource is gone
             } else {
                 error!("Cannot delete an identity in state {}", status.phase);
-                Ok(Action::requeue(Duration::from_secs(constants::RECONCILE_FREQUENCY)))
+                Ok(Action::requeue(Duration::from_secs(constants::RECONCILE_SHORT_FREQUENCY)))
             }
         } else {
             error!("IdentityHoprd {} was not correctly initialized", &identity_name);
@@ -326,11 +326,11 @@ impl IdentityHoprd {
             if identity_pool.status.is_some() && identity_pool.status.as_ref().unwrap().phase.eq(&IdentityPoolPhaseEnum::Ready) {
                 Ok(true)
             } else {
-                error!("IdentityHoprd {} has an IdentityPool {} in namespace {} with status {:?}", self.name_any(), self.spec.identity_pool_name, self.namespace().unwrap(), identity_pool.status.as_ref().unwrap_or(&IdentityPoolStatus::default()));
+                warn!("IdentityHoprd {} has an IdentityPool {} in namespace {} with status {:?}", self.name_any(), self.spec.identity_pool_name, self.namespace().unwrap(), identity_pool.status.as_ref().unwrap_or(&IdentityPoolStatus::default()));
             Ok(false)
             }
         } else {
-            error!("IdentityHoprd {} cannot find IdentityPool {} in namespace {}", self.name_any(), self.spec.identity_pool_name, self.namespace().unwrap());
+            warn!("IdentityHoprd {} cannot find IdentityPool {} in namespace {}", self.name_any(), self.spec.identity_pool_name, self.namespace().unwrap());
             Ok(false)
         }
     }

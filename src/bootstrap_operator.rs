@@ -3,10 +3,9 @@ use json_patch::{PatchOperation, ReplaceOperation};
 use k8s_openapi::{
     api::{
         apps::v1::Deployment,
-        core::v1::{ContainerPort, Service, ServicePort},
+        core::v1::ContainerPort,
     },
-    apimachinery::pkg::util::intstr::IntOrString,
-    serde_value::Value,
+    serde_value::Value
 };
 use kube::{
     api::{ListParams, Patch, PatchParams},

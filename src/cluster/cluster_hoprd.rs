@@ -136,7 +136,7 @@ impl ClusterHoprd {
             context_data.send_event(self, ClusterHoprdEventEnum::Ready, None).await;
             self.update_status(context_data.clone(), ClusterHoprdPhaseEnum::Ready).await?;
         }
-        Ok(Action::requeue(Duration::from_secs(constants::RECONCILE_FREQUENCY)))
+        Ok(Action::requeue(Duration::from_secs(constants::RECONCILE_SHORT_FREQUENCY)))
     }
 
     // Modifies the hoprd nodes related with ClusterHoprd
@@ -175,7 +175,7 @@ impl ClusterHoprd {
                 self.update_status(context_data.clone(), ClusterHoprdPhaseEnum::Failed).await?;
                 error!("Could not modify ClusterHoprd {cluster_hoprd_name} because cannot recover last configuration");
             }
-        Ok(Action::requeue(Duration::from_secs(constants::RECONCILE_FREQUENCY)))
+        Ok(Action::requeue(Duration::from_secs(constants::RECONCILE_SHORT_FREQUENCY)))
     }
 
     async fn update_last_configuration(&self, client: Client) -> Result<(), Error> {
@@ -236,10 +236,11 @@ impl ClusterHoprd {
     pub async fn rescale(&self, context_data: Arc<ContextData>) -> Result<Action, Error> {
         let hoprd_namespace: String = self.namespace().unwrap();
         let cluster_hoprd_name: String = self.name_any();
-        if self.status.as_ref().unwrap().phase.eq(&ClusterHoprdPhaseEnum::NotScaled) {
+        let status = self.status.as_ref().unwrap();
+        if status.phase.eq(&ClusterHoprdPhaseEnum::NotScaled) {
             context_data.send_event(self, ClusterHoprdEventEnum::Scaling, None).await;
             self.update_status(context_data.clone(), ClusterHoprdPhaseEnum::Scaling).await?;
-            let current_unsynched_nodes = self.spec.replicas - self.status.as_ref().unwrap().current_nodes;
+            let current_unsynched_nodes = self.spec.replicas - status.current_nodes;
             info!("ClusterHoprd {cluster_hoprd_name} in namespace {hoprd_namespace} is not scaled");
             match current_unsynched_nodes {
                 1..=i32::MAX => {
@@ -253,9 +254,9 @@ impl ClusterHoprd {
                     self.update_status(context_data.clone(), ClusterHoprdPhaseEnum::Ready).await?;
                 }
             }
-            Ok(Action::requeue(Duration::from_secs(constants::RECONCILE_FREQUENCY)))
+            Ok(Action::requeue(Duration::from_secs(constants::RECONCILE_SHORT_FREQUENCY)))
         } else {
-            debug!("ClusterHoprd {cluster_hoprd_name} in namespace {hoprd_namespace} is already being scaling");
+            debug!("ClusterHoprd {cluster_hoprd_name} in namespace {hoprd_namespace} is already being scaling, currently having {} nodes while needs {}", status.current_nodes, self.spec.replicas);
             Ok(Action::await_change())
         }
     }
@@ -289,15 +290,18 @@ impl ClusterHoprd {
         let client: Client = context_data.client.clone();
         let cluster_hoprd_name = self.metadata.name.as_ref().unwrap().to_owned();
         let hoprd_namespace = self.metadata.namespace.as_ref().unwrap().to_owned();
-        let mut cluster_hoprd_status = self
+        let api: Api<ClusterHoprd> = Api::namespaced(client.clone(), &hoprd_namespace.to_owned());
+        // We need to get the latest state of the ClusterHoprd  as it may be updated by other thread and the values stored in self object might be obsolete
+        let cluster_hoprd = api.get(&cluster_hoprd_name).await.unwrap();
+        let mut cluster_hoprd_status = cluster_hoprd
             .status
             .as_ref()
             .unwrap_or(&ClusterHoprdStatus::default())
             .to_owned();
 
-        let api: Api<ClusterHoprd> = Api::namespaced(client.clone(), &hoprd_namespace.to_owned());
+        
         cluster_hoprd_status.update_timestamp = Utc::now().to_rfc3339();
-        cluster_hoprd_status.checksum = self.get_checksum();
+        cluster_hoprd_status.checksum = cluster_hoprd.get_checksum();
         cluster_hoprd_status.phase = phase;
         if phase.eq(&ClusterHoprdPhaseEnum::NodeCreated) {
             cluster_hoprd_status.current_nodes += 1;
@@ -305,7 +309,7 @@ impl ClusterHoprd {
             cluster_hoprd_status.current_nodes -= 1;
         };
         if phase.eq(&ClusterHoprdPhaseEnum::NodeCreated) || phase.eq(&ClusterHoprdPhaseEnum::NodeDeleted) {
-            if cluster_hoprd_status.current_nodes == self.spec.replicas {
+            if cluster_hoprd_status.current_nodes == cluster_hoprd.spec.replicas {
                 cluster_hoprd_status.phase = ClusterHoprdPhaseEnum::Ready;
             } else {
                 cluster_hoprd_status.phase = ClusterHoprdPhaseEnum::NotScaled;
@@ -325,19 +329,19 @@ impl ClusterHoprd {
         let current_nodes = self.get_my_nodes(api).await.unwrap();
         debug!("ClusterHoprd {} in namespace {} has currently {} nodes", self.name_any(), self.namespace().unwrap(), current_nodes.len());
         let current_node_numbers = current_nodes.iter().map(|n| {
-            n.name_any().replace(&format!("{}-", self.metadata.name.as_ref().unwrap()), "").parse::<i32>().unwrap()
+            // Casting the node numbers and removing 1 unit to align them with the index of the array, so the nodes numbering starts from value 0 instead of 1
+            n.name_any().replace(&format!("{}-", self.metadata.name.as_ref().unwrap()), "").parse::<i32>().unwrap() - 1
         }).collect::<Vec<i32>>();
         let next = current_node_numbers.iter().enumerate().find_map(|(index, &value)| {
-            if index + 1 < current_node_numbers.len() && (value + 1) > current_node_numbers[index + 1] {
-                Some(value + 1)
+            let index_i32: i32 = index.try_into().unwrap();
+            if index_i32 != value {
+                Some(index_i32 + 1)
+            } else if index == current_node_numbers.len() -1 {
+                Some(index_i32 + 2)
             } else {
                 None
             }
-        }).unwrap_or_else( || {
-            let current_size: i32 = current_node_numbers.len().try_into().unwrap();
-            if current_size == 1 && current_node_numbers[0] != 1 { 1 } else { current_size + 1 }
-
-        });
+        }).unwrap_or(1);
         debug!("Next free node for ClusterHopr {} in namespace {} is {}", self.name_any(), self.namespace().unwrap(), next);
         next
     }
@@ -364,7 +368,8 @@ impl ClusterHoprd {
         };
         match self.create_hoprd_resource(context_data.clone(), node_name.to_owned(), hoprd_spec).await {
             Ok(_) => {
-                    context_data.send_event(self, ClusterHoprdEventEnum::NodeCreated, Some(node_name)).await;
+                    info!("Node {} successfully created for cluster {}", node_name.to_owned(), cluster_name.to_owned());
+                    context_data.send_event(self, ClusterHoprdEventEnum::NodeCreated, Some(node_name.to_owned())).await;
                     self.update_status(context_data.clone(), ClusterHoprdPhaseEnum::NodeCreated).await?;
             }, 
             Err(error) => {
@@ -463,7 +468,7 @@ impl ClusterHoprd {
             let node_name = &node.name_any();
             let uid = node.metadata.uid.unwrap();
             api.delete(node_name, &DeleteParams::default()).await?;
-            await_condition(api.clone(), node_name, conditions::is_deleted(&uid)).await.unwrap();
+                await_condition(api.clone(), node_name, conditions::is_deleted(&uid)).await.expect(&format!("Could not delete the node {}", node_name));
         }
         Ok(())
     }

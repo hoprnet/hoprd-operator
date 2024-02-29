@@ -76,7 +76,9 @@ pub async fn create_deployment(context_data: Arc<ContextData>, hoprd: &Hoprd, id
 
     // Create the deployment defined above
     let api: Api<Deployment> = Api::namespaced(context_data.client.clone(), &namespace);
-    api.create(&PostParams::default(), &deployment).await
+    let deployment = api.create(&PostParams::default(), &deployment).await?;
+    info!("Deployment {} created successfully", name.to_owned());
+    Ok(deployment)
 }
 
 pub async fn build_deployment_spec(labels: BTreeMap<String, String>, hoprd_spec: &HoprdSpec, identity_pool: IdentityPool, identity_hoprd: &IdentityHoprd, hoprd_host: &String) -> DeploymentSpec {

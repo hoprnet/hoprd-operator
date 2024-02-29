@@ -1,6 +1,6 @@
 use crate::events::IdentityPoolEventEnum;
 use crate::hoprd::hoprd_deployment_spec::HoprdDeploymentSpec;
-use crate::identity_hoprd::identity_hoprd_resource::{IdentityHoprd, IdentityHoprdPhaseEnum};
+use crate::identity_hoprd::identity_hoprd_resource::{IdentityHoprd, IdentityHoprdPhaseEnum, IdentityHoprdStatus};
 use crate::model::Error;
 use crate::{constants, context_data::ContextData};
 use crate::{identity_pool::{identity_pool_service_account,  identity_pool_cronjob_faucet, identity_pool_service_monitor}, utils, resource_generics};
@@ -143,7 +143,7 @@ impl IdentityPool {
         let owner_references: Option<Vec<OwnerReference>> = Some(vec![self.controller_owner_ref(&()).unwrap()]);
         if ! self.check_wallet(client.clone()).await.unwrap() {
             context_data.send_event(self, IdentityPoolEventEnum::Failed, None).await;
-            return Ok(Action::requeue(Duration::from_secs(constants::RECONCILE_FREQUENCY_ERROR)))
+            return Ok(Action::requeue(Duration::from_secs(constants::RECONCILE_LONG_FREQUENCY)))
         }
         info!("Starting to create IdentityPool {identity_pool_name} in namespace {identity_pool_namespace}");
         resource_generics::add_finalizer(client.clone(), self).await;
@@ -169,7 +169,7 @@ impl IdentityPool {
         }
         info!("IdentityPool {identity_pool_name} in namespace {identity_pool_namespace} successfully created");
         context_data.state.write().await.add_identity_pool(self.clone());
-        Ok(Action::requeue(Duration::from_secs(constants::RECONCILE_FREQUENCY)))
+        Ok(Action::requeue(Duration::from_secs(constants::RECONCILE_SHORT_FREQUENCY)))
     }
 
     /// Handle the modification of IdentityPool resource
@@ -214,7 +214,7 @@ impl IdentityPool {
         } else {
             error!("The resource cannot be modified");
         }
-        Ok(Action::requeue(Duration::from_secs(constants::RECONCILE_FREQUENCY)))
+        Ok(Action::requeue(Duration::from_secs(constants::RECONCILE_SHORT_FREQUENCY)))
     }
 
     // Syncrhonize funding
@@ -242,7 +242,8 @@ impl IdentityPool {
     pub async fn delete(&mut self, context_data: Arc<ContextData>) -> Result<Action, Error> {
         let identity_pool_namespace = self.namespace().unwrap();        
         let identity_pool_name = self.name_any();
-        if self.status.as_ref().unwrap().locked == 0 {
+        let status = self.status.as_ref().unwrap();
+        if status.locked == 0 && status.size == 0 {
             let client: Client = context_data.client.clone();
             self.update_status(context_data.client.clone(), IdentityPoolPhaseEnum::Deleting).await?;
             context_data.send_event(self, IdentityPoolEventEnum::Deleting, None).await;
@@ -257,10 +258,8 @@ impl IdentityPool {
             info!("Identity {identity_pool_name} in namespace {identity_pool_namespace} has been successfully deleted");
             Ok(Action::await_change()) // Makes no sense to delete after a successful delete, as the resource is gone
         } else {
-            warn!("Cannot delete an identity pool with identities in use");
-            Ok(Action::requeue(Duration::from_secs(
-                constants::RECONCILE_FREQUENCY,
-            )))
+            warn!("Cannot delete an identity pool with identities");
+            Ok(Action::requeue(Duration::from_secs(constants::RECONCILE_LONG_FREQUENCY)))
         }
     }
 
@@ -289,7 +288,7 @@ impl IdentityPool {
             }
         }
         Ok(Action::requeue(Duration::from_secs(
-            constants::RECONCILE_FREQUENCY,
+            constants::RECONCILE_SHORT_FREQUENCY,
         )))
     }
 
@@ -377,7 +376,11 @@ impl IdentityPool {
         let namespace_identities = api.list(&ListParams::default()).await.expect("Could not list namespace identities");
         let pool_identities: Vec<IdentityHoprd>  = namespace_identities.iter()
             .filter(|&identity| {
-                identity.metadata.owner_references.as_ref().unwrap().first().unwrap().name.eq(&self.name_any())
+                if let Some(owner_references) = identity.metadata.owner_references.as_ref() {
+                    owner_references.first().unwrap().name.eq(&self.name_any())
+                } else {
+                    false
+                }
             }).cloned().collect();
         pool_identities
     }
@@ -388,15 +391,18 @@ impl IdentityPool {
 
         let identity: Option<IdentityHoprd> = match identity_name.clone() {
             Some(provided_identity_name) => {
-                let found = pool_identities.iter().find(|&identity| identity.metadata.name.clone().unwrap().eq(&provided_identity_name)).cloned();
-                if found.is_none() {
+                let identity_hoprd = pool_identities.iter().find(|&identity| identity.metadata.name.clone().unwrap().eq(&provided_identity_name)).cloned();
+                if identity_hoprd.is_none() {
                     warn!("The identity provided {} does not exist", provided_identity_name); 
                     None
-                } else if found.as_ref().unwrap().status.as_ref().unwrap().phase.eq(&IdentityHoprdPhaseEnum::Ready) {
-                    found
+                } else if identity_hoprd.as_ref().unwrap().status.as_ref().unwrap_or(&IdentityHoprdStatus::default()).phase.eq(&IdentityHoprdPhaseEnum::Ready) {
+                    identity_hoprd
                 } else {
-                    let status = found.as_ref().unwrap().status.as_ref().unwrap().to_owned();
-                    warn!("The identity {} is in phase {} and might be used by {}", provided_identity_name, status.phase, status.hoprd_node_name.unwrap_or("unknown".to_owned())); 
+                    if let Some(status) = identity_hoprd.as_ref().unwrap().status.as_ref() {
+                        warn!("The identity {} is in phase {} and might be used by {}", provided_identity_name, status.phase, status.hoprd_node_name.as_ref().unwrap_or(&"unknown".to_owned())); 
+                    } else {
+                        warn!("The identity {} has not status reported yet", provided_identity_name); 
+                    }                    
                     None
                 }
             },

@@ -133,24 +133,16 @@ impl Hoprd {
             resource_generics::add_finalizer(client.clone(), self).await;
             let p2p_port = hoprd_ingress::open_port(client.clone(),&hoprd_namespace,&hoprd_name,&context_data.config.ingress).await.unwrap();
             hoprd_deployment::create_deployment(context_data.clone(),self,&identity,p2p_port,context_data.config.ingress.to_owned()).await?;
-            match self.wait_deployment(client.clone()).await {
-                Ok(()) =>  {
-                    hoprd_service::create_service(context_data.clone(), &hoprd_name, &hoprd_namespace, &self.spec.identity_pool_name, p2p_port, owner_reference.to_owned()).await?;
-                    hoprd_ingress::create_ingress(context_data.clone(),&hoprd_name,&hoprd_namespace,&context_data.config.ingress,owner_reference.to_owned()).await?;
-                    info!("Hoprd node {hoprd_name} in namespace {hoprd_namespace} has been successfully created");
-                    self.set_running_status(context_data.clone(), Some(identity.name_any())).await?;
-                },
-                Err(error) => {
-                    context_data.send_event(self, HoprdEventEnum::Failed, None).await;
-                    self.update_status(client.clone(), HoprdPhaseEnum::Failed, None).await?;
-                    return Err(error)
-                }
-            }
+            self.wait_deployment(client.clone()).await?;
+            hoprd_service::create_service(context_data.clone(), &hoprd_name, &hoprd_namespace, &self.spec.identity_pool_name, p2p_port, owner_reference.to_owned()).await?;
+            hoprd_ingress::create_ingress(context_data.clone(),&hoprd_name,&hoprd_namespace,&context_data.config.ingress,owner_reference.to_owned()).await?;
+            self.set_running_status(context_data.clone(), Some(identity.name_any())).await?;
+            info!("Hoprd node {hoprd_name} in namespace {hoprd_namespace} has been successfully created");        
         } else {
             context_data.send_event(self, HoprdEventEnum::Failed, None).await;
-            self.update_status(client.clone(), HoprdPhaseEnum::Failed, None).await?;
+            return Ok(Action::requeue(Duration::from_secs(constants::RECONCILE_LONG_FREQUENCY)))
         };
-        Ok(Action::requeue(Duration::from_secs(constants::RECONCILE_FREQUENCY)))
+        Ok(Action::requeue(Duration::from_secs(constants::RECONCILE_SHORT_FREQUENCY)))
     }
 
     // Creates all the related resources
@@ -194,7 +186,7 @@ impl Hoprd {
                 context_data.send_event(self, HoprdEventEnum::Failed, None).await;
                 self.update_status(client.clone(), HoprdPhaseEnum::Failed, None).await?;
             }
-        Ok(Action::requeue(Duration::from_secs(constants::RECONCILE_FREQUENCY)))
+        Ok(Action::requeue(Duration::from_secs(constants::RECONCILE_SHORT_FREQUENCY)))
     }
 
     async fn set_running_status(&self, context_data: Arc<ContextData>, identity_name: Option<String>) -> Result<(), Error> {
@@ -227,6 +219,12 @@ impl Hoprd {
         let hoprd_name = self.name_any();
         let hoprd_namespace = self.namespace().unwrap();
         let client: Client = context_data.client.clone();
+        let current_pahse = self.status.to_owned().unwrap_or_default().phase;
+        if current_pahse.eq(&HoprdPhaseEnum::Deleting) {
+            info!("HoprdNode {} is already being deleted", hoprd_name);
+            return Ok(Action::requeue(Duration::from_secs(constants::RECONCILE_LONG_FREQUENCY)))
+        }
+        self.update_status(client.clone(), HoprdPhaseEnum::Deleting, None).await?;
         context_data.send_event(self, HoprdEventEnum::Deleting, None).await;
         info!("Starting to delete Hoprd node {hoprd_name} from namespace {hoprd_namespace}");
         // Deletes any subresources related to this `Hoprd` resources. If and only if all subresources
@@ -243,7 +241,7 @@ impl Hoprd {
         // Once all the resources are successfully removed, remove the finalizer to make it possible
         // for Kubernetes to delete the `Hoprd` resource.
         context_data.send_event(self, HoprdEventEnum::Deleted, None).await;
-        if let Some(cluster) = self.belongs_to_cluster(context_data.clone()).await? {
+        if let Some(cluster) = self.notify_deletion_to_cluster(context_data.clone()).await? {
             resource_generics::delete_finalizer(client.clone(), self).await;
             context_data.send_event(&cluster, ClusterHoprdEventEnum::NodeDeleted, None).await;
             cluster.update_status(context_data.clone(), ClusterHoprdPhaseEnum::NodeDeleted).await.unwrap();
@@ -273,11 +271,11 @@ impl Hoprd {
                     context_state.update_identity_pool(identity_pool.to_owned());
                     identity_created = Some(identity.clone());
                 } else {
-                    error!("Error locking the identity for node {}", self.name_any());
+                    warn!("Could not get lock the identity for node {}", self.name_any());
                     identity_created = None
                 }
             } else {
-                error!("Identity pool {} not exists in namespace {}", identity_pool_name, &self.namespace().unwrap());
+                warn!("Identity pool {} not exists yet in namespace {}", identity_pool_name, &self.namespace().unwrap());
                 identity_created = None
             }
         }
@@ -353,13 +351,13 @@ impl Hoprd {
         }
     }
 
-    async fn belongs_to_cluster(&self, context_data: Arc<ContextData>) -> Result<Option<ClusterHoprd>, Error> {
+    async fn notify_deletion_to_cluster(&self, context_data: Arc<ContextData>) -> Result<Option<ClusterHoprd>, Error> {
         if let Some(owner_reference) = self.owner_references().to_owned().first() {
             let hoprd_namespace = self.metadata.namespace.as_ref().unwrap().to_owned();
             let api: Api<ClusterHoprd> = Api::namespaced(context_data.client.clone(), &hoprd_namespace.to_owned());
             if let Some(cluster) = api.get_opt(&owner_reference.name).await? {
                 let current_phase = cluster.to_owned().status.unwrap().phase;
-                if current_phase.ne(&ClusterHoprdPhaseEnum::Deleting) && current_phase.ne(&ClusterHoprdPhaseEnum::NotScaled) && current_phase.ne(&ClusterHoprdPhaseEnum::Scaling) {
+                if current_phase.ne(&ClusterHoprdPhaseEnum::Deleting) {
                     debug!("Current Phase {} of {}", current_phase, self.name_any().to_owned());
                     info!("Notifying ClusterHoprd {} that hoprd node {} is being deleted", &owner_reference.name, self.name_any().to_owned());
                     return Ok(Some(cluster));

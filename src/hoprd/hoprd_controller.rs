@@ -74,7 +74,7 @@ async fn reconciler(hoprd: Arc<Hoprd>, context: Arc<ContextData>) -> Result<Acti
         HoprdAction::Modify => hoprd.modify(context.clone()).await,
         HoprdAction::Delete => hoprd.delete(context.clone()).await,
         HoprdAction::NoOp => Ok(Action::requeue(Duration::from_secs(
-            constants::RECONCILE_FREQUENCY,
+            constants::RECONCILE_SHORT_FREQUENCY,
         ))),
     }
 }
@@ -89,7 +89,7 @@ async fn reconciler(hoprd: Arc<Hoprd>, context: Arc<ContextData>) -> Result<Acti
 /// - `_context`: Unused argument. Context Data "injected" automatically by kube-rs.
 pub fn on_error(hoprd: Arc<Hoprd>, error: &Error, _context: Arc<ContextData>) -> Action {
     error!("[Hoprd] Reconciliation error:\n{:?}.\n{:?}",error, hoprd);
-    Action::requeue(Duration::from_secs(constants::RECONCILE_FREQUENCY))
+    Action::requeue(Duration::from_secs(constants::RECONCILE_SHORT_FREQUENCY))
 }
 
 /// Initialize the controller
@@ -116,7 +116,7 @@ pub async fn run(client: Client, context_data: Arc<ContextData>) {
                 Ok(_hoprd_resource) => {}
                 Err(reconciliation_err) => {
                     let err_string = reconciliation_err.to_string();
-                    if !err_string.contains("that was not found in local store") {
+                    if !err_string.contains("that was not found in local store") && !err_string.contains("event queue error") {
                         // https://github.com/kube-rs/kube/issues/712
                         error!("[Hoprd] Reconciliation error: {:?}", reconciliation_err)
                     }

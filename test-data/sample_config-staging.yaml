@@ -16,5 +16,5 @@ ingress:
   deployment_name: ingress-nginx-controller
 hopli_image: europe-west3-docker.pkg.dev/hoprassociation/docker-images/hopli:latest
 persistence:
-  size: 50Mi
+  size: 500Mi
   storage_class_name: ceph-ephimeral
