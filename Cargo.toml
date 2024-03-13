@@ -32,7 +32,7 @@ serde_yaml = "0.9.29"
 chrono = "0.4.31"
 tracing = "0.1.40"
 tracing-subscriber = { version = "0.3.18", default-features = true, features = ["env-filter"]}
-base64 = "0.21.7"
+base64 = "0.22.0"
 
 [features]
 # Force openssl-sys to staticly link in the openssl library. Necessary when
