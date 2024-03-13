@@ -93,27 +93,7 @@ pub fn build_metric_relabel() -> Vec<ServiceMonitorEndpointsRelabelings> {
     }, ServiceMonitorEndpointsRelabelings {
         action: Some(ServiceMonitorEndpointsRelabelingsAction::Replace),
         source_labels: Some(vec![
-            "__meta_kubernetes_pod_label_app_kubernetes_io_instance".to_owned(),
-        ]),
-        target_label: Some("node_name".to_owned()),
-        modulus: None,
-        regex: None,
-        replacement: None,
-        separator: None,
-    }, ServiceMonitorEndpointsRelabelings {
-        action: Some(ServiceMonitorEndpointsRelabelingsAction::Replace),
-        source_labels: Some(vec![
-            "__meta_kubernetes_pod_label_app_kubernetes_io_instance".to_owned(),
-        ]),
-        target_label: Some("nodename".to_owned()),
-        modulus: None,
-        regex: None,
-        replacement: None,
-        separator: None,
-    }, ServiceMonitorEndpointsRelabelings {
-        action: Some(ServiceMonitorEndpointsRelabelingsAction::Replace),
-        source_labels: Some(vec![
-            "__meta_kubernetes_pod_label_hoprds_hoprnet_org_safe_address".to_owned(),
+            "__meta_kubernetes_pod_label_hoprds_hoprnet_org_safeAddress".to_owned(),
         ]),
         target_label: Some("hoprd_safe_address".to_owned()),
         modulus: None,
@@ -123,17 +103,7 @@ pub fn build_metric_relabel() -> Vec<ServiceMonitorEndpointsRelabelings> {
     }, ServiceMonitorEndpointsRelabelings {
         action: Some(ServiceMonitorEndpointsRelabelingsAction::Replace),
         source_labels: Some(vec![
-            "__meta_kubernetes_pod_label_hoprds_hoprnet_org_module_address".to_owned(),
-        ]),
-        target_label: Some("hoprd_module_address".to_owned()),
-        modulus: None,
-        regex: None,
-        replacement: None,
-        separator: None,
-    }, ServiceMonitorEndpointsRelabelings {
-        action: Some(ServiceMonitorEndpointsRelabelingsAction::Replace),
-        source_labels: Some(vec![
-            "__meta_kubernetes_pod_label_hoprds_hoprnet_org_address".to_owned(),
+            "__meta_kubernetes_pod_label_hoprds_hoprnet_org_native_address".to_owned(),
         ]),
         target_label: Some("hoprd_address".to_owned()),
         modulus: None,
