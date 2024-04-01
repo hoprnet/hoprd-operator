@@ -29,7 +29,7 @@ async-recursion = "1.0.5"
 openssl-sys = "*"
 json-patch = "1.2"
 serde_yaml = "0.9.29"
-chrono = "0.4.31"
+chrono = "0.4.37"
 tracing = "0.1.40"
 tracing-subscriber = { version = "0.3.18", default-features = true, features = ["env-filter"]}
 base64 = "0.21.7"
