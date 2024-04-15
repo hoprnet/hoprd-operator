@@ -14,7 +14,7 @@ ingress:
   p2p_port_min: "9000"
   p2p_port_max: "9010"
   deployment_name: ingress-nginx-controller
-hopli_image: europe-west3-docker.pkg.dev/hoprassociation/docker-images/hopli:latest
+hopli_image: europe-west3-docker.pkg.dev/hoprassociation/docker-images/hopli:2.1.0-rc.3
 persistence:
   size: 500Mi
   storage_class_name: ceph-ephimeral
