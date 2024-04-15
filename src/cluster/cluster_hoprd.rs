@@ -156,9 +156,9 @@ impl ClusterHoprd {
                                 context_data.send_event(self, ClusterHoprdEventEnum::Failed, None).await;
                                 self.update_status(context_data.clone(), ClusterHoprdPhaseEnum::Failed).await?;
                         } else {
-                            if self.needs_deployment_modification(previous_cluster_hoprd) {
-                                self.appply_modification(context_data.clone()).await?;
-                            }
+                            //if self.needs_deployment_modification(previous_cluster_hoprd) {
+                            self.appply_modification(context_data.clone()).await?;
+                            //}
                             self.check_needs_rescale(context_data.clone()).await?;
                             info!("ClusterHoprd {cluster_hoprd_name} in namespace {hoprd_namespace} has been successfully modified");
                         }
