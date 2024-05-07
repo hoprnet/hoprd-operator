@@ -5,6 +5,7 @@ name: 'Package Helm chart Cluster'
 on:
   pull_request:
     types:
+      - opened
       - synchronize
       - ready_for_review
     branches:
