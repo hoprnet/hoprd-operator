@@ -224,7 +224,6 @@ pub enum IdentityPoolEventEnum {
     Deleting,
     Locked,
     Unlocked,
-    CreatingIdentity,
     IdentityCreated,
     IdentityDeleted,
 }
@@ -279,13 +278,6 @@ impl ResourceEvent for IdentityPoolEventEnum {
                         reason: "Unlocked".to_string(),
                         note: Some(format!("Identity {} unlocked from pool", attribute.as_ref().unwrap_or(&"unknown".to_string()))),
                         action: format!("Identity {} unlocked from pool", attribute.as_ref().unwrap_or(&"unknown".to_string())),
-                        secondary: None
-                    },
-            IdentityPoolEventEnum::CreatingIdentity => Event {
-                        type_: EventType::Normal,
-                        reason: "CreatingIdentity".to_string(),
-                        note: Some(format!("Creating identity {}", attribute.as_ref().unwrap_or(&"unknown".to_string()))),
-                        action: format!("Creating identity {}", attribute.as_ref().unwrap_or(&"unknown".to_string())),
                         secondary: None
                     },
             IdentityPoolEventEnum::IdentityCreated => Event {
