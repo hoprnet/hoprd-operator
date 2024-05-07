@@ -204,14 +204,11 @@ impl IdentityPool {
         let api: Api<CronJob> = Api::namespaced(context_data.client.clone(), &identity_pool_namespace);
         if (api.get_opt(format!("auto-funding-{}", identity_pool_name).as_str()).await?).is_some() {
             if self.spec.funding.is_none() {
-                info!("Deleting previous Cronjob {identity_pool_name} in namespace {identity_pool_namespace}");
-                identity_pool_cronjob_faucet::delete_cron_job(context_data.client.clone(), &identity_pool_namespace, &identity_pool_name).await.expect("Could not delete cronjob");
+                identity_pool_cronjob_faucet::delete_cron_job(context_data.client.clone(), self).await.expect("Could not delete cronjob");
             } else {
-                info!("Modifying Cronjob {identity_pool_name} in namespace {identity_pool_namespace}");
                 identity_pool_cronjob_faucet::modify_cron_job(context_data.client.clone(), self).await.expect("Could not modify cronjob");
             }
         } else if self.spec.funding.is_some() {
-            info!("Creating new Cronjob {identity_pool_name} in namespace {identity_pool_namespace}");
             identity_pool_cronjob_faucet::create_cron_job(context_data.clone(), self).await.expect("Could not create Cronjob");
         }
         Ok(())
@@ -230,7 +227,7 @@ impl IdentityPool {
             identity_pool_service_monitor::delete_service_monitor(client.clone(), &identity_pool_name, &identity_pool_namespace).await?;
             identity_pool_service_account::delete_rbac(client.clone(), &identity_pool_namespace, &identity_pool_name).await?;
             if self.spec.funding.is_some() {
-                identity_pool_cronjob_faucet::delete_cron_job(client.clone(), &identity_pool_namespace, &identity_pool_name).await?;
+                identity_pool_cronjob_faucet::delete_cron_job(client.clone(),self).await?;
             }
             resource_generics::delete_finalizer(client.clone(), self).await;
             context_data.state.write().await.remove_identity_pool(&identity_pool_namespace, &identity_pool_name);
