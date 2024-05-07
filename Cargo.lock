@@ -465,7 +465,7 @@ name = "hoprd_operator"
 version = "0.2.10"
 dependencies = [
  "async-recursion",
- "base64 0.21.7",
+ "base64 0.22.1",
  "chrono",
  "futures",
  "json-patch",
