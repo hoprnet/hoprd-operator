@@ -1,6 +1,6 @@
 [package]
 name = "hoprd_operator"
-version = "0.2.10"
+version = "0.2.11"
 authors = ["HOPR Association <tech@hoprnet.org>"]
 edition = "2021"
 
@@ -9,7 +9,7 @@ tokio = { version = "1.35", features = [
     "macros",
     "rt-multi-thread",
 ] }
-kube = { version = "0.87", default-features = true, features = [
+kube = { version = "0.91", default-features = true, features = [
     "derive",
     "runtime",
 ] }
@@ -27,12 +27,12 @@ async-recursion = "1.0.5"
 # Add openssl-sys as a direct dependency so it can be cross compiled to
 # x86_64-unknown-linux-musl using the "vendored" feature below
 openssl-sys = "*"
-json-patch = "1.2"
+json-patch = "2.0.0"
 serde_yaml = "0.9.29"
 chrono = "0.4.31"
 tracing = "0.1.40"
 tracing-subscriber = { version = "0.3.18", default-features = true, features = ["env-filter"]}
-base64 = "0.21.7"
+base64 = "0.22.1"
 
 [features]
 # Force openssl-sys to staticly link in the openssl library. Necessary when
