@@ -153,66 +153,68 @@ impl IdentityPool {
 
     /// Handle the modification of IdentityPool resource
     pub async fn modify(&mut self, context_data: Arc<ContextData>) -> Result<Action, Error> {
-        let client: Client = context_data.client.clone();
+        
         let identity_pool_namespace: String = self.namespace().unwrap();
         let identity_pool_name: String = self.name_any();
-        if self.status.is_some() && self.status.as_ref().unwrap().phase.eq(&IdentityPoolPhaseEnum::Ready) {
-            if self.annotations().contains_key(constants::ANNOTATION_LAST_CONFIGURATION) {
-                let previous_text: String = self.annotations().get_key_value(constants::ANNOTATION_LAST_CONFIGURATION).unwrap().1.parse().unwrap();
-                match serde_json::from_str::<IdentityPool>(&previous_text) {
-                    Ok(previous_identity_pool) => {
-                        if self.changed_inmutable_fields(&previous_identity_pool.spec) {
-                            context_data.send_event(self,IdentityPoolEventEnum::Failed,None).await;
-                            self.update_status(client.clone(), IdentityPoolPhaseEnum::Failed).await?;
-                        } else {
-                            info!("Identity pool {identity_pool_name} in namespace {identity_pool_namespace} has been successfully modified");
-
-                            // Syncrhonize size
-                            if self.status.as_ref().unwrap().size < self.status.as_ref().unwrap().locked {
-                                let pending = self.status.as_ref().unwrap().locked - self.status.as_ref().unwrap().size;
-                                context_data.send_event(self,IdentityPoolEventEnum::OutOfSync,Some(pending.to_string())).await;
-                                self.update_status(client.clone(), IdentityPoolPhaseEnum::OutOfSync).await?;
-                                info!("Identity {identity_pool_name} in namespace {identity_pool_namespace} requires to create {} new identities", pending);
-                            }else {
-                                context_data.send_event(self,IdentityPoolEventEnum::Ready, None).await;
-                                self.update_status(client.clone(), IdentityPoolPhaseEnum::Ready).await?;
-                            }
-                            self.modify_funding(context_data).await?
+        if let Some(status) = self.status.as_ref() {
+            if status.phase.eq(&IdentityPoolPhaseEnum::Ready) {
+                if self.annotations().contains_key(constants::ANNOTATION_LAST_CONFIGURATION) {
+                    let previous_text: String = self.annotations().get_key_value(constants::ANNOTATION_LAST_CONFIGURATION).unwrap().1.parse().unwrap();
+                    match serde_json::from_str::<IdentityPoolSpec>(&previous_text) {
+                        Ok(previous_identity_pool) => {
+                            self.apply_modification(context_data, &previous_identity_pool).await?;
+                        },
+                        Err(_err) => {
+                            error!("Could not parse the last applied configuration from {identity_pool_name}.");
                         }
-                    },
-                    Err(_err) => {
-                        error!("Could not parse the last applied configuration from {identity_pool_name}.");
                     }
+                } else {
+                    error!("The IdentityPool {} in namespace {} cannot be modified without the last configuration annotation", identity_pool_name, identity_pool_namespace);
                 }
+            } else if status.phase.eq(&IdentityPoolPhaseEnum::Failed) {
+                context_data.send_event(self,IdentityPoolEventEnum::Ready,None).await;
+                self.update_status(context_data.client.clone(), IdentityPoolPhaseEnum::Ready).await?;
+                warn!("Detected a change in IdentityPool {identity_pool_name} while being in Failed pahse. Assuming that is manually modified to recover the state. Automatically recovering to a Ready phase");
+            } else {
+                error!("The IdentityPool {} in namespace {} cannot be modified in status {}", identity_pool_name, identity_pool_namespace, status.phase);
             }
-        } else if self.status.is_some() && self.status.as_ref().unwrap().phase.eq(&IdentityPoolPhaseEnum::Failed) {
-            // Assumes that the next modification of the resource is to recover to a good state
-            context_data.send_event(self,IdentityPoolEventEnum::Ready,None).await;
-            self.update_status(context_data.client.clone(), IdentityPoolPhaseEnum::Ready).await?;
-            warn!("Detected a change in IdentityPool {identity_pool_name}. Automatically recovering to a Ready phase");
         } else {
-            error!("The resource cannot be modified");
+            error!("The IdentityPool {} in namespace {} cannot be modified unknown status.", identity_pool_name, identity_pool_namespace);
         }
         Ok(Action::requeue(Duration::from_secs(constants::RECONCILE_SHORT_FREQUENCY)))
     }
 
-    // Syncrhonize funding
-    async fn modify_funding(&self, context_data: Arc<ContextData>) -> Result<(), Error> {
+    async fn apply_modification(&mut self, context_data: Arc<ContextData>, previous_identity_pool: &IdentityPoolSpec) -> Result<(), Error> {
+        let client: Client = context_data.client.clone();
         let identity_pool_namespace: String = self.namespace().unwrap();
         let identity_pool_name: String = self.name_any();
-
-        let api: Api<CronJob> = Api::namespaced(context_data.client.clone(), &identity_pool_namespace);
-        if (api.get_opt(format!("auto-funding-{}", identity_pool_name).as_str()).await?).is_some() {
-            if self.spec.funding.is_none() {
-                identity_pool_cronjob_faucet::delete_cron_job(context_data.client.clone(), self).await.expect("Could not delete cronjob");
-            } else {
-                identity_pool_cronjob_faucet::modify_cron_job(context_data.client.clone(), self).await.expect("Could not modify cronjob");
+        if self.changed_inmutable_fields(&previous_identity_pool) {
+            context_data.send_event(self,IdentityPoolEventEnum::Failed,None).await;
+            self.update_status(client.clone(), IdentityPoolPhaseEnum::Failed).await?;
+        } else {
+            let api: Api<CronJob> = Api::namespaced(context_data.client.clone(), &identity_pool_namespace);
+            let cron_job_name = format!("auto-funding-{}", identity_pool_name);
+            match self.spec.funding.as_ref() {
+                Some(_) => {
+                    if api.get_opt(&cron_job_name).await?.is_none() {
+                        identity_pool_cronjob_faucet::create_cron_job(context_data.clone(), self).await.expect("Could not create Cronjob");
+                    } else {
+                        identity_pool_cronjob_faucet::modify_cron_job(context_data.client.clone(), self).await.expect("Could not modify Cronjob");
+                    }
+                },
+                None => {
+                    if api.get_opt(&cron_job_name).await?.is_some() {
+                        identity_pool_cronjob_faucet::delete_cron_job(context_data.client.clone(), self).await.expect("Could not delete cronjob");
+                    }
+                }
             }
-        } else if self.spec.funding.is_some() {
-            identity_pool_cronjob_faucet::create_cron_job(context_data.clone(), self).await.expect("Could not create Cronjob");
+            context_data.send_event(self,IdentityPoolEventEnum::Ready, None).await;
+            self.update_status(client.clone(), IdentityPoolPhaseEnum::Ready).await?;
+            info!("Identity pool {identity_pool_name} in namespace {identity_pool_namespace} has been successfully modified");
         }
         Ok(())
     }
+
 
     // Handle the deletion of IdentityPool resource
     pub async fn delete(&mut self, context_data: Arc<ContextData>) -> Result<Action, Error> {
