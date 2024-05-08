@@ -160,12 +160,12 @@ impl IdentityPool {
             if status.phase.eq(&IdentityPoolPhaseEnum::Ready) {
                 if self.annotations().contains_key(constants::ANNOTATION_LAST_CONFIGURATION) {
                     let previous_text: String = self.annotations().get_key_value(constants::ANNOTATION_LAST_CONFIGURATION).unwrap().1.parse().unwrap();
-                    match serde_json::from_str::<IdentityPoolSpec>(&previous_text) {
+                    match serde_json::from_str::<IdentityPool>(&previous_text) {
                         Ok(previous_identity_pool) => {
                             self.apply_modification(context_data, &previous_identity_pool).await?;
                         },
-                        Err(_err) => {
-                            error!("Could not parse the last applied configuration from {identity_pool_name}.");
+                        Err(err) => {
+                            error!("Could not parse the last applied configuration from {identity_pool_name}: {}", err);
                         }
                     }
                 } else {
@@ -184,11 +184,11 @@ impl IdentityPool {
         Ok(Action::requeue(Duration::from_secs(constants::RECONCILE_SHORT_FREQUENCY)))
     }
 
-    async fn apply_modification(&mut self, context_data: Arc<ContextData>, previous_identity_pool: &IdentityPoolSpec) -> Result<(), Error> {
+    async fn apply_modification(&mut self, context_data: Arc<ContextData>, previous_identity_pool: &IdentityPool) -> Result<(), Error> {
         let client: Client = context_data.client.clone();
         let identity_pool_namespace: String = self.namespace().unwrap();
         let identity_pool_name: String = self.name_any();
-        if self.changed_inmutable_fields(&previous_identity_pool) {
+        if self.changed_inmutable_fields(&previous_identity_pool.spec) {
             context_data.send_event(self,IdentityPoolEventEnum::Failed,None).await;
             self.update_status(client.clone(), IdentityPoolPhaseEnum::Failed).await?;
         } else {
