@@ -9,7 +9,6 @@ metadata:
 spec:
   network: {{ .Values.network }}
   secretName: {{ include "cluster-hoprd.name" . }}-wallet
-  minReadyIdentities: {{ .Values.identityPool.minReadyIdentities }}
   {{- if .Values.identityPool.funding.enabled }}
   funding:
     schedule: {{ .Values.identityPool.funding.schedule }}

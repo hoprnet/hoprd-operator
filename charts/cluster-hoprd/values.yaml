@@ -28,11 +28,6 @@ wallet:
 network: ""
 
 identityPool:
-  ##
-  ## @param identityPool.minReadyIdentities Minimum number of identites in ready state
-  ##
-  minReadyIdentities: 0
-
   funding:
     ##
     ## @param identityPool.funding.enabled Enable cron auto-funding
