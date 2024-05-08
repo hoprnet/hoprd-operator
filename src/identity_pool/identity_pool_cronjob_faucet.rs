@@ -148,7 +148,7 @@ async fn get_env_var(secret_name: String)-> Vec<EnvVar> {
 pub async fn modify_cron_job(client: Client, identity_pool: &IdentityPool) -> Result<CronJob, Error> {
     let identity_pool_name = identity_pool.name_any();
     let namespace: String = identity_pool.metadata.namespace.as_ref().unwrap().to_owned();
-
+    info!("Modifying Cronjob {identity_pool_name} in namespace {namespace}");
     let cron_job_name: String = format!("auto-funding-{}", identity_pool_name);
     let api: Api<CronJob> = Api::namespaced(client.clone(), &namespace);
     if let Some(cron_job) = api.get_opt(&cron_job_name).await? {
@@ -165,14 +165,18 @@ pub async fn modify_cron_job(client: Client, identity_pool: &IdentityPool) -> Re
 }
 
 /// Deletes an existing CronJob.
-pub async fn delete_cron_job(client: Client, name: &str,namespace: &str) -> Result<(), Error> {
-    let api: Api<CronJob> = Api::namespaced(client, namespace);
-    if let Some(create_cron_job) = api.get_opt(name).await? {
+pub async fn delete_cron_job(client: Client, identity_pool: &IdentityPool) -> Result<(), Error> {
+    let identity_pool_name = identity_pool.name_any();
+    let namespace: String = identity_pool.metadata.namespace.as_ref().unwrap().to_owned();
+    info!("Deleting previous Cronjob {identity_pool_name} in namespace {namespace}");
+    let cron_job_name: String = format!("auto-funding-{}", identity_pool_name);
+    let api: Api<CronJob> = Api::namespaced(client, &namespace);
+    if let Some(create_cron_job) = api.get_opt(&cron_job_name).await? {
         let uid = create_cron_job.metadata.uid.unwrap();
-        api.delete(name, &DeleteParams::default()).await?;
-        await_condition(api, name, conditions::is_deleted(&uid)).await.unwrap();
-        Ok(info!("CronJob {name} successfully deleted"))
+        api.delete(&cron_job_name, &DeleteParams::default()).await?;
+        await_condition(api, &cron_job_name, conditions::is_deleted(&uid)).await.unwrap();
+        Ok(info!("CronJob {cron_job_name} successfully deleted"))
     } else {
-        Ok(info!("CronJob {name} in namespace {namespace} about to delete not found"))
+        Ok(info!("CronJob {cron_job_name} in namespace {namespace} about to delete not found"))
     }
 }

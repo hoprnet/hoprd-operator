@@ -156,9 +156,7 @@ impl ClusterHoprd {
                                 context_data.send_event(self, ClusterHoprdEventEnum::Failed, None).await;
                                 self.update_status(context_data.clone(), ClusterHoprdPhaseEnum::Failed).await?;
                         } else {
-                            //if self.needs_deployment_modification(previous_cluster_hoprd) {
                             self.appply_modification(context_data.clone()).await?;
-                            //}
                             self.check_needs_rescale(context_data.clone()).await?;
                             info!("ClusterHoprd {cluster_hoprd_name} in namespace {hoprd_namespace} has been successfully modified");
                         }
@@ -222,14 +220,6 @@ impl ClusterHoprd {
             self.update_status(context_data.clone(), ClusterHoprdPhaseEnum::Ready).await?;
         }
         Ok(())
-    }
-
-    fn needs_deployment_modification(&self, previous_cluster_hoprd: ClusterHoprd) -> bool {
-        let version_changed = previous_cluster_hoprd.spec.version.ne(&self.spec.version);
-        let enabled_changed = previous_cluster_hoprd.spec.enabled.ne(&self.spec.enabled);
-        let config_changed = previous_cluster_hoprd.spec.config.ne(&self.spec.config);
-        let deployment_changed = previous_cluster_hoprd.spec.deployment.ne(&self.spec.deployment);
-        version_changed || enabled_changed || config_changed || deployment_changed
     }
 
     // Sync Cluster with its hoprd nodes
@@ -429,7 +419,7 @@ impl ClusterHoprd {
     /// Creates a hoprd resource
     async fn appply_modification(&self, context_data: Arc<ContextData>) -> Result<(), Error> {
         let api: Api<Hoprd> = Api::namespaced(context_data.client.clone(), &self.namespace().unwrap());
-        let hoprd_spec: HoprdSpec = HoprdSpec {
+        let mut hoprd_spec: HoprdSpec = HoprdSpec {
             config: self.spec.config.to_owned(),
             enabled: self.spec.enabled,
             version: self.spec.version.to_owned(),
@@ -438,8 +428,10 @@ impl ClusterHoprd {
             supported_release: self.spec.supported_release.to_owned(),
             identity_name: None
         };
-        let patch = &Patch::Merge(json!({ "spec": hoprd_spec }));
+        
         for hoprd_node in self.get_my_nodes(api.clone()).await.unwrap() {
+            hoprd_spec.identity_name = hoprd_node.spec.identity_name.clone();
+            let patch = &Patch::Merge(json!({ "spec": hoprd_spec }));
             let hoprd_modified = api.patch(&hoprd_node.name_any(), &PatchParams::default(), patch).await.unwrap();
             hoprd_modified.wait_deployment(context_data.client.clone()).await?;
         }

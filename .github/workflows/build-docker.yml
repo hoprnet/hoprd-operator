@@ -4,6 +4,7 @@ name: 'Build Docker Image'
 on:
   pull_request:
     types:
+      - opened
       - synchronize
       - ready_for_review
     paths-ignore:

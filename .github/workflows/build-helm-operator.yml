@@ -5,6 +5,7 @@ name: 'Package Helm chart Operator'
 on:
   pull_request:
     types:
+      - opened
       - synchronize
       - ready_for_review
     branches:

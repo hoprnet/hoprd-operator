@@ -403,13 +403,13 @@ impl Hoprd {
                 match deployment {
                     WatchEvent::Added(deployment) => {
                         if deployment.status.as_ref().unwrap().ready_replicas.unwrap_or(0).eq(&1) {
-                            debug!("Hoprd node {} deployment with uid {:?} is ready", self.name_any(), deployment.uid().unwrap());
+                            info!("Hoprd node {} deployment in namespace {:?} is ready", self.name_any(), &self.namespace().unwrap());
                             return Ok(())
                         }
                     }
                     WatchEvent::Modified(deployment) => {
                         if deployment.status.as_ref().unwrap().ready_replicas.unwrap_or(0).eq(&1) {
-                            debug!("Hoprd node {} deployment with uid {:?} is ready", self.name_any(), deployment.uid().unwrap());
+                            info!("Hoprd node {} deployment in namespace {:?} is ready", self.name_any(), &self.namespace().unwrap());
                             return Ok(())
                         }
                     }
@@ -417,7 +417,7 @@ impl Hoprd {
                         return Err(Error::ClusterHoprdSynchError("Deleted operation not expected".to_owned()))
                     }
                     WatchEvent::Bookmark(_) => {
-                        warn!("Hoprd node {} deployment bookmarked", self.name_any());
+                         warn!("Hoprd node {} deployment in namespace {:?} is bookmarked", self.name_any(), &self.namespace().unwrap());
                         return Ok(())
                     }
                     WatchEvent::Error(_) => {

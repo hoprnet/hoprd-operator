@@ -7,7 +7,6 @@ pub const RECONCILE_LONG_FREQUENCY: u64 = 30;
 pub const OPERATOR_ENVIRONMENT: &str = "OPERATOR_ENVIRONMENT";
 pub const OPERATOR_FINALIZER: &str = "hoprds.hoprnet.org/finalizer";
 pub const OPERATOR_JOB_TIMEOUT: u64 = 300;
-pub const OPERATOR_JOB_SCRIPT_URL: &str ="https://raw.githubusercontent.com/hoprnet/hoprd-operator/master/scripts";
 // This value `OPERATOR_NODE_SYNC_TIMEOUT` should be lower than 295
 pub const OPERATOR_NODE_SYNC_TIMEOUT: u32 = 290;
 pub const OPERATOR_P2P_MIN_PORT: &str = "9000";

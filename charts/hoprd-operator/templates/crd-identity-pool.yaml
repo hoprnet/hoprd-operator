@@ -59,9 +59,6 @@ spec:
                 secretName:
                   type: string
                   description: Name of the secret containing sensitive data
-                minReadyIdentities:
-                  type: number
-                  description: Number of ready instances to keep
                 funding:
                   type: object
                   properties:
@@ -77,7 +74,6 @@ spec:
               required:
                 - network
                 - secretName
-                - minReadyIdentities
             status:
               description: The status object of IdentityHoprd node
               nullable: true
