@@ -30,7 +30,6 @@ LABEL name="hoprd operator" \
       summary="Operator managing hoprd instances" \
       description="Automation to introduce a hoprd network into a Kubernetes cluster using a dedicated operator"
 COPY --from=builder /hoprd_operator/target/hoprd_operator /bin/hoprd_operator
-COPY ./scripts /app/
 
 ENV OPERATOR_ENVIRONMENT=production
 
