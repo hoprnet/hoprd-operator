@@ -354,6 +354,7 @@ impl ClusterHoprd {
             deployment: self.spec.deployment.to_owned(),
             identity_pool_name: self.spec.identity_pool_name.to_owned(),
             supported_release: self.spec.supported_release.to_owned(),
+            delete_database: Some(false),
             identity_name
         };
         match self.create_hoprd_resource(context_data.clone(), node_name.to_owned(), hoprd_spec).await {
@@ -424,6 +425,7 @@ impl ClusterHoprd {
             enabled: self.spec.enabled,
             version: self.spec.version.to_owned(),
             deployment: self.spec.deployment.to_owned(),
+            delete_database: Some(false),
             identity_pool_name: self.spec.identity_pool_name.to_owned(),
             supported_release: self.spec.supported_release.to_owned(),
             identity_name: None

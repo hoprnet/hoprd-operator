@@ -1,29 +1,34 @@
-use crate::context_data::ContextData;
+use crate::{context_data::ContextData, hoprd::hoprd_deployment};
 use crate::hoprd::hoprd_deployment_spec::HoprdDeploymentSpec;
 use crate::identity_hoprd::identity_hoprd_resource::IdentityHoprd;
 use crate::identity_pool::identity_pool_resource::IdentityPool;
 use crate::model::Error;
 use crate::operator_config::IngressConfig;
 use base64::{Engine as _, engine::general_purpose};
+
+use futures::StreamExt;
+use rand::distributions::Alphanumeric;
+use rand::Rng;
 use crate::{
     constants,
     hoprd::hoprd_resource::{Hoprd, HoprdSpec},
     utils,
 };
-use k8s_openapi::api::apps::v1::{Deployment, DeploymentSpec, DeploymentStrategy};
+use k8s_openapi::api::{apps::v1::{Deployment, DeploymentSpec, DeploymentStrategy}, batch::v1::{Job, JobStatus}};
 use k8s_openapi::api::core::v1::{
     Container, ContainerPort, EmptyDirVolumeSource, EnvVar, EnvVarSource,
     PersistentVolumeClaimVolumeSource, PodSpec, PodTemplateSpec,
     SecretKeySelector, Volume, VolumeMount,
 };
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::{LabelSelector, OwnerReference};
-use kube::api::{DeleteParams, ObjectMeta, Patch, PatchParams, PostParams};
+use kube::api::{DeleteParams, ObjectMeta, Patch, PatchParams, PostParams, WatchEvent, WatchParams};
 use kube::runtime::wait::{await_condition, conditions};
 use kube::{Api, Client, Resource, ResourceExt};
 use serde_json::json;
 use std::collections::BTreeMap;
 use std::sync::Arc;
-use tracing::info;
+use tracing::{error, info};
+use k8s_openapi::api::batch::v1::JobSpec;
 
 /// Creates a new deployment for running the hoprd node,
 ///
@@ -167,12 +172,6 @@ pub async fn modify_deployment(context_data: Arc<ContextData>, deployment_name: 
 }
 
 /// Deletes an existing deployment.
-///
-/// # Arguments:
-/// - `client` - A Kubernetes client to delete the Deployment with
-/// - `name` - Name of the deployment to delete
-/// - `namespace` - Namespace the existing deployment resides in
-///
 pub async fn delete_depoyment(client: Client, name: &str, namespace: &str) -> Result<(), Error> {
     let api: Api<Deployment> = Api::namespaced(client, namespace);
     if let Some(deployment) = api.get_opt(name).await? {
@@ -183,6 +182,110 @@ pub async fn delete_depoyment(client: Client, name: &str, namespace: &str) -> Re
     } else {
         Ok(info!("Deployment {name} in namespace {namespace} about to delete not found"))
     }
+}
+
+pub async fn delete_database(context_data: Arc<ContextData>, deployment_name: &str, namespace: &str) -> Result<(), Error> {
+    let api: Api<Deployment> = Api::namespaced(context_data.client.clone(), namespace);
+    let deployment = api.get(deployment_name).await.unwrap();
+    let spec = deployment.spec.as_ref().unwrap();
+    let volumes = spec.template.spec.clone().unwrap().volumes.unwrap().clone();
+    let volume: &Volume = volumes.iter().find(|&volume| volume.name.eq("hoprd-db")).unwrap();
+    let pvc_name = volume.persistent_volume_claim.as_ref().unwrap().claim_name.clone();
+    info!("Scaling down deployment {} in namespace {}", deployment_name, namespace);
+    let patch = Patch::Merge(json!({ "spec": { "replicas": 0 } }));
+    match api.patch(&deployment_name, &PatchParams::default(), &patch).await
+    {
+        Ok(_) => {},
+        Err(error) => error!("Could not scale down deployment {deployment_name}: {:?}", error)
+    };
+    info!("Deleting hoprd database for {} in namespace {}", deployment_name, namespace);
+    hoprd_deployment::job_delete_database(context_data.clone(), deployment_name, namespace, &pvc_name).await.expect("could not delete database");
+    info!("Scaling up deployment {} in namespace {}", deployment_name, namespace);
+    let patch = Patch::Merge(json!({ "spec": { "replicas": 1 } }));
+    match api.patch(&deployment_name, &PatchParams::default(), &patch).await
+    {
+        Ok(_) => {},
+        Err(error) => error!("Could not scale up deployment {deployment_name}: {:?}", error)
+    };
+    Ok(())
+}
+
+pub async fn job_delete_database(context_data: Arc<ContextData>, deployment_name: &str, namespace: &str, pvc_name: &str) -> Result<(), Error> {
+    let api: Api<Job> = Api::namespaced(context_data.client.clone(), namespace);
+    let rng = rand::thread_rng();
+    let suffix: String = rng.sample_iter(&Alphanumeric).take(10).map(char::from).collect();
+
+    let job_name = format!("{}-delete-db-{}", deployment_name, suffix.to_lowercase());
+    let job = Job {
+        metadata: ObjectMeta {
+            name: Some(job_name.clone()),
+            ..Default::default()
+        },
+        spec: Some(JobSpec {
+            template: PodTemplateSpec {
+                spec: Some(PodSpec {
+                    volumes: Some(vec![
+                        Volume {
+                            name: "hoprd-db".to_string(),
+                            persistent_volume_claim: Some(PersistentVolumeClaimVolumeSource {
+                                claim_name: pvc_name.to_string(),
+                                read_only: Some(false),
+                            }),
+                            ..Default::default()
+                        },
+                    ]),
+                    containers: vec![
+                        Container {
+                            name: "delete-hoprd-db".to_string(),
+                            image: Some("busybox".to_string()),
+                            command: Some(vec![
+                                "/bin/sh".to_string(),
+                                "-c".to_string(),
+                                "rm -rf /app/hoprd-db/*".to_string(),
+                            ]),
+                            volume_mounts: Some(vec![
+                                VolumeMount {
+                                    name: "hoprd-db".to_string(),
+                                    mount_path: "/app/hoprd-db".to_string(),
+                                    ..Default::default()
+                                },
+                            ]),
+                            ..Default::default()
+                        },
+                    ],
+                    restart_policy: Some("Never".to_string()),
+                    ..Default::default()
+                }),
+                ..Default::default()
+            },
+            ..Default::default()
+        }),
+        ..Default::default()
+    };
+
+    api.create(&PostParams::default(), &job).await?;
+    // Watch the Job to wait for it to complete
+    let mut stream = api.watch(&WatchParams::default(), "0").await?.boxed();
+
+    while let Some(event) = stream.next().await {
+        match event {
+            Ok(WatchEvent::Modified(ref job)) if job.metadata.name.as_deref() == Some(&job_name.clone()) => {
+                if let Some(JobStatus { succeeded: Some(1), .. }) = job.status {
+                    info!("Job {} completed successfully", job_name);
+                    return Ok(())
+                } else if let Some(JobStatus { failed: Some(1), .. }) = job.status {
+                    error!("Job {} failed", job_name);
+                    return Err(Error::JobExecutionError(format!("Job {} failed", job_name)))
+                }
+            }
+            Err(e) => {
+                error!("Error watching Job {}: {}", job_name, e);
+                return Err(Error::JobExecutionError(format!("Error watching Job {}", job_name)))
+            }
+            _ => {}
+        }
+    }
+    Ok(())
 }
 
 /// Builds the struct VolumeMount to be attached into the Container

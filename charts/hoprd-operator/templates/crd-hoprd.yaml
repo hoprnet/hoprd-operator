@@ -89,6 +89,9 @@ spec:
                 version:
                   type: string
                   description: 'An specific hoprd version. Should match with a docker tag'
+                deleteDatabase:
+                  type: boolean
+                  description: 'Trigger to delete the database of the node'
               required: 
                 - version
                 - identityPoolName
