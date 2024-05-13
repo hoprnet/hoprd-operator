@@ -199,7 +199,11 @@ pub async fn delete_database(context_data: Arc<ContextData>, deployment_name: &s
         Err(error) => error!("Could not scale down deployment {deployment_name}: {:?}", error)
     };
     info!("Deleting hoprd database for {} in namespace {}", deployment_name, namespace);
-    hoprd_deployment::job_delete_database(context_data.clone(), deployment_name, namespace, &pvc_name).await.expect("could not delete database");
+    let delete_result = hoprd_deployment::job_delete_database(context_data.clone(), deployment_name, namespace, &pvc_name).await;
+    if let Err(e) = delete_result {
+        error!("Failed to delete database: {:?}", e);
+        return Err(e);
+    }
     info!("Scaling up deployment {} in namespace {}", deployment_name, namespace);
     let patch = Patch::Merge(json!({ "spec": { "replicas": 1 } }));
     match api.patch(&deployment_name, &PatchParams::default(), &patch).await
