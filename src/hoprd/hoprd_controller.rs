@@ -69,10 +69,13 @@ fn determine_action(hoprd: &Hoprd) -> HoprdAction {
 }
 
 async fn reconciler(hoprd: Arc<Hoprd>, context: Arc<ContextData>) -> Result<Action, Error> {
-    match determine_action(&hoprd) {
-        HoprdAction::Create => hoprd.create(context.clone()).await,
-        HoprdAction::Modify => hoprd.modify(context.clone()).await,
-        HoprdAction::Delete => hoprd.delete(context.clone()).await,
+    let mut hoprd_cloned = hoprd.clone();
+    let hoprd_mutable:  &mut Hoprd = Arc::<Hoprd>::make_mut(&mut hoprd_cloned);
+    // Performs action as decided by the `determine_action` function.
+    match determine_action(hoprd_mutable) {
+        HoprdAction::Create => hoprd_mutable.create(context.clone()).await,
+        HoprdAction::Modify => hoprd_mutable.modify(context.clone()).await,
+        HoprdAction::Delete => hoprd_mutable.delete(context.clone()).await,
         HoprdAction::NoOp => Ok(Action::requeue(Duration::from_secs(
             constants::RECONCILE_SHORT_FREQUENCY,
         ))),

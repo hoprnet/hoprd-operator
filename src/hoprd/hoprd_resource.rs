@@ -14,6 +14,7 @@ use futures::{StreamExt, TryStreamExt};
 use k8s_openapi::api::apps::v1::Deployment;
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::OwnerReference;
 use kube::api::WatchParams;
+use kube::core::object::HasSpec;
 use kube::core::{WatchEvent, ObjectMeta};
 use kube::Resource;
 use kube::{
@@ -53,6 +54,7 @@ pub struct HoprdSpec {
     pub version: String,
     pub config: String,
     pub enabled: Option<bool>,
+    pub delete_database: Option<bool>,
     pub supported_release: SupportedReleaseEnum,
     pub deployment: Option<HoprdDeploymentSpec>,
 }
@@ -120,7 +122,7 @@ impl Default for Hoprd {
 
 impl Hoprd {
     // Creates all the related resources
-    pub async fn create(&self, context_data: Arc<ContextData>) -> Result<Action, Error> {
+    pub async fn create(&mut self, context_data: Arc<ContextData>) -> Result<Action, Error> {
         let client: Client = context_data.client.clone();
         let hoprd_namespace: String = self.namespace().unwrap();
         let hoprd_name: String = self.name_any();
@@ -137,6 +139,15 @@ impl Hoprd {
             hoprd_service::create_service(context_data.clone(), &hoprd_name, &hoprd_namespace, &self.spec.identity_pool_name, p2p_port, owner_reference.to_owned()).await?;
             hoprd_ingress::create_ingress(context_data.clone(),&hoprd_name,&hoprd_namespace,&context_data.config.ingress,owner_reference.to_owned()).await?;
             self.set_running_status(context_data.clone(), Some(identity.name_any())).await?;
+            let api: Api<Hoprd> = Api::namespaced(client.clone(), &hoprd_namespace.to_owned());
+            if self.spec_mut().delete_database.is_none() {
+                let patch = Patch::Merge(json!({ "spec": { "deleteDatabase": false } }));
+                match api.patch(&hoprd_name, &PatchParams::default(), &patch).await
+                {
+                    Ok(_) => {},
+                    Err(error) => error!("Could not update the deleteDatabase field {hoprd_name}: {:?}", error)
+                };
+            }
             info!("Hoprd node {hoprd_name} in namespace {hoprd_namespace} has been successfully created");        
         } else {
             context_data.send_event(self, HoprdEventEnum::Failed, None).await;
@@ -146,7 +157,7 @@ impl Hoprd {
     }
 
     // Creates all the related resources
-    pub async fn modify(&self, context_data: Arc<ContextData>) -> Result<Action, Error> {
+    pub async fn modify(&mut self, context_data: Arc<ContextData>) -> Result<Action, Error> {
         let client: Client = context_data.client.clone();
         let hoprd_name: String = self.name_any();
         if self.status.is_some() && self.status.as_ref().unwrap().phase.eq(&HoprdPhaseEnum::Failed) {
@@ -200,10 +211,22 @@ impl Hoprd {
         Ok(())
     }
 
-    async fn apply_modification(&self, context_data: Arc<ContextData>, identity: &IdentityHoprd) -> Result<(), Error> {
+    async fn apply_modification(&mut self, context_data: Arc<ContextData>, identity: &IdentityHoprd) -> Result<(), Error> {
         let hoprd_namespace: String = self.namespace().unwrap();
         let hoprd_name: String = self.name_any();
         hoprd_deployment::modify_deployment(context_data.clone(), &hoprd_name.to_owned(),&hoprd_namespace.to_owned(),&self.spec.to_owned(),identity).await?;
+        if self.spec_mut().delete_database.unwrap_or(false) {
+            info!("Deleting database for Hoprd node {hoprd_name} in namespace {hoprd_namespace}");
+            hoprd_deployment::delete_database(context_data.clone(), &hoprd_name.to_owned(),&hoprd_namespace.to_owned()).await?;
+            let client: Client = context_data.client.clone();
+            let api: Api<Hoprd> = Api::namespaced(client.clone(), &hoprd_namespace.to_owned());
+            let patch = Patch::Merge(json!({ "spec": { "deleteDatabase": false } }));
+            match api.patch(&hoprd_name, &PatchParams::default(), &patch).await
+            {
+                Ok(_) => {},
+                Err(error) => error!("Could not update the deleteDatabaseField on {hoprd_name}: {:?}", error)
+            };
+        }
         match self.wait_deployment(context_data.client.clone()).await {
             Ok(()) =>  {
                 info!("Hoprd node {hoprd_name} in namespace {hoprd_namespace} has been successfully modified");
