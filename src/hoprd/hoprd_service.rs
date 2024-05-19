@@ -11,7 +11,9 @@ use kube::{
 use std::{collections::BTreeMap, sync::Arc};
 use tracing::info;
 
-use crate::{constants, context_data::ContextData, utils};
+use crate::{constants, context_data::ContextData, hoprd::hoprd_ingress, utils};
+
+use super::hoprd_resource::ServiceTypeEnum;
 
 /// Creates a new service for accessing the hoprd node,
 ///
@@ -20,9 +22,16 @@ use crate::{constants, context_data::ContextData, utils};
 /// - `name` - Name of the service to be created
 /// - `namespace` - Namespace to create the Kubernetes Deployment in.
 ///
-pub async fn create_service(context_data: Arc<ContextData>, name: &str, namespace: &str, identity_pool_name: &str, p2p_port: i32, owner_references: Option<Vec<OwnerReference>>) -> Result<Service, Error> {
+pub async fn create_service(context_data: Arc<ContextData>, name: &str, namespace: &str, identity_pool_name: &str, service_type: ServiceTypeEnum, owner_references: Option<Vec<OwnerReference>>) -> Result<String, Error> {
     let mut labels: BTreeMap<String, String> = utils::common_lables(context_data.config.instance.name.to_owned(),Some(name.to_owned()),None);
     labels.insert(constants::LABEL_KUBERNETES_IDENTITY_POOL.to_owned(),identity_pool_name.to_owned());
+
+    let p2p_port = if service_type.eq(&ServiceTypeEnum::ClusterIP) {
+        hoprd_ingress::open_port(context_data.client.clone(),&namespace,&name,&context_data.config.ingress).await.unwrap()
+    } else {
+        9091
+    };
+
 
     // Definition of the service. Alternatively, a YAML representation could be used as well.
     let service: Service = Service {
@@ -35,7 +44,7 @@ pub async fn create_service(context_data: Arc<ContextData>, name: &str, namespac
         },
         spec: Some(ServiceSpec {
             selector: Some(labels.clone()),
-            type_: Some("ClusterIP".to_owned()),
+            type_: Some(service_type.to_string()),
             ports: Some(service_ports(p2p_port)),
             ..ServiceSpec::default()
         }),
@@ -44,9 +53,14 @@ pub async fn create_service(context_data: Arc<ContextData>, name: &str, namespac
 
     // Create the service defined above
     let service_api: Api<Service> = Api::namespaced(context_data.client.clone(), namespace);
-    let service = service_api.create(&PostParams::default(), &service).await?;
+    let service = service_api.create(&PostParams::default(), &service).await.unwrap();
+    let public_ip = if service_type.eq(&ServiceTypeEnum::ClusterIP) {
+        context_data.config.ingress.loadbalancer_ip.clone().unwrap()
+    } else{
+        service.status.unwrap().load_balancer.unwrap().ingress.unwrap()[0].ip.clone().unwrap()
+    };
     info!("Service {} created successfully", name.to_owned());
-    Ok(service)
+    Ok(format!("{}:{}", public_ip, p2p_port))
 }
 
 fn service_ports(p2p_port: i32) -> Vec<ServicePort> {

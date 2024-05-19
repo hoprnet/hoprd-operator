@@ -56,7 +56,40 @@ pub struct HoprdSpec {
     pub enabled: Option<bool>,
     pub delete_database: Option<bool>,
     pub supported_release: SupportedReleaseEnum,
+    pub service: Option<HoprdServiceSpec>,
     pub deployment: Option<HoprdDeploymentSpec>,
+}
+
+#[derive(Serialize, Debug, Deserialize, PartialEq, Clone, JsonSchema, Hash)]
+#[serde(rename_all = "camelCase")]
+pub struct HoprdServiceSpec {
+    r#type: ServiceTypeEnum
+}
+
+impl Default for HoprdServiceSpec {
+    fn default() -> Self {
+        Self {
+            r#type: ServiceTypeEnum::ClusterIP
+        }
+    }
+}
+
+
+#[derive(Serialize, Debug, Deserialize, PartialEq, Clone, JsonSchema, Hash)]
+pub enum ServiceTypeEnum {
+    // The hoprd service is of type ClusterIP
+    ClusterIP,
+    /// The hoprd service is of type LoadBalancer
+    LoadBalancer,
+}
+
+impl Display for ServiceTypeEnum {
+    fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
+        match self {
+            ServiceTypeEnum::ClusterIP => write!(f, "ClusterIP"),
+            ServiceTypeEnum::LoadBalancer => write!(f, "LoadBalancer")
+        }
+    }
 }
 
 /// The status object of `Hoprd`
@@ -133,10 +166,10 @@ impl Hoprd {
         if let Some(identity) = self.lock_identity(context_data.clone()).await?
         {
             resource_generics::add_finalizer(client.clone(), self).await;
-            let p2p_port = hoprd_ingress::open_port(client.clone(),&hoprd_namespace,&hoprd_name,&context_data.config.ingress).await.unwrap();
-            hoprd_deployment::create_deployment(context_data.clone(),self,&identity,p2p_port,context_data.config.ingress.to_owned()).await?;
+            let service_type = self.spec.service.as_ref().unwrap_or(&HoprdServiceSpec::default()).r#type.clone();
+            let hoprd_host_port = hoprd_service::create_service(context_data.clone(), &hoprd_name, &hoprd_namespace, &self.spec.identity_pool_name, service_type, owner_reference.to_owned()).await.unwrap();
+            hoprd_deployment::create_deployment(context_data.clone(),self,&identity, &hoprd_host_port).await?;
             self.wait_deployment(client.clone()).await?;
-            hoprd_service::create_service(context_data.clone(), &hoprd_name, &hoprd_namespace, &self.spec.identity_pool_name, p2p_port, owner_reference.to_owned()).await?;
             hoprd_ingress::create_ingress(context_data.clone(),&hoprd_name,&hoprd_namespace,&context_data.config.ingress,owner_reference.to_owned()).await?;
             self.set_running_status(context_data.clone(), Some(identity.name_any())).await?;
             let api: Api<Hoprd> = Api::namespaced(client.clone(), &hoprd_namespace.to_owned());
@@ -252,7 +285,10 @@ impl Hoprd {
         info!("Starting to delete Hoprd node {hoprd_name} from namespace {hoprd_namespace}");
         // Deletes any subresources related to this `Hoprd` resources. If and only if all subresources
         // are deleted, the finalizer is removed and Kubernetes is free to remove the `Hoprd` resource.
-        hoprd_ingress::close_port(client.clone(), &hoprd_namespace, &hoprd_name, &context_data.config.ingress).await.unwrap();
+        let service_type = self.spec.service.as_ref().unwrap_or(&HoprdServiceSpec::default()).r#type.clone();
+        if service_type.eq(&ServiceTypeEnum::ClusterIP) {
+            hoprd_ingress::close_port(client.clone(), &hoprd_namespace, &hoprd_name, &context_data.config.ingress).await.unwrap();
+        }
         hoprd_ingress::delete_ingress(client.clone(), &hoprd_name, &hoprd_namespace).await?;
         hoprd_service::delete_service(client.clone(), &hoprd_name, &hoprd_namespace).await?;
         hoprd_deployment::delete_depoyment(client.clone(), &hoprd_name, &hoprd_namespace).await.unwrap();

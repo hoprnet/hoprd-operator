@@ -24,35 +24,15 @@ use crate::model::Error as HoprError;
 use crate::{constants, context_data::ContextData, operator_config::IngressConfig, utils};
 
 /// Creates a new Ingress for accessing the hoprd node,
-///
-/// # Arguments
-/// - `client` - A Kubernetes client to create the deployment with.
-/// - `service_name` - Name of the service which will be exposed externally in the Ingress
-/// - `namespace` - Namespace to create the Kubernetes Deployment in.
-/// - `ingress` - Ingress Details
-///
-pub async fn create_ingress(
-    context: Arc<ContextData>,
-    service_name: &str,
-    namespace: &str,
-    ingress_config: &IngressConfig,
-    owner_references: Option<Vec<OwnerReference>>,
-) -> Result<Ingress, Error> {
+pub async fn create_ingress(context: Arc<ContextData>, service_name: &str, namespace: &str, ingress_config: &IngressConfig, owner_references: Option<Vec<OwnerReference>>) -> Result<Ingress, Error> {
     let labels: Option<BTreeMap<String, String>> = Some(utils::common_lables(
         context.config.instance.name.to_owned(),
         Some(service_name.to_owned()),
         None,
     ));
-    let annotations: BTreeMap<String, String> = ingress_config
-        .annotations
-        .as_ref()
-        .unwrap_or(&BTreeMap::new())
-        .clone();
+    let annotations: BTreeMap<String, String> = ingress_config.annotations.as_ref().unwrap_or(&BTreeMap::new()).clone();
 
-    let hostname = format!(
-        "{}.{}.{}",
-        service_name, namespace, ingress_config.dns_domain
-    );
+    let hostname = format!("{}.{}.{}", service_name, namespace, ingress_config.dns_domain);
 
     // Definition of the ingress
     let ingress: Ingress = Ingress {

@@ -36,7 +36,7 @@ use k8s_openapi::api::batch::v1::JobSpec;
 /// - `client` - A Kubernetes client to create the deployment with.
 /// - `hoprd` - Details about the hoprd configuration node
 ///
-pub async fn create_deployment(context_data: Arc<ContextData>, hoprd: &Hoprd, identity_hoprd: &IdentityHoprd, p2p_port: i32, ingress_config: IngressConfig) -> Result<Deployment, kube::Error> {
+pub async fn create_deployment(context_data: Arc<ContextData>, hoprd: &Hoprd, identity_hoprd: &IdentityHoprd, hoprd_host: &String) -> Result<Deployment, kube::Error> {
     let namespace: String = hoprd.namespace().unwrap();
     let name: String = hoprd.name_any();
     let owner_references: Option<Vec<OwnerReference>> = Some(vec![hoprd.controller_owner_ref(&()).unwrap()]);
@@ -49,7 +49,7 @@ pub async fn create_deployment(context_data: Arc<ContextData>, hoprd: &Hoprd, id
     labels.insert(constants::LABEL_NODE_PEER_ID.to_owned(), identity_hoprd.spec.peer_id.to_owned());
     labels.insert(constants::LABEL_NODE_SAFE_ADDRESS.to_owned(), identity_hoprd.spec.safe_address.to_owned());
     labels.insert(constants::LABEL_NODE_MODULE_ADDRESS.to_owned(),identity_hoprd.spec.module_address.to_owned());
-    let hoprd_host = format!("{}:{}", ingress_config.loadbalancer_ip.unwrap(), p2p_port);
+
 
     // Propagating ClusterHopd instance
     if hoprd.labels().contains_key(constants::LABEL_NODE_CLUSTER) {
