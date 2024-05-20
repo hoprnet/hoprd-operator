@@ -1,6 +1,6 @@
 use crate::constants::SupportedReleaseEnum;
 use crate::events::ClusterHoprdEventEnum;
-use crate::hoprd::{hoprd_deployment_spec::HoprdDeploymentSpec, hoprd_resource::{HoprdSpec, Hoprd}};
+use crate::hoprd::{hoprd_service::HoprdServiceSpec, hoprd_deployment_spec::HoprdDeploymentSpec, hoprd_resource::{HoprdSpec, Hoprd}};
 use crate::model::Error;
 use crate::{utils, resource_generics};
 use crate::{constants, context_data::ContextData};
@@ -50,6 +50,7 @@ pub struct ClusterHoprdSpec {
     pub enabled: Option<bool>,
     pub supported_release: SupportedReleaseEnum,
     pub force_identity_name: Option<bool>,
+    pub service: Option<HoprdServiceSpec>,
     pub deployment: Option<HoprdDeploymentSpec>
 }
 
@@ -270,6 +271,9 @@ impl ClusterHoprd {
         if !self.spec.identity_pool_name.eq(&spec.identity_pool_name) {
             error!("Cluster configuration is invalid, identity_pool_name field cannot be changed on {}.", self.name_any());
             true
+        } else if self.spec.service.is_some() && !self.spec.service.as_ref().unwrap().r#type.eq(&spec.service.as_ref().unwrap().r#type) {
+            error!("Cluster configuration is invalid, service Type field cannot be changed on {}.", self.name_any());
+            true
         } else {
             false
         }
@@ -355,6 +359,7 @@ impl ClusterHoprd {
             identity_pool_name: self.spec.identity_pool_name.to_owned(),
             supported_release: self.spec.supported_release.to_owned(),
             delete_database: Some(false),
+            service: Some(self.spec.service.as_ref().unwrap_or(&HoprdServiceSpec::default()).to_owned()),
             identity_name
         };
         match self.create_hoprd_resource(context_data.clone(), node_name.to_owned(), hoprd_spec).await {
@@ -428,6 +433,7 @@ impl ClusterHoprd {
             delete_database: Some(false),
             identity_pool_name: self.spec.identity_pool_name.to_owned(),
             supported_release: self.spec.supported_release.to_owned(),
+            service: self.spec.service.to_owned(),
             identity_name: None
         };
         

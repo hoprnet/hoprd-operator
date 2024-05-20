@@ -219,7 +219,6 @@ impl ResourceEvent for IdentityHoprdEventEnum {
 pub enum IdentityPoolEventEnum {
     Initialized,
     Failed,
-    OutOfSync,
     Ready,
     Deleting,
     Locked,
@@ -243,13 +242,6 @@ impl ResourceEvent for IdentityPoolEventEnum {
                         reason: "Failed".to_string(),
                         note: Some("Failed to bootstrap identity pool".to_owned()),
                         action: "Identity pool bootstrap validations have failed".to_string(),
-                        secondary: None
-                    },
-            IdentityPoolEventEnum::OutOfSync => Event {
-                        type_: EventType::Normal,
-                        reason: "OutOfSync".to_string(),
-                        note: Some(format!("The identity pool is out of sync. There are {} identities pending to be created", attribute.unwrap_or("unknown".to_owned()))),
-                        action: "The identity pool need to create more identities".to_string(),
                         secondary: None
                     },
             IdentityPoolEventEnum::Ready => Event {
