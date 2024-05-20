@@ -79,6 +79,12 @@ forceIdentityName: false
 ##
 deployment: {}
 
+##
+## @param service Service spec
+##
+service: 
+  type: "ClusterIP"
+
 
 ##
 ## @param config Custom configuration of nodes
