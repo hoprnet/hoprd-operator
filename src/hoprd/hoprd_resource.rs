@@ -6,7 +6,7 @@ use crate::identity_hoprd::identity_hoprd_resource::{IdentityHoprd, IdentityHopr
 use crate::identity_pool::identity_pool_resource::{IdentityPool, IdentityPoolPhaseEnum};
 use crate::model::Error;
 use crate::{
-    hoprd::{hoprd_deployment_spec::HoprdDeploymentSpec, hoprd_deployment, hoprd_service, hoprd_ingress, hoprd_service::{ServiceTypeEnum, HoprdServiceSpec}},
+    hoprd::{hoprd_deployment_spec::HoprdDeploymentSpec, hoprd_deployment, hoprd_service, hoprd_ingress, hoprd_service::HoprdServiceSpec},
     constants, context_data::ContextData, 
 };
 use chrono::Utc;

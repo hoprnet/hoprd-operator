@@ -322,10 +322,11 @@ impl ClusterHoprd {
         let api: Api<Hoprd> = Api::namespaced(client, &self.namespace().unwrap());
         let current_nodes = self.get_my_nodes(api).await.unwrap();
         debug!("ClusterHoprd {} in namespace {} has currently {} nodes", self.name_any(), self.namespace().unwrap(), current_nodes.len());
-        let current_node_numbers = current_nodes.iter().map(|n| {
+        let mut current_node_numbers = current_nodes.iter().map(|n| {
             // Casting the node numbers and removing 1 unit to align them with the index of the array, so the nodes numbering starts from value 0 instead of 1
             n.name_any().replace(&format!("{}-", self.metadata.name.as_ref().unwrap()), "").parse::<i32>().unwrap() - 1
         }).collect::<Vec<i32>>();
+        current_node_numbers.sort();
         let next = current_node_numbers.iter().enumerate().find_map(|(index, &value)| {
             let index_i32: i32 = index.try_into().unwrap();
             if index_i32 != value {

@@ -154,7 +154,7 @@ pub async fn modify_deployment(context_data: Arc<ContextData>, deployment_name: 
         .env.as_ref().unwrap().iter()
         .find(|&env_var| env_var.name.eq(&constants::HOPRD_HOST.to_owned())).unwrap()
         .value.as_ref().unwrap().to_owned();
-    let hoprd_host = hoprd_host_port.split(':').collect::<Vec<&str>>().get(0).unwrap().clone();
+    let hoprd_host = *hoprd_host_port.split(':').collect::<Vec<&str>>().get(0).unwrap();
     let p2p_port = hoprd_host_port.split(':').collect::<Vec<&str>>().get(1).unwrap().to_string().parse::<i32>().unwrap();
     let identity_pool: IdentityPool = identity_hoprd.get_identity_pool(context_data.client.clone()).await.unwrap();
     let spec = build_deployment_spec(deployment.labels().to_owned(), hoprd_spec, identity_pool, identity_hoprd, &hoprd_host, p2p_port).await;

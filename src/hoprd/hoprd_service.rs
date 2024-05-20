@@ -207,7 +207,7 @@ fn build_ports(p2p_port: i32, port_name: Option<&str>) -> Vec<ServicePort> {
                 name: Some(port_name.unwrap().to_owned()),
                 port: port,
                 protocol: Some(protocol.to_string()),
-                target_port: Some(IntOrString::Int(p2p_port)),
+                target_port: Some(IntOrString::Int(port)),
                 ..ServicePort::default()
             }
         ]
