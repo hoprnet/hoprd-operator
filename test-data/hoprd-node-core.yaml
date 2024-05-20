@@ -10,6 +10,8 @@ spec:
   identityName: pull-requests-rotsee-1
   supportedRelease: saint-louis
   deleteDatabase: false
+  service:
+    type: LoadBalancer
   enabled: true
   config: |
     hopr:

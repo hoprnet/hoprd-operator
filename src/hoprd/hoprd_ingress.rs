@@ -20,39 +20,26 @@ use serde_json::json;
 use std::{collections::BTreeMap, sync::Arc};
 use tracing::{error, info};
 
-use crate::model::Error as HoprError;
+use crate::{hoprd::hoprd_ingress, model::Error as HoprError};
 use crate::{constants, context_data::ContextData, operator_config::IngressConfig, utils};
 
+use super::hoprd_service::ServiceTypeEnum;
+
 /// Creates a new Ingress for accessing the hoprd node,
-///
-/// # Arguments
-/// - `client` - A Kubernetes client to create the deployment with.
-/// - `service_name` - Name of the service which will be exposed externally in the Ingress
-/// - `namespace` - Namespace to create the Kubernetes Deployment in.
-/// - `ingress` - Ingress Details
-///
-pub async fn create_ingress(
-    context: Arc<ContextData>,
-    service_name: &str,
-    namespace: &str,
-    ingress_config: &IngressConfig,
-    owner_references: Option<Vec<OwnerReference>>,
-) -> Result<Ingress, Error> {
+pub async fn create_ingress(context_data: Arc<ContextData>, service_type: &ServiceTypeEnum, service_name: &str, namespace: &str, ingress_config: &IngressConfig, owner_references: Option<Vec<OwnerReference>>) -> Result<i32, Error> {
     let labels: Option<BTreeMap<String, String>> = Some(utils::common_lables(
-        context.config.instance.name.to_owned(),
+        context_data.config.instance.name.to_owned(),
         Some(service_name.to_owned()),
         None,
     ));
-    let annotations: BTreeMap<String, String> = ingress_config
-        .annotations
-        .as_ref()
-        .unwrap_or(&BTreeMap::new())
-        .clone();
+    let p2p_port = if service_type.eq(&ServiceTypeEnum::ClusterIP) {
+        hoprd_ingress::open_port(context_data.client.clone(), &namespace, &service_name, &context_data.config.ingress).await.unwrap()
+    } else {
+        9091
+    };
+    let annotations: BTreeMap<String, String> = ingress_config.annotations.as_ref().unwrap_or(&BTreeMap::new()).clone();
 
-    let hostname = format!(
-        "{}.{}.{}",
-        service_name, namespace, ingress_config.dns_domain
-    );
+    let hostname = format!("{}.{}.{}", service_name, namespace, ingress_config.dns_domain);
 
     // Definition of the ingress
     let ingress: Ingress = Ingress {
@@ -95,10 +82,10 @@ pub async fn create_ingress(
     };
 
     // Create the Ingress defined above
-    let api: Api<Ingress> = Api::namespaced(context.client.clone(), namespace);
-    let ingress = api.create(&PostParams::default(), &ingress).await?;
+    let api: Api<Ingress> = Api::namespaced(context_data.client.clone(), namespace);
+    api.create(&PostParams::default(), &ingress).await?;
     info!("Ingress {} created successfully", service_name.to_owned());
-    Ok(ingress)
+    Ok(p2p_port)
 }
 
 /// Deletes an existing ingress.
@@ -108,8 +95,12 @@ pub async fn create_ingress(
 /// - `name` - Name of the service to delete
 /// - `namespace` - Namespace the existing service resides in
 ///
-pub async fn delete_ingress(client: Client, name: &str, namespace: &str) -> Result<(), Error> {
-    let api: Api<Ingress> = Api::namespaced(client, namespace);
+pub async fn delete_ingress(context_data: Arc<ContextData>, name: &str, namespace: &str, service_type: &ServiceTypeEnum) -> Result<(), Error> {
+
+    if service_type.eq(&ServiceTypeEnum::ClusterIP) {
+        hoprd_ingress::close_port(context_data.client.clone(), &namespace, &name, &context_data.config.ingress).await.unwrap();
+    }
+    let api: Api<Ingress> = Api::namespaced(context_data.client.clone(), namespace);
     if let Some(ingress) = api.get_opt(name).await? {
         let uid = ingress.metadata.uid.unwrap();
         api.delete(name, &DeleteParams::default()).await?;
@@ -210,12 +201,7 @@ fn find_next_port(ports: Vec<&str>, min_port: Option<&String>) -> String {
 
 /// Creates a new Ingress for accessing the hoprd node,
 ///
-pub async fn close_port(
-    client: Client,
-    service_namespace: &str,
-    service_name: &str,
-    ingress_config: &IngressConfig,
-) -> Result<(), HoprError> {
+pub async fn close_port(client: Client, service_namespace: &str, service_name: &str, ingress_config: &IngressConfig) -> Result<(), HoprError> {
     let namespace = ingress_config.namespace.as_ref().unwrap();
     let api: Api<ConfigMap> = Api::namespaced(client.clone(), namespace);
     let service_fqn = format!("{}/{}", service_namespace, service_name);

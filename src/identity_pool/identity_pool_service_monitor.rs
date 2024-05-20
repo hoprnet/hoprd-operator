@@ -120,6 +120,16 @@ pub fn build_metric_relabel() -> Vec<ServiceMonitorEndpointsRelabelings> {
         regex: None,
         replacement: None,
         separator: None,
+    }, ServiceMonitorEndpointsRelabelings {
+        action: Some(ServiceMonitorEndpointsRelabelingsAction::Replace),
+        source_labels: Some(vec![
+            "__meta_kubernetes_pod_label_hoprds_hoprnet_org_cluster".to_owned(),
+        ]),
+        target_label: Some("hoprd_cluster".to_owned()),
+        modulus: None,
+        regex: None,
+        replacement: None,
+        separator: None,
     }]
 }
 

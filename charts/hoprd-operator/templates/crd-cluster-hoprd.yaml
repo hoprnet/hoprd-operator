@@ -81,6 +81,18 @@ spec:
                 forceIdentityName:
                   type: boolean
                   description: Flag indicating whether the identityName should be specified in child Hoprd
+                service:
+                  type: object
+                  description: Service configuration
+                  properties:
+                    type:
+                      type: string
+                      enum:
+                        - LoadBalancer
+                        - ClusterIP
+                      description: The type of service to create
+                  required:
+                    - type
                 deployment:
                   type: object
                   description: Deployment configuration

@@ -3,7 +3,6 @@ use crate::hoprd::hoprd_deployment_spec::HoprdDeploymentSpec;
 use crate::identity_hoprd::identity_hoprd_resource::IdentityHoprd;
 use crate::identity_pool::identity_pool_resource::IdentityPool;
 use crate::model::Error;
-use crate::operator_config::IngressConfig;
 use base64::{Engine as _, engine::general_purpose};
 
 use futures::StreamExt;
@@ -36,7 +35,7 @@ use k8s_openapi::api::batch::v1::JobSpec;
 /// - `client` - A Kubernetes client to create the deployment with.
 /// - `hoprd` - Details about the hoprd configuration node
 ///
-pub async fn create_deployment(context_data: Arc<ContextData>, hoprd: &Hoprd, identity_hoprd: &IdentityHoprd, p2p_port: i32, ingress_config: IngressConfig) -> Result<Deployment, kube::Error> {
+pub async fn create_deployment(context_data: Arc<ContextData>, hoprd: &Hoprd, identity_hoprd: &IdentityHoprd, hoprd_host: &str, p2p_port: i32) -> Result<Deployment, kube::Error> {
     let namespace: String = hoprd.namespace().unwrap();
     let name: String = hoprd.name_any();
     let owner_references: Option<Vec<OwnerReference>> = Some(vec![hoprd.controller_owner_ref(&()).unwrap()]);
@@ -49,7 +48,7 @@ pub async fn create_deployment(context_data: Arc<ContextData>, hoprd: &Hoprd, id
     labels.insert(constants::LABEL_NODE_PEER_ID.to_owned(), identity_hoprd.spec.peer_id.to_owned());
     labels.insert(constants::LABEL_NODE_SAFE_ADDRESS.to_owned(), identity_hoprd.spec.safe_address.to_owned());
     labels.insert(constants::LABEL_NODE_MODULE_ADDRESS.to_owned(),identity_hoprd.spec.module_address.to_owned());
-    let hoprd_host = format!("{}:{}", ingress_config.loadbalancer_ip.unwrap(), p2p_port);
+
 
     // Propagating ClusterHopd instance
     if hoprd.labels().contains_key(constants::LABEL_NODE_CLUSTER) {
@@ -66,16 +65,7 @@ pub async fn create_deployment(context_data: Arc<ContextData>, hoprd: &Hoprd, id
             owner_references,
             ..ObjectMeta::default()
         },
-        spec: Some(
-            build_deployment_spec(
-                labels,
-                &hoprd.spec,
-                identity_pool,
-                identity_hoprd,
-                &hoprd_host,
-            )
-            .await,
-        ),
+        spec: Some(build_deployment_spec(labels, &hoprd.spec, identity_pool, identity_hoprd, &hoprd_host, p2p_port).await),
         ..Deployment::default()
     };
 
@@ -86,7 +76,7 @@ pub async fn create_deployment(context_data: Arc<ContextData>, hoprd: &Hoprd, id
     Ok(deployment)
 }
 
-pub async fn build_deployment_spec(labels: BTreeMap<String, String>, hoprd_spec: &HoprdSpec, identity_pool: IdentityPool, identity_hoprd: &IdentityHoprd, hoprd_host: &String) -> DeploymentSpec {
+pub async fn build_deployment_spec(labels: BTreeMap<String, String>, hoprd_spec: &HoprdSpec, identity_pool: IdentityPool, identity_hoprd: &IdentityHoprd, hoprd_host: &str, p2p_port: i32) -> DeploymentSpec {
     let image = format!("{}/{}:{}", constants::HOPR_DOCKER_REGISTRY.to_owned(), constants::HOPR_DOCKER_IMAGE_NAME.to_owned(), &hoprd_spec.version.to_owned());
     let replicas: i32 = if hoprd_spec.enabled.unwrap_or(true) { 1 } else { 0 };
     let resources = Some(HoprdDeploymentSpec::get_resource_requirements(hoprd_spec.deployment.clone()));
@@ -94,7 +84,7 @@ pub async fn build_deployment_spec(labels: BTreeMap<String, String>, hoprd_spec:
     let readiness_probe = HoprdDeploymentSpec::get_readiness_probe(hoprd_spec.supported_release, hoprd_spec.deployment.clone());
     let startup_probe = HoprdDeploymentSpec::get_startup_probe(hoprd_spec.supported_release, hoprd_spec.deployment.clone());
     let volume_mounts: Option<Vec<VolumeMount>> = build_volume_mounts();
-    let port = hoprd_host.split(':').collect::<Vec<&str>>().get(1).unwrap().to_string().parse::<i32>().unwrap();
+    let hoprd_host_port = format!("{}:{}", hoprd_host, p2p_port);
     let encoded_configuration = general_purpose::STANDARD.encode(&hoprd_spec.config);
 
     DeploymentSpec {
@@ -134,8 +124,8 @@ pub async fn build_deployment_spec(labels: BTreeMap<String, String>, hoprd_spec:
                         name: "hoprd".to_owned(),
                         image: Some(image),
                         image_pull_policy: Some("Always".to_owned()),
-                        ports: Some(build_ports(port)),
-                        env: Some(build_env_vars(&identity_pool, identity_hoprd, hoprd_host, hoprd_spec)),
+                        ports: Some(build_ports(p2p_port)),
+                        env: Some(build_env_vars(&identity_pool, identity_hoprd, &hoprd_host_port, hoprd_spec)),
                         // command: Some(vec!["/bin/bash".to_owned(), "-c".to_owned()]),
                         // args: Some(vec!["sleep 99999999".to_owned()]),
                         liveness_probe,
@@ -160,12 +150,14 @@ pub async fn build_deployment_spec(labels: BTreeMap<String, String>, hoprd_spec:
 pub async fn modify_deployment(context_data: Arc<ContextData>, deployment_name: &str, namespace: &str, hoprd_spec: &HoprdSpec, identity_hoprd: &IdentityHoprd) -> Result<(), kube::Error> {
     let api: Api<Deployment> = Api::namespaced(context_data.client.clone(), namespace);
     let deployment = api.get(deployment_name).await.unwrap();
-    let hoprd_host = deployment.spec.clone().unwrap().template.spec.unwrap().containers.first().as_ref().unwrap()
+    let hoprd_host_port = deployment.spec.clone().unwrap().template.spec.unwrap().containers.first().as_ref().unwrap()
         .env.as_ref().unwrap().iter()
         .find(|&env_var| env_var.name.eq(&constants::HOPRD_HOST.to_owned())).unwrap()
         .value.as_ref().unwrap().to_owned();
+    let hoprd_host = hoprd_host_port.split(':').collect::<Vec<&str>>().get(0).unwrap().clone();
+    let p2p_port = hoprd_host_port.split(':').collect::<Vec<&str>>().get(1).unwrap().to_string().parse::<i32>().unwrap();
     let identity_pool: IdentityPool = identity_hoprd.get_identity_pool(context_data.client.clone()).await.unwrap();
-    let spec = build_deployment_spec(deployment.labels().to_owned(), hoprd_spec, identity_pool, identity_hoprd, &hoprd_host).await;
+    let spec = build_deployment_spec(deployment.labels().to_owned(), hoprd_spec, identity_pool, identity_hoprd, &hoprd_host, p2p_port).await;
     let patch = &Patch::Merge(json!({ "spec": spec }));
     api.patch(deployment_name, &PatchParams::default(), patch).await.unwrap();
     Ok(())
