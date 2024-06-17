@@ -52,7 +52,7 @@ jobs:
           echo "DOCKER_TAG=${docker_tag}" >> $GITHUB_OUTPUT
 
       - name: Build container image
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           push: true
           tags: |
