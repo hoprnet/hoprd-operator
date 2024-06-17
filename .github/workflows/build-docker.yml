@@ -97,7 +97,7 @@ jobs:
           password: ${{ steps.auth.outputs.access_token }}
 
       - name: Build container image
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           push: true
           tags: europe-west3-docker.pkg.dev/hoprassociation/docker-images/hoprd-operator:latest
