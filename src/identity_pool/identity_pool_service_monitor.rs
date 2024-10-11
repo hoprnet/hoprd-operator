@@ -103,7 +103,7 @@ pub fn build_metric_relabel() -> Vec<ServiceMonitorEndpointsRelabelings> {
     }, ServiceMonitorEndpointsRelabelings {
         action: Some(ServiceMonitorEndpointsRelabelingsAction::Replace),
         source_labels: Some(vec![
-            "__meta_kubernetes_pod_label_hoprds_hoprnet_org_native_address".to_owned(),
+            "__meta_kubernetes_pod_label_hoprds_hoprnet_org_nativeAddress".to_owned(),
         ]),
         target_label: Some("hoprd_address".to_owned()),
         modulus: None,

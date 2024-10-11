@@ -59,7 +59,7 @@ pub async fn create_cron_job(context_data: Arc<ContextData>, identity_pool: &Ide
 async fn build_args_line(identity_pool: &IdentityPool) -> Option<Vec<String>> {
     let native_amount: String =identity_pool.spec.funding.clone().unwrap().native_amount.to_string();
     let network: String = identity_pool.spec.network.to_owned();
-    let command_line: String = format!("PATH=${{PATH}}:/app/hoprnet/.foundry/bin/ /bin/hopli faucet --provider-url https://gnosis-chain.rpc.rank1.co --network {} --hopr-amount 0 --native-amount \"{}\" --address $(cat /data/addresses.txt)", network, native_amount);
+    let command_line: String = format!("PATH=${{PATH}}:/app/hoprnet/.foundry/bin/ /bin/hopli faucet --provider-url https://gnosis.rpc-provider.prod.hoprnet.link --network {} --hopr-amount 0 --native-amount \"{}\" --address $(cat /data/addresses.txt)", network, native_amount);
     Some(vec![command_line])
 }
 
