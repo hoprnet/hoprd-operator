@@ -58,21 +58,21 @@ spec:
           failureThreshold: 6
           httpGet:
             path: /
-            port: 80
+            port: 4677
             scheme: HTTP
           initialDelaySeconds: 0
           periodSeconds: 60
           successThreshold: 1
           timeoutSeconds: 5
         ports:
-        - containerPort: 80
+        - containerPort: 4677
           name: {{ .Values.service.ports.name }}
           protocol: TCP
         readinessProbe:
           failureThreshold: 6
           httpGet:
             path: /
-            port: 80
+            port: 4677
             scheme: HTTP
           initialDelaySeconds: 5
           periodSeconds: 10
