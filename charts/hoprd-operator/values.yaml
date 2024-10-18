@@ -8,6 +8,8 @@ nameOverride: ""
 ##
 fullnameOverride: ""
 
+environmentName: ""
+
 ## @section Replicator Parameters
 ##
 
