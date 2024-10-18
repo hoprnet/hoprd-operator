@@ -33,6 +33,7 @@ Chart version `Chart.yaml` should be increased according to [semver](http://semv
 | ------------------ | -------------------------------------------------- | ----- |
 | `nameOverride`     | String to partially override common.names.fullname | `""`  |
 | `fullnameOverride` | String to fully override common.names.fullname     | `""`  |
+| `environmentName`  | Name of the environment                            | `""`  |
 
 ### Replicator Parameters
 

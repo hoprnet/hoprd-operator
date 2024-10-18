@@ -8,6 +8,10 @@ nameOverride: ""
 ##
 fullnameOverride: ""
 
+## @param environmentName Name of the environment
+##
+environmentName: ""
+
 ## @section Replicator Parameters
 ##
 

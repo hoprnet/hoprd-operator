@@ -1,4 +1,4 @@
-
+environmentName: staging
 operator:
   persistence:
     storageClassName: ceph-ephimeral
