@@ -81,8 +81,8 @@ Chart version `Chart.yaml` should be increased according to [semver](http://semv
 | `operator.ingress.namespace`            | Namespace of the running ingress controller                        | `""`                                           |
 | `operator.ingress.annotations`          | Annotations to be added to ingress resources of Hoprd nodes        | `{}`                                           |
 | `operator.ingress.loadBalancerIP`       | Public IP of the LoadBalancer Service for the Ingress              | `""`                                           |
-| `operator.ingress.ports.min`            | Starting port to open on Ingress controller                        | `10000`                                        |
-| `operator.ingress.ports.max`            | End port to open on Ingress controller                             | `11000`                                        |
+| `operator.ingress.ports.min`            | Starting port to open on Ingress controller                        | `9000`                                         |
+| `operator.ingress.ports.max`            | End port to open on Ingress controller                             | `10000`                                        |
 | `operator.ingress.deploymentName`       | Labels selector to choose the Nginx deployment and service         | `""`                                           |
 | `operator.nodeSelector`                 | Object containing node selection constraint to operator deployment | `{}`                                           |
 | `operator.resources`                    | Resource specification to operator deployment                      | `{}`                                           |
