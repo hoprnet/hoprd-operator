@@ -14,14 +14,18 @@ pub enum HoprdEventEnum {
     Deleted,
 }
 
+fn unwrap_attribute(attr: &Option<String>) -> &str {
+    attr.as_deref().unwrap_or("unknown")
+}
+
 impl ResourceEvent for HoprdEventEnum {
     fn to_event(&self, _: Option<String>) -> Event {
         match self {
             HoprdEventEnum::Initializing => Event {
                 type_: EventType::Normal,
                 reason: "Initializing".to_string(),
-                note: Some("Initializing Hoprd node".to_owned()),
-                action: "Starting the process of creating a new node".to_string(),
+                note: Some("Starting the process of creating a new node".to_string()),
+                action: "Initializing Hoprd node".to_owned(),
                 secondary: None,
             },
             HoprdEventEnum::Running => Event {
@@ -85,12 +89,13 @@ pub enum ClusterHoprdEventEnum {
 
 impl ResourceEvent for ClusterHoprdEventEnum {
     fn to_event(&self, attribute: Option<String>) -> Event {
+        let parsed_attribute = unwrap_attribute(&attribute);
         match self {
             ClusterHoprdEventEnum::Initialized => Event {
                 type_: EventType::Normal,
                 reason: "Initialized".to_string(),
-                note: Some("ClusterHoprd node initialized".to_owned()),
-                action: "Starting the process of creating a new cluster of hoprd".to_string(),
+                note: Some("Starting the process of creating a new cluster of hoprd".to_string()),
+                action: "ClusterHoprd node initialized".to_owned(),
                 secondary: None,
             },
             ClusterHoprdEventEnum::NotScaled => Event {
@@ -106,8 +111,8 @@ impl ResourceEvent for ClusterHoprdEventEnum {
             ClusterHoprdEventEnum::Scaling => Event {
                 type_: EventType::Warning,
                 reason: "Scaling".to_string(),
-                note: Some("ClusterHoprd is scaling".to_string()),
-                action: "ClusterHoprd is scaling to meet the required replicas".to_string(),
+                note: Some("ClusterHoprd is scaling to meet the required replicas".to_string()),
+                action: "ClusterHoprd is scaling".to_string(),
                 secondary: None,
             },
             ClusterHoprdEventEnum::Failed => Event {
@@ -121,42 +126,42 @@ impl ResourceEvent for ClusterHoprdEventEnum {
                 type_: EventType::Normal,
                 reason: "Ready".to_string(),
                 note: Some("ClusterHoprd is in ready phase".to_owned()),
-                action: "ClusterHoprd is in ready phase".to_string(),
+                action: "ClusterHoprd is ready now".to_string(),
                 secondary: None,
             },
             ClusterHoprdEventEnum::Deleting => Event {
                 type_: EventType::Normal,
                 reason: "Deleting".to_string(),
-                note: Some("ClusterHoprd is being deleted".to_owned()),
+                note: Some("ClusterHoprd is going to be deleted".to_owned()),
                 action: "ClusterHoprd is being deleted".to_string(),
                 secondary: None,
             },
             ClusterHoprdEventEnum::CreatingNode => Event {
                 type_: EventType::Normal,
                 reason: "CreatingNode".to_string(),
-                note: Some(format!("Node {} is being created in the cluster", attribute.as_ref().unwrap_or(&"unknown".to_string()))),
+                note: Some(format!("Node {} is being created in the cluster", parsed_attribute)),
                 action: "A new node is being created in the cluster".to_string(),
                 secondary: None,
             },
             ClusterHoprdEventEnum::NodeCreated => Event {
                 type_: EventType::Normal,
                 reason: "NodeCreated".to_string(),
-                note: Some(format!("Node {} is created in the cluster", attribute.as_ref().unwrap_or(&"unknown".to_string()))),
+                note: Some(format!("Node {} is created in the cluster", parsed_attribute)),
                 action: "A new node is created in the cluster".to_string(),
                 secondary: None,
             },
             ClusterHoprdEventEnum::DeletingNode => Event {
                 type_: EventType::Normal,
                 reason: "DeletingNode".to_string(),
-                note: Some(format!("Node {} is being deleted from the cluster", attribute.as_ref().unwrap_or(&"unknown".to_string()))),
-                action: format!("Node {} is being deleted from the cluster", attribute.as_ref().unwrap_or(&"unknown".to_string())),
+                note: Some(format!("Node {} is being deleted from the cluster", parsed_attribute)),
+                action: "Node is being deleted from the cluster".to_string(),
                 secondary: None,
             },
             ClusterHoprdEventEnum::NodeDeleted => Event {
                 type_: EventType::Normal,
                 reason: "NodeDeleted".to_string(),
-                note: Some(format!("Node {} is deleted from the cluster", attribute.as_ref().unwrap_or(&"unknown".to_string()))),
-                action: format!("Node {} is deleted from the cluster", attribute.as_ref().unwrap_or(&"unknown".to_string())),
+                note: Some(format!("Node {} is deleted from the cluster", parsed_attribute)),
+                action: "Node is deleted from the cluster".to_string(),
                 secondary: None,
             },
         }
@@ -173,12 +178,13 @@ pub enum IdentityHoprdEventEnum {
 
 impl ResourceEvent for IdentityHoprdEventEnum {
     fn to_event(&self, attribute: Option<String>) -> Event {
+        let parsed_attribute = unwrap_attribute(&attribute);
         match self {
             IdentityHoprdEventEnum::Initialized => Event {
                 type_: EventType::Normal,
                 reason: "Initialized".to_string(),
-                note: Some("Initialized node identity".to_owned()),
-                action: "Starting the process of creating a new identity".to_string(),
+                note: Some("Starting the process of creating a new identity".to_string()),
+                action: "Initialized node identity".to_owned(),
                 secondary: None,
             },
             IdentityHoprdEventEnum::Failed => Event {
@@ -191,14 +197,14 @@ impl ResourceEvent for IdentityHoprdEventEnum {
             IdentityHoprdEventEnum::Ready => Event {
                 type_: EventType::Normal,
                 reason: "Ready".to_string(),
-                note: Some("Identity ready to be used".to_owned()),
-                action: "Identity is ready to be used by a Hoprd node".to_string(),
+                note: Some("Identity is ready to be used by a Hoprd node".to_string()),
+                action: "Identity ready to be used".to_owned(),
                 secondary: None,
             },
             IdentityHoprdEventEnum::InUse => Event {
                 type_: EventType::Normal,
                 reason: "InUse".to_string(),
-                note: Some(format!("Identity being used by Hoprd node {}", attribute.unwrap_or("unknown".to_owned()))),
+                note: Some(format!("Identity being used by Hoprd node {}", parsed_attribute)),
                 action: "Identity is being used".to_string(),
                 secondary: None,
             },
@@ -226,12 +232,13 @@ pub enum IdentityPoolEventEnum {
 
 impl ResourceEvent for IdentityPoolEventEnum {
     fn to_event(&self, attribute: Option<String>) -> Event {
+        let parsed_attribute = unwrap_attribute(&attribute);
         match self {
             IdentityPoolEventEnum::Initialized => Event {
                 type_: EventType::Normal,
                 reason: "Initialized".to_string(),
                 note: Some("Initializing identity pool".to_owned()),
-                action: "The service monitor has been created".to_string(),
+                action: "Starting the process of initializing the identity pool".to_string(),
                 secondary: None,
             },
             IdentityPoolEventEnum::Failed => Event {
@@ -258,29 +265,29 @@ impl ResourceEvent for IdentityPoolEventEnum {
             IdentityPoolEventEnum::Locked => Event {
                 type_: EventType::Normal,
                 reason: "Locked".to_string(),
-                note: Some(format!("Identity {} locked from pool", attribute.as_ref().unwrap_or(&"unknown".to_string()))),
-                action: format!("Identity {} locked from pool", attribute.as_ref().unwrap_or(&"unknown".to_string())),
+                note: Some(format!("Identity {} locked from pool", parsed_attribute)),
+                action: "Identity locking operation completed".to_string(),
                 secondary: None,
             },
             IdentityPoolEventEnum::Unlocked => Event {
                 type_: EventType::Normal,
                 reason: "Unlocked".to_string(),
-                note: Some(format!("Identity {} unlocked from pool", attribute.as_ref().unwrap_or(&"unknown".to_string()))),
-                action: format!("Identity {} unlocked from pool", attribute.as_ref().unwrap_or(&"unknown".to_string())),
+                note: Some(format!("Identity {} unlocked from pool", parsed_attribute)),
+                action: "Identity unlocked from pool".to_string(),
                 secondary: None,
             },
             IdentityPoolEventEnum::IdentityCreated => Event {
                 type_: EventType::Normal,
                 reason: "IdentityCreated".to_string(),
-                note: Some(format!("Identity pool created identity {}", attribute.as_ref().unwrap_or(&"unknown".to_string()))),
-                action: format!("Identity pool created identity {}", attribute.as_ref().unwrap_or(&"unknown".to_string())),
+                note: Some(format!("Identity pool created identity {}", parsed_attribute)),
+                action: "Identity pool created identity".to_string(),
                 secondary: None,
             },
             IdentityPoolEventEnum::IdentityDeleted => Event {
                 type_: EventType::Normal,
                 reason: "IdentityDeleted".to_string(),
-                note: Some(format!("Identity pool deregistered identity {}", attribute.as_ref().unwrap_or(&"unknown".to_string()))),
-                action: format!("Identity pool deregistered identity {}", attribute.as_ref().unwrap_or(&"unknown".to_string())),
+                note: Some(format!("Identity pool deregistered identity {}", parsed_attribute)),
+                action: "Identity pool deregistered identity".to_string(),
                 secondary: None,
             },
         }

@@ -230,7 +230,7 @@ impl IdentityPool {
             if self.spec.funding.is_some() {
                 identity_pool_cronjob_faucet::delete_cron_job(client.clone(), self).await?;
             }
-            resource_generics::delete_finalizer(client.clone(), self).await;
+            resource_generics::delete_finalizer(client.clone(), self).await?;
             context_data.state.write().await.remove_identity_pool(&identity_pool_namespace, &identity_pool_name);
             info!("Identity {identity_pool_name} in namespace {identity_pool_namespace} has been successfully deleted");
             Ok(Action::await_change()) // Makes no sense to delete after a successful delete, as the resource is gone
@@ -341,49 +341,44 @@ impl IdentityPool {
     pub async fn get_ready_identity(&mut self, client: Client, identity_name: Option<String>) -> Result<Option<IdentityHoprd>, Error> {
         let pool_identities: Vec<IdentityHoprd> = self.get_pool_identities(client).await;
 
-        let identity: Option<IdentityHoprd> = match identity_name.clone() {
-            Some(provided_identity_name) => {
-                let identity_hoprd = pool_identities.iter().find(|&identity| identity.metadata.name.clone().unwrap().eq(&provided_identity_name)).cloned();
-                if identity_hoprd.is_none() {
-                    warn!("The identity provided {} does not exist", provided_identity_name);
-                    None
-                } else if identity_hoprd
-                    .as_ref()
-                    .unwrap()
-                    .status
-                    .as_ref()
-                    .unwrap_or(&IdentityHoprdStatus::default())
-                    .phase
-                    .eq(&IdentityHoprdPhaseEnum::Ready)
-                {
-                    identity_hoprd
-                } else {
-                    if let Some(status) = identity_hoprd.as_ref().unwrap().status.as_ref() {
-                        warn!(
-                            "The identity {} is in phase {} and might be used by {}",
-                            provided_identity_name,
-                            status.phase,
-                            status.hoprd_node_name.as_ref().unwrap_or(&"unknown".to_owned())
-                        );
-                    } else {
-                        warn!("The identity {} has not status reported yet", provided_identity_name);
-                    }
-                    None
-                }
-            }
+        match identity_name {
             None => {
-                // No identity has been provided
-                let ready_pool_identity: Option<IdentityHoprd> = pool_identities
+                let ready_identity = pool_identities
                     .iter()
                     .find(|&identity| identity.status.as_ref().unwrap().phase.eq(&IdentityHoprdPhaseEnum::Ready))
                     .cloned();
-                if ready_pool_identity.is_none() {
-                    warn!("There are no identities ready to be used in this pool {}", self.name_any());
+
+                if ready_identity.is_none() {
+                    warn!("No ready identities available in pool {}", self.name_any());
                 }
-                ready_pool_identity
+                Ok(ready_identity)
             }
-        };
-        Ok(identity)
+            Some(name) => {
+                let identity = pool_identities.iter().find(|&identity| identity.metadata.name.clone().unwrap().eq(&name)).cloned();
+
+                match identity {
+                    None => {
+                        warn!("IdentityPool {} does not exist", name);
+                        Ok(None)
+                    }
+                    Some(identity) => {
+                        let default_status = IdentityHoprdStatus::default();
+                        let status = identity.status.as_ref().unwrap_or(&default_status);
+                        if status.phase.eq(&IdentityHoprdPhaseEnum::Ready) {
+                            Ok(Some(identity))
+                        } else {
+                            warn!(
+                                "IdentityPool {} is in phase {} and might be used by {}",
+                                name,
+                                status.phase,
+                                status.hoprd_node_name.as_ref().unwrap_or(&"unknown".to_owned())
+                            );
+                            Ok(None)
+                        }
+                    }
+                }
+            }
+        }
     }
 
     async fn check_wallet(&self, client: Client) -> Result<bool, Error> {

@@ -103,7 +103,7 @@ impl IdentityHoprd {
         let identity_namespace: String = self.namespace().unwrap();
         let identity_name: String = self.name_any();
         let identity_pool_name: String = self.spec.identity_pool_name.to_owned();
-        if !self.check_identity_pool(client.clone()).await.unwrap() {
+        if !self.check_identity_pool(client.clone()).await? {
             context_data.send_event(self, IdentityHoprdEventEnum::Failed, None).await;
             return Ok(Action::requeue(Duration::from_secs(constants::RECONCILE_LONG_FREQUENCY)));
         }
@@ -222,7 +222,7 @@ impl IdentityHoprd {
                     )
                     .await;
                 // TODO Drain funds
-                resource_generics::delete_finalizer(client.clone(), self).await;
+                resource_generics::delete_finalizer(client.clone(), self).await?;
                 info!("Identity {identity_name} in namespace {identity_namespace} has been successfully deleted");
                 Ok(Action::await_change()) // Makes no sense to delete after a successful delete, as the resource is gone
             } else {
@@ -231,7 +231,7 @@ impl IdentityHoprd {
             }
         } else {
             error!("IdentityHoprd {} was not correctly initialized", &identity_name);
-            resource_generics::delete_finalizer(client.clone(), self).await;
+            resource_generics::delete_finalizer(client.clone(), self).await?;
             Ok(Action::await_change())
         }
     }
@@ -271,7 +271,11 @@ impl IdentityHoprd {
 
             match api.patch(&identity_hoprd_name, &PatchParams::default(), &patch).await {
                 Ok(_identity) => Ok(()),
-                Err(error) => Ok(error!("Could not update status on {identity_hoprd_name}: {:?}", error)),
+                Err(error) => {
+                    error!("Could not update status on {identity_hoprd_name}: {:?}", error);
+                    Ok(())
+                    //Err(Error::HoprdStatusError(format!("Failed to update status for '{identity_hoprd_name}': {error}")))
+                }
             }
         }
     }

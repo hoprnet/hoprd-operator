@@ -28,15 +28,13 @@ pub async fn create_ingress(
     service_type: &ServiceTypeEnum,
     service_name: &str,
     namespace: &str,
-    session_port_allocation: &i32,
+    session_port_allocation: i32,
     ingress_config: &IngressConfig,
     owner_references: Option<Vec<OwnerReference>>,
 ) -> Result<i32, Error> {
     let labels: Option<BTreeMap<String, String>> = Some(utils::common_lables(context_data.config.instance.name.to_owned(), Some(service_name.to_owned()), None));
     let p2p_port = if service_type.eq(&ServiceTypeEnum::ClusterIP) {
-        hoprd_ingress::open_port(context_data.client.clone(), &namespace, &service_name, session_port_allocation, &context_data.config.ingress)
-            .await
-            .unwrap()
+        hoprd_ingress::open_port(context_data.client.clone(), &namespace, &service_name, session_port_allocation, &context_data.config.ingress).await.unwrap()
     } else {
         9091
     };
@@ -115,10 +113,10 @@ pub async fn delete_ingress(context_data: Arc<ContextData>, name: &str, namespac
 
 /// Creates a new Ingress for accessing the hoprd node,
 ///
-pub async fn open_port(client: Client, service_namespace: &str, service_name: &str, session_port_allocation: &i32, ingress_config: &IngressConfig) -> Result<i32, HoprError> {
+pub async fn open_port(client: Client, service_namespace: &str, service_name: &str, session_port_allocation: i32, ingress_config: &IngressConfig) -> Result<i32, HoprError> {
     let namespace = ingress_config.namespace.as_ref().unwrap();
     let api: Api<ConfigMap> = Api::namespaced(client.clone(), namespace);
-    let starting_port: i32 = get_available_ports(client.clone(), session_port_allocation, ingress_config).await.unwrap();
+    let starting_port: i32 = get_available_ports(client.clone(), session_port_allocation, ingress_config).await?;
     let pp = PatchParams::default();
 
     // Create a BTreeMap to hold the new data entries
@@ -150,7 +148,7 @@ pub async fn open_port(client: Client, service_namespace: &str, service_name: &s
     Ok(starting_port)
 }
 
-async fn get_available_ports(client: Client, session_port_allocation: &i32, ingress_config: &IngressConfig) -> Result<i32, HoprError> {
+async fn get_available_ports(client: Client, session_port_allocation: i32, ingress_config: &IngressConfig) -> Result<i32, HoprError> {
     let api: Api<ConfigMap> = Api::namespaced(client, ingress_config.namespace.as_ref().unwrap());
     if let Some(config_map) = api.get_opt("ingress-nginx-tcp").await? {
         let data = config_map.data.unwrap_or_default();
@@ -171,19 +169,19 @@ async fn get_available_ports(client: Client, session_port_allocation: &i32, ingr
 }
 
 /// Find the next port available
-fn find_next_port(ports: Vec<i32>, session_port_allocation: &i32, min_port: Option<&i32>) -> i32 {
+fn find_next_port(ports: Vec<i32>, session_port_allocation: i32, min_port: Option<&i32>) -> i32 {
     if ports.is_empty() {
         return min_port.unwrap_or(&constants::OPERATOR_MIN_PORT).to_owned();
     }
 
     // If the first port used is greater than the min_port plus session_port_allocation, fill the gap
-    if (ports[0] - min_port.unwrap_or(&constants::OPERATOR_MIN_PORT)) >= session_port_allocation.to_owned() {
-        return ports[0] - session_port_allocation.to_owned();
+    if (ports[0] - min_port.unwrap_or(&constants::OPERATOR_MIN_PORT)) >= session_port_allocation {
+        return ports[0] - session_port_allocation;
     }
 
     // Find a gap in the ports vector where the values between two consecutive ports are greater than the session_port_allocation
     for i in 1..ports.len() {
-        if ports[i] - ports[i - 1] >= session_port_allocation.to_owned() {
+        if ports[i] - ports[i - 1] >= session_port_allocation {
             return ports[i - 1] + 1;
         }
     }
@@ -254,29 +252,24 @@ mod tests {
     #[test]
     fn test_find_next_port_empty() {
         let gap_in_middle = vec![];
-        assert_eq!(find_next_port(gap_in_middle, &10, None), constants::OPERATOR_MIN_PORT);
+        assert_eq!(find_next_port(gap_in_middle, 10, None), constants::OPERATOR_MIN_PORT);
     }
 
     #[test]
     fn test_find_next_port_first() {
-        let min_port = constants::OPERATOR_MIN_PORT;
-        let first_port = vec![10000, 10001, 10002, 10003, 10004, 10005, 10006, 10007, 10008, 10009];
-        assert_eq!(find_next_port(first_port, &10, None), 10011);
+        let first_port = vec![9000, 9001, 9002, 9003, 9004, 9005, 9006, 9007, 9008, 9009];
+        assert_eq!(find_next_port(first_port, 10, None), 9010);
     }
 
     #[test]
     fn test_find_next_port_gap_in_middle() {
-        let gap_in_middle = vec![
-            10000, 10001, 10002, 10003, 10004, 10005, 10006, 10007, 10008, 10009, 10020, 10021, 10022, 10023, 10024, 10025, 10026, 10027, 10028, 10029,
-        ];
-        assert_eq!(find_next_port(gap_in_middle, &10, None), 10010);
+        let gap_in_middle = vec![9000, 9001, 9002, 9003, 9004, 9005, 9006, 9007, 9008, 9009, 9020, 9021, 9022, 9023, 9024, 9025, 9026, 9027, 9028, 9029];
+        assert_eq!(find_next_port(gap_in_middle, 10, None), 9010);
     }
 
     #[test]
     fn test_find_next_port_last() {
-        let last = vec![
-            10000, 10001, 10002, 10003, 10004, 10005, 10006, 10007, 10008, 10009, 10010, 10011, 10012, 10013, 10014, 10015, 10016, 10017, 10018, 10019,
-        ];
-        assert_eq!(find_next_port(last, &10, None), 10020);
+        let last = vec![9000, 9001, 9002, 9003, 9004, 9005, 9006, 9007, 9008, 9009, 9010, 9011, 9012, 9013, 9014, 9015, 9016, 9017, 9018, 9019];
+        assert_eq!(find_next_port(last, 10, None), 9020);
     }
 }

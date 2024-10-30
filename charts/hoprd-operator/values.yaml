@@ -197,11 +197,11 @@ operator:
     ports:
       ## @param operator.ingress.ports.min Starting port to open on Ingress controller
       ##
-      min: 10000
+      min: 9000
 
       ## @param operator.ingress.ports.max End port to open on Ingress controller
       ##
-      max: 11000
+      max: 10000
 
     ## @param operator.ingress.deploymentName Labels selector to choose the Nginx deployment and service
     ##

@@ -11,8 +11,8 @@ ingress:
     nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
     nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
   namespace: ingress-nginx
-  port_min: 10000
-  port_max: 11000
+  port_min: 9000
+  port_max: 10000
   deployment_name: ingress-nginx-controller
 hopli_image: europe-west3-docker.pkg.dev/hoprassociation/docker-images/hopli:2.1.4
 persistence:

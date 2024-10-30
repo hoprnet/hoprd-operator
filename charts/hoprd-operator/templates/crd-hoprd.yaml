@@ -106,7 +106,12 @@ spec:
                   description: 'Trigger to delete the database of the node'
                 ports_allocation:
                   type: number
-                  description: 'Amount of ports to be opened'
+                  description: >-
+                    Number of ports to be opened for session management in the hoprd node.
+                    Each session requires one port. Default: 10 ports if not specified.
+                    Warning: Large numbers may impact kubernetes cluster performance.
+                  minimum: 1
+                  maximum: 200
               required: 
                 - version
                 - identityPoolName

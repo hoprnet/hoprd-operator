@@ -114,7 +114,12 @@ spec:
                       description: The definition of the readiness probe to be used by the node deployment
                 ports_allocation:
                   type: number
-                  description: 'Amount of ports to be opened'
+                  description: >-
+                    Number of ports to be opened for session management in the hoprd node.
+                    Each session requires one port. Default: 10 ports if not specified.
+                    Warning: Large numbers may impact kubernetes cluster performance.
+                  minimum: 1
+                  maximum: 200
               required: 
                 - identityPoolName
                 - replicas

@@ -18,8 +18,14 @@ use crate::{context_data::ContextData, operator_config::IngressConfig};
 // Modifies Nginx deployment to add a range of ports that will be used by the operator while creating new nodes
 async fn open_nginx_deployment_ports(client: Client, ingress_config: &IngressConfig) -> Result<(), HoprError> {
     let namespace = ingress_config.namespace.as_ref().unwrap();
-    let min_port = ingress_config.port_min.parse::<i32>().unwrap();
-    let max_port = ingress_config.port_max.parse::<i32>().unwrap() + 1;
+    let min_port = ingress_config.port_min.parse::<i32>().map_err(|e| HoprError::UserInputError(format!("Invalid port_min: {}", e)))?;
+    let max_port = ingress_config.port_max.parse::<i32>().map_err(|e| HoprError::UserInputError(format!("Invalid port_max: {}", e)))? + 1;
+    if !(1024..=65535).contains(&min_port) || !(1024..=65535).contains(&max_port) {
+        return Err(HoprError::UserInputError("Ports must be between 1024 and 65535".into()));
+    }
+    if min_port >= max_port {
+        return Err(HoprError::UserInputError("min_port must be less than max_port".into()));
+    }
     let field_selector = format!("metadata.name={}", ingress_config.deployment_name.as_ref().unwrap());
     let api_deployment: Api<Deployment> = Api::namespaced(client.clone(), namespace);
     let deployments = api_deployment.list(&ListParams::default().fields(&field_selector)).await?;

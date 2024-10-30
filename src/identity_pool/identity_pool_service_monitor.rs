@@ -80,53 +80,25 @@ pub async fn create_service_monitor(context_data: Arc<ContextData>, name: &str, 
     api.create(&PostParams::default(), &service_monitor).await
 }
 
-pub fn build_metric_relabel() -> Vec<ServiceMonitorEndpointsRelabelings> {
+fn create_relabel_rule(source_suffix: &str, target_name: &str) -> ServiceMonitorEndpointsRelabelings {
+    ServiceMonitorEndpointsRelabelings {
+        action: Some(ServiceMonitorEndpointsRelabelingsAction::Replace),
+        source_labels: Some(vec![format!("__meta_kubernetes_pod_label_hoprds_hoprnet_org_{}", source_suffix)]),
+        target_label: Some(format!("hoprd_{}", target_name)),
+        modulus: None,
+        regex: None,
+        replacement: None,
+        separator: None,
+    }
+}
+
+fn build_metric_relabel() -> Vec<ServiceMonitorEndpointsRelabelings> {
     vec![
-        ServiceMonitorEndpointsRelabelings {
-            action: Some(ServiceMonitorEndpointsRelabelingsAction::Replace),
-            source_labels: Some(vec!["__meta_kubernetes_pod_label_hoprds_hoprnet_org_network".to_owned()]),
-            target_label: Some("hoprd_network".to_owned()),
-            modulus: None,
-            regex: None,
-            replacement: None,
-            separator: None,
-        },
-        ServiceMonitorEndpointsRelabelings {
-            action: Some(ServiceMonitorEndpointsRelabelingsAction::Replace),
-            source_labels: Some(vec!["__meta_kubernetes_pod_label_hoprds_hoprnet_org_safeAddress".to_owned()]),
-            target_label: Some("hoprd_safe_address".to_owned()),
-            modulus: None,
-            regex: None,
-            replacement: None,
-            separator: None,
-        },
-        ServiceMonitorEndpointsRelabelings {
-            action: Some(ServiceMonitorEndpointsRelabelingsAction::Replace),
-            source_labels: Some(vec!["__meta_kubernetes_pod_label_hoprds_hoprnet_org_nativeAddress".to_owned()]),
-            target_label: Some("hoprd_address".to_owned()),
-            modulus: None,
-            regex: None,
-            replacement: None,
-            separator: None,
-        },
-        ServiceMonitorEndpointsRelabelings {
-            action: Some(ServiceMonitorEndpointsRelabelingsAction::Replace),
-            source_labels: Some(vec!["__meta_kubernetes_pod_label_hoprds_hoprnet_org_peerId".to_owned()]),
-            target_label: Some("hoprd_peer_id".to_owned()),
-            modulus: None,
-            regex: None,
-            replacement: None,
-            separator: None,
-        },
-        ServiceMonitorEndpointsRelabelings {
-            action: Some(ServiceMonitorEndpointsRelabelingsAction::Replace),
-            source_labels: Some(vec!["__meta_kubernetes_pod_label_hoprds_hoprnet_org_cluster".to_owned()]),
-            target_label: Some("hoprd_cluster".to_owned()),
-            modulus: None,
-            regex: None,
-            replacement: None,
-            separator: None,
-        },
+        create_relabel_rule("network", "network"),
+        create_relabel_rule("safeAddress", "safe_address"),
+        create_relabel_rule("nativeAddress", "address"),
+        create_relabel_rule("peerId", "peer_id"),
+        create_relabel_rule("cluster", "cluster"),
     ]
 }
 

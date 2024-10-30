@@ -63,10 +63,9 @@ pub async fn create_service(
     labels.insert(constants::LABEL_KUBERNETES_IDENTITY_POOL.to_owned(), identity_pool_name.to_owned());
 
     if service_type.eq(&ServiceTypeEnum::ClusterIP) {
-        let public_ip = context_data.config.ingress.loadbalancer_ip.clone().unwrap();
         create_cluster_ip_service(context_data.clone(), name, namespace, labels, owner_references, starting_port, last_port).await?;
         info!("ClusterIP Service {} created successfully", name.to_owned());
-        Ok(public_ip)
+        Ok(context_data.config.ingress.loadbalancer_ip.to_string())
     } else {
         let loadbalancer_starting_port = constants::OPERATOR_MIN_PORT;
         let loadbalancer_last_port = loadbalancer_starting_port + starting_port - last_port;
@@ -113,7 +112,7 @@ async fn create_load_balancer_service(
         tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
 
         // Fetch the latest version of the service
-        let service = api_service.get(&format!("{}-p2p-tcp", name.to_owned())).await.unwrap();
+        let service = api_service.get(&format!("{}-p2p-tcp", name.to_owned())).await?;
 
         // Try to get the IP address from the service status
         load_balancer_ip = service
@@ -175,7 +174,7 @@ async fn create_cluster_ip_service(
 
     // Create the service defined above
     let service_api: Api<Service> = Api::namespaced(context_data.client.clone(), namespace);
-    let service = service_api.create(&PostParams::default(), &service).await.unwrap();
+    let service = service_api.create(&PostParams::default(), &service).await?;
     Ok(service)
 }
 

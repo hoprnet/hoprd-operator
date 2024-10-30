@@ -355,7 +355,7 @@ fn build_ports(starting_port: i32, last_port: i32) -> Vec<ContainerPort> {
         },
         ContainerPort {
             container_port: 8080,
-            name: Some("heatlh".to_owned()),
+            name: Some("health".to_owned()),
             protocol: Some("TCP".to_owned()),
             ..ContainerPort::default()
         },

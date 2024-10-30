@@ -14,9 +14,9 @@ use crate::model::Error;
 use crate::utils;
 
 pub async fn create_rbac(context_data: Arc<ContextData>, namespace: &String, name: &String, owner_references: Option<Vec<OwnerReference>>) -> Result<(), Error> {
-    create_service_account(context_data.clone(), namespace, name, owner_references.to_owned()).await.unwrap();
-    create_role(context_data.clone(), namespace, name, owner_references.to_owned()).await.unwrap();
-    create_role_binding(context_data.clone(), namespace, name, owner_references.to_owned()).await.unwrap();
+    create_service_account(context_data.clone(), namespace, name, owner_references.to_owned()).await?;
+    create_role(context_data.clone(), namespace, name, owner_references.to_owned()).await?;
+    create_role_binding(context_data.clone(), namespace, name, owner_references.to_owned()).await?;
     Ok(())
 }
 

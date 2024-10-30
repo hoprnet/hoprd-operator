@@ -261,7 +261,7 @@ impl ClusterHoprd {
         context_data.send_event(self, ClusterHoprdEventEnum::Deleting, None).await;
         info!("Starting to delete ClusterHoprd {cluster_hoprd_name} from namespace {hoprd_namespace}");
         self.delete_nodes(context_data.clone()).await.unwrap_or(());
-        resource_generics::delete_finalizer(client.clone(), self).await;
+        resource_generics::delete_finalizer(client.clone(), self).await?;
         info!("ClusterHoprd {cluster_hoprd_name} in namespace {hoprd_namespace} has been successfully deleted");
         Ok(Action::await_change()) // Makes no sense to delete after a successful delete, as the resource is gone
     }

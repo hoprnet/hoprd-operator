@@ -29,7 +29,10 @@ pub async fn add_finalizer<K: kube::Resource<Scope = NamespaceResourceScope, Dyn
 }
 
 /// Removes all finalizers from the resource
-pub async fn delete_finalizer<K: kube::Resource<Scope = NamespaceResourceScope, DynamicType = ()> + Clone + Debug + DeserializeOwned + Default>(client: Client, resource: &K) {
+pub async fn delete_finalizer<K: kube::Resource<Scope = NamespaceResourceScope, DynamicType = ()> + Clone + Debug + DeserializeOwned + Default>(
+    client: Client,
+    resource: &K,
+) -> Result<(), kube::Error> {
     let name = resource.name_any();
     let namespace = resource.namespace().unwrap();
     let api: Api<K> = Api::namespaced(client.clone(), &namespace.to_owned());
@@ -39,11 +42,12 @@ pub async fn delete_finalizer<K: kube::Resource<Scope = NamespaceResourceScope, 
         }
     }));
     if api.get_opt(&name).await.unwrap_or(None).is_some() {
-        match api.patch(&name, &PatchParams::default(), &patch).await {
-            Ok(_hopr) => (),
-            Err(error) => error!("Could not delete finalizer on Hoprd node {name}: {:?}", error),
-        }
+        api.patch(&name, &PatchParams::default(), &patch).await.map_err(|e| {
+            error!("Failed to delete finalizer on Hoprd node {name}: {e}");
+            e
+        })?;
     } else {
         debug!("Hoprd node {name} already deleted")
     }
+    Ok(())
 }

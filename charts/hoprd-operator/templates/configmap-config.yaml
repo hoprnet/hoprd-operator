@@ -21,7 +21,7 @@ data:
     ingress:
       ingress_class_name: "{{- .Values.operator.ingress.ingressClassName }}"
       dns_domain: "{{- .Values.operator.ingress.dnsDomain }}"
-      loadbalancer_ip: "{{- .Values.operator.ingress.loadBalancerIP }}"
+      loadbalancer_ip: {{- required "The operator.ingress.loadBalancerIP value is required!" .Values.operator.ingress.loadBalancerIP }}
       namespace: "{{- .Values.operator.ingress.namespace }}"
       port_min: "{{ .Values.operator.ingress.ports.min }}"
       port_max: "{{ .Values.operator.ingress.ports.max }}"

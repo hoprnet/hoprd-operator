@@ -128,7 +128,7 @@ impl Hoprd {
         if let Some(identity) = self.lock_identity(context_data.clone()).await? {
             resource_generics::add_finalizer(client.clone(), self).await;
             let service_type = self.spec.service.as_ref().unwrap_or(&HoprdServiceSpec::default()).r#type.clone();
-            let session_ports_allocation = self.spec.ports_allocation.as_ref().unwrap_or(&constants::HOPRD_PORTS_ALLOCATION);
+            let session_ports_allocation = self.spec.ports_allocation.unwrap_or(constants::HOPRD_PORTS_ALLOCATION);
             let starting_port = hoprd_ingress::create_ingress(
                 context_data.clone(),
                 &service_type,
@@ -279,11 +279,11 @@ impl Hoprd {
         // for Kubernetes to delete the `Hoprd` resource.
         context_data.send_event(self, HoprdEventEnum::Deleted, None).await;
         if let Some(cluster) = self.notify_deletion_to_cluster(context_data.clone()).await? {
-            resource_generics::delete_finalizer(client.clone(), self).await;
+            resource_generics::delete_finalizer(client.clone(), self).await?;
             context_data.send_event(&cluster, ClusterHoprdEventEnum::NodeDeleted, None).await;
             cluster.update_status(context_data.clone(), ClusterHoprdPhaseEnum::NodeDeleted).await.unwrap();
         } else {
-            resource_generics::delete_finalizer(client.clone(), self).await;
+            resource_generics::delete_finalizer(client.clone(), self).await?;
         }
         info!("Hoprd node {hoprd_name} in namespace {hoprd_namespace} has been successfully deleted");
         Ok(Action::await_change()) // Makes no sense to delete after a successful delete, as the resource is gone
