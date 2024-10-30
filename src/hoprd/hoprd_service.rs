@@ -1,3 +1,4 @@
+use crate::model::Error as HoprdError;
 use k8s_openapi::{
     api::core::v1::{Service, ServicePort, ServiceSpec},
     apimachinery::pkg::{apis::meta::v1::OwnerReference, util::intstr::IntOrString},
@@ -6,7 +7,7 @@ use kube::{
     api::{DeleteParams, PostParams},
     core::ObjectMeta,
     runtime::wait::{await_condition, conditions},
-    Api, Client, Error,
+    Api, Client,
 };
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -55,10 +56,10 @@ pub async fn create_service(
     namespace: &str,
     identity_pool_name: &str,
     service_type: ServiceTypeEnum,
-    starting_port: i32,
-    last_port: i32,
+    starting_port: u16,
+    last_port: u16,
     owner_references: Option<Vec<OwnerReference>>,
-) -> Result<String, Error> {
+) -> Result<String, HoprdError> {
     let mut labels: BTreeMap<String, String> = utils::common_lables(context_data.config.instance.name.to_owned(), Some(name.to_owned()), None);
     labels.insert(constants::LABEL_KUBERNETES_IDENTITY_POOL.to_owned(), identity_pool_name.to_owned());
 
@@ -68,7 +69,7 @@ pub async fn create_service(
         Ok(context_data.config.ingress.loadbalancer_ip.to_string())
     } else {
         let loadbalancer_starting_port = constants::OPERATOR_MIN_PORT;
-        let loadbalancer_last_port = loadbalancer_starting_port + starting_port - last_port;
+        let loadbalancer_last_port = loadbalancer_starting_port + last_port - starting_port;
         let public_ip = create_load_balancer_service(context_data.clone(), name, namespace, labels, owner_references, loadbalancer_starting_port, loadbalancer_last_port)
             .await
             .unwrap();
@@ -83,9 +84,9 @@ async fn create_load_balancer_service(
     namespace: &str,
     labels: BTreeMap<String, String>,
     owner_references: Option<Vec<OwnerReference>>,
-    starting_port: i32,
-    last_port: i32,
-) -> Result<String, Error> {
+    starting_port: u16,
+    last_port: u16,
+) -> Result<String, HoprdError> {
     let api_service: Api<Service> = Api::namespaced(context_data.client.clone(), namespace);
 
     let service_tcp: Service = Service {
@@ -107,9 +108,12 @@ async fn create_load_balancer_service(
 
     api_service.create(&PostParams::default(), &service_tcp).await.unwrap();
     let mut load_balancer_ip = None;
-    while load_balancer_ip.is_none() {
+    let mut retries = 0;
+    let max_retries = 12; // e.g., 12 retries with 5-second intervals
+    while load_balancer_ip.is_none() && retries < max_retries {
         // Wait for a short period before checking the service status again
         tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+        retries += 1;
 
         // Fetch the latest version of the service
         let service = api_service.get(&format!("{}-p2p-tcp", name.to_owned())).await?;
@@ -122,6 +126,11 @@ async fn create_load_balancer_service(
             .and_then(|lb| lb.ingress.clone())
             .and_then(|ingress| ingress.get(0).cloned())
             .and_then(|first_ingress| first_ingress.ip.clone());
+    }
+
+    if load_balancer_ip.is_none() {
+        //return Err(Error::HoprdStatusError("Failed to obtain load balancer IP within the expected time frame".to_string()));
+        return Err(HoprdError::HoprdStatusError("Failed to obtain load balancer IP within the expected time frame".to_string()));
     }
 
     let service_udp: Service = Service {
@@ -151,9 +160,9 @@ async fn create_cluster_ip_service(
     namespace: &str,
     labels: BTreeMap<String, String>,
     owner_references: Option<Vec<OwnerReference>>,
-    starting_port: i32,
-    last_port: i32,
-) -> Result<Service, Error> {
+    starting_port: u16,
+    last_port: u16,
+) -> Result<Service, HoprdError> {
     // Definition of the service. Alternatively, a YAML representation could be used as well.
     let service: Service = Service {
         metadata: ObjectMeta {
@@ -178,9 +187,18 @@ async fn create_cluster_ip_service(
     Ok(service)
 }
 
-fn build_ports(starting_port: i32, last_port: i32, port_name: Option<&str>) -> Vec<ServicePort> {
-    if port_name.is_none() {
-        let mut ports = Vec::new();
+fn build_ports(starting_port: u16, last_port: u16, port_name: Option<&str>) -> Vec<ServicePort> {
+    let mut ports = Vec::new();
+    let protocols = if let Some(name) = port_name {
+        // If a specific protocol is provided
+        let protocol = if name.contains("udp") { "UDP" } else { "TCP" };
+        vec![protocol.to_owned()]
+    } else {
+        // If no specific protocol, include both TCP and UDP
+        vec!["TCP".to_owned(), "UDP".to_owned()]
+    };
+
+    if protocols.contains(&"TCP".to_string()) {
         ports.push(ServicePort {
             name: Some("api".to_owned()),
             port: 3001,
@@ -188,67 +206,27 @@ fn build_ports(starting_port: i32, last_port: i32, port_name: Option<&str>) -> V
             target_port: Some(IntOrString::String("api".to_owned())),
             ..ServicePort::default()
         });
-        ports.push(ServicePort {
-            name: Some("p2p-tcp".to_owned()),
-            port: starting_port,
-            protocol: Some("TCP".to_owned()),
-            target_port: Some(IntOrString::Int(starting_port)),
-            ..ServicePort::default()
-        });
-        ports.push(ServicePort {
-            name: Some("p2p-udp".to_owned()),
-            port: starting_port,
-            protocol: Some("UDP".to_owned()),
-            target_port: Some(IntOrString::Int(starting_port)),
-            ..ServicePort::default()
-        });
-        for port_number in starting_port + 1..last_port {
-            ports.push(ServicePort {
-                name: Some(format!("sessiont-{}", port_number)),
-                port: port_number,
-                protocol: Some("TCP".to_owned()),
-                target_port: Some(IntOrString::Int(port_number)),
-                ..ServicePort::default()
-            });
-            ports.push(ServicePort {
-                name: Some(format!("sessionu-{}", port_number)),
-                port: port_number,
-                protocol: Some("UDP".to_owned()),
-                target_port: Some(IntOrString::Int(port_number)),
-                ..ServicePort::default()
-            });
-        }
-        ports
-    } else {
-        let mut ports = Vec::new();
-        let protocol = if port_name.as_ref().unwrap().contains("udp") { "UDP" } else { "TCP" };
-        if protocol.eq("TCP") {
-            ports.push(ServicePort {
-                name: Some("api".to_owned()),
-                port: 3001,
-                protocol: Some(protocol.to_owned()),
-                target_port: Some(IntOrString::String("api".to_owned())),
-                ..ServicePort::default()
-            });
-        }
-        ports.push(ServicePort {
-            name: Some(format!("p2p-{}", protocol)),
-            port: starting_port,
-            protocol: Some(protocol.to_owned()),
-            target_port: Some(IntOrString::Int(starting_port)),
-            ..ServicePort::default()
-        });
-        for port_number in starting_port + 1..last_port {
-            ports.push(ServicePort {
-                name: Some(format!("session{}-{}", protocol, port_number)),
-                port: port_number,
-                protocol: Some(protocol.to_owned()),
-                target_port: Some(IntOrString::Int(port_number)),
-                ..ServicePort::default()
-            });
-        }
-        ports
     }
+
+    for protocol in protocols {
+        ports.push(ServicePort {
+            name: Some(format!("p2p-{}", protocol.to_lowercase())),
+            port: starting_port.into(),
+            protocol: Some(protocol.clone()),
+            target_port: Some(IntOrString::Int(starting_port.into())),
+            ..ServicePort::default()
+        });
+        for port_number in starting_port + 1..last_port {
+            ports.push(ServicePort {
+                name: Some(format!("session{}-{}", protocol.chars().next().unwrap().to_lowercase(), port_number)),
+                port: port_number.into(),
+                protocol: Some(protocol.clone()),
+                target_port: Some(IntOrString::Int(port_number.into())),
+                ..ServicePort::default()
+            });
+        }
+    }
+    ports
 }
 
 /// Deletes an existing service.
@@ -258,7 +236,7 @@ fn build_ports(starting_port: i32, last_port: i32, port_name: Option<&str>) -> V
 /// - `name` - Name of the service to delete
 /// - `namespace` - Namespace the existing service resides in
 ///
-pub async fn delete_service(client: Client, name: &str, namespace: &str, service_type: &ServiceTypeEnum) -> Result<(), Error> {
+pub async fn delete_service(client: Client, name: &str, namespace: &str, service_type: &ServiceTypeEnum) -> Result<(), HoprdError> {
     let api: Api<Service> = Api::namespaced(client, namespace);
     if let Some(service) = api.get_opt(name).await? {
         let uid = service.metadata.uid.unwrap();

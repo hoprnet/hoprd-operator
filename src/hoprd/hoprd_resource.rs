@@ -52,7 +52,8 @@ pub struct HoprdSpec {
     pub supported_release: SupportedReleaseEnum,
     pub service: Option<HoprdServiceSpec>,
     pub deployment: Option<HoprdDeploymentSpec>,
-    pub ports_allocation: Option<i32>,
+    #[schemars(range(min = 1024, max = 65535))]
+    pub ports_allocation: Option<u16>,
 }
 
 /// The status object of `Hoprd`
@@ -139,7 +140,7 @@ impl Hoprd {
                 owner_reference.to_owned(),
             )
             .await?;
-            let last_port: i32 = starting_port + session_ports_allocation;
+            let last_port: u16 = starting_port + session_ports_allocation;
             let hoprd_host = hoprd_service::create_service(
                 context_data.clone(),
                 &hoprd_name,
@@ -270,7 +271,7 @@ impl Hoprd {
         let service_type = self.spec.service.as_ref().unwrap_or(&HoprdServiceSpec::default()).r#type.clone();
         hoprd_ingress::delete_ingress(context_data.clone(), &hoprd_name, &hoprd_namespace, &service_type).await?;
         hoprd_service::delete_service(client.clone(), &hoprd_name, &hoprd_namespace, &service_type).await?;
-        hoprd_deployment::delete_depoyment(client.clone(), &hoprd_name, &hoprd_namespace).await.unwrap();
+        hoprd_deployment::delete_depoyment(client.clone(), &hoprd_name, &hoprd_namespace).await?;
         if let Some(identity) = self.get_identity(client.clone()).await? {
             identity.unlock(context_data.clone()).await?;
         } else {
@@ -282,7 +283,7 @@ impl Hoprd {
         if let Some(cluster) = self.notify_deletion_to_cluster(context_data.clone()).await? {
             resource_generics::delete_finalizer(client.clone(), self).await?;
             context_data.send_event(&cluster, ClusterHoprdEventEnum::NodeDeleted, None).await;
-            cluster.update_status(context_data.clone(), ClusterHoprdPhaseEnum::NodeDeleted).await.unwrap();
+            cluster.update_status(context_data.clone(), ClusterHoprdPhaseEnum::NodeDeleted).await?;
         } else {
             resource_generics::delete_finalizer(client.clone(), self).await?;
         }
@@ -318,7 +319,7 @@ impl Hoprd {
             }
         }
         if identity_created.as_ref().is_some() {
-            let identity_pool = identity_created.as_ref().unwrap().get_identity_pool(context_data.client.clone()).await.unwrap();
+            let identity_pool = identity_created.as_ref().unwrap().get_identity_pool(context_data.client.clone()).await?;
             context_data.send_event(&identity_pool, IdentityPoolEventEnum::Locked, hoprd_name.clone()).await;
             context_data.send_event(identity_created.as_ref().unwrap(), IdentityHoprdEventEnum::InUse, hoprd_name.clone()).await;
             Ok(identity_created)
@@ -337,20 +338,21 @@ impl Hoprd {
         } else if previous_hoprd.identity_name.is_some() && self.spec.identity_name.is_none() {
             error!("Hoprd configuration is invalid, 'identity_name' cannot be removed on {}.", self.name_any());
             true
-        } else if previous_hoprd.ports_allocation.is_some()
-            && self.spec.ports_allocation.is_some()
-            && !self.spec.ports_allocation.clone().unwrap().eq(&previous_hoprd.ports_allocation.clone().unwrap())
-        {
-            error!("Hoprd configuration is invalid, 'ports_allocation' field cannot be changed on {}.", self.name_any());
-            true
-        } else if previous_hoprd.ports_allocation.is_some() && self.spec.ports_allocation.is_none() {
-            error!("Hoprd configuration is invalid, 'ports_allocation' cannot be removed on {}.", self.name_any());
-            true
         } else if !self.spec.supported_release.eq(&previous_hoprd.supported_release) {
             error!("Hoprd configuration is invalid, 'supported_release' field cannot be changed on {}.", self.name_any());
             true
         } else {
-            false
+            match (&previous_hoprd.ports_allocation, &self.spec.ports_allocation) {
+                (Some(prev), Some(curr)) if prev != curr => {
+                    error!("Hoprd configuration is invalid, 'ports_allocation' field cannot be changed on {}.", self.name_any());
+                    true
+                }
+                (Some(_), None) => {
+                    error!("Hoprd configuration is invalid, 'ports_allocation' cannot be removed on {}.", self.name_any());
+                    true
+                }
+                _ => false,
+            }
         }
     }
 
@@ -427,7 +429,7 @@ impl Hoprd {
             Some(status) => {
                 let api: Api<IdentityHoprd> = Api::namespaced(client.clone(), &self.namespace().unwrap());
                 match status.to_owned().identity_name {
-                    Some(identity_name) => Ok(api.get_opt(identity_name.as_str()).await.unwrap()),
+                    Some(identity_name) => Ok(api.get_opt(identity_name.as_str()).await?),
                     None => {
                         warn!("HoprdNode status for {} is incomplete as it does not contain a identity_name", &self.name_any());
                         Ok(None)

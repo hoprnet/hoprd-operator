@@ -36,7 +36,7 @@ use tracing::{error, info};
 /// - `client` - A Kubernetes client to create the deployment with.
 /// - `hoprd` - Details about the hoprd configuration node
 ///
-pub async fn create_deployment(context_data: Arc<ContextData>, hoprd: &Hoprd, identity_hoprd: &IdentityHoprd, hoprd_host: &str, starting_port: i32, last_port: i32) -> Result<Deployment, kube::Error> {
+pub async fn create_deployment(context_data: Arc<ContextData>, hoprd: &Hoprd, identity_hoprd: &IdentityHoprd, hoprd_host: &str, starting_port: u16, last_port: u16) -> Result<Deployment, kube::Error> {
     let namespace: String = hoprd.namespace().unwrap();
     let name: String = hoprd.name_any();
     let owner_references: Option<Vec<OwnerReference>> = Some(vec![hoprd.controller_owner_ref(&()).unwrap()]);
@@ -82,8 +82,8 @@ pub async fn build_deployment_spec(
     identity_pool: IdentityPool,
     identity_hoprd: &IdentityHoprd,
     hoprd_host: &str,
-    starting_port: i32,
-    last_port: i32,
+    starting_port: u16,
+    last_port: u16,
 ) -> DeploymentSpec {
     let image = format!(
         "{}/{}:{}",
@@ -140,7 +140,7 @@ pub async fn build_deployment_spec(
                     name: "hoprd".to_owned(),
                     image: Some(image),
                     image_pull_policy: Some("Always".to_owned()),
-                    ports: Some(build_ports(starting_port, last_port)),
+                    ports: Some(build_ports(starting_port.into(), last_port.into())),
                     env: Some(build_env_vars(&identity_pool, identity_hoprd, &hoprd_host_port, hoprd_spec, session_port_range)),
                     // command: Some(vec!["/bin/bash".to_owned(), "-c".to_owned()]),
                     // args: Some(vec!["sleep 99999999".to_owned()]),
@@ -188,7 +188,7 @@ pub async fn modify_deployment(context_data: Arc<ContextData>, deployment_name: 
         .unwrap()
         .to_owned();
     let hoprd_host = *hoprd_host_port.split(':').collect::<Vec<&str>>().get(0).unwrap();
-    let starting_port = hoprd_host_port.split(':').collect::<Vec<&str>>().get(1).unwrap().to_string().parse::<i32>().unwrap();
+    let starting_port = hoprd_host_port.split(':').collect::<Vec<&str>>().get(1).unwrap().to_string().parse::<u16>().unwrap();
     let last_port = starting_port + hoprd_spec.ports_allocation.clone().unwrap_or(constants::HOPRD_PORTS_ALLOCATION);
     let identity_pool: IdentityPool = identity_hoprd.get_identity_pool(context_data.client.clone()).await.unwrap();
     let spec = build_deployment_spec(deployment.labels().to_owned(), hoprd_spec, identity_pool, identity_hoprd, &hoprd_host, starting_port, last_port).await;

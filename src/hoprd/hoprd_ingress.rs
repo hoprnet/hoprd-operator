@@ -28,13 +28,15 @@ pub async fn create_ingress(
     service_type: &ServiceTypeEnum,
     service_name: &str,
     namespace: &str,
-    session_port_allocation: i32,
+    session_port_allocation: u16,
     ingress_config: &IngressConfig,
     owner_references: Option<Vec<OwnerReference>>,
-) -> Result<i32, Error> {
+) -> Result<u16, Error> {
     let labels: Option<BTreeMap<String, String>> = Some(utils::common_lables(context_data.config.instance.name.to_owned(), Some(service_name.to_owned()), None));
-    let p2p_port = if service_type.eq(&ServiceTypeEnum::ClusterIP) {
-        hoprd_ingress::open_port(context_data.client.clone(), &namespace, &service_name, session_port_allocation, &context_data.config.ingress).await.unwrap()
+    let stating_port = if service_type.eq(&ServiceTypeEnum::ClusterIP) {
+        hoprd_ingress::open_port(context_data.client.clone(), &namespace, &service_name, session_port_allocation, &context_data.config.ingress)
+            .await
+            .unwrap()
     } else {
         9091
     };
@@ -86,7 +88,7 @@ pub async fn create_ingress(
     let api: Api<Ingress> = Api::namespaced(context_data.client.clone(), namespace);
     api.create(&PostParams::default(), &ingress).await?;
     info!("Ingress {} created successfully", service_name.to_owned());
-    Ok(p2p_port)
+    Ok(stating_port)
 }
 
 /// Deletes an existing ingress.
@@ -113,10 +115,10 @@ pub async fn delete_ingress(context_data: Arc<ContextData>, name: &str, namespac
 
 /// Creates a new Ingress for accessing the hoprd node,
 ///
-pub async fn open_port(client: Client, service_namespace: &str, service_name: &str, session_port_allocation: i32, ingress_config: &IngressConfig) -> Result<i32, HoprError> {
+pub async fn open_port(client: Client, service_namespace: &str, service_name: &str, session_port_allocation: u16, ingress_config: &IngressConfig) -> Result<u16, HoprError> {
     let namespace = ingress_config.namespace.as_ref().unwrap();
     let api: Api<ConfigMap> = Api::namespaced(client.clone(), namespace);
-    let starting_port: i32 = get_available_ports(client.clone(), session_port_allocation, ingress_config).await?;
+    let starting_port: u16 = get_available_ports(client.clone(), session_port_allocation, ingress_config).await?;
     let pp = PatchParams::default();
 
     // Create a BTreeMap to hold the new data entries
@@ -148,15 +150,15 @@ pub async fn open_port(client: Client, service_namespace: &str, service_name: &s
     Ok(starting_port)
 }
 
-async fn get_available_ports(client: Client, session_port_allocation: i32, ingress_config: &IngressConfig) -> Result<i32, HoprError> {
+async fn get_available_ports(client: Client, session_port_allocation: u16, ingress_config: &IngressConfig) -> Result<u16, HoprError> {
     let api: Api<ConfigMap> = Api::namespaced(client, ingress_config.namespace.as_ref().unwrap());
     if let Some(config_map) = api.get_opt("ingress-nginx-tcp").await? {
         let data = config_map.data.unwrap_or_default();
-        let min_port = ingress_config.port_min.parse::<i32>().unwrap_or(constants::OPERATOR_MIN_PORT);
-        let max_port = ingress_config.port_max.parse::<i32>().unwrap_or(constants::OPERATOR_MAX_PORT);
-        let mut ports: Vec<i32> = data
+        let min_port = ingress_config.port_min.parse::<u16>().unwrap_or(constants::OPERATOR_MIN_PORT);
+        let max_port = ingress_config.port_max.parse::<u16>().unwrap_or(constants::OPERATOR_MAX_PORT);
+        let mut ports: Vec<u16> = data
             .keys()
-            .map(|port| port.parse::<i32>().unwrap())
+            .map(|port| port.parse::<u16>().unwrap())
             .filter(|port| port >= &min_port)
             .filter(|port| port <= &max_port)
             .clone()
@@ -169,7 +171,7 @@ async fn get_available_ports(client: Client, session_port_allocation: i32, ingre
 }
 
 /// Find the next port available
-fn find_next_port(ports: Vec<i32>, session_port_allocation: i32, min_port: Option<&i32>) -> i32 {
+fn find_next_port(ports: Vec<u16>, session_port_allocation: u16, min_port: Option<&u16>) -> u16 {
     if ports.is_empty() {
         return min_port.unwrap_or(&constants::OPERATOR_MIN_PORT).to_owned();
     }

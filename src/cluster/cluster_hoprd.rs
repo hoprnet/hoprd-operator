@@ -49,7 +49,8 @@ pub struct ClusterHoprdSpec {
     pub force_identity_name: Option<bool>,
     pub service: Option<HoprdServiceSpec>,
     pub deployment: Option<HoprdDeploymentSpec>,
-    pub ports_allocation: Option<i32>,
+    #[schemars(range(min = 1024, max = 65535))]
+    pub ports_allocation: Option<u16>,
 }
 
 /// The status object of `Hoprd`
