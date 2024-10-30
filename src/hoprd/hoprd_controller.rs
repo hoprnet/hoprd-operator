@@ -45,7 +45,7 @@ enum HoprdAction {
 /// # Arguments
 /// - `hoprd`: A reference to `Hoprd` being reconciled to decide next action upon.
 fn determine_action(hoprd: &Hoprd) -> HoprdAction {
-    return if hoprd.meta().deletion_timestamp.is_some() && hoprd.status.is_some() && hoprd.status.as_ref().unwrap().phase.ne (&HoprdPhaseEnum::Deleting) {
+    return if hoprd.meta().deletion_timestamp.is_some() && hoprd.status.is_some() && hoprd.status.as_ref().unwrap().phase.ne(&HoprdPhaseEnum::Deleting) {
         HoprdAction::Delete
     } else if hoprd.meta().finalizers.as_ref().map_or(true, |finalizers| finalizers.is_empty()) {
         HoprdAction::Create
@@ -55,10 +55,7 @@ fn determine_action(hoprd: &Hoprd) -> HoprdAction {
         HoprdAction::NoOp
     } else {
         let current_checksum = hoprd.get_checksum();
-        let previous_checksum: String = hoprd
-            .status
-            .as_ref()
-            .map_or("0".to_owned(), |status| status.checksum.to_owned());
+        let previous_checksum: String = hoprd.status.as_ref().map_or("0".to_owned(), |status| status.checksum.to_owned());
         // When the resource is created, does not have previous checksum and needs to be skip the modification because it's being handled already by the creation operation
         if previous_checksum.eq(&"0".to_owned()) || current_checksum.eq(&previous_checksum) {
             HoprdAction::NoOp
@@ -70,15 +67,13 @@ fn determine_action(hoprd: &Hoprd) -> HoprdAction {
 
 async fn reconciler(hoprd: Arc<Hoprd>, context: Arc<ContextData>) -> Result<Action, Error> {
     let mut hoprd_cloned = hoprd.clone();
-    let hoprd_mutable:  &mut Hoprd = Arc::<Hoprd>::make_mut(&mut hoprd_cloned);
+    let hoprd_mutable: &mut Hoprd = Arc::<Hoprd>::make_mut(&mut hoprd_cloned);
     // Performs action as decided by the `determine_action` function.
     match determine_action(hoprd_mutable) {
         HoprdAction::Create => hoprd_mutable.create(context.clone()).await,
         HoprdAction::Modify => hoprd_mutable.modify(context.clone()).await,
         HoprdAction::Delete => hoprd_mutable.delete(context.clone()).await,
-        HoprdAction::NoOp => Ok(Action::requeue(Duration::from_secs(
-            constants::RECONCILE_SHORT_FREQUENCY,
-        ))),
+        HoprdAction::NoOp => Ok(Action::requeue(Duration::from_secs(constants::RECONCILE_SHORT_FREQUENCY))),
     }
 }
 
@@ -91,7 +86,7 @@ async fn reconciler(hoprd: Arc<Hoprd>, context: Arc<ContextData>) -> Result<Acti
 /// - `error`: A reference to the `kube::Error` that occurred during reconciliation.
 /// - `_context`: Unused argument. Context Data "injected" automatically by kube-rs.
 pub fn on_error(hoprd: Arc<Hoprd>, error: &Error, _context: Arc<ContextData>) -> Action {
-    error!("[Hoprd] Reconciliation error:\n{:?}.\n{:?}",error, hoprd);
+    error!("[Hoprd] Reconciliation error:\n{:?}.\n{:?}", error, hoprd);
     Action::requeue(Duration::from_secs(constants::RECONCILE_SHORT_FREQUENCY))
 }
 

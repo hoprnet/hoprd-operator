@@ -10,7 +10,11 @@ use kube::{
 };
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use std::{collections::BTreeMap, fmt::{Display, Formatter}, sync::Arc};
+use std::{
+    collections::BTreeMap,
+    fmt::{Display, Formatter},
+    sync::Arc,
+};
 use tracing::info;
 
 use crate::{constants, context_data::ContextData, utils};
@@ -18,17 +22,14 @@ use crate::{constants, context_data::ContextData, utils};
 #[derive(Serialize, Debug, Deserialize, PartialEq, Clone, JsonSchema, Hash)]
 #[serde(rename_all = "camelCase")]
 pub struct HoprdServiceSpec {
-    pub r#type: ServiceTypeEnum
+    pub r#type: ServiceTypeEnum,
 }
 
 impl Default for HoprdServiceSpec {
     fn default() -> Self {
-        Self {
-            r#type: ServiceTypeEnum::ClusterIP
-        }
+        Self { r#type: ServiceTypeEnum::ClusterIP }
     }
 }
-
 
 #[derive(Serialize, Debug, Deserialize, PartialEq, Clone, JsonSchema, Hash)]
 pub enum ServiceTypeEnum {
@@ -42,49 +43,51 @@ impl Display for ServiceTypeEnum {
     fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
         match self {
             ServiceTypeEnum::ClusterIP => write!(f, "ClusterIP"),
-            ServiceTypeEnum::LoadBalancer => write!(f, "LoadBalancer")
+            ServiceTypeEnum::LoadBalancer => write!(f, "LoadBalancer"),
         }
     }
 }
 
-
 /// Creates a new service for accessing the hoprd node,
-pub async fn create_service(context_data: Arc<ContextData>, name: &str, namespace: &str, identity_pool_name: &str, service_type: ServiceTypeEnum, p2p_port: i32, owner_references: Option<Vec<OwnerReference>>) -> Result<String, Error> {
-    let mut labels: BTreeMap<String, String> = utils::common_lables(context_data.config.instance.name.to_owned(),Some(name.to_owned()),None);
-    labels.insert(constants::LABEL_KUBERNETES_IDENTITY_POOL.to_owned(),identity_pool_name.to_owned());
+pub async fn create_service(
+    context_data: Arc<ContextData>,
+    name: &str,
+    namespace: &str,
+    identity_pool_name: &str,
+    service_type: ServiceTypeEnum,
+    starting_port: i32,
+    last_port: i32,
+    owner_references: Option<Vec<OwnerReference>>,
+) -> Result<String, Error> {
+    let mut labels: BTreeMap<String, String> = utils::common_lables(context_data.config.instance.name.to_owned(), Some(name.to_owned()), None);
+    labels.insert(constants::LABEL_KUBERNETES_IDENTITY_POOL.to_owned(), identity_pool_name.to_owned());
 
     if service_type.eq(&ServiceTypeEnum::ClusterIP) {
         let public_ip = context_data.config.ingress.loadbalancer_ip.clone().unwrap();
-        create_cluster_ip_service(context_data.clone(), name, namespace, labels, owner_references, p2p_port).await?;
+        create_cluster_ip_service(context_data.clone(), name, namespace, labels, owner_references, starting_port, last_port).await?;
         info!("ClusterIP Service {} created successfully", name.to_owned());
         Ok(public_ip)
     } else {
-        let p2p_port= 9091;
-        let public_ip = create_load_balancer_service(context_data.clone(), name, namespace, labels, owner_references, p2p_port).await.unwrap();
+        let loadbalancer_starting_port = constants::OPERATOR_MIN_PORT;
+        let loadbalancer_last_port = loadbalancer_starting_port + starting_port - last_port;
+        let public_ip = create_load_balancer_service(context_data.clone(), name, namespace, labels, owner_references, loadbalancer_starting_port, loadbalancer_last_port)
+            .await
+            .unwrap();
         info!("LoadBalancer Service {} created successfully", name.to_owned());
         Ok(public_ip)
     }
 }
 
-async fn create_load_balancer_service(context_data: Arc<ContextData>, name: &str, namespace: &str, labels: BTreeMap<String, String>, owner_references: Option<Vec<OwnerReference>>, p2p_port: i32) -> Result<String, Error> {
+async fn create_load_balancer_service(
+    context_data: Arc<ContextData>,
+    name: &str,
+    namespace: &str,
+    labels: BTreeMap<String, String>,
+    owner_references: Option<Vec<OwnerReference>>,
+    starting_port: i32,
+    last_port: i32,
+) -> Result<String, Error> {
     let api_service: Api<Service> = Api::namespaced(context_data.client.clone(), namespace);
-    let service_api: Service = Service {
-        metadata: ObjectMeta {
-            name: Some(name.to_owned()),
-            namespace: Some(namespace.to_owned()),
-            labels: Some(labels.clone()),
-            owner_references: owner_references.clone(),
-            ..ObjectMeta::default()
-        },
-        spec: Some(ServiceSpec {
-            selector: Some(labels.clone()),
-            type_: Some("ClusterIP".to_owned()),
-            ports: Some(build_ports(p2p_port, Some("api"))),
-            ..ServiceSpec::default()
-        }),
-        ..Service::default()
-    };
-    api_service.create(&PostParams::default(), &service_api).await.unwrap();
 
     let service_tcp: Service = Service {
         metadata: ObjectMeta {
@@ -97,7 +100,7 @@ async fn create_load_balancer_service(context_data: Arc<ContextData>, name: &str
         spec: Some(ServiceSpec {
             selector: Some(labels.clone()),
             type_: Some("LoadBalancer".to_owned()),
-            ports: Some(build_ports(p2p_port, Some("p2p-tcp"))),
+            ports: Some(build_ports(starting_port, last_port, Some("tcp"))),
             ..ServiceSpec::default()
         }),
         ..Service::default()
@@ -113,7 +116,8 @@ async fn create_load_balancer_service(context_data: Arc<ContextData>, name: &str
         let service = api_service.get(&format!("{}-p2p-tcp", name.to_owned())).await.unwrap();
 
         // Try to get the IP address from the service status
-        load_balancer_ip = service.status
+        load_balancer_ip = service
+            .status
             .clone()
             .and_then(|s| s.load_balancer)
             .and_then(|lb| lb.ingress.clone())
@@ -133,7 +137,7 @@ async fn create_load_balancer_service(context_data: Arc<ContextData>, name: &str
             load_balancer_ip: load_balancer_ip.clone(),
             selector: Some(labels.clone()),
             type_: Some("LoadBalancer".to_owned()),
-            ports: Some(build_ports(p2p_port, Some("p2p-udp"))),
+            ports: Some(build_ports(starting_port, last_port, Some("udp"))),
             ..ServiceSpec::default()
         }),
         ..Service::default()
@@ -142,7 +146,15 @@ async fn create_load_balancer_service(context_data: Arc<ContextData>, name: &str
     Ok(load_balancer_ip.unwrap())
 }
 
-async fn create_cluster_ip_service(context_data: Arc<ContextData>, name: &str, namespace: &str, labels: BTreeMap<String, String>, owner_references: Option<Vec<OwnerReference>>, p2p_port: i32) -> Result<Service, Error> {
+async fn create_cluster_ip_service(
+    context_data: Arc<ContextData>,
+    name: &str,
+    namespace: &str,
+    labels: BTreeMap<String, String>,
+    owner_references: Option<Vec<OwnerReference>>,
+    starting_port: i32,
+    last_port: i32,
+) -> Result<Service, Error> {
     // Definition of the service. Alternatively, a YAML representation could be used as well.
     let service: Service = Service {
         metadata: ObjectMeta {
@@ -155,7 +167,7 @@ async fn create_cluster_ip_service(context_data: Arc<ContextData>, name: &str, n
         spec: Some(ServiceSpec {
             selector: Some(labels.clone()),
             type_: Some("ClusterIP".to_owned()),
-            ports: Some(build_ports(p2p_port, None)),
+            ports: Some(build_ports(starting_port, last_port, None)),
             ..ServiceSpec::default()
         }),
         ..Service::default()
@@ -167,52 +179,77 @@ async fn create_cluster_ip_service(context_data: Arc<ContextData>, name: &str, n
     Ok(service)
 }
 
-fn build_ports(p2p_port: i32, port_name: Option<&str>) -> Vec<ServicePort> {
+fn build_ports(starting_port: i32, last_port: i32, port_name: Option<&str>) -> Vec<ServicePort> {
     if port_name.is_none() {
-            vec![
-        ServicePort {
+        let mut ports = Vec::new();
+        ports.push(ServicePort {
             name: Some("api".to_owned()),
             port: 3001,
             protocol: Some("TCP".to_owned()),
             target_port: Some(IntOrString::String("api".to_owned())),
             ..ServicePort::default()
-        },
-        ServicePort {
+        });
+        ports.push(ServicePort {
             name: Some("p2p-tcp".to_owned()),
-            port: p2p_port,
+            port: starting_port,
             protocol: Some("TCP".to_owned()),
-            target_port: Some(IntOrString::Int(p2p_port)),
+            target_port: Some(IntOrString::Int(starting_port)),
             ..ServicePort::default()
-        },
-        ServicePort {
+        });
+        ports.push(ServicePort {
             name: Some("p2p-udp".to_owned()),
-            port: p2p_port,
+            port: starting_port,
             protocol: Some("UDP".to_owned()),
-            target_port: Some(IntOrString::Int(p2p_port)),
+            target_port: Some(IntOrString::Int(starting_port)),
             ..ServicePort::default()
-        },
-    ]} else {
-        let protocol = if port_name.as_ref().unwrap().contains("udp") {
-            "UDP"
-        } else {
-            "TCP"
-        };
-        let port = if port_name.as_ref().unwrap().contains("api") {
-            3001
-        } else {
-            p2p_port
-        };
-        vec![
-            ServicePort {
-                name: Some(port_name.unwrap().to_owned()),
-                port: port,
-                protocol: Some(protocol.to_string()),
-                target_port: Some(IntOrString::Int(port)),
+        });
+        for port_number in starting_port + 1..last_port {
+            ports.push(ServicePort {
+                name: Some(format!("sessiont-{}", port_number)),
+                port: port_number,
+                protocol: Some("TCP".to_owned()),
+                target_port: Some(IntOrString::Int(port_number)),
                 ..ServicePort::default()
-            }
-        ]
+            });
+            ports.push(ServicePort {
+                name: Some(format!("sessionu-{}", port_number)),
+                port: port_number,
+                protocol: Some("UDP".to_owned()),
+                target_port: Some(IntOrString::Int(port_number)),
+                ..ServicePort::default()
+            });
+        }
+        ports
+    } else {
+        let mut ports = Vec::new();
+        let protocol = if port_name.as_ref().unwrap().contains("udp") { "UDP" } else { "TCP" };
+        if protocol.eq("TCP") {
+            ports.push(ServicePort {
+                name: Some("api".to_owned()),
+                port: 3001,
+                protocol: Some(protocol.to_owned()),
+                target_port: Some(IntOrString::String("api".to_owned())),
+                ..ServicePort::default()
+            });
+        }
+        ports.push(ServicePort {
+            name: Some(format!("p2p-{}", protocol)),
+            port: starting_port,
+            protocol: Some(protocol.to_owned()),
+            target_port: Some(IntOrString::Int(starting_port)),
+            ..ServicePort::default()
+        });
+        for port_number in starting_port + 1..last_port {
+            ports.push(ServicePort {
+                name: Some(format!("session{}-{}", protocol, port_number)),
+                port: port_number,
+                protocol: Some(protocol.to_owned()),
+                target_port: Some(IntOrString::Int(port_number)),
+                ..ServicePort::default()
+            });
+        }
+        ports
     }
-
 }
 
 /// Deletes an existing service.
@@ -252,7 +289,6 @@ pub async fn delete_service(client: Client, name: &str, namespace: &str, service
             info!("Service {service_p2p_udp_name} in namespace {namespace} about to delete not found")
         }
     }
-
 
     Ok(())
 }

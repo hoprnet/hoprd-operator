@@ -15,7 +15,6 @@ pub enum HoprdEventEnum {
 }
 
 impl ResourceEvent for HoprdEventEnum {
-
     fn to_event(&self, _: Option<String>) -> Event {
         match self {
             HoprdEventEnum::Initializing => Event {
@@ -69,8 +68,6 @@ impl ResourceEvent for HoprdEventEnum {
             },
         }
     }
-
-
 }
 
 pub enum ClusterHoprdEventEnum {
@@ -99,7 +96,10 @@ impl ResourceEvent for ClusterHoprdEventEnum {
             ClusterHoprdEventEnum::NotScaled => Event {
                 type_: EventType::Warning,
                 reason: "NotScaled".to_string(),
-                note: Some(format!("ClusterHoprd is not scaled. There are {} nodes pending to be synchronized", attribute.as_ref().unwrap_or(&"unknown".to_string()))),
+                note: Some(format!(
+                    "ClusterHoprd is not scaled. There are {} nodes pending to be synchronized",
+                    attribute.as_ref().unwrap_or(&"unknown".to_string())
+                )),
                 action: "ClusterHoprd is not scaled".to_string(),
                 secondary: None,
             },
@@ -159,11 +159,9 @@ impl ResourceEvent for ClusterHoprdEventEnum {
                 action: format!("Node {} is deleted from the cluster", attribute.as_ref().unwrap_or(&"unknown".to_string())),
                 secondary: None,
             },
-
         }
     }
 }
-
 
 pub enum IdentityHoprdEventEnum {
     Initialized,
@@ -215,7 +213,6 @@ impl ResourceEvent for IdentityHoprdEventEnum {
     }
 }
 
-
 pub enum IdentityPoolEventEnum {
     Initialized,
     Failed,
@@ -231,62 +228,61 @@ impl ResourceEvent for IdentityPoolEventEnum {
     fn to_event(&self, attribute: Option<String>) -> Event {
         match self {
             IdentityPoolEventEnum::Initialized => Event {
-                        type_: EventType::Normal,
-                        reason: "Initialized".to_string(),
-                        note: Some("Initializing identity pool".to_owned()),
-                        action: "The service monitor has been created".to_string(),
-                        secondary: None
-                    },
+                type_: EventType::Normal,
+                reason: "Initialized".to_string(),
+                note: Some("Initializing identity pool".to_owned()),
+                action: "The service monitor has been created".to_string(),
+                secondary: None,
+            },
             IdentityPoolEventEnum::Failed => Event {
-                        type_: EventType::Warning,
-                        reason: "Failed".to_string(),
-                        note: Some("Failed to bootstrap identity pool".to_owned()),
-                        action: "Identity pool bootstrap validations have failed".to_string(),
-                        secondary: None
-                    },
+                type_: EventType::Warning,
+                reason: "Failed".to_string(),
+                note: Some("Failed to bootstrap identity pool".to_owned()),
+                action: "Identity pool bootstrap validations have failed".to_string(),
+                secondary: None,
+            },
             IdentityPoolEventEnum::Ready => Event {
-                        type_: EventType::Normal,
-                        reason: "Ready".to_string(),
-                        note: Some("Identity pool ready to be used".to_owned()),
-                        action: "Identity pool is ready to be used by a Hoprd node".to_string(),
-                        secondary: None
-                    },
+                type_: EventType::Normal,
+                reason: "Ready".to_string(),
+                note: Some("Identity pool ready to be used".to_owned()),
+                action: "Identity pool is ready to be used by a Hoprd node".to_string(),
+                secondary: None,
+            },
             IdentityPoolEventEnum::Deleting => Event {
-                        type_: EventType::Normal,
-                        reason: "Deleting".to_string(),
-                        note: Some("Identity pool is being deleted".to_owned()),
-                        action: "Identity pool deletion started".to_string(),
-                        secondary: None
+                type_: EventType::Normal,
+                reason: "Deleting".to_string(),
+                note: Some("Identity pool is being deleted".to_owned()),
+                action: "Identity pool deletion started".to_string(),
+                secondary: None,
             },
             IdentityPoolEventEnum::Locked => Event {
-                        type_: EventType::Normal,
-                        reason: "Locked".to_string(),
-                        note: Some(format!("Identity {} locked from pool", attribute.as_ref().unwrap_or(&"unknown".to_string()))),
-                        action: format!("Identity {} locked from pool", attribute.as_ref().unwrap_or(&"unknown".to_string())),
-                        secondary: None
-                    },
+                type_: EventType::Normal,
+                reason: "Locked".to_string(),
+                note: Some(format!("Identity {} locked from pool", attribute.as_ref().unwrap_or(&"unknown".to_string()))),
+                action: format!("Identity {} locked from pool", attribute.as_ref().unwrap_or(&"unknown".to_string())),
+                secondary: None,
+            },
             IdentityPoolEventEnum::Unlocked => Event {
-                        type_: EventType::Normal,
-                        reason: "Unlocked".to_string(),
-                        note: Some(format!("Identity {} unlocked from pool", attribute.as_ref().unwrap_or(&"unknown".to_string()))),
-                        action: format!("Identity {} unlocked from pool", attribute.as_ref().unwrap_or(&"unknown".to_string())),
-                        secondary: None
-                    },
+                type_: EventType::Normal,
+                reason: "Unlocked".to_string(),
+                note: Some(format!("Identity {} unlocked from pool", attribute.as_ref().unwrap_or(&"unknown".to_string()))),
+                action: format!("Identity {} unlocked from pool", attribute.as_ref().unwrap_or(&"unknown".to_string())),
+                secondary: None,
+            },
             IdentityPoolEventEnum::IdentityCreated => Event {
-                        type_: EventType::Normal,
-                        reason: "IdentityCreated".to_string(),
-                        note: Some(format!("Identity pool created identity {}", attribute.as_ref().unwrap_or(&"unknown".to_string()))),
-                        action: format!("Identity pool created identity {}", attribute.as_ref().unwrap_or(&"unknown".to_string())),
-                        secondary: None
-                    },
+                type_: EventType::Normal,
+                reason: "IdentityCreated".to_string(),
+                note: Some(format!("Identity pool created identity {}", attribute.as_ref().unwrap_or(&"unknown".to_string()))),
+                action: format!("Identity pool created identity {}", attribute.as_ref().unwrap_or(&"unknown".to_string())),
+                secondary: None,
+            },
             IdentityPoolEventEnum::IdentityDeleted => Event {
-                        type_: EventType::Normal,
-                        reason: "IdentityDeleted".to_string(),
-                        note: Some(format!("Identity pool deregistered identity {}", attribute.as_ref().unwrap_or(&"unknown".to_string()))),
-                        action: format!("Identity pool deregistered identity {}", attribute.as_ref().unwrap_or(&"unknown".to_string())),
-                        secondary: None
-                    }
+                type_: EventType::Normal,
+                reason: "IdentityDeleted".to_string(),
+                note: Some(format!("Identity pool deregistered identity {}", attribute.as_ref().unwrap_or(&"unknown".to_string()))),
+                action: format!("Identity pool deregistered identity {}", attribute.as_ref().unwrap_or(&"unknown".to_string())),
+                secondary: None,
+            },
         }
     }
 }
-

@@ -6,20 +6,15 @@ use kube::core::ObjectMeta;
 use kube::runtime::wait::{await_condition, conditions};
 use kube::{Api, Client};
 use std::sync::Arc;
-use tracing::{info,error};
+use tracing::{error, info};
 
 use crate::context_data::ContextData;
 
 use crate::model::Error;
 use crate::utils;
 
-pub async fn create_rbac(
-    context_data: Arc<ContextData>,
-    namespace: &String,
-    name: &String,
-    owner_references: Option<Vec<OwnerReference>>,
-) -> Result<(), Error> {
-    create_service_account(context_data.clone(), namespace,name, owner_references.to_owned()).await.unwrap();
+pub async fn create_rbac(context_data: Arc<ContextData>, namespace: &String, name: &String, owner_references: Option<Vec<OwnerReference>>) -> Result<(), Error> {
+    create_service_account(context_data.clone(), namespace, name, owner_references.to_owned()).await.unwrap();
     create_role(context_data.clone(), namespace, name, owner_references.to_owned()).await.unwrap();
     create_role_binding(context_data.clone(), namespace, name, owner_references.to_owned()).await.unwrap();
     Ok(())
@@ -69,13 +64,7 @@ async fn create_role(context_data: Arc<ContextData>, namespace: &String, name: &
         rules: Some(vec![PolicyRule {
             api_groups: Some(vec!["hoprnet.org".to_owned()]),
             resources: Some(vec!["identityhoprds".to_owned()]),
-            verbs: vec![
-                "get".to_owned(),
-                "list".to_owned(),
-                "watch".to_owned(),
-                "create".to_owned(),
-                "delete".to_owned(),
-            ],
+            verbs: vec!["get".to_owned(), "list".to_owned(), "watch".to_owned(), "create".to_owned(), "delete".to_owned()],
             ..PolicyRule::default()
         }]),
     };
@@ -85,7 +74,6 @@ async fn create_role(context_data: Arc<ContextData>, namespace: &String, name: &
             error!("Could not create Role {:?}", error);
             Err(Error::HoprdConfigError(format!("Could not create Role for {} in namespace {}.", name, namespace)))
         }
-        
     }
 }
 
@@ -117,7 +105,6 @@ async fn create_role_binding(context_data: Arc<ContextData>, namespace: &String,
             error!("Could not create RoleBinding {:?}", error);
             Err(Error::HoprdConfigError(format!("Could not create RoleBinding for {} in namespace {}.", name, namespace)))
         }
-        
     }
 }
 

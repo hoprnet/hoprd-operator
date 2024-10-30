@@ -194,14 +194,14 @@ operator:
     ##
     loadBalancerIP: ""
 
-    p2pPorts:
-      ## @param operator.ingress.p2pPorts.min Starting port to open on Ingress controller
+    ports:
+      ## @param operator.ingress.ports.min Starting port to open on Ingress controller
       ##
-      min: 9000
+      min: 10000
 
-      ## @param operator.ingress.p2pPorts.max End port to open on Ingress controller
+      ## @param operator.ingress.ports.max End port to open on Ingress controller
       ##
-      max: 9100
+      max: 11000
 
     ## @param operator.ingress.deploymentName Labels selector to choose the Nginx deployment and service
     ##

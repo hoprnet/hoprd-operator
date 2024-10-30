@@ -112,6 +112,9 @@ spec:
                     readinessProbe:
                       type: string
                       description: The definition of the readiness probe to be used by the node deployment
+                ports_allocation:
+                  type: number
+                  description: 'Amount of ports to be opened'
               required: 
                 - identityPoolName
                 - replicas

@@ -25,7 +25,8 @@ helm-test: ## Install dry helm resources
 	helm install --dry-run --namespace hoprd-operator --create-namespace -f ./charts/$(chart)/values-staging.yaml $(chart) ./charts/$(chart)/
 
 helm-lint: ## Lint Helm
-	helm lint -f ./charts/$(chart)/values-staging.yaml ./charts/$(chart)
+	helm lint -f ./charts/hoprd-operator/values-staging.yaml ./charts/hoprd-operator
+	helm lint -f ./charts/cluster-hoprd/values-staging.yaml ./charts/cluster-hoprd
 
 helm-install: ## Install helm chart using values-staging.yaml file
 	helm install --namespace hoprd-operator --create-namespace -f ./charts/$(chart)/values-staging.yaml $(chart) ./charts/$(chart)/
@@ -53,18 +54,5 @@ docker-push: ## Deploys docker image into GCP Artifact registry
 	docker push europe-west3-docker.pkg.dev/hoprassociation/docker-images/hoprd-operator:latest
 
 create-identity: ## Create identity resources
-	kubectl apply -f ../hoprd-nodes/rotsee/devops/identities/sealed-secret-hoprd-operator.yaml
-	kubectl apply -f ../hoprd-nodes/rotsee/devops/identities/identity-pool.yaml
-	kubectl apply -f ../hoprd-nodes/rotsee/devops/identities/identity-hoprds-devops-1.yaml
-	kubectl apply -f ../hoprd-nodes/rotsee/devops/identities/identity-hoprds-devops-2.yaml
 	# kubectl patch -n hoprd-operator IdentityPool pool-hoprd-operator --type='json' -p='[{"op": "replace", "path": "/spec/minReadyIdentities", "value":1}]'
 	# kubectl patch -n rotsee IdentityPool core-rotsee --type='json' -p='[{"op": "replace", "path": "/spec/minReadyIdentities", "value":1}]'
-
-delete-identity: ## Deletes identity resources
-	# kubectl patch -n hoprd-operator IdentityPool pool-hoprd-operator --type='json' -p='[{"op": "replace", "path": "/spec/minReadyIdentities", "value":0}]'
-	# kubectl patch -n rotsee IdentityPool core-rotsee --type='json' -p='[{"op": "replace", "path": "/spec/minReadyIdentities", "value":0}]'
-	kubectl delete -f ./hoprd-nodes/rotsee/devops/identities/identity-hoprds-devops-1.yaml
-	kubectl delete -f ./hoprd-nodes/rotsee/devops/identities/identity-hoprds-devops-2.yaml
-	kubectl delete -f ../hoprd-nodes/rotsee/devops/identities/identity-pool.yaml
-	kubectl delete -f ../hoprd-nodes/rotsee/devops/identities/sealed-secret-hoprd-operator.yaml
-

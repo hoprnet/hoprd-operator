@@ -11,7 +11,7 @@ use crate::constants::SupportedReleaseEnum;
 #[derive(Serialize, Deserialize, Debug)]
 struct CustomEnvVar {
     name: String,
-    value: String
+    value: String,
 }
 
 impl CustomEnvVar {
@@ -48,21 +48,20 @@ impl Default for HoprdDeploymentSpec {
         let default_probe = HoprdDeploymentSpec::build_probe("some/path".to_string(), Some(5), Some(1), Some(10));
         let default_probe_string = Some(serde_yaml::to_string(&default_probe).unwrap());
 
-        let default_env = vec!(
+        let default_env = vec![
             CustomEnvVar::new("RUST_BACKTRACE".to_owned(), "full".to_owned()),
             CustomEnvVar::new("RUST_LOG".to_owned(), "info".to_owned()),
             CustomEnvVar::new("HOPRD_LOG_FORMAT".to_owned(), "json".to_owned()),
-            CustomEnvVar::new("DEBUG".to_owned(), "hopr*".to_owned())
-        );
+            CustomEnvVar::new("DEBUG".to_owned(), "hopr*".to_owned()),
+        ];
         let default_env_string = Some(serde_yaml::to_string(&default_env).unwrap());
-
 
         Self {
             resources: Some(resources_spec),
             startup_probe: default_probe_string.clone(),
             liveness_probe: default_probe_string.clone(),
             readiness_probe: default_probe_string.clone(),
-            env: default_env_string
+            env: default_env_string,
         }
     }
 }
@@ -81,18 +80,18 @@ impl HoprdDeploymentSpec {
         let hoprd_deployment_spec = hoprd_deployment_spec.unwrap_or(default_deployment_spec.clone());
         let environment_variables_string = hoprd_deployment_spec.env.as_ref().unwrap_or(default_deployment_spec.env.as_ref().unwrap());
         let environment_variables: Vec<CustomEnvVar> = serde_yaml::from_str(environment_variables_string).unwrap();
-        environment_variables.iter().map(|env| {
-            EnvVar {
+        environment_variables
+            .iter()
+            .map(|env| EnvVar {
                 name: env.name.to_owned(),
                 value: Some(env.value.to_owned()),
                 ..EnvVar::default()
-            }
-        }).collect()
+            })
+            .collect()
     }
 
-
     pub fn build_probe(path: String, period_seconds: Option<i32>, success_threshold: Option<i32>, failure_threshold: Option<i32>) -> Probe {
-         Probe {
+        Probe {
             http_get: Some(HTTPGetAction {
                 path: Some(path.to_string()),
                 port: IntOrString::Int(3001),
@@ -110,9 +109,9 @@ impl HoprdDeploymentSpec {
         match supported_release {
             SupportedReleaseEnum::Providence => None,
             SupportedReleaseEnum::SaintLouis => {
-                let default_liveness_probe = HoprdDeploymentSpec::build_probe("/healthyz".to_owned(),Some(5), Some(1), Some(3));
+                let default_liveness_probe = HoprdDeploymentSpec::build_probe("/healthyz".to_owned(), Some(5), Some(1), Some(3));
                 if let Some(hoprd_deployment_spec) = hoprd_deployment_spec_option {
-                    if let Some (liveness_probe_string) = hoprd_deployment_spec.liveness_probe {
+                    if let Some(liveness_probe_string) = hoprd_deployment_spec.liveness_probe {
                         Some(serde_yaml::from_str(&liveness_probe_string).unwrap())
                     } else {
                         Some(default_liveness_probe)
@@ -128,9 +127,9 @@ impl HoprdDeploymentSpec {
         match supported_release {
             SupportedReleaseEnum::Providence => None,
             SupportedReleaseEnum::SaintLouis => {
-                let default_startup_probe = HoprdDeploymentSpec::build_probe("/startedz".to_owned(),Some(15), Some(1), Some(8));
+                let default_startup_probe = HoprdDeploymentSpec::build_probe("/startedz".to_owned(), Some(15), Some(1), Some(8));
                 if let Some(hoprd_deployment_spec) = hoprd_deployment_spec_option {
-                    if let Some (startup_probe_string) = hoprd_deployment_spec.startup_probe {
+                    if let Some(startup_probe_string) = hoprd_deployment_spec.startup_probe {
                         Some(serde_yaml::from_str(&startup_probe_string).unwrap())
                     } else {
                         Some(default_startup_probe)
@@ -146,9 +145,9 @@ impl HoprdDeploymentSpec {
         match supported_release {
             SupportedReleaseEnum::Providence => None,
             SupportedReleaseEnum::SaintLouis => {
-                let default_readiness_probe = HoprdDeploymentSpec::build_probe("/readyz".to_owned(),Some(10), Some(1), Some(6));
+                let default_readiness_probe = HoprdDeploymentSpec::build_probe("/readyz".to_owned(), Some(10), Some(1), Some(6));
                 if let Some(hoprd_deployment_spec) = hoprd_deployment_spec_option {
-                    if let Some (readiness_probe_string) = hoprd_deployment_spec.readiness_probe {
+                    if let Some(readiness_probe_string) = hoprd_deployment_spec.readiness_probe {
                         Some(serde_yaml::from_str(&readiness_probe_string).unwrap())
                     } else {
                         Some(default_readiness_probe)

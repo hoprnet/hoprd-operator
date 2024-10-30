@@ -1,4 +1,3 @@
-
 use futures::StreamExt;
 use kube::{
     api::Api,
@@ -42,14 +41,9 @@ enum ClusterHoprdAction {
 /// # Arguments
 /// - `cluster_hoprd`: A reference to `ClusterHoprd` being reconciled to decide next action upon.
 fn determine_action(cluster_hoprd: &ClusterHoprd) -> ClusterHoprdAction {
-    return if cluster_hoprd.meta().deletion_timestamp.is_some() && cluster_hoprd.status.is_some() && cluster_hoprd.status.as_ref().unwrap().phase.ne (&ClusterHoprdPhaseEnum::Deleting){
+    return if cluster_hoprd.meta().deletion_timestamp.is_some() && cluster_hoprd.status.is_some() && cluster_hoprd.status.as_ref().unwrap().phase.ne(&ClusterHoprdPhaseEnum::Deleting) {
         ClusterHoprdAction::Delete
-    } else if cluster_hoprd
-        .meta()
-        .finalizers
-        .as_ref()
-        .map_or(true, |finalizers| finalizers.is_empty())
-    {
+    } else if cluster_hoprd.meta().finalizers.as_ref().map_or(true, |finalizers| finalizers.is_empty()) {
         ClusterHoprdAction::Create
     } else if cluster_hoprd.status.as_ref().unwrap().phase == ClusterHoprdPhaseEnum::NotScaled || cluster_hoprd.status.as_ref().unwrap().phase == ClusterHoprdPhaseEnum::Scaling {
         ClusterHoprdAction::Rescale
@@ -67,10 +61,7 @@ fn determine_action(cluster_hoprd: &ClusterHoprd) -> ClusterHoprdAction {
     };
 }
 
-async fn reconciler(
-    cluster_hoprd: Arc<ClusterHoprd>,
-    context: Arc<ContextData>,
-) -> Result<Action, Error> {
+async fn reconciler(cluster_hoprd: Arc<ClusterHoprd>, context: Arc<ContextData>) -> Result<Action, Error> {
     // Performs action as decided by the `determine_action` function.
     match determine_action(&cluster_hoprd) {
         ClusterHoprdAction::Create => cluster_hoprd.create(context.clone()).await,
@@ -78,9 +69,7 @@ async fn reconciler(
         ClusterHoprdAction::Delete => cluster_hoprd.delete(context.clone()).await,
         ClusterHoprdAction::Rescale => cluster_hoprd.rescale(context.clone()).await,
         // The resource is already in desired state, do nothing and re-check after 10 seconds
-        ClusterHoprdAction::NoOp => Ok(Action::requeue(Duration::from_secs(
-            constants::RECONCILE_SHORT_FREQUENCY,
-        ))),
+        ClusterHoprdAction::NoOp => Ok(Action::requeue(Duration::from_secs(constants::RECONCILE_SHORT_FREQUENCY))),
     }
 }
 
@@ -92,12 +81,8 @@ async fn reconciler(
 /// - `cluster_hoprd`: The erroneous resource.
 /// - `error`: A reference to the `kube::Error` that occurred during reconciliation.
 /// - `_context`: Unused argument. Context Data "injected" automatically by kube-rs.
-pub fn on_error(
-    cluster_hoprd: Arc<ClusterHoprd>,
-    error: &Error,
-    _context: Arc<ContextData>,
-) -> Action {
-    error!("[ClusterHoprd] Reconciliation error:\n{:?}.\n{:?}",error, cluster_hoprd);
+pub fn on_error(cluster_hoprd: Arc<ClusterHoprd>, error: &Error, _context: Arc<ContextData>) -> Action {
+    error!("[ClusterHoprd] Reconciliation error:\n{:?}.\n{:?}", error, cluster_hoprd);
     Action::requeue(Duration::from_secs(constants::RECONCILE_SHORT_FREQUENCY))
 }
 
@@ -117,7 +102,7 @@ pub async fn run(client: Client, context_data: Arc<ContextData>) {
                     let err_string = reconciliation_err.to_string();
                     if !err_string.contains("that was not found in local store") && !err_string.contains("event queue error") {
                         // https://github.com/kube-rs/kube/issues/712
-                        error!("[ClusterHoprd] Reconciliation error: {:?}",reconciliation_err)
+                        error!("[ClusterHoprd] Reconciliation error: {:?}", reconciliation_err)
                     }
                 }
             }

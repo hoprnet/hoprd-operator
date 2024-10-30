@@ -1,17 +1,16 @@
 use kube::{Client, Result};
 use std::{env, sync::Arc};
 
-pub mod model;
-mod cluster;
-mod hoprd;
-mod identity_pool;
-mod identity_hoprd;
-mod resource_generics;
 mod bootstrap_operator;
+mod cluster;
 mod constants;
 mod context_data;
 mod events;
-
+mod hoprd;
+mod identity_hoprd;
+mod identity_pool;
+pub mod model;
+mod resource_generics;
 
 mod operator_config;
 mod servicemonitor;
@@ -39,19 +38,12 @@ async fn main() -> Result<()> {
     ContextData::sync_identities(context_data.clone()).await;
     // Initiatilize Kubernetes controller state
     bootstrap_operator::start(client.clone(), context_data.clone()).await;
-    let controller_identity_pool =
-        identity_pool::identity_pool_controller::run(client.clone(), context_data.clone()).fuse();
-    let controller_identity_hoprd =
-        identity_hoprd::identity_hoprd_controller::run(client.clone(), context_data.clone()).fuse();
+    let controller_identity_pool = identity_pool::identity_pool_controller::run(client.clone(), context_data.clone()).fuse();
+    let controller_identity_hoprd = identity_hoprd::identity_hoprd_controller::run(client.clone(), context_data.clone()).fuse();
     let controller_hoprd = hoprd::hoprd_controller::run(client.clone(), context_data.clone()).fuse();
     let controller_cluster = cluster::cluster_controller::run(client.clone(), context_data.clone()).fuse();
 
-    pin_mut!(
-        controller_identity_pool,
-        controller_identity_hoprd,
-        controller_hoprd,
-        controller_cluster
-    );
+    pin_mut!(controller_identity_pool, controller_identity_hoprd, controller_hoprd, controller_cluster);
     select! {
         () = controller_identity_pool => println!("Controller IdentityPool exited"),
         () = controller_identity_hoprd => println!("Controller IdentityHoprd exited"),
