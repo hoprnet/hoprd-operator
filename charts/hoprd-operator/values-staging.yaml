@@ -22,9 +22,6 @@ operator:
       nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
     namespace: ingress-nginx
     loadBalancerIP: 34.159.20.69
-    p2pPorts:
-      min: 9000
-      max: 9100
     deploymentName: ingress-nginx-controller
 adminUI:
   ingress:

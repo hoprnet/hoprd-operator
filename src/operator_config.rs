@@ -21,9 +21,9 @@ pub struct IngressConfig {
     pub dns_domain: String,
     pub namespace: Option<String>,
     pub annotations: Option<BTreeMap<String, String>>,
-    pub loadbalancer_ip: Option<String>,
-    pub p2p_port_min: Option<String>,
-    pub p2p_port_max: Option<String>,
+    pub loadbalancer_ip: String,
+    pub port_min: String,
+    pub port_max: String,
     pub deployment_name: Option<String>,
 }
 

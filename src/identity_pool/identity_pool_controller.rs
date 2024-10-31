@@ -15,9 +15,10 @@ use tracing::error;
 use crate::{
     constants::{self},
     context_data::ContextData,
-    identity_pool::identity_pool_resource::{IdentityPool,IdentityPoolPhaseEnum},
+    identity_hoprd::identity_hoprd_resource::IdentityHoprd,
+    identity_pool::identity_pool_resource::{IdentityPool, IdentityPoolPhaseEnum},
     model::Error,
-    servicemonitor::ServiceMonitor, identity_hoprd::identity_hoprd_resource::IdentityHoprd,
+    servicemonitor::ServiceMonitor,
 };
 
 /// Action to be taken upon an `IdentityPool` resource during reconciliation
@@ -43,16 +44,13 @@ enum IdentityPoolAction {
 fn determine_action(identity_pool: &IdentityPool) -> IdentityPoolAction {
     return if identity_pool.meta().deletion_timestamp.is_some() {
         IdentityPoolAction::Delete
-    } else if identity_pool.meta().finalizers.as_ref().map_or(true, |finalizers| finalizers.is_empty())
-    {
+    } else if identity_pool.meta().finalizers.as_ref().map_or(true, |finalizers| finalizers.is_empty()) {
         IdentityPoolAction::Create
-    } else if identity_pool.status.as_ref().unwrap().phase.eq(&IdentityPoolPhaseEnum::OutOfSync)
-    {
+    } else if identity_pool.status.as_ref().unwrap().phase.eq(&IdentityPoolPhaseEnum::OutOfSync) {
         IdentityPoolAction::Sync
     } else {
         let current_checksum = identity_pool.get_checksum();
-        let previous_checksum: String = identity_pool.status.as_ref()
-            .map_or("0".to_owned(), |status| status.checksum.to_owned());
+        let previous_checksum: String = identity_pool.status.as_ref().map_or("0".to_owned(), |status| status.checksum.to_owned());
         // When the resource is created, does not have previous checksum and needs to be skip the modification because it's being handled already by the creation operation
         if previous_checksum.eq(&"0".to_owned()) || current_checksum.eq(&previous_checksum) {
             IdentityPoolAction::NoOp
@@ -64,7 +62,7 @@ fn determine_action(identity_pool: &IdentityPool) -> IdentityPoolAction {
 
 async fn reconciler(identity_pool: Arc<IdentityPool>, context: Arc<ContextData>) -> Result<Action, Error> {
     let mut identity_pool_cloned = identity_pool.clone();
-    let identity_pool_mutable:  &mut IdentityPool = Arc::<IdentityPool>::make_mut(&mut identity_pool_cloned);
+    let identity_pool_mutable: &mut IdentityPool = Arc::<IdentityPool>::make_mut(&mut identity_pool_cloned);
     // Performs action as decided by the `determine_action` function.
     match determine_action(identity_pool_mutable) {
         IdentityPoolAction::Create => identity_pool_mutable.create(context.clone()).await,
@@ -72,9 +70,7 @@ async fn reconciler(identity_pool: Arc<IdentityPool>, context: Arc<ContextData>)
         IdentityPoolAction::Sync => identity_pool_mutable.sync(context.clone()).await,
         IdentityPoolAction::Delete => identity_pool_mutable.delete(context.clone()).await,
         // The resource is already in desired state, do nothing and re-check after 10 seconds
-        IdentityPoolAction::NoOp => Ok(Action::requeue(Duration::from_secs(
-            constants::RECONCILE_SHORT_FREQUENCY,
-        ))),
+        IdentityPoolAction::NoOp => Ok(Action::requeue(Duration::from_secs(constants::RECONCILE_SHORT_FREQUENCY))),
     }
 }
 
@@ -86,12 +82,8 @@ async fn reconciler(identity_pool: Arc<IdentityPool>, context: Arc<ContextData>)
 /// - `identity_hoprd`: The erroneous resource.
 /// - `error`: A reference to the `kube::Error` that occurred during reconciliation.
 /// - `_context`: Unused argument. Context Data "injected" automatically by kube-rs.
-pub fn on_error(
-    identity_hoprd: Arc<IdentityPool>,
-    error: &Error,
-    _context: Arc<ContextData>,
-) -> Action {
-    error!("[IdentityPool] Reconciliation error:\n{:?}.\n{:?}",error, identity_hoprd);
+pub fn on_error(identity_hoprd: Arc<IdentityPool>, error: &Error, _context: Arc<ContextData>) -> Action {
+    error!("[IdentityPool] Reconciliation error:\n{:?}.\n{:?}", error, identity_hoprd);
     Action::requeue(Duration::from_secs(constants::RECONCILE_SHORT_FREQUENCY))
 }
 
@@ -113,7 +105,7 @@ pub async fn run(client: Client, context_data: Arc<ContextData>) {
                     let err_string = reconciliation_err.to_string();
                     if !err_string.contains("that was not found in local store") && !err_string.contains("event queue error") {
                         // https://github.com/kube-rs/kube/issues/712
-                        error!("[IdentityPool] Reconciliation error: {:?}",reconciliation_err)
+                        error!("[IdentityPool] Reconciliation error: {:?}", reconciliation_err)
                     }
                 }
             }

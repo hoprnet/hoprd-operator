@@ -41,12 +41,7 @@ enum IdentityHoprdAction {
 fn determine_action(identity_hoprd: &IdentityHoprd) -> IdentityHoprdAction {
     return if identity_hoprd.meta().deletion_timestamp.is_some() {
         IdentityHoprdAction::Delete
-    } else if identity_hoprd
-        .meta()
-        .finalizers
-        .as_ref()
-        .map_or(true, |finalizers| finalizers.is_empty())
-    {
+    } else if identity_hoprd.meta().finalizers.as_ref().map_or(true, |finalizers| finalizers.is_empty()) {
         IdentityHoprdAction::Create
     } else {
         let current_checksum = identity_hoprd.get_checksum();
@@ -60,18 +55,16 @@ fn determine_action(identity_hoprd: &IdentityHoprd) -> IdentityHoprdAction {
     };
 }
 
-async fn reconciler(identity_hoprd: Arc<IdentityHoprd>,context: Arc<ContextData>) -> Result<Action, Error> {
+async fn reconciler(identity_hoprd: Arc<IdentityHoprd>, context: Arc<ContextData>) -> Result<Action, Error> {
     let mut identity_hoprd_cloned = identity_hoprd.clone();
-    let identity_hoprd_mutable:  &mut IdentityHoprd = Arc::<IdentityHoprd>::make_mut(&mut identity_hoprd_cloned);
+    let identity_hoprd_mutable: &mut IdentityHoprd = Arc::<IdentityHoprd>::make_mut(&mut identity_hoprd_cloned);
     // Performs action as decided by the `determine_action` function.
     match determine_action(identity_hoprd_mutable) {
         IdentityHoprdAction::Create => identity_hoprd_mutable.create(context.clone()).await,
         IdentityHoprdAction::Modify => identity_hoprd_mutable.modify(context.clone()).await,
         IdentityHoprdAction::Delete => identity_hoprd_mutable.delete(context.clone()).await,
         // The resource is already in desired state, do nothing and re-check after 10 seconds
-        IdentityHoprdAction::NoOp => Ok(Action::requeue(Duration::from_secs(
-            constants::RECONCILE_SHORT_FREQUENCY,
-        ))),
+        IdentityHoprdAction::NoOp => Ok(Action::requeue(Duration::from_secs(constants::RECONCILE_SHORT_FREQUENCY))),
     }
 }
 
@@ -83,12 +76,8 @@ async fn reconciler(identity_hoprd: Arc<IdentityHoprd>,context: Arc<ContextData>
 /// - `identity_hoprd`: The erroneous resource.
 /// - `error`: A reference to the `kube::Error` that occurred during reconciliation.
 /// - `_context`: Unused argument. Context Data "injected" automatically by kube-rs.
-pub fn on_error(
-    identity_hoprd: Arc<IdentityHoprd>,
-    error: &Error,
-    _context: Arc<ContextData>,
-) -> Action {
-    error!("[IdentityHoprd] Reconciliation error:\n{:?}.\n{:?}",error, identity_hoprd);
+pub fn on_error(identity_hoprd: Arc<IdentityHoprd>, error: &Error, _context: Arc<ContextData>) -> Action {
+    error!("[IdentityHoprd] Reconciliation error:\n{:?}.\n{:?}", error, identity_hoprd);
     Action::requeue(Duration::from_secs(constants::RECONCILE_SHORT_FREQUENCY))
 }
 
@@ -108,7 +97,7 @@ pub async fn run(client: Client, context_data: Arc<ContextData>) {
                     let err_string = reconciliation_err.to_string();
                     if !err_string.contains("that was not found in local store") && !err_string.contains("event queue error") {
                         // https://github.com/kube-rs/kube/issues/712
-                        error!("[IdentityHoprd] Reconciliation error: {:?}",reconciliation_err)
+                        error!("[IdentityHoprd] Reconciliation error: {:?}", reconciliation_err)
                     }
                 }
             }

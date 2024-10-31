@@ -21,10 +21,10 @@ data:
     ingress:
       ingress_class_name: "{{- .Values.operator.ingress.ingressClassName }}"
       dns_domain: "{{- .Values.operator.ingress.dnsDomain }}"
-      loadbalancer_ip: "{{- .Values.operator.ingress.loadBalancerIP }}"
+      loadbalancer_ip: {{- required "The operator.ingress.loadBalancerIP value is required!" .Values.operator.ingress.loadBalancerIP }}
       namespace: "{{- .Values.operator.ingress.namespace }}"
-      p2p_port_min: "{{ .Values.operator.ingress.p2pPorts.min }}"
-      p2p_port_max: "{{ .Values.operator.ingress.p2pPorts.max }}"
+      port_min: "{{ .Values.operator.ingress.ports.min }}"
+      port_max: "{{ .Values.operator.ingress.ports.max }}"
       deployment_name: "{{- .Values.operator.ingress.deploymentName }}"
       annotations: {{- .Values.operator.ingress.annotations | toYaml | nindent 8 }}
     hopli_image: {{ printf "%s/%s:%s" .Values.operator.hopli.registry .Values.operator.hopli.repository .Values.operator.hopli.tag | quote }}

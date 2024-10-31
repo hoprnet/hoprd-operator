@@ -9,8 +9,8 @@ pub const OPERATOR_FINALIZER: &str = "hoprds.hoprnet.org/finalizer";
 pub const OPERATOR_JOB_TIMEOUT: u64 = 300;
 // This value `OPERATOR_NODE_SYNC_TIMEOUT` should be lower than 295
 pub const OPERATOR_NODE_SYNC_TIMEOUT: u32 = 290;
-pub const OPERATOR_P2P_MIN_PORT: &str = "9000";
-pub const OPERATOR_P2P_MAX_PORT: &str = "9100";
+pub const OPERATOR_MIN_PORT: u16 = 9000;
+pub const OPERATOR_MAX_PORT: u16 = 10000;
 pub const IDENTITY_POOL_WALLET_DEPLOYER_PRIVATE_KEY_REF_KEY: &str = "DEPLOYER_PRIVATE_KEY";
 pub const IDENTITY_POOL_WALLET_PRIVATE_KEY_REF_KEY: &str = "PRIVATE_KEY";
 pub const IDENTITY_POOL_IDENTITY_PASSWORD_REF_KEY: &str = "IDENTITY_PASSWORD";
@@ -54,12 +54,14 @@ pub const HOPRD_API_HOST: &str = "HOPRD_API_HOST";
 pub const HOPRD_INIT: &str = "HOPRD_INIT";
 pub const HOPRD_HEALTH_CHECK: &str = "HOPRD_HEALTH_CHECK";
 pub const HOPRD_HEALTH_CHECK_HOST: &str = "HOPRD_HEALTH_CHECK_HOST";
+pub const HOPRD_SESSION_PORT_RANGE: &str = "HOPRD_SESSION_PORT_RANGE";
+pub const HOPRD_PORTS_ALLOCATION: u16 = 10;
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Default, Clone, Hash,  Copy, JsonSchema)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Default, Clone, Hash, Copy, JsonSchema)]
 pub enum SupportedReleaseEnum {
-    #[serde(rename= "providence")]
+    #[serde(rename = "providence")]
     #[default]
     Providence,
-    #[serde(rename= "saint-louis")]
-    SaintLouis 
+    #[serde(rename = "saint-louis")]
+    SaintLouis,
 }
