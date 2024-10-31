@@ -218,7 +218,7 @@ fn build_ports(starting_port: u16, last_port: u16, port_name: Option<&str>) -> V
         });
         for port_number in starting_port + 1..last_port {
             ports.push(ServicePort {
-                name: Some(format!("session{}-{}", protocol.chars().next().unwrap().to_lowercase(), port_number)),
+                name: Some(format!("session{}-{}", protocol.chars().next().map(|c| c.to_lowercase().to_string()).unwrap_or_default(), port_number)),
                 port: port_number.into(),
                 protocol: Some(protocol.clone()),
                 target_port: Some(IntOrString::Int(port_number.into())),

@@ -189,7 +189,8 @@ pub async fn modify_deployment(context_data: Arc<ContextData>, deployment_name: 
         .to_owned();
     let hoprd_host = *hoprd_host_port.split(':').collect::<Vec<&str>>().get(0).unwrap();
     let starting_port = hoprd_host_port.split(':').collect::<Vec<&str>>().get(1).unwrap().to_string().parse::<u16>().unwrap();
-    let last_port = starting_port + hoprd_spec.ports_allocation.clone().unwrap_or(constants::HOPRD_PORTS_ALLOCATION);
+    let ports_allocation = hoprd_spec.ports_allocation.clone().unwrap_or(constants::HOPRD_PORTS_ALLOCATION);
+    let last_port = starting_port + ports_allocation;
     let identity_pool: IdentityPool = identity_hoprd.get_identity_pool(context_data.client.clone()).await.unwrap();
     let spec = build_deployment_spec(deployment.labels().to_owned(), hoprd_spec, identity_pool, identity_hoprd, &hoprd_host, starting_port, last_port).await;
     let patch = &Patch::Merge(json!({ "spec": spec }));
@@ -346,32 +347,32 @@ async fn build_volumes(pvc_name: &String) -> Vec<Volume> {
 
 /// Build struct ContainerPort
 fn build_ports(starting_port: i32, last_port: i32) -> Vec<ContainerPort> {
-    let mut ports = vec![
-        ContainerPort {
-            container_port: 3001,
-            name: Some("api".to_owned()),
-            protocol: Some("TCP".to_owned()),
-            ..ContainerPort::default()
-        },
-        ContainerPort {
-            container_port: 8080,
-            name: Some("health".to_owned()),
-            protocol: Some("TCP".to_owned()),
-            ..ContainerPort::default()
-        },
-        ContainerPort {
-            container_port: starting_port,
-            name: Some("p2p-tcp".to_owned()),
-            protocol: Some("TCP".to_owned()),
-            ..ContainerPort::default()
-        },
-        ContainerPort {
-            container_port: starting_port,
-            name: Some("p2p-udp".to_owned()),
-            protocol: Some("UDP".to_owned()),
-            ..ContainerPort::default()
-        },
-    ];
+    let port_range = (last_port - starting_port - 1) as usize;
+    let mut ports: Vec<ContainerPort> = Vec::with_capacity(2 + port_range * 2);
+    ports.push(ContainerPort {
+        container_port: 3001,
+        name: Some("api".to_owned()),
+        protocol: Some("TCP".to_owned()),
+        ..ContainerPort::default()
+    });
+    ports.push(ContainerPort {
+        container_port: 8080,
+        name: Some("health".to_owned()),
+        protocol: Some("TCP".to_owned()),
+        ..ContainerPort::default()
+    });
+    ports.push(ContainerPort {
+        container_port: starting_port,
+        name: Some("p2p-tcp".to_owned()),
+        protocol: Some("TCP".to_owned()),
+        ..ContainerPort::default()
+    });
+    ports.push(ContainerPort {
+        container_port: starting_port,
+        name: Some("p2p-udp".to_owned()),
+        protocol: Some("UDP".to_owned()),
+        ..ContainerPort::default()
+    });
     for session_port in starting_port + 1..last_port {
         ports.push(ContainerPort {
             container_port: session_port,

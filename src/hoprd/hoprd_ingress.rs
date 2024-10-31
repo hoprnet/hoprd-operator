@@ -158,7 +158,7 @@ async fn get_available_ports(client: Client, session_port_allocation: u16, ingre
         let max_port = ingress_config.port_max.parse::<u16>().unwrap_or(constants::OPERATOR_MAX_PORT);
         let mut ports: Vec<u16> = data
             .keys()
-            .map(|port| port.parse::<u16>().unwrap())
+            .filter_map(|port| port.parse::<u16>().ok())
             .filter(|port| port >= &min_port)
             .filter(|port| port <= &max_port)
             .clone()
