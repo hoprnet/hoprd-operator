@@ -17,7 +17,7 @@ use serde_json::json;
 use std::{collections::BTreeMap, sync::Arc};
 use tracing::{error, info};
 
-use crate::{constants, context_data::ContextData, operator_config::IngressConfig, utils};
+use crate::{context_data::ContextData, operator_config::IngressConfig, utils};
 use crate::{hoprd::hoprd_ingress, model::Error as HoprError};
 
 use super::hoprd_service::ServiceTypeEnum;
@@ -123,9 +123,11 @@ pub async fn open_port(client: Client, service_namespace: &str, service_name: &s
 
     // Create a BTreeMap to hold the new data entries
     let mut new_ports = BTreeMap::new();
-    let max_port = ingress_config.port_max.parse::<u16>().unwrap_or(constants::OPERATOR_MAX_PORT);
-    if starting_port + session_port_allocation > max_port {
-        return Err(HoprError::HoprdConfigError(format!("Cannot allocate {} ports starting from {}. Would exceed max_port {}", session_port_allocation, starting_port, max_port)));
+    if starting_port + session_port_allocation > ingress_config.port_max {
+        return Err(HoprError::HoprdConfigError(format!(
+            "Cannot allocate {} ports starting from {}. Would exceed max_port {}",
+            session_port_allocation, starting_port, ingress_config.port_max
+        )));
     }
     // Iterate over the session_port_allocation and insert entries starting from starting_port
     for i in 0..session_port_allocation.to_owned() {
@@ -157,30 +159,28 @@ async fn get_available_ports(client: Client, session_port_allocation: u16, ingre
     let api: Api<ConfigMap> = Api::namespaced(client, ingress_config.namespace.as_ref().unwrap());
     if let Some(config_map) = api.get_opt("ingress-nginx-tcp").await? {
         let data = config_map.data.unwrap_or_default();
-        let min_port = ingress_config.port_min.parse::<u16>().unwrap_or(constants::OPERATOR_MIN_PORT);
-        let max_port = ingress_config.port_max.parse::<u16>().unwrap_or(constants::OPERATOR_MAX_PORT);
         let mut ports: Vec<u16> = data
             .keys()
             .filter_map(|port| port.parse::<u16>().ok())
-            .filter(|port| port >= &min_port)
-            .filter(|port| port <= &max_port)
+            .filter(|port| port >= &ingress_config.port_min)
+            .filter(|port| port <= &ingress_config.port_max)
             .clone()
             .collect::<Vec<_>>();
         ports.sort();
-        return Ok(find_next_port(ports, session_port_allocation, Some(&min_port)));
+        return Ok(find_next_port(ports, session_port_allocation, ingress_config.port_min));
     } else {
         Err(HoprError::HoprdConfigError("Could not get new free port".to_string()))
     }
 }
 
 /// Find the next port available
-fn find_next_port(ports: Vec<u16>, session_port_allocation: u16, min_port: Option<&u16>) -> u16 {
+fn find_next_port(ports: Vec<u16>, session_port_allocation: u16, min_port: u16) -> u16 {
     if ports.is_empty() {
-        return min_port.unwrap_or(&constants::OPERATOR_MIN_PORT).to_owned();
+        return min_port;
     }
 
     // If the first port used is greater than the min_port plus session_port_allocation, fill the gap
-    if (ports[0] - min_port.unwrap_or(&constants::OPERATOR_MIN_PORT)) >= session_port_allocation {
+    if (ports[0] - min_port) >= session_port_allocation {
         return ports[0] - session_port_allocation;
     }
 
@@ -253,28 +253,29 @@ pub async fn close_port(client: Client, service_namespace: &str, service_name: &
 #[cfg(test)]
 mod tests {
     use super::*;
+    const OPERATOR_MIN_PORT: u16 = 9000;
 
     #[test]
     fn test_find_next_port_empty() {
         let gap_in_middle = vec![];
-        assert_eq!(find_next_port(gap_in_middle, 10, None), constants::OPERATOR_MIN_PORT);
+        assert_eq!(find_next_port(gap_in_middle, 10, OPERATOR_MIN_PORT), OPERATOR_MIN_PORT);
     }
 
     #[test]
     fn test_find_next_port_first() {
         let first_port = vec![9000, 9001, 9002, 9003, 9004, 9005, 9006, 9007, 9008, 9009];
-        assert_eq!(find_next_port(first_port, 10, None), 9010);
+        assert_eq!(find_next_port(first_port, 10, OPERATOR_MIN_PORT), 9010);
     }
 
     #[test]
     fn test_find_next_port_gap_in_middle() {
         let gap_in_middle = vec![9000, 9001, 9002, 9003, 9004, 9005, 9006, 9007, 9008, 9009, 9020, 9021, 9022, 9023, 9024, 9025, 9026, 9027, 9028, 9029];
-        assert_eq!(find_next_port(gap_in_middle, 10, None), 9010);
+        assert_eq!(find_next_port(gap_in_middle, 10, OPERATOR_MIN_PORT), 9010);
     }
 
     #[test]
     fn test_find_next_port_last() {
         let last = vec![9000, 9001, 9002, 9003, 9004, 9005, 9006, 9007, 9008, 9009, 9010, 9011, 9012, 9013, 9014, 9015, 9016, 9017, 9018, 9019];
-        assert_eq!(find_next_port(last, 10, None), 9020);
+        assert_eq!(find_next_port(last, 10, OPERATOR_MIN_PORT), 9020);
     }
 }

@@ -68,11 +68,7 @@ pub async fn create_service(
         info!("ClusterIP Service {} created successfully", name.to_owned());
         Ok(context_data.config.ingress.loadbalancer_ip.to_string())
     } else {
-        let loadbalancer_starting_port = constants::OPERATOR_MIN_PORT;
-        let loadbalancer_last_port = loadbalancer_starting_port + last_port - starting_port;
-        let public_ip = create_load_balancer_service(context_data.clone(), name, namespace, labels, owner_references, loadbalancer_starting_port, loadbalancer_last_port)
-            .await
-            .unwrap();
+        let public_ip = create_load_balancer_service(context_data.clone(), name, namespace, labels, owner_references, starting_port, last_port).await?;
         info!("LoadBalancer Service {} created successfully", name.to_owned());
         Ok(public_ip)
     }
