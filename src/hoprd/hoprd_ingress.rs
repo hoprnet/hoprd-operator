@@ -123,7 +123,10 @@ pub async fn open_port(client: Client, service_namespace: &str, service_name: &s
 
     // Create a BTreeMap to hold the new data entries
     let mut new_ports = BTreeMap::new();
-
+    let max_port = ingress_config.port_max.parse::<u16>().unwrap_or(constants::OPERATOR_MAX_PORT);
+    if starting_port + session_port_allocation > max_port {
+        return Err(HoprError::HoprdConfigError(format!("Cannot allocate {} ports starting from {}. Would exceed max_port {}", session_port_allocation, starting_port, max_port)));
+    }
     // Iterate over the session_port_allocation and insert entries starting from starting_port
     for i in 0..session_port_allocation.to_owned() {
         let current_port = starting_port + i;
