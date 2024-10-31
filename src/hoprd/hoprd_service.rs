@@ -106,7 +106,7 @@ async fn create_load_balancer_service(
         ..Service::default()
     };
 
-    api_service.create(&PostParams::default(), &service_tcp).await.unwrap();
+    api_service.create(&PostParams::default(), &service_tcp).await?;
     let mut load_balancer_ip = None;
     let mut retries = 0;
     let max_retries = 12; // e.g., 12 retries with 5-second intervals
@@ -150,7 +150,7 @@ async fn create_load_balancer_service(
         }),
         ..Service::default()
     };
-    api_service.create(&PostParams::default(), &service_udp).await.unwrap();
+    api_service.create(&PostParams::default(), &service_udp).await?;
     Ok(load_balancer_ip.unwrap())
 }
 
