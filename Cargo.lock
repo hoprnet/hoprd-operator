@@ -547,7 +547,7 @@ dependencies = [
  "base64 0.22.1",
  "chrono",
  "futures",
- "json-patch",
+ "json-patch 3.0.1",
  "k8s-openapi",
  "kube",
  "openssl-sys",
@@ -748,6 +748,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "json-patch"
+version = "3.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "863726d7afb6bc2590eeff7135d923545e5e964f004c2ccf8716c25e70a86f08"
+dependencies = [
+ "jsonptr",
+ "serde",
+ "serde_json",
+ "thiserror",
+]
+
+[[package]]
 name = "jsonpath-rust"
 version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -760,6 +772,16 @@ dependencies = [
  "regex",
  "serde_json",
  "thiserror",
+]
+
+[[package]]
+name = "jsonptr"
+version = "0.6.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5dea2b27dd239b2556ed7a25ba842fe47fd602e7fc7433c2a8d6106d4d9edd70"
+dependencies = [
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -834,7 +856,7 @@ dependencies = [
  "chrono",
  "form_urlencoded",
  "http",
- "json-patch",
+ "json-patch 1.4.0",
  "k8s-openapi",
  "schemars",
  "serde",
@@ -869,7 +891,7 @@ dependencies = [
  "derivative",
  "futures",
  "hashbrown 0.14.5",
- "json-patch",
+ "json-patch 1.4.0",
  "k8s-openapi",
  "kube-client",
  "parking_lot",
