@@ -243,6 +243,17 @@ pub async fn job_delete_database(context_data: Arc<ContextData>, deployment_name
     let api: Api<Job> = Api::namespaced(context_data.client.clone(), namespace);
     let rng = rand::thread_rng();
     let suffix: String = rng.sample_iter(&Alphanumeric).take(10).map(char::from).collect();
+    let bucket_name = context_data.config.bucket_name.as_ref().expect("No bucket name has been specified in hoprd operator configuration").clone();
+    let commands = format!(
+        r#"
+        apt-get -qq update && apt-get -qq -y install curl tar;
+        rm -rf /app/hoprd-db/db/hopr_index.db*;
+        rm -rf /app/hoprd-db/db/hopr_logs.db*;
+        curl https://storage.googleapis.com/{}/hopr_logs.tar.gz > /tmp/hopr_logs.tar.gz;
+        tar xf /tmp/hopr_logs.tar.gz -C /
+        "#,
+        bucket_name
+    );
 
     let job_name = format!("{}-delete-db-{}", deployment_name, suffix.to_lowercase());
     let job = Job {
@@ -263,8 +274,8 @@ pub async fn job_delete_database(context_data: Arc<ContextData>, deployment_name
                     }]),
                     containers: vec![Container {
                         name: "delete-hoprd-db".to_string(),
-                        image: Some("busybox".to_string()),
-                        command: Some(vec!["/bin/sh".to_string(), "-c".to_string(), "rm -rf /app/hoprd-db/*".to_string()]),
+                        image: Some("debian:stable".to_string()),
+                        command: Some(vec![ "/bin/sh".to_string(), "-c".to_string(), commands ]),
                         volume_mounts: Some(vec![VolumeMount {
                             name: "hoprd-db".to_string(),
                             mount_path: "/app/hoprd-db".to_string(),

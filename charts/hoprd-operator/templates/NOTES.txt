@@ -1,6 +1,6 @@
-1. Start creating hoprd nodes by executing this kubectl command:
+1. Start creating hoprd nodes by executing this  command:
 
-cat <<EOF | kubectl apply -f -
+cat <<EOF |  apply -f -
 ---
 apiVersion: hoprnet.org/v1alpha2
 kind: Hoprd

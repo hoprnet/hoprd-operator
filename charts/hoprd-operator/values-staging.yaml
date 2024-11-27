@@ -1,7 +1,19 @@
 environmentName: staging
 operator:
   persistence:
-    storageClassName: ceph-ephimeral
+    storageClassName: standard-rwo
+  crossplane:
+    provider:
+      crossplane: gcp-crossplane
+      upbound: gcp-upbound
+    gcpProjectId: hopr-staging
+    bucketName: hoprd-sync-data-staging
+  fastSync:
+    enabled: true
+    schedule: "0 0 * * *"
+    source:
+      namespace: core-team
+      deployment: core-node-1
   image:
     tag: latest
     pullPolicy: Always

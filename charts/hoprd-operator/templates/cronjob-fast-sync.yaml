@@ -1,0 +1,51 @@
+---
+{{- if .Values.operator.fastSync.enabled }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+    name: hoprd-operator-fast-sync
+    namespace: {{ .Values.operator.fastSync.source.namespace}}
+    labels:
+        hoprd-operator-fast-sync: create-snapshot
+spec:
+    successfulJobsHistoryLimit: 1
+    failedJobsHistoryLimit: 2
+    schedule: "{{ .Values.operator.fastSync.schedule }}"
+    jobTemplate:
+        spec:
+            backoffLimit: 0
+            completions: 1
+            template:
+                metadata:
+                spec:
+                    containers:
+                        - command:
+                              - /bin/sh
+                              - -c
+                              - |
+                                  set -x
+                                  tar cf /tmp/hopr_logs.tar.gz /app/hoprd-db/db/hopr_logs.db*
+                                  gcloud auth activate-service-account --key-file=/backup/key.json
+                                  kubectl scale -n {{ .Values.operator.fastSync.source.namespace }} deployment {{ .Values.operator.fastSync.source.deployment }} --replicas=0
+                                  gcloud storage cp /tmp/hopr_logs.tar.gz gs://{{ .Values.operator.crossplane.bucketName }}/hopr_logs.tar.gz
+                          image: gcr.io/google.com/cloudsdktool/google-cloud-cli:stable
+                          name: fast-sync
+                          volumeMounts:
+                              - name: hoprd-db
+                                mountPath: /app/hoprd-db
+                              - name: service-account-key
+                                mountPath: /backup/key.json
+                                subPath: privateKey
+                    dnsPolicy: ClusterFirst
+                    restartPolicy: Never
+                    volumes:
+                        - name: hoprd-db
+                          persistentVolumeClaim:
+                              claimName: {{ .Values.operator.fastSync.source.deployment }}
+                        - name: service-account-key
+                          secret:
+                              secretName: hoprd-operator-sa-key
+                              items:
+                                  - key: privateKey
+                                    path: privateKey
+{{- end }}

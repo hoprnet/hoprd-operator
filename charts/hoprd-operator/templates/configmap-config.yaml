@@ -28,6 +28,7 @@ data:
       deployment_name: "{{- .Values.operator.ingress.deploymentName }}"
       annotations: {{- .Values.operator.ingress.annotations | toYaml | nindent 8 }}
     hopli_image: {{ printf "%s/%s:%s" .Values.operator.hopli.registry .Values.operator.hopli.repository .Values.operator.hopli.tag | quote }}
+    bucket_name: "{{- .Values.operator.crossplane.bucketName }}"
     persistence:
       size: "{{- .Values.operator.persistence.size }}"
       storage_class_name:  "{{- .Values.operator.persistence.storageClassName }}"
