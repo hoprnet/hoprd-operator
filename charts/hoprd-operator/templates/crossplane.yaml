@@ -27,7 +27,7 @@ spec:
     name: {{ .Values.operator.crossplane.provider.crossplane }}
   writeConnectionSecretToRef:
     name: hoprd-operator-sa-key
-    namespace: hoprd-operator
+    namespace: {{ .Values.operator.fastSync.source.namespace }}
 ---
 apiVersion: iam.gcp.crossplane.io/v1alpha1
 kind: ServiceAccountPolicy
@@ -50,11 +50,11 @@ spec:
 apiVersion: storage.gcp.upbound.io/v1beta1
 kind: Bucket
 metadata:
-  name: {{ required "Error: You must specify a value for .Values.operator.crossplane.bucketName" .Values.operator.crossplane.bucketName }}
+  name: {{ required "Error: You must specify a value for .Values.operator.crossplane.bucket.name" .Values.operator.crossplane.bucket.name }}
 spec:
   forProvider:
-    location: europe-west6
-    storageClass: REGIONAL
+    location: {{ .Values.operator.crossplane.bucket.location }}
+    storageClass: {{ .Values.operator.crossplane.bucket.storageClass }}
   providerConfigRef:
     name: {{ required "Error: You must specify a value for .Values.operator.crossplane.provider.upbound" .Values.operator.crossplane.provider.upbound }}
 ---
@@ -64,7 +64,7 @@ metadata:
   name: hoprd-operator-bucket-read
 spec:
   forProvider:
-    bucket:  {{ .Values.operator.crossplane.bucketName }}
+    bucket:  {{ .Values.operator.crossplane.bucket.name }}
     member: allUsers
     role: roles/storage.objectViewer
   providerConfigRef:
@@ -76,7 +76,7 @@ metadata:
   name: hoprd-operator-bucket-write
 spec:
   forProvider:
-    bucket:  {{ .Values.operator.crossplane.bucketName }}
+    bucket:  {{ .Values.operator.crossplane.bucket.name }}
     member: serviceAccount:hoprd-operator-sa@{{ .Values.operator.crossplane.gcpProjectId }}.iam.gserviceaccount.com
     role: roles/storage.legacyBucketWriter
   providerConfigRef:

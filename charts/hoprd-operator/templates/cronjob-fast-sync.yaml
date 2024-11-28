@@ -13,7 +13,9 @@ spec:
     schedule: "{{ .Values.operator.fastSync.schedule }}"
     jobTemplate:
         spec:
-            backoffLimit: 0
+            backoffLimit: 1
+            activeDeadlineSeconds: 300 # Timeout after 5 minutes
+            ttlSecondsAfterFinished: 86400  # Cleanup completed jobs after 24 hour
             completions: 1
             template:
                 metadata:
@@ -23,18 +25,40 @@ spec:
                               - /bin/sh
                               - -c
                               - |
-                                  set -x
-                                  tar cf /tmp/hopr_logs.tar.gz /app/hoprd-db/db/hopr_logs.db*
-                                  gcloud auth activate-service-account --key-file=/backup/key.json
-                                  gcloud storage cp /tmp/hopr_logs.tar.gz gs://{{ .Values.operator.crossplane.bucketName }}/hopr_logs.tar.gz
+                                # Create backup
+                                if ! tar czf /tmp/hopr_logs.tar.gz /app/hoprd-db/db/hopr_logs.db*; then
+                                    echo "Failed to create backup archive"
+                                    exit 1
+                                fi
+
+                                # Authenticate with GCP
+                                if ! gcloud auth activate-service-account --key-file=/backup/key.json; then
+                                    echo "Failed to authenticate with GCP"
+                                    exit 1
+                                fi
+
+                                # Upload to GCS with verification
+                                if ! gcloud storage cp /tmp/hopr_logs.tar.gz gs://{{ .Values.operator.crossplane.bucket.name }}/hopr_logs.tar.gz; then
+                                    echo "Failed to upload backup"
+                                    exit 1
+                                fi
+
+                                # Cleanup
+                                rm -f /tmp/hopr_logs.tar.gz
                           image: gcr.io/google.com/cloudsdktool/google-cloud-cli:stable
                           name: fast-sync
+                          resources:
+                              limits:
+                                  cpu: 500m
+                                  memory: 512Mi
                           volumeMounts:
                               - name: hoprd-db
                                 mountPath: /app/hoprd-db
+                                readOnly: true
                               - name: service-account-key
                                 mountPath: /backup/key.json
                                 subPath: privateKey
+                                readOnly: true
                     dnsPolicy: ClusterFirst
                     restartPolicy: Never
                     volumes:

@@ -7,7 +7,9 @@ operator:
       crossplane: gcp-crossplane
       upbound: gcp-upbound
     gcpProjectId: hopr-prod
-    bucketName: hoprd-sync-data-prod
+    bucket:
+      name: hoprd-sync-data-prod
+      location: europe-west6
   fastSync:
     enabled: false
     schedule: "0 0 * * *"
