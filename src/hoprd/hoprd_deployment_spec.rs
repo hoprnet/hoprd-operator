@@ -52,6 +52,8 @@ impl Default for HoprdDeploymentSpec {
             CustomEnvVar::new("RUST_BACKTRACE".to_owned(), "full".to_owned()),
             CustomEnvVar::new("RUST_LOG".to_owned(), "info".to_owned()),
             CustomEnvVar::new("HOPRD_LOG_FORMAT".to_owned(), "json".to_owned()),
+            CustomEnvVar::new("HOPRD_MAX_BLOCK_RANGE".to_owned(), "1000".to_owned()),
+            CustomEnvVar::new("HOPRD_MAX_RPC_REQUESTS_PER_SEC".to_owned(), "1000".to_owned()),
             CustomEnvVar::new("DEBUG".to_owned(), "hopr*".to_owned()),
         ];
         let default_env_string = Some(serde_yaml::to_string(&default_env).unwrap());

@@ -1,7 +1,21 @@
 environmentName: prod
 operator:
   persistence:
-    storageClassName: ceph-ephimeral
+    storageClassName: standard-rwo
+  crossplane:
+    provider:
+      crossplane: gcp-crossplane
+      upbound: gcp-upbound
+    gcpProjectId: hopr-prod
+    bucket:
+      name: hoprd-sync-data-prod
+      location: europe-west6
+  fastSync:
+    enabled: false
+    schedule: "0 0 * * *"
+    source:
+      namespace: core-team
+      deployment: core-node-1
   image:
     tag: latest
     pullPolicy: Always

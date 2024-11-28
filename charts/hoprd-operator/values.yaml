@@ -155,6 +155,54 @@ operator:
     ##
     native: 0.01
 
+  crossplane:
+    provider:
+      ## @param operator.crossplane.provider.crossplane Crossplane provider name for Crossplane
+      ##
+      crossplane: ""
+      ## @param operator.crossplane.provider.upbound Crossplane provider name for GCP
+      ##
+      upbound: ""
+
+    ## @param operator.crossplane.gcpProjectId GCP Project ID
+    ##
+    gcpProjectId: ""
+
+    bucket:
+      ## @param operator.crossplane.bucket.name Name of the bucket to store the Fast Sync data
+      ##
+      name: ""
+
+      ## @param operator.crossplane.bucket.location Location of the bucket
+      ##
+      location: "europe-west6"
+
+      ## @param operator.crossplane.bucket.storageClass Storage class of the bucket
+      ##
+      storageClass: "REGIONAL"
+
+  fastSync:
+    ## @param operator.fastSync.enabled Enable Fast Sync
+    ## Required: true
+    enabled: false
+
+    ## @param operator.fastSync.schedule Schedule for Fast Sync
+    ## Required: true when fast-sync  is enabled
+    ## Format: Cron expression (5 fields)
+    ## Example: "0 0 * * *" (daily at midnight)
+    schedule: "0 0 * * *"
+
+    source:
+
+      ## @param operator.fastSync.source.namespace Namespace of the Fast Sync source pod
+      ## Required: true when fast-sync is enabled
+      namespace: ""
+    
+      ## @param operator.fastSync.source.deployment Name of the hoprd node deployment use as source for Fast Sync
+      ## Required: true when fast-sync is enabled
+      deployment: ""
+    
+
   ## @param operator.commonLabels [object] Labels to add to all operator related objects
   ##
   commonLabels: {}
