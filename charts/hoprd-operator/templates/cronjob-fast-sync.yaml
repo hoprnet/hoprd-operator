@@ -26,7 +26,6 @@ spec:
                                   set -x
                                   tar cf /tmp/hopr_logs.tar.gz /app/hoprd-db/db/hopr_logs.db*
                                   gcloud auth activate-service-account --key-file=/backup/key.json
-                                  kubectl scale -n {{ .Values.operator.fastSync.source.namespace }} deployment {{ .Values.operator.fastSync.source.deployment }} --replicas=0
                                   gcloud storage cp /tmp/hopr_logs.tar.gz gs://{{ .Values.operator.crossplane.bucketName }}/hopr_logs.tar.gz
                           image: gcr.io/google.com/cloudsdktool/google-cloud-cli:stable
                           name: fast-sync
