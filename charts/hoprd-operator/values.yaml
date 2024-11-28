@@ -200,7 +200,7 @@ operator:
     
       ## @param operator.fastSync.source.deployment Name of the hoprd node deployment use as source for Fast Sync
       ## Required: true when fast-sync is enabled
-      deployment:
+      deployment: ""
     
 
   ## @param operator.commonLabels [object] Labels to add to all operator related objects
