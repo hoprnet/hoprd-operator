@@ -37,9 +37,9 @@ spec:
         description: Hoprd node {{`{{`}}  $labels.namespace{{`}}`}} /{{`{{`}} $labels.job {{`}}`}} restarted.
         summary: Hoprd node restarted.
       expr: |-
-        # When the node is running for more than 15 minutes and the health status changes in the last 5 minutes
-        avg((time() - hopr_up) > 900 and changes(hopr_network_health[5m]) > 0) by (namespace,job)
-      for: 1m
+        # When the node is running for more than 15 minutes and the health status is not green in the last 5 minutes
+        hopr_network_health < 4 and (time() - hopr_up) > 900
+      for: 5m
       labels:
         severity: critical
         environment: {{ .Values.environmentName }}
