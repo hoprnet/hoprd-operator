@@ -16,7 +16,6 @@ This chart packages the creation of a ClusterHoprd
 | `wallet.identityPassword`           | Password used by all identities defined bellow                                  | `""`        |
 | `wallet.hoprdApiToken`              | API Token used by all nodes of the cluster                                      | `""`        |
 | `network`                           | Hoprd Network: rotsee, dufour                                                   | `""`        |
-| `identityPool.minReadyIdentities`   | Minimum number of identites in ready state                                      | `0`         |
 | `identityPool.funding.enabled`      | Enable cron auto-funding                                                        | `false`     |
 | `identityPool.funding.schedule`     | Cron schedule to run auto-funding job.                                          | `0 1 * * 1` |
 | `identityPool.funding.nativeAmount` | Number of xDai to fund each node                                                | `0.01`      |
@@ -27,4 +26,5 @@ This chart packages the creation of a ClusterHoprd
 | `supportedRelease`                  | The kind of supported release <saint-louis>                                     | `""`        |
 | `forceIdentityName`                 | Forces identity names to be set in child Hopd resources                         | `false`     |
 | `deployment`                        | Deployment spec                                                                 | `{}`        |
+| `service.type`                      | Service Type                                                                    | `ClusterIP` |
 | `config`                            | Custom configuration of nodes                                                   | `""`        |

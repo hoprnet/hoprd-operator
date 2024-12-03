@@ -79,10 +79,10 @@ forceIdentityName: false
 ##
 deployment: {}
 
-##
-## @param service Service spec
-##
-service: 
+service:
+  ##
+  ## @param service.type Service Type
+  ##
   type: "ClusterIP"
 
 
