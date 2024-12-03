@@ -9,7 +9,7 @@ tokio = { version = "1.35", features = [
     "macros",
     "rt-multi-thread",
 ] }
-kube = { version = "0.91", default-features = true, features = [
+kube = { version = "0.97", default-features = true, features = [
     "derive",
     "runtime",
 ] }
