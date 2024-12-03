@@ -13,7 +13,7 @@ use crate::{
 use futures::StreamExt;
 use k8s_openapi::api::batch::v1::JobSpec;
 use k8s_openapi::api::core::v1::{
-    Container, ContainerPort, EmptyDirVolumeSource, EnvVar, EnvVarSource, PersistentVolumeClaimVolumeSource, PodSpec, PodTemplateSpec, SecretKeySelector, Volume, VolumeMount,
+    Container, ContainerPort, EmptyDirVolumeSource, EnvVar, EnvVarSource, ObjectFieldSelector, PersistentVolumeClaimVolumeSource, PodSpec, PodTemplateSpec, SecretKeySelector, Volume, VolumeMount,
 };
 use k8s_openapi::api::{
     apps::v1::{Deployment, DeploymentSpec, DeploymentStrategy},
@@ -93,13 +93,18 @@ pub async fn build_deployment_spec(
     );
     let replicas: i32 = if hoprd_spec.enabled.unwrap_or(true) { 1 } else { 0 };
     let resources = Some(HoprdDeploymentSpec::get_resource_requirements(hoprd_spec.deployment.clone()));
-    let liveness_probe = HoprdDeploymentSpec::get_liveness_probe(hoprd_spec.supported_release, hoprd_spec.deployment.clone());
-    let readiness_probe = HoprdDeploymentSpec::get_readiness_probe(hoprd_spec.supported_release, hoprd_spec.deployment.clone());
-    let startup_probe = HoprdDeploymentSpec::get_startup_probe(hoprd_spec.supported_release, hoprd_spec.deployment.clone());
+    let liveness_probe = HoprdDeploymentSpec::get_liveness_probe(hoprd_spec.deployment.clone());
+    let readiness_probe = HoprdDeploymentSpec::get_readiness_probe(hoprd_spec.deployment.clone());
+    let startup_probe = HoprdDeploymentSpec::get_startup_probe(hoprd_spec.deployment.clone());
     let volume_mounts: Option<Vec<VolumeMount>> = build_volume_mounts();
     let hoprd_host_port = format!("{}:{}", hoprd_host, starting_port);
     let session_port_range = format!("{}:{}", starting_port + 1, last_port - 1);
     let encoded_configuration = general_purpose::STANDARD.encode(&hoprd_spec.config);
+    let command = Some(vec![
+        "sh".to_string(),
+        "-c".to_string(),
+        format!("HOPRD_DEFAULT_SESSION_LISTEN_HOST=\"$POD_IP:{}\" hoprd", starting_port + 1),
+    ]);
 
     DeploymentSpec {
         replicas: Some(replicas),
@@ -142,7 +147,8 @@ pub async fn build_deployment_spec(
                     image_pull_policy: Some("Always".to_owned()),
                     ports: Some(build_ports(starting_port.into(), last_port.into())),
                     env: Some(build_env_vars(&identity_pool, identity_hoprd, &hoprd_host_port, hoprd_spec, session_port_range)),
-                    // command: Some(vec!["/bin/bash".to_owned(), "-c".to_owned()]),
+                    command,
+                    // command: Some(vec!["sh".to_string(), "-c".to_string()]),
                     // args: Some(vec!["sleep 99999999".to_owned()]),
                     liveness_probe,
                     readiness_probe,
@@ -243,7 +249,12 @@ pub async fn job_delete_database(context_data: Arc<ContextData>, deployment_name
     let api: Api<Job> = Api::namespaced(context_data.client.clone(), namespace);
     let rng = rand::thread_rng();
     let suffix: String = rng.sample_iter(&Alphanumeric).take(10).map(char::from).collect();
-    let bucket_name = context_data.config.bucket_name.as_ref().expect("No bucket name has been specified in hoprd operator configuration").clone();
+    let bucket_name = context_data
+        .config
+        .bucket_name
+        .as_ref()
+        .expect("No bucket name has been specified in hoprd operator configuration")
+        .clone();
     let commands = format!(
         r#"
         set -e  # Exit on any error
@@ -295,7 +306,7 @@ pub async fn job_delete_database(context_data: Arc<ContextData>, deployment_name
                     containers: vec![Container {
                         name: "delete-hoprd-db".to_string(),
                         image: Some("debian:stable".to_string()),
-                        command: Some(vec![ "/bin/sh".to_string(), "-c".to_string(), commands ]),
+                        command: Some(vec!["/bin/sh".to_string(), "-c".to_string(), commands]),
                         volume_mounts: Some(vec![VolumeMount {
                             name: "hoprd-db".to_string(),
                             mount_path: "/app/hoprd-db".to_string(),
@@ -428,34 +439,28 @@ fn build_env_vars(identity_pool: &IdentityPool, identity_hoprd: &IdentityHoprd, 
     env_vars.extend_from_slice(&build_crd_env_var(identity_pool, identity_hoprd));
     env_vars.extend_from_slice(&build_default_env_var(hoprd_host));
     env_vars.extend_from_slice(&HoprdDeploymentSpec::get_environment_variables(hoprd_spec.deployment.to_owned()));
-    if hoprd_spec.supported_release.eq(&constants::SupportedReleaseEnum::Providence) {
-        env_vars.push(EnvVar {
-            name: constants::HOPRD_ANNOUNCE.to_owned(),
-            value: Some("true".to_owned()),
-            ..EnvVar::default()
-        });
-        env_vars.push(EnvVar {
-            name: constants::HOPRD_API.to_owned(),
-            value: Some("true".to_owned()),
-            ..EnvVar::default()
-        });
-        env_vars.push(EnvVar {
-            name: constants::HOPRD_INIT.to_owned(),
-            value: Some("true".to_owned()),
-            ..EnvVar::default()
-        });
-    } else {
-        env_vars.push(EnvVar {
-            name: constants::HOPRD_API.to_owned(),
-            value: Some("1".to_owned()),
-            ..EnvVar::default()
-        });
-        env_vars.push(EnvVar {
-            name: constants::HOPRD_SESSION_PORT_RANGE.to_owned(),
-            value: Some(session_port_range),
-            ..EnvVar::default()
-        });
-    }
+    env_vars.push(EnvVar {
+        name: constants::HOPRD_API.to_owned(),
+        value: Some("1".to_owned()),
+        ..EnvVar::default()
+    });
+    env_vars.push(EnvVar {
+        name: constants::HOPRD_SESSION_PORT_RANGE.to_owned(),
+        value: Some(session_port_range),
+        ..EnvVar::default()
+    });
+    // Get the pod IPV4 address
+    env_vars.push(EnvVar {
+        name: "POD_IP".to_owned(),
+        value_from: Some(EnvVarSource {
+            field_ref: Some(ObjectFieldSelector {
+                api_version: Some("v1".to_owned()),
+                field_path: "status.podIP".to_owned(),
+            }),
+            ..EnvVarSource::default()
+        }),
+        ..EnvVar::default()
+    });
     env_vars
 }
 

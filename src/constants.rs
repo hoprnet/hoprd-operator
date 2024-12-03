@@ -41,7 +41,6 @@ pub const HOPRD_API_TOKEN: &str = "HOPRD_API_TOKEN";
 pub const HOPRD_NETWORK: &str = "HOPRD_NETWORK";
 pub const HOPRD_CONFIGURATION_FILE_PATH: &str = "HOPRD_CONFIGURATION_FILE_PATH";
 pub const HOPRD_CONFIGURATION: &str = "HOPRD_CONFIGURATION";
-pub const HOPRD_ANNOUNCE: &str = "HOPRD_ANNOUNCE";
 pub const HOPRD_SAFE_ADDRESS: &str = "HOPRD_SAFE_ADDRESS";
 pub const HOPRD_MODULE_ADDRESS: &str = "HOPRD_MODULE_ADDRESS";
 pub const HOPRD_IDENTITY: &str = "HOPRD_IDENTITY";
@@ -49,7 +48,6 @@ pub const HOPRD_DATA: &str = "HOPRD_DATA";
 pub const HOPRD_HOST: &str = "HOPRD_HOST";
 pub const HOPRD_API: &str = "HOPRD_API";
 pub const HOPRD_API_HOST: &str = "HOPRD_API_HOST";
-pub const HOPRD_INIT: &str = "HOPRD_INIT";
 pub const HOPRD_HEALTH_CHECK: &str = "HOPRD_HEALTH_CHECK";
 pub const HOPRD_HEALTH_CHECK_HOST: &str = "HOPRD_HEALTH_CHECK_HOST";
 pub const HOPRD_SESSION_PORT_RANGE: &str = "HOPRD_SESSION_PORT_RANGE";
@@ -57,9 +55,7 @@ pub const HOPRD_PORTS_ALLOCATION: u16 = 10;
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Default, Clone, Hash, Copy, JsonSchema)]
 pub enum SupportedReleaseEnum {
-    #[serde(rename = "providence")]
     #[default]
-    Providence,
     #[serde(rename = "saint-louis")]
     SaintLouis,
 }

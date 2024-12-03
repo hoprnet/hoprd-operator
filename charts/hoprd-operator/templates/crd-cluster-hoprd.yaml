@@ -76,7 +76,6 @@ spec:
                   type: string
                   description: 'Release Name of the supported version'
                   enum:
-                    - providence
                     - saint-louis
                 forceIdentityName:
                   type: boolean
