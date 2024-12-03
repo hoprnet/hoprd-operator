@@ -66,7 +66,7 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Lint
-        run: helm -f ./values-stage.yaml lint
+        run: helm lint -f ./values-staging.yaml .
         working-directory: 'charts/cluster-hoprd/'
 
   package:

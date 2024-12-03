@@ -6,8 +6,6 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
-use crate::constants::SupportedReleaseEnum;
-
 #[derive(Serialize, Deserialize, Debug)]
 struct CustomEnvVar {
     name: String,
@@ -107,57 +105,42 @@ impl HoprdDeploymentSpec {
         }
     }
 
-    pub fn get_liveness_probe(supported_release: SupportedReleaseEnum, hoprd_deployment_spec_option: Option<HoprdDeploymentSpec>) -> Option<Probe> {
-        match supported_release {
-            SupportedReleaseEnum::Providence => None,
-            SupportedReleaseEnum::SaintLouis => {
-                let default_liveness_probe = HoprdDeploymentSpec::build_probe("/healthyz".to_owned(), Some(5), Some(1), Some(3));
-                if let Some(hoprd_deployment_spec) = hoprd_deployment_spec_option {
-                    if let Some(liveness_probe_string) = hoprd_deployment_spec.liveness_probe {
-                        Some(serde_yaml::from_str(&liveness_probe_string).unwrap())
-                    } else {
-                        Some(default_liveness_probe)
-                    }
-                } else {
-                    Some(default_liveness_probe)
-                }
+    pub fn get_liveness_probe(hoprd_deployment_spec_option: Option<HoprdDeploymentSpec>) -> Option<Probe> {
+        let default_liveness_probe = HoprdDeploymentSpec::build_probe("/healthyz".to_owned(), Some(5), Some(1), Some(3));
+        if let Some(hoprd_deployment_spec) = hoprd_deployment_spec_option {
+            if let Some(liveness_probe_string) = hoprd_deployment_spec.liveness_probe {
+                Some(serde_yaml::from_str(&liveness_probe_string).unwrap())
+            } else {
+                Some(default_liveness_probe)
             }
+        } else {
+            Some(default_liveness_probe)
         }
     }
 
-    pub fn get_startup_probe(supported_release: SupportedReleaseEnum, hoprd_deployment_spec_option: Option<HoprdDeploymentSpec>) -> Option<Probe> {
-        match supported_release {
-            SupportedReleaseEnum::Providence => None,
-            SupportedReleaseEnum::SaintLouis => {
-                let default_startup_probe = HoprdDeploymentSpec::build_probe("/startedz".to_owned(), Some(15), Some(1), Some(8));
-                if let Some(hoprd_deployment_spec) = hoprd_deployment_spec_option {
-                    if let Some(startup_probe_string) = hoprd_deployment_spec.startup_probe {
-                        Some(serde_yaml::from_str(&startup_probe_string).unwrap())
-                    } else {
-                        Some(default_startup_probe)
-                    }
-                } else {
-                    Some(default_startup_probe)
-                }
+    pub fn get_startup_probe(hoprd_deployment_spec_option: Option<HoprdDeploymentSpec>) -> Option<Probe> {
+        let default_startup_probe = HoprdDeploymentSpec::build_probe("/startedz".to_owned(), Some(15), Some(1), Some(8));
+        if let Some(hoprd_deployment_spec) = hoprd_deployment_spec_option {
+            if let Some(startup_probe_string) = hoprd_deployment_spec.startup_probe {
+                Some(serde_yaml::from_str(&startup_probe_string).unwrap())
+            } else {
+                Some(default_startup_probe)
             }
+        } else {
+            Some(default_startup_probe)
         }
     }
 
-    pub fn get_readiness_probe(supported_release: SupportedReleaseEnum, hoprd_deployment_spec_option: Option<HoprdDeploymentSpec>) -> Option<Probe> {
-        match supported_release {
-            SupportedReleaseEnum::Providence => None,
-            SupportedReleaseEnum::SaintLouis => {
-                let default_readiness_probe = HoprdDeploymentSpec::build_probe("/readyz".to_owned(), Some(10), Some(1), Some(6));
-                if let Some(hoprd_deployment_spec) = hoprd_deployment_spec_option {
-                    if let Some(readiness_probe_string) = hoprd_deployment_spec.readiness_probe {
-                        Some(serde_yaml::from_str(&readiness_probe_string).unwrap())
-                    } else {
-                        Some(default_readiness_probe)
-                    }
-                } else {
-                    Some(default_readiness_probe)
-                }
+    pub fn get_readiness_probe(hoprd_deployment_spec_option: Option<HoprdDeploymentSpec>) -> Option<Probe> {
+        let default_readiness_probe = HoprdDeploymentSpec::build_probe("/readyz".to_owned(), Some(10), Some(1), Some(6));
+        if let Some(hoprd_deployment_spec) = hoprd_deployment_spec_option {
+            if let Some(readiness_probe_string) = hoprd_deployment_spec.readiness_probe {
+                Some(serde_yaml::from_str(&readiness_probe_string).unwrap())
+            } else {
+                Some(default_readiness_probe)
             }
+        } else {
+            Some(default_readiness_probe)
         }
     }
 }

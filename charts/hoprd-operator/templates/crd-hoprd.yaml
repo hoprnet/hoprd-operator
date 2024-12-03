@@ -59,7 +59,6 @@ spec:
                   type: string
                   description: 'Release Name of the supported version'
                   enum:
-                    - providence
                     - saint-louis
                 service:
                   type: object

@@ -65,7 +65,7 @@ version: 2.0.2
 enabled: true
 
 ##
-## @param supportedRelease The kind of supported release <providence|saint-louis>
+## @param supportedRelease The kind of supported release <saint-louis>
 ##
 supportedRelease: ""
 
@@ -79,10 +79,10 @@ forceIdentityName: false
 ##
 deployment: {}
 
-##
-## @param service Service spec
-##
-service: 
+service:
+  ##
+  ## @param service.type Service Type
+  ##
   type: "ClusterIP"
 
 
