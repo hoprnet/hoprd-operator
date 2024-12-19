@@ -1,74 +1,161 @@
+{{ if .Values.operator.fastSync.enabled }}
 ---
-{{- if .Values.operator.fastSync.enabled }}
-apiVersion: batch/v1
-kind: CronJob
+apiVersion: v1
+kind: ServiceAccount
 metadata:
-    name: hoprd-operator-fast-sync
+  name: fast-sync-sa
+  namespace: {{ .Values.operator.fastSync.source.namespace}}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: fast-sync-role
+  namespace: {{ .Values.operator.fastSync.source.namespace}}
+rules:
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "list", "patch", "update"]
+  - apiGroups: ["apps"]
+    resources: ["deployments/scale"]
+    verbs: ["patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: fast-sync-deploy
+  namespace: {{ .Values.operator.fastSync.source.namespace}}
+subjects:
+  - kind: ServiceAccount
+    name: fast-sync-sa
     namespace: {{ .Values.operator.fastSync.source.namespace}}
-    labels:
-        hoprd-operator-fast-sync: create-snapshot
+roleRef:
+  kind: Role
+  name: fast-sync-role
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: fast-sync-argo-workflow
+  namespace: {{ .Values.operator.fastSync.source.namespace}}
+subjects:
+  - kind: ServiceAccount
+    name: fast-sync-sa
+    namespace: {{ .Values.operator.fastSync.source.namespace}}
+roleRef:
+  kind: Role
+  name: argo-workflows-workflow
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: argoproj.io/v1alpha1
+kind: CronWorkflow
+metadata:
+  name: snapshot-fast-sync
+  namespace: {{ .Values.operator.fastSync.source.namespace}}
 spec:
-    successfulJobsHistoryLimit: 1
-    failedJobsHistoryLimit: 2
-    schedule: "{{ .Values.operator.fastSync.schedule }}"
-    jobTemplate:
-        spec:
-            backoffLimit: 1
-            activeDeadlineSeconds: 300 # Timeout after 5 minutes
-            ttlSecondsAfterFinished: 86400  # Cleanup completed jobs after 24 hour
-            completions: 1
-            template:
-                metadata:
-                spec:
-                    containers:
-                        - command:
-                              - /bin/sh
-                              - -c
-                              - |
-                                # Create backup
-                                if ! tar czf /tmp/hopr_logs.tar.gz /app/hoprd-db/db/hopr_logs.db*; then
-                                    echo "Failed to create backup archive"
-                                    exit 1
-                                fi
+  schedule: "0 2 * * *" # Runs every day at 2:00 AM
+  timezone: Europe/Zurich # Adjust timezone if necessary
+  concurrencyPolicy: "Replace" # Ensures only one job runs at a time
+  startingDeadlineSeconds: 600 # Deadline to start the job in seconds
+  ttlSecondsAfterFinished: 86400 # Cleanup completed tasks after 24 hour
+  serviceAccountName: argo-workflow
+  workflowSpec:
+    entrypoint: main
+    templates:
+      - name: main
+        steps:
+          - - name: stop-deployment
+              template: stop-deployment
+          - - name: update-fast-sync
+              template: update-fast-sync
+          - - name: start-deployment
+              template: start-deployment
 
-                                # Authenticate with GCP
-                                if ! gcloud auth activate-service-account --key-file=/backup/key.json; then
-                                    echo "Failed to authenticate with GCP"
-                                    exit 1
-                                fi
+      # Task 1: Stop Deployment
+      - name: stop-deployment
+        serviceAccountName: fast-sync-sa
+        container:
+          image: bitnami/kubectl:latest # Image with kubectl to manage Kubernetes resources
+          command: ["/bin/bash", "-c"]
+          args:
+            - |
+              if ! kubectl scale deployment {{ .Values.operator.fastSync.source.deployment }} --replicas=0; then
+                  echo "Failed to stop deployment"
+                  exit 0
+              fi
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "50m"
 
-                                # Upload to GCS with verification
-                                if ! gcloud storage cp /tmp/hopr_logs.tar.gz gs://{{ .Values.operator.crossplane.bucket.name }}/hopr_logs.tar.gz; then
-                                    echo "Failed to upload backup"
-                                    exit 1
-                                fi
+      # Task 2: Update fast sync
+      - name: update-fast-sync
+        container:
+          image: gcr.io/google.com/cloudsdktool/google-cloud-cli:stable
+          command: ["/bin/bash", "-c"]
+          args:
+            - |
+              # Create backup
+              if ! tar czf /tmp/hopr_logs.tar.gz /app/hoprd-db/db/hopr_logs.db*; then
+                  echo "Failed to create backup archive"
+                  exit 1
+              fi
 
-                                # Cleanup
-                                rm -f /tmp/hopr_logs.tar.gz
-                          image: gcr.io/google.com/cloudsdktool/google-cloud-cli:stable
-                          name: fast-sync
-                          resources:
-                              limits:
-                                  cpu: 500m
-                                  memory: 512Mi
-                          volumeMounts:
-                              - name: hoprd-db
-                                mountPath: /app/hoprd-db
-                                readOnly: true
-                              - name: service-account-key
-                                mountPath: /backup/key.json
-                                subPath: privateKey
-                                readOnly: true
-                    dnsPolicy: ClusterFirst
-                    restartPolicy: Never
-                    volumes:
-                        - name: hoprd-db
-                          persistentVolumeClaim:
-                              claimName: {{ .Values.operator.fastSync.source.deployment }}
-                        - name: service-account-key
-                          secret:
-                              secretName: hoprd-operator-sa-key
-                              items:
-                                  - key: privateKey
-                                    path: privateKey
-{{- end }}
+              # Authenticate with GCP
+              if ! gcloud auth activate-service-account --key-file=/backup/key.json; then
+                  echo "Failed to authenticate with GCP"
+                  exit 1
+              fi
+
+              # Upload to GCS with verification
+              if ! gcloud storage cp /tmp/hopr_logs.tar.gz gs://hoprd-sync-data-staging/hopr_logs.tar.gz; then
+                  echo "Failed to upload backup"
+                  exit 1
+              fi
+
+              # Cleanup
+              rm -f /tmp/hopr_logs.tar.gz
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+          volumeMounts:
+            - name: hoprd-db
+              mountPath: /app/hoprd-db
+              readOnly: true
+            - name: service-account-key
+              mountPath: /backup/key.json
+              subPath: privateKey
+              readOnly: true
+        volumes:
+          - name: hoprd-db
+            persistentVolumeClaim:
+              claimName: {{ .Values.operator.fastSync.source.deployment }}
+          - name: service-account-key
+            secret:
+              secretName: hoprd-operator-sa-key
+              items:
+                - key: privateKey
+                  path: privateKey
+        serviceAccountName: fast-sync-sa
+      # Task 3: Start Deployment
+      - name: start-deployment
+        serviceAccountName: fast-sync-sa
+        container:
+          image: bitnami/kubectl:latest
+          command: ["/bin/bash", "-c"]
+          args:
+            - |
+              if ! kubectl scale deployment {{ .Values.operator.fastSync.source.deployment }} --replicas=1; then
+                  echo "Failed to start deployment"
+                  exit 1
+              fi
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "50m"
+    # ttlStrategy:
+    #   secondsAfterCompletion: 86400 # Cleanup completed tasks after 24 hour
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 2
+{{- end -}}
