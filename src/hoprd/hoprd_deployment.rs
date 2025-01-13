@@ -104,17 +104,18 @@ pub async fn build_deployment_spec(
     let encoded_configuration = general_purpose::STANDARD.encode(&hoprd_spec.config);
 
 
-    let init_command = Some(vec![
+    let init_args = Some(vec![
         format!(
         r#"
-        set -e  # Exit on any error
+        set -x;
+        set -e;
         if ! ls /app/hoprd-db/db/hopr_logs.db* 1> /dev/null 2>&1; then
-            apk add --no-cache curl tar
-            curl -sf --retry 3 "https://storage.googleapis.com/{}/hopr_logs.tar.gz" -o /tmp/hopr_logs.tar.gz
-            tar xf /tmp/hopr_logs.tar.gz -C /
-            rm -f /tmp/hopr_logs.tar.gz
-        fi
-        echo $HOPRD_IDENTITY_FILE | base64 -d > /app/hoprd-identity/.hopr-id
+            apk add --no-cache curl tar;
+            curl -sf --retry 3 "https://storage.googleapis.com/{}/hopr_logs.tar.gz" -o /tmp/hopr_logs.tar.gz;
+            tar xf /tmp/hopr_logs.tar.gz -C /;
+            rm -f /tmp/hopr_logs.tar.gz;
+        fi;
+        echo $HOPRD_IDENTITY_FILE | base64 -d > /app/hoprd-identity/.hopr-id;
         echo $HOPRD_CONFIGURATION | base64 -d > /app/hoprd-identity/config.yaml
         "#,
         bucket_name
@@ -148,7 +149,8 @@ pub async fn build_deployment_spec(
                             ..EnvVar::default()
                         },
                     ]),
-                    command: init_command,
+                    command: Some(vec!["sh".to_string(), "-c".to_string()]),
+                    args: init_args,
                     volume_mounts: volume_mounts.to_owned(),
                     ..Container::default()
                 }]),
