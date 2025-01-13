@@ -51,6 +51,7 @@ pub const HOPRD_API_HOST: &str = "HOPRD_API_HOST";
 pub const HOPRD_HEALTH_CHECK: &str = "HOPRD_HEALTH_CHECK";
 pub const HOPRD_HEALTH_CHECK_HOST: &str = "HOPRD_HEALTH_CHECK_HOST";
 pub const HOPRD_SESSION_PORT_RANGE: &str = "HOPRD_SESSION_PORT_RANGE";
+pub const HOPRD_DEFAULT_SESSION_LISTEN_HOST: &str = "HOPRD_DEFAULT_SESSION_LISTEN_HOST";
 pub const HOPRD_PORTS_ALLOCATION: u16 = 10;
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Default, Clone, Hash, Copy, JsonSchema)]

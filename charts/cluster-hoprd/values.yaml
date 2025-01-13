@@ -79,6 +79,11 @@ forceIdentityName: false
 ##
 deployment: {}
 
+##
+## @param ports_allocation Ports allocation
+##
+ports_allocation: 10
+
 service:
   ##
   ## @param service.type Service Type

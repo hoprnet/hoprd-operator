@@ -103,7 +103,7 @@ spec:
                 deleteDatabase:
                   type: boolean
                   description: 'Trigger to delete the database of the node'
-                ports_allocation:
+                portsAllocation:
                   type: number
                   description: >-
                     Number of ports to be opened for session management in the hoprd node.

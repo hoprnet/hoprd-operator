@@ -111,7 +111,7 @@ spec:
                     readinessProbe:
                       type: string
                       description: The definition of the readiness probe to be used by the node deployment
-                ports_allocation:
+                portsAllocation:
                   type: number
                   description: >-
                     Number of ports to be opened for session management in the hoprd node.

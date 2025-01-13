@@ -41,6 +41,7 @@ pub async fn create_deployment(context_data: Arc<ContextData>, hoprd: &Hoprd, id
     let name: String = hoprd.name_any();
     let owner_references: Option<Vec<OwnerReference>> = Some(vec![hoprd.controller_owner_ref(&()).unwrap()]);
     let identity_pool: IdentityPool = identity_hoprd.get_identity_pool(context_data.client.clone()).await.unwrap();
+    let bucket_name= context_data.config.bucket_name.to_owned().unwrap();
 
     let mut labels: BTreeMap<String, String> = utils::common_lables(context_data.config.instance.name.to_owned(), Some(name.to_owned()), Some("node".to_owned()));
     labels.insert(constants::LABEL_NODE_NETWORK.to_owned(), identity_pool.spec.network.clone());
@@ -65,7 +66,7 @@ pub async fn create_deployment(context_data: Arc<ContextData>, hoprd: &Hoprd, id
             owner_references,
             ..ObjectMeta::default()
         },
-        spec: Some(build_deployment_spec(labels, &hoprd.spec, identity_pool, identity_hoprd, &hoprd_host, starting_port, last_port).await),
+        spec: Some(build_deployment_spec(labels, &hoprd.spec, identity_pool, identity_hoprd, &hoprd_host, starting_port, last_port, bucket_name).await),
         ..Deployment::default()
     };
 
@@ -84,6 +85,7 @@ pub async fn build_deployment_spec(
     hoprd_host: &str,
     starting_port: u16,
     last_port: u16,
+    bucket_name: String
 ) -> DeploymentSpec {
     let image = format!(
         "{}/{}:{}",
@@ -100,11 +102,24 @@ pub async fn build_deployment_spec(
     let hoprd_host_port = format!("{}:{}", hoprd_host, starting_port);
     let session_port_range = format!("{}:{}", starting_port + 1, last_port - 1);
     let encoded_configuration = general_purpose::STANDARD.encode(&hoprd_spec.config);
-    let command = Some(vec![
-        "sh".to_string(),
-        "-c".to_string(),
-        format!("HOPRD_DEFAULT_SESSION_LISTEN_HOST=\"$POD_IP:{}\" hoprd", starting_port + 1),
-    ]);
+
+
+    let init_command = Some(vec![
+        format!(
+        r#"
+        set -e  # Exit on any error
+        if ! ls /app/hoprd-db/db/hopr_logs.db* 1> /dev/null 2>&1; then
+            apk add --no-cache curl tar
+            curl -sf --retry 3 "https://storage.googleapis.com/{}/hopr_logs.tar.gz" -o /tmp/hopr_logs.tar.gz
+            tar xf /tmp/hopr_logs.tar.gz -C /
+            rm -f /tmp/hopr_logs.tar.gz
+        fi
+        echo $HOPRD_IDENTITY_FILE | base64 -d > /app/hoprd-identity/.hopr-id
+        echo $HOPRD_CONFIGURATION | base64 -d > /app/hoprd-identity/config.yaml
+        "#,
+        bucket_name
+    )]);
+
 
     DeploymentSpec {
         replicas: Some(replicas),
@@ -133,11 +148,7 @@ pub async fn build_deployment_spec(
                             ..EnvVar::default()
                         },
                     ]),
-                    command: Some(vec!["/bin/sh".to_owned(), "-c".to_owned()]),
-                    args: Some(vec![format!(
-                        "{} && {}",
-                        "echo $HOPRD_IDENTITY_FILE | base64 -d > /app/hoprd-identity/.hopr-id", "echo $HOPRD_CONFIGURATION | base64 -d > /app/hoprd-identity/config.yaml"
-                    )]),
+                    command: init_command,
                     volume_mounts: volume_mounts.to_owned(),
                     ..Container::default()
                 }]),
@@ -147,7 +158,7 @@ pub async fn build_deployment_spec(
                     image_pull_policy: Some("Always".to_owned()),
                     ports: Some(build_ports(starting_port.into(), last_port.into())),
                     env: Some(build_env_vars(&identity_pool, identity_hoprd, &hoprd_host_port, hoprd_spec, session_port_range)),
-                    command,
+                    // command,
                     // command: Some(vec!["sh".to_string(), "-c".to_string()]),
                     // args: Some(vec!["sleep 99999999".to_owned()]),
                     liveness_probe,
@@ -198,7 +209,8 @@ pub async fn modify_deployment(context_data: Arc<ContextData>, deployment_name: 
     let ports_allocation = hoprd_spec.ports_allocation.clone().unwrap_or(constants::HOPRD_PORTS_ALLOCATION);
     let last_port = starting_port + ports_allocation;
     let identity_pool: IdentityPool = identity_hoprd.get_identity_pool(context_data.client.clone()).await.unwrap();
-    let spec = build_deployment_spec(deployment.labels().to_owned(), hoprd_spec, identity_pool, identity_hoprd, &hoprd_host, starting_port, last_port).await;
+    let bucket_name= context_data.config.bucket_name.to_owned().unwrap();
+    let spec = build_deployment_spec(deployment.labels().to_owned(), hoprd_spec, identity_pool, identity_hoprd, &hoprd_host, starting_port, last_port, bucket_name).await;
     let patch = &Patch::Merge(json!({ "spec": spec }));
     api.patch(deployment_name, &PatchParams::default(), patch).await.unwrap();
     Ok(())
@@ -449,18 +461,6 @@ fn build_env_vars(identity_pool: &IdentityPool, identity_hoprd: &IdentityHoprd, 
         value: Some(session_port_range),
         ..EnvVar::default()
     });
-    // Get the pod IPV4 address
-    env_vars.push(EnvVar {
-        name: "POD_IP".to_owned(),
-        value_from: Some(EnvVarSource {
-            field_ref: Some(ObjectFieldSelector {
-                api_version: Some("v1".to_owned()),
-                field_path: "status.podIP".to_owned(),
-            }),
-            ..EnvVarSource::default()
-        }),
-        ..EnvVar::default()
-    });
     env_vars
 }
 
@@ -560,5 +560,12 @@ fn build_default_env_var(hoprd_host: &String) -> Vec<EnvVar> {
             value: Some("0.0.0.0".to_owned()),
             ..EnvVar::default()
         },
+        EnvVar {
+            name: constants::HOPRD_DEFAULT_SESSION_LISTEN_HOST.to_owned(),
+            value: Some("0.0.0.0:0".to_owned()),
+            ..EnvVar::default()
+        },
+
+
     ]
 }

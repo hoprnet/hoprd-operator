@@ -108,7 +108,7 @@ spec:
               fi
 
               # Upload to GCS with verification
-              if ! gcloud storage cp /tmp/hopr_logs.tar.gz gs://hoprd-sync-data-staging/hopr_logs.tar.gz; then
+              if ! gcloud storage cp /tmp/hopr_logs.tar.gz gs://{{ .Values.operator.crossplane.bucket.name }}/hopr_logs.tar.gz; then
                   echo "Failed to upload backup"
                   exit 1
               fi
