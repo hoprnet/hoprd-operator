@@ -263,42 +263,7 @@ pub async fn job_delete_database(context_data: Arc<ContextData>, deployment_name
     let api: Api<Job> = Api::namespaced(context_data.client.clone(), namespace);
     let rng = rand::thread_rng();
     let suffix: String = rng.sample_iter(&Alphanumeric).take(10).map(char::from).collect();
-    let bucket_name = context_data
-        .config
-        .bucket_name
-        .as_ref()
-        .expect("No bucket name has been specified in hoprd operator configuration")
-        .clone();
-    let commands = format!(
-        r#"
-        set -e  # Exit on any error
-        if ! apt-get -qq update && apt-get -qq -y install curl tar; then
-            echo "Failed to install required packages" >&2
-            exit 1
-        fi
-        
-        # Cleanup old database files
-        rm -rf /app/hoprd-db/db/hopr_index.db* /app/hoprd-db/db/hopr_logs.db*
-        
-        # Download and verify tarball
-        TARBALL="/tmp/hopr_logs.tar.gz"
-        if ! curl -sf --retry 3 "https://storage.googleapis.com/{}/hopr_logs.tar.gz" -o "$TARBALL"; then
-            echo "Failed to download database snapshot" >&2
-            exit 1
-        fi
-        
-        # Extract tarball
-        if ! tar xf "$TARBALL" -C /; then
-            echo "Failed to extract database snapshot" >&2
-            rm -f "$TARBALL"
-            exit 1
-        fi
-        
-        # Cleanup
-        rm -f "$TARBALL"
-        "#,
-        bucket_name
-    );
+    let command = "rm -rf /app/hoprd-db/db/hopr_index.db* /app/hoprd-db/db/hopr_logs.db*".to_string();
 
     let job_name = format!("{}-delete-db-{}", deployment_name, suffix.to_lowercase());
     let job = Job {
@@ -320,7 +285,7 @@ pub async fn job_delete_database(context_data: Arc<ContextData>, deployment_name
                     containers: vec![Container {
                         name: "delete-hoprd-db".to_string(),
                         image: Some("debian:stable".to_string()),
-                        command: Some(vec!["/bin/sh".to_string(), "-c".to_string(), commands]),
+                        command: Some(vec!["/bin/sh".to_string(), "-c".to_string(), command]),
                         volume_mounts: Some(vec![VolumeMount {
                             name: "hoprd-db".to_string(),
                             mount_path: "/app/hoprd-db".to_string(),
