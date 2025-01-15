@@ -50,7 +50,7 @@ spec:
       expr: |-
         # When the node is running for more than 15 minutes and the http api call errors are more than 30 in the last 10 minutes
         (
-          sum(increase(hopr_http_api_call_count{status!~"[1,2,3].*"}[10m])) by (namespace, job) > 30
+          sum(increase(hopr_http_api_call_count{exported_endpoint != "/api/v3/peers/<id>/ping", status!~"[1,2,3].*"}[10m])) by (namespace, job) > 30
         )
         and
         (
