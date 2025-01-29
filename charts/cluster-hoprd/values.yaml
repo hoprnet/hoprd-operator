@@ -57,7 +57,7 @@ replicas: 1
 ##
 ## @param version Hoprd node version to run
 ##
-version: 2.0.2
+version: ""
 
 ##
 ## @param enabled Running status of the nodes
@@ -82,7 +82,7 @@ deployment: {}
 ##
 ## @param ports_allocation Ports allocation
 ##
-ports_allocation: 10
+portsAllocation: 10
 
 service:
   ##
