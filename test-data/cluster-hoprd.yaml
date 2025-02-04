@@ -9,7 +9,7 @@ metadata:
 spec:
   identityPoolName: pull-requests-rotsee
   replicas: 1
-  version: saint-louis-latest
+  version: singapore-latest
   supportedRelease: saint-louis
   enabled: true
   service:
@@ -17,5 +17,5 @@ spec:
   config: |
     hopr:
       chain:
-        network: doufur
+        network: rotsee
         provider: https://rpc.ankr.com/gnosis
