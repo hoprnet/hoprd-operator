@@ -16,6 +16,7 @@ pub const IDENTITY_POOL_API_TOKEN_REF_KEY: &str = "HOPRD_API_TOKEN";
 
 // Annotations
 pub const ANNOTATION_LAST_CONFIGURATION: &str = "kubectl.kubernetes.io/last-applied-configuration";
+pub const ANNOTATION_EXTERNAL_DNS_HOSTNAME: &str = "external-dns.alpha.kubernetes.io/hostname";
 
 // Labels
 pub const LABEL_KUBERNETES_NAME: &str = "app.kubernetes.io/name";

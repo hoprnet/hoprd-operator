@@ -145,6 +145,7 @@ impl Hoprd {
                 context_data.clone(),
                 &hoprd_name,
                 &hoprd_namespace,
+                &context_data.config.ingress,
                 &self.spec.identity_pool_name,
                 service_type,
                 starting_port,

@@ -1,4 +1,4 @@
-use crate::model::Error as HoprdError;
+use crate::{model::Error as HoprdError, operator_config::IngressConfig};
 use k8s_openapi::{
     api::core::v1::{Service, ServicePort, ServiceSpec},
     apimachinery::pkg::{apis::meta::v1::OwnerReference, util::intstr::IntOrString},
@@ -54,6 +54,7 @@ pub async fn create_service(
     context_data: Arc<ContextData>,
     name: &str,
     namespace: &str,
+    ingress_config: &IngressConfig,
     identity_pool_name: &str,
     service_type: ServiceTypeEnum,
     starting_port: u16,
@@ -68,7 +69,7 @@ pub async fn create_service(
         info!("ClusterIP Service {} created successfully", name.to_owned());
         Ok(context_data.config.ingress.loadbalancer_ip.to_string())
     } else {
-        let public_ip = create_load_balancer_service(context_data.clone(), name, namespace, labels, owner_references, starting_port, last_port).await?;
+        let public_ip = create_load_balancer_service(context_data.clone(), name, namespace, ingress_config, labels, owner_references, starting_port, last_port).await?;
         info!("LoadBalancer Service {} created successfully", name.to_owned());
         Ok(public_ip)
     }
@@ -78,12 +79,16 @@ async fn create_load_balancer_service(
     context_data: Arc<ContextData>,
     name: &str,
     namespace: &str,
+    ingress_config: &IngressConfig,
     labels: BTreeMap<String, String>,
     owner_references: Option<Vec<OwnerReference>>,
     starting_port: u16,
     last_port: u16,
 ) -> Result<String, HoprdError> {
     let api_service: Api<Service> = Api::namespaced(context_data.client.clone(), namespace);
+    let hostname = format!("{}.{}.{}", name.to_owned(), namespace, ingress_config.dns_domain);
+    let mut annotations: BTreeMap<String, String> = BTreeMap::new();
+    annotations.insert(constants::ANNOTATION_EXTERNAL_DNS_HOSTNAME.to_owned(), hostname.to_owned());
 
     let service_tcp: Service = Service {
         metadata: ObjectMeta {
@@ -91,6 +96,7 @@ async fn create_load_balancer_service(
             namespace: Some(namespace.to_owned()),
             labels: Some(labels.clone()),
             owner_references: owner_references.clone(),
+            annotations: Some(annotations.clone()),
             ..ObjectMeta::default()
         },
         spec: Some(ServiceSpec {
@@ -248,18 +254,18 @@ pub async fn delete_service(client: Client, name: &str, namespace: &str, service
             let uid = service.metadata.uid.unwrap();
             api.clone().delete(&service_p2p_tcp_name, &DeleteParams::default()).await?;
             await_condition(api.clone(), &service_p2p_tcp_name, conditions::is_deleted(&uid)).await.unwrap();
-            info!("Service {service_p2p_tcp_name} successfully deleted")
+            info!("TCP Service {service_p2p_tcp_name} successfully deleted")
         } else {
-            info!("Service {service_p2p_tcp_name} in namespace {namespace} about to delete not found")
+            info!("TCP Service {service_p2p_tcp_name} in namespace {namespace} about to delete not found")
         }
         let service_p2p_udp_name = format!("{}-p2p-udp", name.to_owned());
         if let Some(service) = api.get_opt(&service_p2p_udp_name).await? {
             let uid = service.metadata.uid.unwrap();
             api.clone().delete(&service_p2p_udp_name, &DeleteParams::default()).await?;
             await_condition(api.clone(), &service_p2p_udp_name, conditions::is_deleted(&uid)).await.unwrap();
-            info!("Service {service_p2p_udp_name} successfully deleted")
+            info!("UDP Service {service_p2p_udp_name} successfully deleted")
         } else {
-            info!("Service {service_p2p_udp_name} in namespace {namespace} about to delete not found")
+            info!("UDP Service {service_p2p_udp_name} in namespace {namespace} about to delete not found")
         }
     }
 

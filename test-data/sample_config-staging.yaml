@@ -5,16 +5,17 @@ ingress:
   ingress_class_name: nginx
   dns_domain: staging.hoprnet.link
   loadbalancer_ip: 34.159.20.69
+  namespace: ingress-nginx
+  port_min: 9000
+  port_max: 10000
+  deployment_name: ingress-nginx-controller
   annotations:
     cert-manager.io/cluster-issuer: "gcp-issuer"
     nginx.ingress.kubernetes.io/proxy-connect-timeout: "3600"
     nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
     nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
-  namespace: ingress-nginx
-  port_min: 9000
-  port_max: 10000
-  deployment_name: ingress-nginx-controller
 hopli_image: europe-west3-docker.pkg.dev/hoprassociation/docker-images/hopli:2.1.4
+bucket_name: "hoprd-sync-data-staging"
 persistence:
-  size: 500Mi
-  storage_class_name: ceph-ephimeral
+  size: 4Gi
+  storage_class_name: standard-rwo
