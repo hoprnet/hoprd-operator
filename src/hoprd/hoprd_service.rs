@@ -86,7 +86,7 @@ async fn create_load_balancer_service(
     last_port: u16,
 ) -> Result<String, HoprdError> {
     let api_service: Api<Service> = Api::namespaced(context_data.client.clone(), namespace);
-    let hostname = format!("{}.{}.{}", name.to_owned(), namespace, ingress_config.dns_domain);
+    let hostname = format!("{}-p2p.{}.{}", name.to_owned(), namespace, ingress_config.dns_domain);
     let mut annotations: BTreeMap<String, String> = BTreeMap::new();
     annotations.insert(constants::ANNOTATION_EXTERNAL_DNS_HOSTNAME.to_owned(), hostname.to_owned());
 
