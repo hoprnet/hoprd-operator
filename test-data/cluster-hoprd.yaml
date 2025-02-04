@@ -18,4 +18,4 @@ spec:
     hopr:
       chain:
         network: rotsee
-        provider: https://gnosis.rpc-provider.prod.hoprnet.link
+        provider: https://rpc.ankr.com/gnosis
