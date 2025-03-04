@@ -128,7 +128,7 @@ impl IdentityPool {
         }
         info!("Starting to create IdentityPool {identity_pool_name} in namespace {identity_pool_namespace}");
         resource_generics::add_finalizer(client.clone(), self).await;
-        identity_pool_service_monitor::create_service_monitor(context_data.clone(), &identity_pool_name, &identity_pool_namespace, &self.spec.secret_name, owner_references.to_owned()).await?;
+        identity_pool_service_monitor::create_service_monitor(context_data.clone(), &identity_pool_name, &identity_pool_namespace, owner_references.to_owned()).await?;
         identity_pool_service_account::create_rbac(context_data.clone(), &identity_pool_namespace, &identity_pool_name, owner_references.to_owned()).await?;
         if self.spec.funding.is_some() {
             identity_pool_cronjob_faucet::create_cron_job(context_data.clone(), self).await.expect("Could not create Cronjob");

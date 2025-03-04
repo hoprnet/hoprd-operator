@@ -208,6 +208,13 @@ fn build_ports(starting_port: u16, last_port: u16, port_name: Option<&str>) -> V
             target_port: Some(IntOrString::String("api".to_owned())),
             ..ServicePort::default()
         });
+        ports.push(ServicePort {
+            name: Some("metrics".to_owned()),
+            port: 8080,
+            protocol: Some("TCP".to_owned()),
+            target_port: Some(IntOrString::String("metrics".to_owned())),
+            ..ServicePort::default()
+        });
     }
 
     for protocol in protocols {

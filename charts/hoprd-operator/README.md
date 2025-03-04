@@ -35,8 +35,6 @@ Chart version `Chart.yaml` should be increased according to [semver](http://semv
 | `fullnameOverride` | String to fully override common.names.fullname     | `""`  |
 | `environmentName`  | Name of the environment                            | `""`  |
 
-### Replicator Parameters
-
 
 ### Hopr AdminUI Parameters
 
