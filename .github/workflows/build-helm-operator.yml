@@ -113,7 +113,7 @@ jobs:
       - name: Set up python
         uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # tag=v5.4.0
         with:
-          python-version: 3.7
+          python-version: 3.13
 
       - name: Run Trivy vulnerability scanner in IaC mode
         uses: aquasecurity/trivy-action@master
@@ -139,7 +139,7 @@ jobs:
       - name: Setup NodeJs
         uses: actions/setup-node@v4
         with:
-          node-version: 18
+          node-version: 22
 
       - name: Install readme-generator-for-helm
         run: npm install -g @bitnami/readme-generator-for-helm@2.5.0
