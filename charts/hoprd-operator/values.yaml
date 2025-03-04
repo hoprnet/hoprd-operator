@@ -199,9 +199,9 @@ operator:
       ## Required: true when fast-sync is enabled
       deployment: ""
   
-  ## @param operator.deafultHoprdEnvVars Environment variables to be set in the Hoprd Nodes
+  ## @param operator.defaultHoprdEnvVars Environment variables to be set in the Hoprd Nodes
   ##
-  deafultHoprdEnvVars: {}
+  defaultHoprdEnvVars: {}
 
   ## @param operator.commonLabels [object] Labels to add to all operator related objects
   ##
