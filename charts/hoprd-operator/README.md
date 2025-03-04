@@ -35,7 +35,6 @@ Chart version `Chart.yaml` should be increased according to [semver](http://semv
 | `fullnameOverride` | String to fully override common.names.fullname     | `""`  |
 | `environmentName`  | Name of the environment                            | `""`  |
 
-
 ### Hopr AdminUI Parameters
 
 | Name                               | Description                                                                                           | Value                                      |
@@ -81,6 +80,7 @@ Chart version `Chart.yaml` should be increased according to [semver](http://semv
 | `operator.fastSync.schedule`              | Schedule for Fast Sync                                             | `0 0 * * *`                                    |
 | `operator.fastSync.source.namespace`      | Namespace of the Fast Sync source pod                              | `""`                                           |
 | `operator.fastSync.source.deployment`     | Name of the hoprd node deployment use as source for Fast Sync      | `""`                                           |
+| `operator.deafultHoprdEnvVars`            | Environment variables to be set in the Hoprd Nodes                 | `{}`                                           |
 | `operator.commonLabels`                   | Labels to add to all operator related objects                      | `{}`                                           |
 | `operator.commonAnnotations`              | Annotations to to all operator related objects                     | `{}`                                           |
 | `operator.extraEnvVars`                   | Array of extra environment variables                               | `[]`                                           |
