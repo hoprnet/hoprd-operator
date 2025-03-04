@@ -60,7 +60,7 @@ data:
     echo ""
 
     # Output the metrics
-    echo "$(fetch_hopr_data)"
+    echo "$(fetch_metrics)"
 
 
     
