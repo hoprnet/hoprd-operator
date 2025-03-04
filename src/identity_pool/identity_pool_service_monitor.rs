@@ -10,13 +10,13 @@ use tracing::info;
 
 use crate::context_data::ContextData;
 use crate::servicemonitor::{
-    ServiceMonitorEndpoints, ServiceMonitorEndpointsBearerTokenSecret, ServiceMonitorEndpointsRelabelings, ServiceMonitorEndpointsRelabelingsAction, ServiceMonitorNamespaceSelector,
+    ServiceMonitorEndpoints, ServiceMonitorEndpointsRelabelings, ServiceMonitorEndpointsRelabelingsAction, ServiceMonitorNamespaceSelector,
     ServiceMonitorSelector, ServiceMonitorSpec,
 };
 use crate::{constants, servicemonitor::ServiceMonitor};
 
 /// Creates a new serviceMonitor to enable the monitoring with Prometheus of the hoprd node,
-pub async fn create_service_monitor(context_data: Arc<ContextData>, name: &str, namespace: &str, secret_name: &String, owner_references: Option<Vec<OwnerReference>>) -> Result<ServiceMonitor, Error> {
+pub async fn create_service_monitor(context_data: Arc<ContextData>, name: &str, namespace: &str, owner_references: Option<Vec<OwnerReference>>) -> Result<ServiceMonitor, Error> {
     let mut labels: BTreeMap<String, String> = BTreeMap::new();
     labels.insert(constants::LABEL_KUBERNETES_NAME.to_owned(), context_data.config.instance.name.to_owned());
     labels.insert(constants::LABEL_KUBERNETES_IDENTITY_POOL.to_owned(), name.to_owned());
@@ -34,16 +34,17 @@ pub async fn create_service_monitor(context_data: Arc<ContextData>, name: &str, 
         spec: ServiceMonitorSpec {
             endpoints: vec![ServiceMonitorEndpoints {
                 interval: Some("15s".to_owned()),
-                path: Some("/api/v3/node/metrics".to_owned()),
-                port: Some("api".to_owned()),
+                path: Some("/metrics".to_owned()),
+                port: Some("metrics".to_owned()),
                 basic_auth: None,
                 authorization: None,
                 bearer_token_file: None,
-                bearer_token_secret: Some(ServiceMonitorEndpointsBearerTokenSecret {
-                    key: constants::IDENTITY_POOL_API_TOKEN_REF_KEY.to_owned(),
-                    name: Some(secret_name.to_owned()),
-                    optional: Some(false),
-                }),
+                bearer_token_secret: None,
+                // bearer_token_secret: Some(ServiceMonitorEndpointsBearerTokenSecret {
+                //     key: constants::IDENTITY_POOL_API_TOKEN_REF_KEY.to_owned(),
+                //     name: Some(secret_name.to_owned()),
+                //     optional: Some(false),
+                // }),
                 follow_redirects: None,
                 honor_labels: None,
                 honor_timestamps: None,

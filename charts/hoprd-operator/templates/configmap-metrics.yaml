@@ -1,0 +1,66 @@
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "hoprd-operator.fullname" . }}-metrics
+  namespace: {{ .Release.Namespace | quote }}
+  labels:
+    {{- include "hoprd-operator.labels" . | nindent 4 }}
+    {{- if .Values.operator.commonLabels }}
+    {{- .Values.operator.commonLabels | toYaml | nindent 4 }}
+    {{- end }}
+  annotations:
+    replicator.v1.mittwald.de/replicate-to-matching: hoprds.hoprnet.org/hoprds
+data:
+  lighttpd.conf: |
+    server.modules = (
+      "mod_indexfile",
+      "mod_access",
+      "mod_alias",
+      "mod_redirect",
+            "mod_cgi"
+    )
+
+    server.port = 8080
+    server.document-root = "/var/www/html"
+    server.indexfiles = ( "index.html" )
+
+    # Enable CGI for all .sh scripts
+    cgi.assign = ( ".sh" => "/bin/sh" )
+
+    # Map /metrics to the actual CGI script location
+    alias.url += ( "/metrics" => "/var/www/cgi-bin/metrics.sh" )
+
+    # Enable CGI execution only for the scripts inside /var/www/cgi-bin
+    alias.url += ( "/cgi-bin/" => "/var/www/cgi-bin/" )
+    $HTTP["url"] =~ "^/cgi-bin/" {
+        cgi.assign = ( ".sh" => "/bin/sh" )
+        cgi.execute-x-only = "enable"
+    }
+
+    # Log requests
+    accesslog.filename = "/var/log/lighttpd/access.log"
+
+  metrics.sh: |
+    #!/bin/bash
+
+    # Load environment variables
+    export $(grep -v '^#' /etc/environment | xargs)
+
+    # Function to fetch metrics from Hopr API
+    fetch_metrics() {
+      curl -s --max-time 10 -H 'accept: application/json' -H "X-Auth-Token: ${HOPRD_API_TOKEN}" "http://hoprd:3001/api/v3/metrics"
+      if [ $? -ne 0 ]; then
+        echo "Error: Failed to fetch Hopr metrics"
+      fi
+    }
+
+    # Output the headers
+    echo "Content-Type: text/plain; charset=utf-8"
+    echo ""
+
+    # Output the metrics
+    echo "$(fetch_metrics)"
+
+
+    

@@ -12,9 +12,6 @@ fullnameOverride: ""
 ##
 environmentName: ""
 
-## @section Replicator Parameters
-##
-
 ## @section Hopr AdminUI Parameters
 ##
 
@@ -201,7 +198,10 @@ operator:
       ## @param operator.fastSync.source.deployment Name of the hoprd node deployment use as source for Fast Sync
       ## Required: true when fast-sync is enabled
       deployment: ""
-    
+  
+  ## @param operator.defaultHoprdEnvVars Environment variables to be set in the Hoprd Nodes
+  ##
+  defaultHoprdEnvVars: {}
 
   ## @param operator.commonLabels [object] Labels to add to all operator related objects
   ##
