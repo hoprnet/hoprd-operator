@@ -100,4 +100,5 @@ config: ""
 ##
 ## @param defaultHoprdEnvVars Default environment variables for hoprd
 ##
-defaultHoprdEnvVars: {}
+defaultHoprdEnvVars:
+  HOPRD_PROVIDER: https://gnosis.drpc.org

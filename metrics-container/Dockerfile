@@ -17,8 +17,8 @@ EXPOSE 8080
 RUN mkdir -p /app/hoprd-metrics /var/www/cgi-bin/
 COPY ./metrics.sh /var/www/cgi-bin/
 COPY ./lighttpd.conf /etc/lighttpd/lighttpd.conf
-RUN chmod +x /var/www/cgi-bin/metrics.sh
+COPY ./entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /var/www/cgi-bin/metrics.sh /usr/local/bin/entrypoint.sh
 RUN chown -R www-data:www-data /var/www/cgi-bin
-RUN sed -i 's/${HOPRD_API_TOKEN}/'$HOPRD_API_TOKEN'/' /var/www/cgi-bin/metrics.sh
 
-CMD ["lighttpd", "-D", "-f", "/etc/lighttpd/lighttpd.conf"]
+ENTRYPOINT [ "/usr/local/bin/entrypoint.sh" ]
