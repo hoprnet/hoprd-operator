@@ -71,7 +71,7 @@ adminUI:
 
     ## @param adminUI.image.tag Docker image tag to AdminUI deployment
     ##
-    tag: latest
+    tag: stable
 
     ## @param adminUI.image.pullPolicy Pull policy to AdminUI deployment as deinfed in 
     ## ref: http://kubernetes.io/docs/user-guide/images/#pre-pulling-images

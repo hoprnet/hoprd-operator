@@ -34,6 +34,7 @@ pub const LABEL_NODE_CLUSTER: &str = "hoprds.hoprnet.org/cluster";
 // Kubernetes Specs
 pub const HOPR_DOCKER_REGISTRY: &str = "europe-west3-docker.pkg.dev";
 pub const HOPR_DOCKER_IMAGE_NAME: &str = "hoprassociation/docker-images/hoprd";
+pub const HOPR_DOCKER_METRICS_IMAGE_NAME: &str = "hoprassociation/docker-images/hoprd-operator-metrics";
 
 // HOPRD Arguments
 pub const HOPRD_IDENTITY_FILE: &str = "HOPRD_IDENTITY_FILE";

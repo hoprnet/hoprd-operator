@@ -95,3 +95,9 @@ service:
 ## @param config Custom configuration of nodes
 ##
 config: ""
+
+
+##
+## @param defaultHoprdEnvVars Default environment variables for hoprd
+##
+defaultHoprdEnvVars: {}

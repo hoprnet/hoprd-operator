@@ -56,3 +56,9 @@ docker-push: ## Deploys docker image into GCP Artifact registry
 create-identity: ## Create identity resources
 	# kubectl patch -n hoprd-operator IdentityPool pool-hoprd-operator --type='json' -p='[{"op": "replace", "path": "/spec/minReadyIdentities", "value":1}]'
 	# kubectl patch -n rotsee IdentityPool core-rotsee --type='json' -p='[{"op": "replace", "path": "/spec/minReadyIdentities", "value":1}]'
+
+docker-metrics-build: ## Builds Metrics docker image
+	docker build -t europe-west3-docker.pkg.dev/hoprassociation/docker-images/hoprd-operator-metrics:latest --platform linux/amd64 --progress plain ./metrics-container
+
+docker-metrics-push: ## Deploys Metrics docker image into GCP Artifact registry
+	docker push europe-west3-docker.pkg.dev/hoprassociation/docker-images/hoprd-operator-metrics:latest
