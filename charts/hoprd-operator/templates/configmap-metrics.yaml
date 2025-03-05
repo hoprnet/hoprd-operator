@@ -10,7 +10,8 @@ metadata:
     {{- .Values.operator.commonLabels | toYaml | nindent 4 }}
     {{- end }}
   annotations:
-    replicator.v1.mittwald.de/replicate-to-matching: hoprds.hoprnet.org/hoprds
+    replicator.v1.mittwald.de/replication-allowed: "true"
+    replicator.v1.mittwald.de/replication-allowed-namespaces: "*"
 data:
   lighttpd.conf: |
     server.modules = (
