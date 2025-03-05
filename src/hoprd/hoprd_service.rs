@@ -111,10 +111,10 @@ async fn create_load_balancer_service(
     api_service.create(&PostParams::default(), &service_tcp).await?;
     let mut load_balancer_ip = None;
     let mut retries = 0;
-    let max_retries = 12; // e.g., 12 retries with 5-second intervals
+    let max_retries = 24; // e.g., 24 retries with 10-second intervals
     while load_balancer_ip.is_none() && retries < max_retries {
         // Wait for a short period before checking the service status again
-        tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+        tokio::time::sleep(tokio::time::Duration::from_secs(10)).await;
         retries += 1;
 
         // Fetch the latest version of the service
