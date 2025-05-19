@@ -96,6 +96,12 @@ service:
 ##
 config: ""
 
+replicateDefaultEnvSecret:
+  ##
+  ## @param replicateSecret.enabled Enable secret replication
+  ##
+  enabled: true
+
 
 ##
 ## @param defaultHoprdEnvVars Default environment variables for hoprd
