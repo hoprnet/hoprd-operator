@@ -102,6 +102,7 @@ async fn create_load_balancer_service(
         spec: Some(ServiceSpec {
             selector: Some(labels.clone()),
             type_: Some("LoadBalancer".to_owned()),
+            allocate_load_balancer_node_ports: Some(false),
             ports: Some(build_ports(starting_port, last_port, Some("tcp"))),
             ..ServiceSpec::default()
         }),
