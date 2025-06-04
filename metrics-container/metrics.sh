@@ -1,7 +1,7 @@
 #!/bin/bash
 # Function to fetch metrics from Hopr API
 fetch_metrics() {
-  curl -s --max-time 10 -H 'accept: application/json' -H "X-Auth-Token: ${HOPRD_API_TOKEN}" "http://localhost:3001/api/v3/node/metrics"
+  curl -s --max-time 10 -H "X-Auth-Token: ${HOPRD_API_TOKEN}" "http://localhost:3001/metrics"
   if [ $? -ne 0 ]; then
     echo "Error: Failed to fetch Hopr metrics"
   fi
