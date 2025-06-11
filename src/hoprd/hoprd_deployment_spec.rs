@@ -9,8 +9,8 @@ use std::collections::BTreeMap;
 #[derive(Serialize, Deserialize, Debug, Clone)]
 struct CustomKeyRef {
     key: String,
-    name: String
-}   
+    name: String,
+}
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 struct CustomValueFrom {
@@ -18,14 +18,12 @@ struct CustomValueFrom {
 }
 
 impl CustomValueFrom {
-
     pub fn to_env_var_source(&self) -> EnvVarSource {
         EnvVarSource {
             secret_key_ref: Some(SecretKeySelector {
                 key: self.secret_key_ref.key.to_owned(),
                 name: Some(self.secret_key_ref.name.to_owned()),
                 ..SecretKeySelector::default()
-
             }),
             ..EnvVarSource::default()
         }
@@ -41,7 +39,11 @@ struct CustomEnvVar {
 
 impl CustomEnvVar {
     pub fn new_value(name: String, value: String) -> Self {
-        Self { name, value: Some(value), value_from: None }
+        Self {
+            name,
+            value: Some(value),
+            value_from: None,
+        }
     }
 
     pub fn to_env_var(&self) -> EnvVar {
@@ -120,10 +122,16 @@ impl HoprdDeploymentSpec {
         let default_environment_variables: Vec<CustomEnvVar> = serde_yaml::from_str(default_deployment_spec.env.as_ref().unwrap()).unwrap();
         let custom_environment_variables_string = hoprd_deployment_spec.env.as_ref().unwrap_or(default_deployment_spec.env.as_ref().unwrap());
         let custom_environment_variables: Vec<CustomEnvVar> = serde_yaml::from_str(custom_environment_variables_string).unwrap();
-        default_environment_variables.iter().filter(| &default_environment_variable| {
-            !custom_environment_variables.iter().any(|custom_environment_variable| custom_environment_variable.name == default_environment_variable.name)
-        }).chain(custom_environment_variables.iter()).map(|env| env.to_env_var()).collect()
-
+        default_environment_variables
+            .iter()
+            .filter(|&default_environment_variable| {
+                !custom_environment_variables
+                    .iter()
+                    .any(|custom_environment_variable| custom_environment_variable.name == default_environment_variable.name)
+            })
+            .chain(custom_environment_variables.iter())
+            .map(|env| env.to_env_var())
+            .collect()
     }
 
     pub fn build_probe(path: String, period_seconds: Option<i32>, success_threshold: Option<i32>, failure_threshold: Option<i32>) -> Probe {
