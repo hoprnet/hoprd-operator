@@ -10,8 +10,7 @@ use tracing::info;
 
 use crate::context_data::ContextData;
 use crate::servicemonitor::{
-    ServiceMonitorEndpoints, ServiceMonitorEndpointsRelabelings, ServiceMonitorEndpointsRelabelingsAction, ServiceMonitorNamespaceSelector,
-    ServiceMonitorSelector, ServiceMonitorSpec,
+    ServiceMonitorEndpoints, ServiceMonitorEndpointsRelabelings, ServiceMonitorEndpointsRelabelingsAction, ServiceMonitorNamespaceSelector, ServiceMonitorSelector, ServiceMonitorSpec,
 };
 use crate::{constants, servicemonitor::ServiceMonitor};
 

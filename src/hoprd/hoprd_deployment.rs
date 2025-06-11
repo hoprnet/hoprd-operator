@@ -14,7 +14,8 @@ use crate::{
 use futures::StreamExt;
 use k8s_openapi::api::batch::v1::JobSpec;
 use k8s_openapi::api::core::v1::{
-    Container, ContainerPort, EmptyDirVolumeSource, EnvVar, EnvVarSource, SecretEnvSource, EnvFromSource, PersistentVolumeClaimVolumeSource, PodSpec, PodTemplateSpec, Probe, SecretKeySelector, TCPSocketAction, Volume, VolumeMount
+    Container, ContainerPort, EmptyDirVolumeSource, EnvFromSource, EnvVar, EnvVarSource, PersistentVolumeClaimVolumeSource, PodSpec, PodTemplateSpec, Probe, SecretEnvSource, SecretKeySelector,
+    TCPSocketAction, Volume, VolumeMount,
 };
 use k8s_openapi::api::{
     apps::v1::{Deployment, DeploymentSpec, DeploymentStrategy},
@@ -42,7 +43,7 @@ pub async fn create_deployment(context_data: Arc<ContextData>, hoprd: &Hoprd, id
     let name: String = hoprd.name_any();
     let owner_references: Option<Vec<OwnerReference>> = Some(vec![hoprd.controller_owner_ref(&()).unwrap()]);
     let identity_pool: IdentityPool = identity_hoprd.get_identity_pool(context_data.client.clone()).await.unwrap();
-    let bucket_name= context_data.config.bucket_name.to_owned().unwrap();
+    let bucket_name = context_data.config.bucket_name.to_owned().unwrap();
 
     let mut labels: BTreeMap<String, String> = utils::common_lables(context_data.config.instance.name.to_owned(), Some(name.to_owned()), Some("node".to_owned()));
     labels.insert(constants::LABEL_NODE_NETWORK.to_owned(), identity_pool.spec.network.clone());
@@ -104,9 +105,7 @@ pub async fn build_deployment_spec(
     let session_port_range = format!("{}:{}", starting_port + 1, last_port - 1);
     let encoded_configuration = general_purpose::STANDARD.encode(&hoprd_spec.config);
 
-
-    let init_args = Some(vec![
-        format!(
+    let init_args = Some(vec![format!(
         r#"
         set -x;
         set -e;
@@ -121,7 +120,6 @@ pub async fn build_deployment_spec(
         "#,
         bucket_name
     )]);
-
 
     DeploymentSpec {
         replicas: Some(replicas),
@@ -155,26 +153,29 @@ pub async fn build_deployment_spec(
                     volume_mounts: volume_mounts.to_owned(),
                     ..Container::default()
                 }]),
-                containers: vec![Container {
-                    name: "hoprd".to_owned(),
-                    image: Some(image),
-                    image_pull_policy: Some("Always".to_owned()),
-                    ports: Some(build_ports(starting_port.into(), last_port.into())),
-                    env: Some(build_env_vars(&identity_pool, identity_hoprd, &hoprd_host_port, hoprd_spec, session_port_range)),
-                    env_from: Some(vec![EnvFromSource {
-                        secret_ref: Some(SecretEnvSource {
-                            name: Some(format!("{}-default-env", identity_pool.name_any())),
-                            ..SecretEnvSource::default()
-                        }),
-                        ..EnvFromSource::default()
-                    }]),
-                    liveness_probe,
-                    readiness_probe,
-                    startup_probe,
-                    volume_mounts,
-                    resources,
-                    ..Container::default()
-                }, metrics_container(&identity_pool)],
+                containers: vec![
+                    Container {
+                        name: "hoprd".to_owned(),
+                        image: Some(image),
+                        image_pull_policy: Some("Always".to_owned()),
+                        ports: Some(build_ports(starting_port.into(), last_port.into())),
+                        env: Some(build_env_vars(&identity_pool, identity_hoprd, hoprd_host, &hoprd_host_port, hoprd_spec, session_port_range)),
+                        env_from: Some(vec![EnvFromSource {
+                            secret_ref: Some(SecretEnvSource {
+                                name: Some(format!("{}-default-env", identity_pool.name_any())),
+                                ..SecretEnvSource::default()
+                            }),
+                            ..EnvFromSource::default()
+                        }]),
+                        liveness_probe,
+                        readiness_probe,
+                        startup_probe,
+                        volume_mounts,
+                        resources,
+                        ..Container::default()
+                    },
+                    metrics_container(&identity_pool),
+                ],
                 volumes: Some(build_volumes(&identity_hoprd.name_any()).await),
                 ..PodSpec::default()
             }),
@@ -216,19 +217,25 @@ pub async fn modify_deployment(context_data: Arc<ContextData>, deployment_name: 
     let ports_allocation = hoprd_spec.ports_allocation.clone().unwrap_or(constants::HOPRD_PORTS_ALLOCATION);
     let last_port = starting_port + ports_allocation;
     let identity_pool: IdentityPool = identity_hoprd.get_identity_pool(context_data.client.clone()).await.unwrap();
-    let bucket_name= context_data.config.bucket_name.to_owned().unwrap();
-    let spec = build_deployment_spec(deployment.labels().to_owned(), hoprd_spec, identity_pool, identity_hoprd, &hoprd_host, starting_port, last_port, bucket_name).await;
+    let bucket_name = context_data.config.bucket_name.to_owned().unwrap();
+    let spec = build_deployment_spec(
+        deployment.labels().to_owned(),
+        hoprd_spec,
+        identity_pool,
+        identity_hoprd,
+        &hoprd_host,
+        starting_port,
+        last_port,
+        bucket_name,
+    )
+    .await;
     let patch = &Patch::Merge(json!({ "spec": spec }));
     api.patch(deployment_name, &PatchParams::default(), patch).await.unwrap();
     Ok(())
 }
 
 pub fn metrics_container(identity_pool: &IdentityPool) -> Container {
-    let image = format!(
-        "{}/{}:latest",
-        constants::HOPR_DOCKER_REGISTRY.to_owned(),
-        constants::HOPR_DOCKER_METRICS_IMAGE_NAME.to_owned()
-    );
+    let image = format!("{}/{}:latest", constants::HOPR_DOCKER_REGISTRY.to_owned(), constants::HOPR_DOCKER_METRICS_IMAGE_NAME.to_owned());
     Container {
         name: "hoprd-operator-metrics".to_owned(),
         image: Some(image),
@@ -238,9 +245,9 @@ pub fn metrics_container(identity_pool: &IdentityPool) -> Container {
             protocol: Some("TCP".to_owned()),
             ..ContainerPort::default()
         }]),
-        env: Some(vec![ env_var_hoprd_api_token(identity_pool)]),
-        readiness_probe: Some( Probe {
-            tcp_socket: Some( TCPSocketAction {
+        env: Some(vec![env_var_hoprd_api_token(identity_pool)]),
+        readiness_probe: Some(Probe {
+            tcp_socket: Some(TCPSocketAction {
                 port: IntOrString::Int(8080),
                 ..Default::default()
             }),
@@ -249,10 +256,9 @@ pub fn metrics_container(identity_pool: &IdentityPool) -> Container {
             failure_threshold: Some(6),
             ..Probe::default()
         }),
-         ..Container::default()
+        ..Container::default()
     }
 }
-
 
 /// Deletes an existing deployment.
 pub async fn delete_depoyment(client: Client, name: &str, namespace: &str) -> Result<(), Error> {
@@ -398,7 +404,7 @@ async fn build_volumes(pvc_name: &String) -> Vec<Volume> {
                 read_only: Some(false),
             }),
             ..Volume::default()
-        }
+        },
     ]
 }
 
@@ -449,10 +455,10 @@ fn build_ports(starting_port: i32, last_port: i32) -> Vec<ContainerPort> {
 
 ///Build struct environment variable
 ///
-fn build_env_vars(identity_pool: &IdentityPool, identity_hoprd: &IdentityHoprd, hoprd_host: &String, hoprd_spec: &HoprdSpec, session_port_range: String) -> Vec<EnvVar> {
+fn build_env_vars(identity_pool: &IdentityPool, identity_hoprd: &IdentityHoprd, hoprd_host: &str, hoprd_host_port: &String, hoprd_spec: &HoprdSpec, session_port_range: String) -> Vec<EnvVar> {
     let mut env_vars = build_secret_env_var(identity_pool);
     env_vars.extend_from_slice(&build_crd_env_var(identity_pool, identity_hoprd));
-    env_vars.extend_from_slice(&build_default_env_var(hoprd_host));
+    env_vars.extend_from_slice(&build_default_env_var(hoprd_host_port));
     env_vars.extend_from_slice(&HoprdDeploymentSpec::get_environment_variables(hoprd_spec.deployment.to_owned()));
     env_vars.push(EnvVar {
         name: constants::HOPRD_API.to_owned(),
@@ -464,22 +470,27 @@ fn build_env_vars(identity_pool: &IdentityPool, identity_hoprd: &IdentityHoprd, 
         value: Some(session_port_range),
         ..EnvVar::default()
     });
+    env_vars.push(EnvVar {
+        name: constants::HOPRD_DEFAULT_SESSION_LISTEN_HOST.to_owned(),
+        value: Some(format!("{}:0", hoprd_host)),
+        ..EnvVar::default()
+    });
     env_vars
 }
 
-fn env_var_hoprd_api_token(identity_pool: &IdentityPool) -> EnvVar{
-        EnvVar {
-            name: constants::HOPRD_API_TOKEN.to_owned(),
-            value_from: Some(EnvVarSource {
-                secret_key_ref: Some(SecretKeySelector {
-                    key: constants::IDENTITY_POOL_API_TOKEN_REF_KEY.to_owned(),
-                    name: Some(identity_pool.spec.secret_name.to_owned()),
-                    ..SecretKeySelector::default()
-                }),
-                ..EnvVarSource::default()
+fn env_var_hoprd_api_token(identity_pool: &IdentityPool) -> EnvVar {
+    EnvVar {
+        name: constants::HOPRD_API_TOKEN.to_owned(),
+        value_from: Some(EnvVarSource {
+            secret_key_ref: Some(SecretKeySelector {
+                key: constants::IDENTITY_POOL_API_TOKEN_REF_KEY.to_owned(),
+                name: Some(identity_pool.spec.secret_name.to_owned()),
+                ..SecretKeySelector::default()
             }),
-            ..EnvVar::default()
-        }
+            ..EnvVarSource::default()
+        }),
+        ..EnvVar::default()
+    }
 }
 
 /// Build environment variables from secrets
@@ -567,12 +578,5 @@ fn build_default_env_var(hoprd_host: &String) -> Vec<EnvVar> {
             value: Some("0.0.0.0".to_owned()),
             ..EnvVar::default()
         },
-        EnvVar {
-            name: constants::HOPRD_DEFAULT_SESSION_LISTEN_HOST.to_owned(),
-            value: Some("0.0.0.0:0".to_owned()),
-            ..EnvVar::default()
-        },
-
-
     ]
 }
