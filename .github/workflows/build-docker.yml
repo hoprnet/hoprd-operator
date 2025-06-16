@@ -52,7 +52,7 @@ jobs:
       
       - name: Commit and push
         if: ${{ steps.bumping_version.outputs.bumped_version }}
-        uses: stefanzweifel/git-auto-commit-action@v5
+        uses: stefanzweifel/git-auto-commit-action@v6
         with:
           commit_message: "Bump to cargo version ${{ steps.bumping_version.outputs.bumped_version }}"
           repository: .
