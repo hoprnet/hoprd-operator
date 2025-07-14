@@ -49,7 +49,7 @@ Chart version `Chart.yaml` should be increased according to [semver](http://semv
 | `adminUI.affinity`                 | Affinity specifications to AdminUI deployment                                                         | `{}`                                       |
 | `adminUI.image.registry`           | Docker registry to AdminUI deployment                                                                 | `europe-west3-docker.pkg.dev`              |
 | `adminUI.image.repository`         | Docker image repository to AdminUI deployment                                                         | `hoprassociation/docker-images/hopr-admin` |
-| `adminUI.image.tag`                | Docker image tag to AdminUI deployment                                                                | `latest`                                   |
+| `adminUI.image.tag`                | Docker image tag to AdminUI deployment                                                                | `stable`                                   |
 | `adminUI.image.pullPolicy`         | Pull policy to AdminUI deployment as deinfed in                                                       | `Always`                                   |
 | `adminUI.ingress.enabled`          | Enable ingress record generation                                                                      | `true`                                     |
 | `adminUI.ingress.pathType`         | Ingress path type                                                                                     | `ImplementationSpecific`                   |

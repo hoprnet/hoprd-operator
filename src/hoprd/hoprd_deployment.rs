@@ -1,3 +1,4 @@
+use crate::constants::SupportedReleaseEnum;
 use crate::hoprd::hoprd_deployment_spec::HoprdDeploymentSpec;
 use crate::identity_hoprd::identity_hoprd_resource::IdentityHoprd;
 use crate::identity_pool::identity_pool_resource::IdentityPool;
@@ -174,7 +175,7 @@ pub async fn build_deployment_spec(
                     volume_mounts,
                     resources,
                     ..Container::default()
-                }, metrics_container(&identity_pool)],
+                }, metrics_container(&identity_pool, &hoprd_spec.supported_release.clone())],
                 volumes: Some(build_volumes(&identity_hoprd.name_any()).await),
                 ..PodSpec::default()
             }),
@@ -223,11 +224,12 @@ pub async fn modify_deployment(context_data: Arc<ContextData>, deployment_name: 
     Ok(())
 }
 
-pub fn metrics_container(identity_pool: &IdentityPool) -> Container {
-    let image = format!(
-        "{}/{}:latest",
+pub fn metrics_container(identity_pool: &IdentityPool, supported_release: &SupportedReleaseEnum) -> Container {
+    let image: String = format!(
+        "{}/{}:{}",
         constants::HOPR_DOCKER_REGISTRY.to_owned(),
-        constants::HOPR_DOCKER_METRICS_IMAGE_NAME.to_owned()
+        constants::HOPR_DOCKER_METRICS_IMAGE_NAME.to_owned(),
+        supported_release.to_string()
     );
     Container {
         name: "hoprd-operator-metrics".to_owned(),

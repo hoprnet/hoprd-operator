@@ -11,7 +11,7 @@ spec:
   replicas: {{ .Values.replicas }}
   version: {{ .Values.version | quote }}
   enabled: {{ .Values.enabled | default true }}
-  supportedRelease: {{ .Values.supportedRelease | default "saint-louis" }}
+  supportedRelease: {{ .Values.supportedRelease | default "kaunas" }}
   forceIdentityName: {{ .Values.forceIdentityName | default true }}
   {{- if .Values.deployment }}
   deployment: {{ .Values.deployment | toYaml | nindent 4 }}
