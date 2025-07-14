@@ -23,7 +23,7 @@ This chart packages the creation of a ClusterHoprd
 | `replicas`                          | Number of instances                                                             | `1`         |
 | `version`                           | Hoprd node version to run                                                       | `2.0.2`     |
 | `enabled`                           | Running status of the nodes                                                     | `true`      |
-| `supportedRelease`                  | The kind of supported release <saint-louis>                                     | `""`        |
+| `supportedRelease`                  | The kind of supported release <kaunas>                                          | `""`        |
 | `forceIdentityName`                 | Forces identity names to be set in child Hopd resources                         | `false`     |
 | `deployment`                        | Deployment spec                                                                 | `{}`        |
 | `service.type`                      | Service Type                                                                    | `ClusterIP` |

@@ -60,6 +60,7 @@ spec:
                   description: 'Release Name of the supported version'
                   enum:
                     - saint-louis
+                    - kaunas
                 service:
                   type: object
                   description: Service configuration
