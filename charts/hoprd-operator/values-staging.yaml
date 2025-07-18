@@ -2,6 +2,7 @@ environmentName: staging
 operator:
   persistence:
     storageClassName: standard-rwo
+  logsSnapshotUrl: https://storage.googleapis.com/hoprd-sync-data-staging/latest-stable.tar.gz
   crossplane:
     provider:
       crossplane: gcp-crossplane

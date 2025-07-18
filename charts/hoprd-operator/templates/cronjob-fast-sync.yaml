@@ -96,7 +96,8 @@ spec:
           args:
             - |
               # Create backup
-              if ! tar czf /tmp/hopr_logs.tar.gz /app/hoprd-db/db/hopr_logs.db*; then
+              cd /app/hoprd-db/db
+              if ! tar czf /tmp/latest-stable.tar.gz hopr_logs.db*; then
                   echo "Failed to create backup archive"
                   exit 1
               fi
@@ -108,13 +109,13 @@ spec:
               fi
 
               # Upload to GCS with verification
-              if ! gcloud storage cp /tmp/hopr_logs.tar.gz gs://{{ .Values.operator.crossplane.bucket.name }}/hopr_logs.tar.gz; then
+              if ! gcloud storage cp /tmp/latest-stable.tar.gz gs://{{ .Values.operator.crossplane.bucket.name }}/latest-stable.tar.gz; then
                   echo "Failed to upload backup"
                   exit 1
               fi
 
               # Cleanup
-              rm -f /tmp/hopr_logs.tar.gz
+              rm -f /tmp/latest-stable.tar.gz
           resources:
             requests:
               memory: "128Mi"

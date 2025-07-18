@@ -152,6 +152,9 @@ operator:
     ##
     native: 0.01
 
+  ## @param operator.logsSnapshotUrl URL to the logs snapshot
+  logsSnapshotUrl:
+
   crossplane:
     provider:
       ## @param operator.crossplane.provider.crossplane Crossplane provider name for Crossplane
