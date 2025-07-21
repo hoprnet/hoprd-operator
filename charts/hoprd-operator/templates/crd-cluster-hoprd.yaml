@@ -77,6 +77,7 @@ spec:
                   description: 'Release Name of the supported version'
                   enum:
                     - saint-louis
+                    - kaunas
                 forceIdentityName:
                   type: boolean
                   description: Flag indicating whether the identityName should be specified in child Hoprd

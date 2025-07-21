@@ -1,3 +1,5 @@
+use std::fmt::{Display, Formatter};
+
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -61,4 +63,16 @@ pub enum SupportedReleaseEnum {
     #[default]
     #[serde(rename = "saint-louis")]
     SaintLouis,
+    #[serde(rename = "kaunas")]
+    Kaunas,
+}
+
+impl Display for SupportedReleaseEnum {
+    fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
+        match self {
+            SupportedReleaseEnum::SaintLouis => write!(f, "saint-louis"),
+            SupportedReleaseEnum::Kaunas => write!(f, "kaunas"),
+
+        }
+    }
 }

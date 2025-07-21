@@ -10,7 +10,7 @@ spec:
   identityPoolName: pull-requests-rotsee
   replicas: 1
   version: singapore-latest
-  supportedRelease: saint-louis
+  supportedRelease: kaunas
   enabled: true
   service:
     type: LoadBalancer
