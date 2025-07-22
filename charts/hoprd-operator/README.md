@@ -73,9 +73,6 @@ Chart version `Chart.yaml` should be increased according to [semver](http://semv
 | `operator.crossplane.provider.crossplane` | Crossplane provider name for Crossplane                            | `""`                                           |
 | `operator.crossplane.provider.upbound`    | Crossplane provider name for GCP                                   | `""`                                           |
 | `operator.crossplane.gcpProjectId`        | GCP Project ID                                                     | `""`                                           |
-| `operator.crossplane.bucket.name`         | Name of the bucket to store the Fast Sync data                     | `""`                                           |
-| `operator.crossplane.bucket.location`     | Location of the bucket                                             | `europe-west6`                                 |
-| `operator.crossplane.bucket.storageClass` | Storage class of the bucket                                        | `REGIONAL`                                     |
 | `operator.fastSync.enabled`               | Enable Fast Sync                                                   | `false`                                        |
 | `operator.fastSync.schedule`              | Schedule for Fast Sync                                             | `0 0 * * *`                                    |
 | `operator.fastSync.source.namespace`      | Namespace of the Fast Sync source pod                              | `""`                                           |

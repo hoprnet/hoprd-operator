@@ -109,7 +109,7 @@ spec:
               fi
 
               # Upload to GCS with verification
-              if ! gcloud storage cp /tmp/latest-stable.tar.gz gs://{{ .Values.operator.crossplane.bucket.name }}/latest-stable.tar.gz; then
+              if ! gcloud storage cp /tmp/latest-stable.tar.gz gs://{{ .Values.operator.logs.bucketName }}/latest-stable.tar.gz; then
                   echo "Failed to upload backup"
                   exit 1
               fi

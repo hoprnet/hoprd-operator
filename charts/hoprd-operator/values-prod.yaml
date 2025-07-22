@@ -2,15 +2,14 @@ environmentName: prod
 operator:
   persistence:
     storageClassName: standard-rwo
-  logsSnapshotUrl: https://storage.googleapis.com/hoprd-sync-data-prod/latest-stable.tar.gz
+  logs:
+    bucketName: logs-snapshots.hoprnet.org
+    snapshotUrl: https://logs-snapshots.hoprnet.org/latest-stable.tar.gz
   crossplane:
     provider:
       crossplane: gcp-crossplane
       upbound: gcp-upbound
     gcpProjectId: hopr-prod
-    bucket:
-      name: hoprd-sync-data-prod
-      location: europe-west6
   fastSync:
     enabled: false
     schedule: "0 0 * * *"

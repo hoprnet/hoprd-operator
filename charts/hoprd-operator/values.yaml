@@ -152,8 +152,13 @@ operator:
     ##
     native: 0.01
 
-  ## @param operator.logsSnapshotUrl URL to the logs snapshot
-  logsSnapshotUrl:
+
+  logs:
+    ## @param operator.logs.bucketName Name of the bucket to store the logs
+    ## Required: true when fast-sync is enabled
+    bucketName:
+    ## @param operator.logs.snapshotUrl URL to the latest stable logs snapshot
+    snapshotUrl:
 
   crossplane:
     provider:
@@ -168,18 +173,6 @@ operator:
     ##
     gcpProjectId: ""
 
-    bucket:
-      ## @param operator.crossplane.bucket.name Name of the bucket to store the Fast Sync data
-      ##
-      name: ""
-
-      ## @param operator.crossplane.bucket.location Location of the bucket
-      ##
-      location: "europe-west6"
-
-      ## @param operator.crossplane.bucket.storageClass Storage class of the bucket
-      ##
-      storageClass: "REGIONAL"
 
   fastSync:
     ## @param operator.fastSync.enabled Enable Fast Sync
