@@ -156,9 +156,9 @@ operator:
   logs:
     ## @param operator.logs.bucketName Name of the bucket to store the logs
     ## Required: true when fast-sync is enabled
-    bucketName:
+    bucketName: ""
     ## @param operator.logs.snapshotUrl URL to the latest stable logs snapshot
-    snapshotUrl:
+    snapshotUrl: ""
 
   crossplane:
     provider:

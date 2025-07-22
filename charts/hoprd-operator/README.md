@@ -70,6 +70,8 @@ Chart version `Chart.yaml` should be increased according to [semver](http://semv
 | `operator.hopli.tag`                      | Docker image tag to hopli image                                    | `latest`                                       |
 | `operator.tokenAmount.hopr`               | Hopr token amount to fund nodes                                    | `10`                                           |
 | `operator.tokenAmount.native`             | Native(xDAI) token amount to fund nodes                            | `0.01`                                         |
+| `operator.logs.bucketName`                | Name of the bucket to store the logs                               | `""`                                           |
+| `operator.logs.snapshotUrl`               | URL to the latest stable logs snapshot                             | `""`                                           |
 | `operator.crossplane.provider.crossplane` | Crossplane provider name for Crossplane                            | `""`                                           |
 | `operator.crossplane.provider.upbound`    | Crossplane provider name for GCP                                   | `""`                                           |
 | `operator.crossplane.gcpProjectId`        | GCP Project ID                                                     | `""`                                           |
