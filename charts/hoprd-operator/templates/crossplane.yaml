@@ -53,7 +53,7 @@ metadata:
   name: hoprd-operator-bucket-read
 spec:
   forProvider:
-    bucket:  {{ .Values.operator.logs.bucketName }}
+    bucket: {{ required "Error: .Values.operator.logs.bucketName must be set" .Values.operator.logs.bucketName }}
     member: allUsers
     role: roles/storage.objectViewer
   providerConfigRef:
