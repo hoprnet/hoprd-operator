@@ -2,14 +2,14 @@ environmentName: staging
 operator:
   persistence:
     storageClassName: standard-rwo
+  logs:
+    bucketName: logs-snapshots-rotsee.hoprnet.org
+    snapshotUrl: https://logs-snapshots-rotsee.hoprnet.org/latest-stable.tar.gz
   crossplane:
     provider:
       crossplane: gcp-crossplane
       upbound: gcp-upbound
     gcpProjectId: hopr-staging
-    bucket:
-      name: hoprd-sync-data-staging
-      location: europe-west6
   fastSync:
     enabled: true
     schedule: "0 0 * * *"

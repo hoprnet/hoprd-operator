@@ -48,23 +48,12 @@ spec:
     name: {{ .Values.operator.crossplane.provider.crossplane }}
 ---
 apiVersion: storage.gcp.upbound.io/v1beta1
-kind: Bucket
-metadata:
-  name: {{ required "Error: You must specify a value for .Values.operator.crossplane.bucket.name" .Values.operator.crossplane.bucket.name }}
-spec:
-  forProvider:
-    location: {{ .Values.operator.crossplane.bucket.location }}
-    storageClass: {{ .Values.operator.crossplane.bucket.storageClass }}
-  providerConfigRef:
-    name: {{ required "Error: You must specify a value for .Values.operator.crossplane.provider.upbound" .Values.operator.crossplane.provider.upbound }}
----
-apiVersion: storage.gcp.upbound.io/v1beta1
 kind: BucketIAMMember
 metadata:
   name: hoprd-operator-bucket-read
 spec:
   forProvider:
-    bucket:  {{ .Values.operator.crossplane.bucket.name }}
+    bucket: {{ required "Error: .Values.operator.logs.bucketName must be set" .Values.operator.logs.bucketName }}
     member: allUsers
     role: roles/storage.objectViewer
   providerConfigRef:
@@ -76,7 +65,7 @@ metadata:
   name: hoprd-operator-bucket-write
 spec:
   forProvider:
-    bucket:  {{ .Values.operator.crossplane.bucket.name }}
+    bucket:  {{ .Values.operator.logs.bucketName }}
     member: serviceAccount:hoprd-operator-sa@{{ .Values.operator.crossplane.gcpProjectId }}.iam.gserviceaccount.com
     role: roles/storage.legacyBucketWriter
   providerConfigRef:

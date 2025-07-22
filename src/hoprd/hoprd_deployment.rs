@@ -43,7 +43,7 @@ pub async fn create_deployment(context_data: Arc<ContextData>, hoprd: &Hoprd, id
     let name: String = hoprd.name_any();
     let owner_references: Option<Vec<OwnerReference>> = Some(vec![hoprd.controller_owner_ref(&()).unwrap()]);
     let identity_pool: IdentityPool = identity_hoprd.get_identity_pool(context_data.client.clone()).await.unwrap();
-    let bucket_name= context_data.config.bucket_name.to_owned().unwrap();
+    let logs_snapshot_url: String = context_data.config.logs_snapshot_url.to_owned().unwrap();
 
     let mut labels: BTreeMap<String, String> = utils::common_lables(context_data.config.instance.name.to_owned(), Some(name.to_owned()), Some("node".to_owned()));
     labels.insert(constants::LABEL_NODE_NETWORK.to_owned(), identity_pool.spec.network.clone());
@@ -68,7 +68,7 @@ pub async fn create_deployment(context_data: Arc<ContextData>, hoprd: &Hoprd, id
             owner_references,
             ..ObjectMeta::default()
         },
-        spec: Some(build_deployment_spec(labels, &hoprd.spec, identity_pool, identity_hoprd, &hoprd_host, starting_port, last_port, bucket_name).await),
+        spec: Some(build_deployment_spec(labels, &hoprd.spec, identity_pool, identity_hoprd, &hoprd_host, starting_port, last_port, logs_snapshot_url).await),
         ..Deployment::default()
     };
 
@@ -87,7 +87,7 @@ pub async fn build_deployment_spec(
     hoprd_host: &str,
     starting_port: u16,
     last_port: u16,
-    bucket_name: String,
+    logs_snapshot_url: String,
 ) -> DeploymentSpec {
     let image = format!(
         "{}/{}:{}",
@@ -113,14 +113,15 @@ pub async fn build_deployment_spec(
         set -e;
         if ! ls /app/hoprd-db/db/hopr_logs.db* 1> /dev/null 2>&1; then
             apk add --no-cache curl tar;
-            curl -sf --retry 3 "https://storage.googleapis.com/{}/hopr_logs.tar.gz" -o /tmp/hopr_logs.tar.gz;
-            tar xf /tmp/hopr_logs.tar.gz -C /;
-            rm -f /tmp/hopr_logs.tar.gz;
+            mkdir -p /app/hoprd-db/db;
+            curl -sf --retry 3 "{}" -o /app/hoprd-db/db/latest-stable.tar.gz;
+            tar xf /app/hoprd-db/db/latest-stable.tar.gz -C /app/hoprd-db/db;
+            rm -f /app/hoprd-db/db/latest-stable.tar.gz;
         fi;
         echo $HOPRD_IDENTITY_FILE | base64 -d > /app/hoprd-identity/.hopr-id;
         echo $HOPRD_CONFIGURATION | base64 -d > /app/hoprd-identity/config.yaml
         "#,
-        bucket_name
+        logs_snapshot_url
     )]);
 
 
@@ -217,8 +218,8 @@ pub async fn modify_deployment(context_data: Arc<ContextData>, deployment_name: 
     let ports_allocation = hoprd_spec.ports_allocation.clone().unwrap_or(constants::HOPRD_PORTS_ALLOCATION);
     let last_port = starting_port + ports_allocation;
     let identity_pool: IdentityPool = identity_hoprd.get_identity_pool(context_data.client.clone()).await.unwrap();
-    let bucket_name= context_data.config.bucket_name.to_owned().unwrap();
-    let spec = build_deployment_spec(deployment.labels().to_owned(), hoprd_spec, identity_pool, identity_hoprd, &hoprd_host, starting_port, last_port, bucket_name).await;
+    let logs_snapshot_url = context_data.config.logs_snapshot_url.to_owned().unwrap();
+    let spec = build_deployment_spec(deployment.labels().to_owned(), hoprd_spec, identity_pool, identity_hoprd, &hoprd_host, starting_port, last_port, logs_snapshot_url).await;
     let patch = &Patch::Merge(json!({ "spec": spec }));
     api.patch(deployment_name, &PatchParams::default(), patch).await.unwrap();
     Ok(())
