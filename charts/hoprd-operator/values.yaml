@@ -161,6 +161,9 @@ operator:
     ## Required: true when fast-sync is enabled
     bucketName: ""
 
+    ## @param operator.fastSync.namespaces Allowed namespaces for uploading logs
+    namespaces: []
+
     crossplane:
       provider:
         ## @param operator.fastSync.crossplane.provider.crossplane Crossplane provider name for Crossplane

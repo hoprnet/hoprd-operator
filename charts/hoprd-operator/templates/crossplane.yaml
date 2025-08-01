@@ -13,21 +13,26 @@ spec:
     displayName: Hoprd Operator Service Account
   providerConfigRef:
     name: {{ required "Error: You must specify a value for operator.fastSync.crossplane.provider.crossplane"  .Values.operator.fastSync.crossplane.provider.crossplane }}
+
+{{- if gt (len .Values.operator.fastSync.namespaces) 0 }}
+{{ range $i, $namespace := .Values.operator.fastSync.namespaces }}
 ---
 apiVersion: iam.gcp.crossplane.io/v1alpha1
 kind: ServiceAccountKey
 metadata:
-  name: gcp-sa-key
+  name: gcp-sa-key-{{ $namespace }}
 spec:
   deletionPolicy: Delete
   forProvider:
     serviceAccountRef:
       name: hoprd-operator-sa
   providerConfigRef:
-    name: {{ .Values.operator.fastSync.crossplane.provider.crossplane }}
+    name: {{ $.Values.operator.fastSync.crossplane.provider.crossplane }}
   writeConnectionSecretToRef:
-    name: hoprd-operator-sa-key
-    namespace: {{ .Release.Namespace }}
+    name: gcp-sa-key
+    namespace: {{ $namespace }}
+{{- end}}
+{{- end }}
 ---
 apiVersion: iam.gcp.crossplane.io/v1alpha1
 kind: ServiceAccountPolicy

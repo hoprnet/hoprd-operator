@@ -72,6 +72,7 @@ Chart version `Chart.yaml` should be increased according to [semver](http://semv
 | `operator.tokenAmount.native`                      | Native(xDAI) token amount to fund nodes                            | `0.01`                                         |
 | `operator.fastSync.enabled`                        | Enable Fast Sync                                                   | `false`                                        |
 | `operator.fastSync.bucketName`                     | Name of the bucket to store the logs                               | `""`                                           |
+| `operator.fastSync.namespaces`                     | Allowed namespaces for uploading logs                              | `[]`                                           |
 | `operator.fastSync.crossplane.provider.crossplane` | Crossplane provider name for Crossplane                            | `""`                                           |
 | `operator.fastSync.crossplane.provider.upbound`    | Crossplane provider name for GCP                                   | `""`                                           |
 | `operator.fastSync.crossplane.gcpProjectId`        | GCP Project ID                                                     | `""`                                           |

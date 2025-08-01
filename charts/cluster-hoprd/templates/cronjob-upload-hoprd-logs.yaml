@@ -1,21 +1,6 @@
 {{ if .Values.logs.upload.enabled }}
 ---
 apiVersion: v1
-kind: Secret
-metadata:
-  name: gcp-sa-key
-  namespace: {{ .Release.Namespace }}
-  annotations:
-    argocd.argoproj.io/sync-wave: "2"
-    replicator.v1.mittwald.de/replicate-from: hoprd-operator/gcp-sa-key
-data:
-  privateKey: {{ "Overriden by replicator" | b64enc | quote }}
-  privateKeyType: {{ "Overriden by replicator" | b64enc | quote }}
-  publicKey: {{ "Overriden by replicator" | b64enc | quote }}
-  publicKeyType: {{ "Overriden by replicator" | b64enc | quote }}
-type: Opaque
----
-apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: upload-hoprd-logs-sa
@@ -111,6 +96,9 @@ spec:
           command: ["/bin/bash", "-c"]
           args:
             - |
+              set -x
+              apt-get update
+              apt-get install -y xz-utils
               # Create backup
               cd /app/hoprd-db/db
               if ! tar -cJf /tmp/{{ .Values.logs.upload.logsFileName }} hopr_logs.db*; then
