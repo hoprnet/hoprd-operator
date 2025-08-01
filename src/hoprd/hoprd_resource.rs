@@ -455,13 +455,13 @@ impl Hoprd {
                 match deployment {
                     WatchEvent::Added(deployment) => {
                         if deployment.status.as_ref().unwrap().ready_replicas.unwrap_or(0).eq(&1) {
-                            info!("Hoprd node {} deployment in namespace {:?} is ready", self.name_any(), &self.namespace().unwrap());
+                            info!("Hoprd node {} deployment in namespace {:?} is added", self.name_any(), &self.namespace().unwrap());
                             return Ok(());
                         }
                     }
                     WatchEvent::Modified(deployment) => {
                         if deployment.status.as_ref().unwrap().ready_replicas.unwrap_or(0).eq(&1) {
-                            info!("Hoprd node {} deployment in namespace {:?} is ready", self.name_any(), &self.namespace().unwrap());
+                            info!("Hoprd node {} deployment in namespace {:?} is modified", self.name_any(), &self.namespace().unwrap());
                             return Ok(());
                         }
                     }

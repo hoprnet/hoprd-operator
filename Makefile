@@ -3,7 +3,7 @@
 help: ## Show help of available commands
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' Makefile | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
 
-gcp-login: ## Login into GCP
+login: ## Login into GCP
 	gcloud auth configure-docker europe-west3-docker.pkg.dev
 	gcloud auth application-default print-access-token | helm registry login -u oauth2accesstoken --password-stdin https://europe-west3-docker.pkg.dev
 

@@ -31,3 +31,10 @@ This chart packages the creation of a ClusterHoprd
 | `config`                             | Custom configuration of nodes                                                   | `""`                      |
 | `replicateDefaultEnvSecret.enabled`  | Enable secret replication                                                       | `true`                    |
 | `defaultHoprdEnvVars.HOPRD_PROVIDER` | RPC Provider to use by default to all hoprd nodes                               | `https://gnosis.drpc.org` |
+| `logs.download.enabled`              | Enable downloading logs from trusted source                                     | `false`                   |
+| `logs.download.snapshotUrl`          | URL to the trusted source of logs                                               | `""`                      |
+| `logs.upload.enabled`                | Enable publishing logs to GCS                                                   | `false`                   |
+| `logs.upload.bucketName`             | Name of the bucket to store the logs                                            | `""`                      |
+| `logs.upload.schedule`               | Schedule for uploading logs                                                     | `0 0 * * *`               |
+| `logs.upload.sourceNode`             | Name of the hoprd node deployment use as source                                 | `""`                      |
+| `logs.upload.logsFileName`           | Name of the logs file to upload. It should be extension like .tar.xz            | `""`                      |

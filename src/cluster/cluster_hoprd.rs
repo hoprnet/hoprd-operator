@@ -307,7 +307,7 @@ impl ClusterHoprd {
         };
         let patch = Patch::Merge(json!({"status": cluster_hoprd_status }));
         match api.patch(&cluster_hoprd_name, &PatchParams::default(), &patch).await {
-            Ok(_cluster_hopr) => Ok(debug!("ClusterHoprd current status {:?}", cluster_hoprd_status)),
+            Ok(_cluster_hopr) => Ok(debug!("ClusterHoprd {cluster_hoprd_name} current status {:?}", cluster_hoprd_status)),
             Err(error) => Ok(error!("Could not update phase {} on cluster {cluster_hoprd_name}: {:?}", cluster_hoprd_status.phase, error)),
         }
     }
@@ -458,6 +458,8 @@ impl ClusterHoprd {
             let hoprd_modified = api.patch(&hoprd_node.name_any(), &PatchParams::default(), patch).await.unwrap();
             hoprd_modified.wait_deployment(context_data.client.clone()).await?;
         }
+        context_data.send_event(self, ClusterHoprdEventEnum::Modified, None).await;
+        self.update_status(context_data.clone(), ClusterHoprdPhaseEnum::Ready).await?;
         Ok(())
     }
 

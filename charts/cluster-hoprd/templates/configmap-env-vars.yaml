@@ -1,0 +1,18 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "cluster-hoprd.name" . }}-env-vars
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+data:
+  HOPRD_NETWORK: {{ .Values.network | quote }}
+  HOPRD_CONFIGURATION_FILE_PATH: "/app/hoprd-identity/config.yaml"
+  HOPRD_IDENTITY: "/app/hoprd-identity/.hopr-id"
+  HOPRD_DATA: "/app/hoprd-db"
+  HOPRD_API_HOST: "0.0.0.0"
+  HOPRD_DEFAULT_SESSION_LISTEN_HOST: "0.0.0.0:0"
+  {{- if .Values.logs.download.enabled }}
+  HOPRD_LOGS_SNAPSHOT_URL: {{ .Values.logs.download.snapshotUrl | quote }}
+  {{- end }}

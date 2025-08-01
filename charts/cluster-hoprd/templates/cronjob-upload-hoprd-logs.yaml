@@ -1,16 +1,31 @@
-{{ if .Values.operator.fastSync.enabled }}
+{{ if .Values.logs.upload.enabled }}
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: gcp-sa-key
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+    replicator.v1.mittwald.de/replicate-from: hoprd-operator/gcp-sa-key
+data:
+  privateKey: "Overriden by replicator"
+  privateKeyType: "Overriden by replicator"
+  publicKey: "Overriden by replicator"
+  publicKeyType: "Overriden by replicator"
+type: Opaque
 ---
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: fast-sync-sa
-  namespace: {{ .Values.operator.fastSync.source.namespace}}
+  name: upload-hoprd-logs-sa
+  namespace: {{ .Release.Namespace }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
-  name: fast-sync-role
-  namespace: {{ .Values.operator.fastSync.source.namespace}}
+  name: upload-hoprd-logs-role
+  namespace: {{ .Release.Namespace }}
 rules:
   - apiGroups: ["apps"]
     resources: ["deployments"]
@@ -22,26 +37,26 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
-  name: fast-sync-deploy
-  namespace: {{ .Values.operator.fastSync.source.namespace}}
+  name: upload-hoprd-logs-role-binding
+  namespace: {{ .Release.Namespace }}
 subjects:
   - kind: ServiceAccount
-    name: fast-sync-sa
-    namespace: {{ .Values.operator.fastSync.source.namespace}}
+    name: upload-hoprd-logs-sa
+    namespace: {{ .Release.Namespace }}
 roleRef:
   kind: Role
-  name: fast-sync-role
+  name: upload-hoprd-logs-role
   apiGroup: rbac.authorization.k8s.io
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
-  name: fast-sync-argo-workflow
-  namespace: {{ .Values.operator.fastSync.source.namespace}}
+  name: argo-workflows-workflow-role-binding
+  namespace: {{ .Release.Namespace }}
 subjects:
   - kind: ServiceAccount
-    name: fast-sync-sa
-    namespace: {{ .Values.operator.fastSync.source.namespace}}
+    name: upload-hoprd-logs-sa
+    namespace: {{ .Release.Namespace }}
 roleRef:
   kind: Role
   name: argo-workflows-workflow
@@ -50,10 +65,10 @@ roleRef:
 apiVersion: argoproj.io/v1alpha1
 kind: CronWorkflow
 metadata:
-  name: snapshot-fast-sync
-  namespace: {{ .Values.operator.fastSync.source.namespace}}
+  name: upload-hoprd-logs
+  namespace: {{ .Release.Namespace }}
 spec:
-  schedule: "0 2 * * *" # Runs every day at 2:00 AM
+  schedule: "{{ .Values.logs.upload.schedule }}"
   timezone: Europe/Zurich # Adjust timezone if necessary
   concurrencyPolicy: "Replace" # Ensures only one job runs at a time
   startingDeadlineSeconds: 600 # Deadline to start the job in seconds
@@ -66,20 +81,20 @@ spec:
         steps:
           - - name: stop-deployment
               template: stop-deployment
-          - - name: update-fast-sync
-              template: update-fast-sync
+          - - name: update-logs
+              template: update-logs
           - - name: start-deployment
               template: start-deployment
 
       # Task 1: Stop Deployment
       - name: stop-deployment
-        serviceAccountName: fast-sync-sa
+        serviceAccountName: upload-hoprd-logs-sa
         container:
-          image: bitnami/kubectl:latest # Image with kubectl to manage Kubernetes resources
+          image: bitnami/kubectl:1.29
           command: ["/bin/bash", "-c"]
           args:
             - |
-              if ! kubectl scale deployment {{ .Values.operator.fastSync.source.deployment }} --replicas=0; then
+              if ! kubectl scale deployment {{ .Values.logs.upload.sourceNode }} --replicas=0; then
                   echo "Failed to stop deployment"
                   exit 0
               fi
@@ -88,8 +103,9 @@ spec:
               memory: "64Mi"
               cpu: "50m"
 
-      # Task 2: Update fast sync
-      - name: update-fast-sync
+      # Task 2: Update logs
+      - name: update-logs
+        serviceAccountName: upload-hoprd-logs-sa
         container:
           image: gcr.io/google.com/cloudsdktool/google-cloud-cli:stable
           command: ["/bin/bash", "-c"]
@@ -97,25 +113,25 @@ spec:
             - |
               # Create backup
               cd /app/hoprd-db/db
-              if ! tar czf /tmp/latest-stable.tar.gz hopr_logs.db*; then
+              if ! tar -cJf /tmp/{{ .Values.logs.upload.logsFileName }} hopr_logs.db*; then
                   echo "Failed to create backup archive"
                   exit 1
               fi
 
               # Authenticate with GCP
-              if ! gcloud auth activate-service-account --key-file=/backup/key.json; then
+              if ! gcloud auth activate-service-account --key-file=/app/service-account/gcp-sa-key.json; then
                   echo "Failed to authenticate with GCP"
                   exit 1
               fi
 
               # Upload to GCS with verification
-              if ! gcloud storage cp /tmp/latest-stable.tar.gz gs://{{ .Values.operator.logs.bucketName }}/latest-stable.tar.gz; then
+              if ! gcloud storage cp /tmp/{{ .Values.logs.upload.logsFileName }} gs://{{ .Values.logs.upload.bucketName }}/{{ .Values.logs.upload.logsFileName }}; then
                   echo "Failed to upload backup"
                   exit 1
               fi
 
               # Cleanup
-              rm -f /tmp/latest-stable.tar.gz
+              rm -f /tmp/{{ .Values.logs.upload.logsFileName }}
           resources:
             requests:
               memory: "128Mi"
@@ -125,29 +141,28 @@ spec:
               mountPath: /app/hoprd-db
               readOnly: true
             - name: service-account-key
-              mountPath: /backup/key.json
+              mountPath: /app/service-account/gcp-sa-key.json
               subPath: privateKey
               readOnly: true
         volumes:
           - name: hoprd-db
             persistentVolumeClaim:
-              claimName: {{ .Values.operator.fastSync.source.deployment }}
+              claimName: {{ .Values.logs.upload.sourceNode }}
           - name: service-account-key
             secret:
-              secretName: hoprd-operator-sa-key
+              secretName: gcp-sa-key
               items:
                 - key: privateKey
                   path: privateKey
-        serviceAccountName: fast-sync-sa
       # Task 3: Start Deployment
       - name: start-deployment
-        serviceAccountName: fast-sync-sa
+        serviceAccountName: upload-hoprd-logs-sa
         container:
-          image: bitnami/kubectl:latest
+          image: bitnami/kubectl:1.29
           command: ["/bin/bash", "-c"]
           args:
             - |
-              if ! kubectl scale deployment {{ .Values.operator.fastSync.source.deployment }} --replicas=1; then
+              if ! kubectl scale deployment {{ .Values.logs.upload.sourceNode }} --replicas=1; then
                   echo "Failed to start deployment"
                   exit 1
               fi
