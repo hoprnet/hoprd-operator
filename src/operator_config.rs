@@ -6,8 +6,7 @@ pub struct OperatorConfig {
     pub instance: OperatorInstance,
     pub ingress: IngressConfig,
     pub hopli_image: String,
-    pub persistence: PersistenceConfig,
-    pub logs_snapshot_url: Option<String>,
+    pub persistence: PersistenceConfig
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone, Hash)]

@@ -108,3 +108,30 @@ defaultHoprdEnvVars:
   ## @param defaultHoprdEnvVars.HOPRD_PROVIDER RPC Provider to use by default to all hoprd nodes
   ##
   HOPRD_PROVIDER: https://gnosis.drpc.org
+
+logs:
+  download:
+    ## @param logs.download.enabled Enable downloading logs from trusted source
+    ## Required: true
+    enabled: false
+
+    ## @param logs.download.snapshotUrl URL to the trusted source of logs
+    snapshotUrl: ""
+
+  upload:
+    ## @param logs.upload.enabled Enable publishing logs to GCS
+    enabled: false
+
+    ## @param logs.upload.bucketName Name of the bucket to store the logs
+    bucketName: ""
+
+    ## @param logs.upload.schedule Schedule for uploading logs
+    ## Format: Cron expression (5 fields)
+    ## Example: "0 0 * * *" (daily at midnight)
+    schedule: "0 0 * * *"
+
+    ## @param logs.upload.sourceNode Name of the hoprd node deployment use as source
+    sourceNode: ""
+
+    ## @param logs.upload.logsFileName Name of the logs file to upload. It should be extension like .tar.xz
+    logsFileName: ""

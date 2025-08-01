@@ -12,22 +12,22 @@ spec:
     description: Hoprd Operator Service Account for GCP
     displayName: Hoprd Operator Service Account
   providerConfigRef:
-    name: {{ required "Error: You must specify a value for .Values.operator.crossplane.provider.crossplane"  .Values.operator.crossplane.provider.crossplane }}
+    name: {{ required "Error: You must specify a value for operator.fastSync.crossplane.provider.crossplane"  .Values.operator.fastSync.crossplane.provider.crossplane }}
 ---
 apiVersion: iam.gcp.crossplane.io/v1alpha1
 kind: ServiceAccountKey
 metadata:
-  name: hoprd-operator-sa-key
+  name: gcp-sa-key
 spec:
   deletionPolicy: Delete
   forProvider:
     serviceAccountRef:
       name: hoprd-operator-sa
   providerConfigRef:
-    name: {{ .Values.operator.crossplane.provider.crossplane }}
+    name: {{ .Values.operator.fastSync.crossplane.provider.crossplane }}
   writeConnectionSecretToRef:
     name: hoprd-operator-sa-key
-    namespace: {{ .Values.operator.fastSync.source.namespace }}
+    namespace: {{ .Release.Namespace }}
 ---
 apiVersion: iam.gcp.crossplane.io/v1alpha1
 kind: ServiceAccountPolicy
@@ -41,11 +41,11 @@ spec:
     policy:
       bindings:
       - members:
-        - "serviceAccount:hoprd-operator-sa@{{ required "Error: You must specify a value for .Values.operator.crossplane.gcpProjectId" .Values.operator.crossplane.gcpProjectId }}.iam.gserviceaccount.com"
+        - "serviceAccount:hoprd-operator-sa@{{ required "Error: You must specify a value for operator.fastSync.crossplane.gcpProjectId" .Values.operator.fastSync.crossplane.gcpProjectId }}.iam.gserviceaccount.com"
         role: roles/iam.workloadIdentityUser
-    serviceAccount: projects/{{ .Values.operator.crossplane.gcpProjectId }}/serviceAccounts/hoprd-operator-sa@{{ .Values.operator.crossplane.gcpProjectId }}.iam.gserviceaccount.com
+    serviceAccount: projects/{{ .Values.operator.fastSync.crossplane.gcpProjectId }}/serviceAccounts/hoprd-operator-sa@{{ .Values.operator.fastSync.crossplane.gcpProjectId }}.iam.gserviceaccount.com
   providerConfigRef:
-    name: {{ .Values.operator.crossplane.provider.crossplane }}
+    name: {{ .Values.operator.fastSync.crossplane.provider.crossplane }}
 ---
 apiVersion: storage.gcp.upbound.io/v1beta1
 kind: BucketIAMMember
@@ -53,11 +53,11 @@ metadata:
   name: hoprd-operator-bucket-read
 spec:
   forProvider:
-    bucket: {{ required "Error: .Values.operator.logs.bucketName must be set" .Values.operator.logs.bucketName }}
+    bucket: {{ required "Error: .Values.operator.fastSync.bucketName must be set" .Values.operator.fastSync.bucketName }}
     member: allUsers
     role: roles/storage.objectViewer
   providerConfigRef:
-    name: {{ .Values.operator.crossplane.provider.upbound }}
+    name: {{ .Values.operator.fastSync.crossplane.provider.upbound }}
 ---
 apiVersion: storage.gcp.upbound.io/v1beta1
 kind: BucketIAMMember
@@ -65,9 +65,9 @@ metadata:
   name: hoprd-operator-bucket-write
 spec:
   forProvider:
-    bucket:  {{ .Values.operator.logs.bucketName }}
-    member: serviceAccount:hoprd-operator-sa@{{ .Values.operator.crossplane.gcpProjectId }}.iam.gserviceaccount.com
+    bucket:  {{ .Values.operator.fastSync.bucketName }}
+    member: serviceAccount:hoprd-operator-sa@{{ .Values.operator.fastSync.crossplane.gcpProjectId }}.iam.gserviceaccount.com
     role: roles/storage.legacyBucketWriter
   providerConfigRef:
-    name: {{ .Values.operator.crossplane.provider.upbound }}
+    name: {{ .Values.operator.fastSync.crossplane.provider.upbound }}
 {{- end }}
