@@ -26,8 +26,7 @@ pub const LABEL_KUBERNETES_INSTANCE: &str = "app.kubernetes.io/instance";
 pub const LABEL_KUBERNETES_COMPONENT: &str = "app.kubernetes.io/component";
 
 pub const LABEL_KUBERNETES_IDENTITY_POOL: &str = "hoprds.hoprnet.org/identitypool";
-pub const LABEL_NODE_PEER_ID: &str = "hoprds.hoprnet.org/peerId";
-pub const LABEL_NODE_NATIVE_ADDRESS: &str = "hoprds.hoprnet.org/nativeAddress";
+pub const LABEL_NODE_ADDRESS: &str = "hoprds.hoprnet.org/nativeAddress";
 pub const LABEL_NODE_SAFE_ADDRESS: &str = "hoprds.hoprnet.org/safeAddress";
 pub const LABEL_NODE_MODULE_ADDRESS: &str = "hoprds.hoprnet.org/moduleAddress";
 pub const LABEL_NODE_NETWORK: &str = "hoprds.hoprnet.org/network";

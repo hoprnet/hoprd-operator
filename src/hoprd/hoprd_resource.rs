@@ -50,10 +50,8 @@ pub struct HoprdSpec {
     pub enabled: Option<bool>,
     pub delete_database: Option<bool>,
     pub supported_release: SupportedReleaseEnum,
-    pub service: Option<HoprdServiceSpec>,
+    pub service: HoprdServiceSpec,
     pub deployment: Option<HoprdDeploymentSpec>,
-    #[schemars(range(min = 1024, max = 65535))]
-    pub ports_allocation: Option<u16>,
 }
 
 /// The status object of `Hoprd`
@@ -128,8 +126,8 @@ impl Hoprd {
         let owner_reference: Option<Vec<OwnerReference>> = Some(vec![self.controller_owner_ref(&()).unwrap()]);
         if let Some(identity) = self.lock_identity(context_data.clone()).await? {
             resource_generics::add_finalizer(client.clone(), self).await;
-            let service_type = self.spec.service.as_ref().unwrap_or(&HoprdServiceSpec::default()).r#type.clone();
-            let session_ports_allocation = self.spec.ports_allocation.unwrap_or(constants::HOPRD_PORTS_ALLOCATION);
+            let service_type = self.spec.service.r#type.clone();
+            let session_ports_allocation = self.spec.service.ports_allocation;
             let starting_port = hoprd_ingress::create_ingress(
                 context_data.clone(),
                 &service_type,
@@ -269,7 +267,7 @@ impl Hoprd {
         info!("Starting to delete Hoprd node {hoprd_name} from namespace {hoprd_namespace}");
         // Deletes any subresources related to this `Hoprd` resources. If and only if all subresources
         // are deleted, the finalizer is removed and Kubernetes is free to remove the `Hoprd` resource.
-        let service_type = self.spec.service.as_ref().unwrap_or(&HoprdServiceSpec::default()).r#type.clone();
+        let service_type = self.spec.service.r#type.clone();
         hoprd_ingress::delete_ingress(context_data.clone(), &hoprd_name, &hoprd_namespace, &service_type).await?;
         hoprd_service::delete_service(client.clone(), &hoprd_name, &hoprd_namespace, &service_type).await?;
         hoprd_deployment::delete_depoyment(client.clone(), &hoprd_name, &hoprd_namespace).await?;
@@ -343,13 +341,9 @@ impl Hoprd {
             error!("Hoprd configuration is invalid, 'supported_release' field cannot be changed on {}.", self.name_any());
             true
         } else {
-            match (&previous_hoprd.ports_allocation, &self.spec.ports_allocation) {
-                (Some(prev), Some(curr)) if prev != curr => {
+            match (&previous_hoprd.service.ports_allocation, &self.spec.service.ports_allocation) {
+                (prev, curr) if prev != curr => {
                     error!("Hoprd configuration is invalid, 'ports_allocation' field cannot be changed on {}.", self.name_any());
-                    true
-                }
-                (Some(_), None) => {
-                    error!("Hoprd configuration is invalid, 'ports_allocation' cannot be removed on {}.", self.name_any());
                     true
                 }
                 _ => false,

@@ -1,76 +1,52 @@
-replicas: 1
-network: rotsee
-version: saint-louis-latest
-
-config: |
-  hopr:
-    chain:
-      network: rotsee
-      provider: https://primary.gnosis-chain.rpc.hoprtech.net
-    strategy:
-      on_fail_continue: true
-      allow_recursive: false
-      finalize_channel_closure: true
-      strategies: []
-
-deployment:
-  resources: |
-    limits:
-      cpu: 1500m
-      memory: 2Gi
-    requests:
-      cpu: 750m
-      memory: 512Mi
-  startupProbe: |
-    failureThreshold: 800
-    httpGet:
-      path: /startedz
-      port: 3001
-      scheme: HTTP
-    periodSeconds: 60
-    successThreshold: 1
-    timeoutSeconds: 5
-  readinessProbe: |
-    failureThreshold: 800
-    httpGet:
-      path: /readyz
-      port: 3001
-      scheme: HTTP
-    periodSeconds: 60
-    successThreshold: 1
-    timeoutSeconds: 5
-  livenessProbe: |
-    failureThreshold: 3
-    httpGet:
-      path: /healthyz
-      port: 3001
-      scheme: HTTP
-    periodSeconds: 5
-    successThreshold: 1
-    timeoutSeconds: 5
-
-
-wallet:
-  deployerPrivateKey: SomeDummyValue
-  identityPassword: SuperSecret
-  hoprdApiToken: TokenToken
-
-identityPool:
+clusterHoprd:
+  network: rotsee
+  replicas: 5
+  version: kaunas
+  supportedRelease: kaunas
   funding:
     enabled: true
+    deployerPrivateKey: SomeDummyValue
     schedule: 0 1 * * 1
-    nativeAmount: 1
+    nativeAmount: 0.01
+  forceIdentityName: true
+  nodes:
+    config: |
+      hopr:
+        chain:
+          network: rotsee
+          provider: https://primary.gnosis-chain.rpc.hoprtech.net
+        strategy:
+          on_fail_continue: true
+          allow_recursive: false
+          finalize_channel_closure: true
+          strategies: []
+    identityPassword: SuperSecret
+    hoprdApiToken: TokenToken
+    deployment:
+      resources: |
+        limits:
+          cpu: 1500m
+          memory: 2Gi
+        requests:
+          cpu: 750m
+          memory: 512Mi
 
-identities:
-  hoprd-operator-1:
-    identityFile: "eyJjcnlwdG8iOnsiY2lwaGVyIjoiYWVzLTEyOC1jdHIiLCJjaXBoZXJwYXJhbXMiOnsiaXYiOiJiNzc3OTVjNThmODA1NGQ2ZTQwOTdiNjAxNzdjZDQwYiJ9LCJjaXBoZXJ0ZXh0IjoiN2Q1YWI1ODQ1ZWM4YzI2MDYzMjNmNDcxZTBkMTE1NGM2ZjA2YWNhOGQyMGFiYjVjNmU3N2E5MGY1ODk3OGVjNjRmMzU3OWJhZTg1ZThjODMzZWIzMzdhMjc4OTM4MWZlNTc2NmZlODk5NmMwYTJhZmVhYzIxNzVmMzdkMzc0Zjk2ODZkMzc2MmU0ZDJhMWIwMWMzZjMzNmMzZjg0MTMxOTIwODk4MDhmZGE5MDlmNWYwZDI0NzY5YTg5NWNhMTMwZGJlZTdjYzQxMTU2MGMzNDVlZWNiYTFlNzc0OTIzNTI1ZjNlODVmMWRmMzcwNmEzZDk0ODFjN2ExMmM2NDI4YzI1MzUxNzZlNjRhYmY3MjE4YTVlZTEwOTE3ZTQyMTViY2UwOGRiOGYxZmQwZjQyMGI2MDNmYjZmM2MyMTU0ZWI3ZDE4MzY1YTNkZWVhNDUzNmZhMmJjZDQiLCJrZGYiOiJzY3J5cHQiLCJrZGZwYXJhbXMiOnsiZGtsZW4iOjMyLCJuIjo4MTkyLCJwIjoxLCJyIjo4LCJzYWx0IjoiNTc2M2U5NDFjMjRlNmYyMjU3YTc5NjEyYWE1MDA3ZDI4YzEzNzliZWVkMjA0N2JjYzM4YWExOGE3NWE1ODY3OCJ9LCJtYWMiOiJkYTBjYzVlMjMyMjhhYWY4ODEzNzQyMjAzZjMwZDRhMDZhOWU1MTU0YWVlZTIyNzNjNDI0NTJjNzgwMGNkMDM1In0sImlkIjoiYjczNzgwZGMtZDcwZC00Y2YyLWExNGYtYmU4ZTU2NzAwZTQxIiwidmVyc2lvbiI6M30="
-    peerId: "12D3KooWMVCnEQXgYVipeqdYXfDNAojoY4fMNEqBAKfggau9qLfc"
-    nativeAddress: "0xd9001175f4770941b144c7b750fb0a1977439a35"
-    safeAddress: "0x83B8cf5Af80E44f3f8a6D1869Daf21E192c3E72B"
-    moduleAddress: "0x84Cb6FaF83b476d3D10Fe11b64c804D872B7c143"
-  hoprd-operator-2:
-    identityFile: "eyJjcnlwdG8iOnsiY2lwaGVyIjoiYWVzLTEyOC1jdHIiLCJjaXBoZXJwYXJhbXMiOnsiaXYiOiJkMWE2NzVmYTljNTJkNDYyYTE3ZjcxNmI1OWNiZDBiMyJ9LCJjaXBoZXJ0ZXh0IjoiYTQzOTc4NTY1NDNiZDhkMWMzZGEzMzllMGQzZjE5Nzk1NjNiZTUwNGUyMzQ3MGZkZDkzNDg4NGQwMzk2YjE5MmZjYjQ4YTc2ZTFkMThiZDFmNzc5MGFmMWNlN2NjNzEyZDg5NjdmMTNkNTgzYjM3OTU1N2VmZWViOTVjYTM0YzIyY2YxNDMyYTQwZWY4NGQxMzQ1ZGUyMGVkNzhhZWQ4YmI2NzE1MWI3Yjc0OGYyNzE2Y2VjYmYyYjM5NWYwYWQ5ZjQwOWZhNTY5MWNmZjE2NDIxZmIzOTZkZGM4NTNiOGY1NzgwMzBmMjQ2ZTZmMTYwZDE2ZGU3OTI0YWY4NWI4ZGExZjVlNTIwNmVhOTNlODc5MWVkOWI4ZmFmYmJhMzY4ZmUzZGYwMWU3YWFjN2M4YzcwMDRlYzQ3MjVmYjM0NzQ4NTJhY2ViYzI3NDNkNDNlYjc5YjcxNjAiLCJrZGYiOiJzY3J5cHQiLCJrZGZwYXJhbXMiOnsiZGtsZW4iOjMyLCJuIjo4MTkyLCJwIjoxLCJyIjo4LCJzYWx0IjoiOGMwMjQyYzZhMjU2YmJkYmQ3NTUwNGUwOTMxZTk5MGVkMDkzY2U1MWM5YTRiNDIzMmI2MjIxMjNiNWEyZTI0OSJ9LCJtYWMiOiJhNDk1NDZhNDVkYzQ2YTBjMjAxZDVjODY5ZjhiNTdhMTYwMzE0NTA0MGQwOWIxNTYyZTY5MDBiMWRiZTRlYzU4In0sImlkIjoiOGZhN2Y5YzUtZjY2Mi00NzM1LWFiM2YtNmFmYjFmYjZjNGJkIiwidmVyc2lvbiI6M30="
-    peerId: "12D3KooWF3qCSFs469znfBNASxvXPX3KAuicP8cvsBxyvG3PwUA7"
-    nativeAddress: "0x2f9f820daf6de037c62a84ead1f157397eee9007"
-    safeAddress: "0x78b7eDE90F9073A92d7805383E096E59E69b8667"
-    moduleAddress: "0x31B7E3CcA4556044fAAd2AD3e4C54AeC25cbADCB"
+    service:
+      type: LoadBalancer
+      portsAllocation: 20
+    overrideEnvVars: true
+    envVars:
+      HOPRD_PROVIDER: Overriden by Hoprd Operator default value
+
+ 
+  identities:
+    hoprd-operator-1:
+      identityFile: "eyJjcnlwdG8iOnsiY2lwaGVyIjoiYWVzLTEyOC1jdHIiLCJjaXBoZXJwYXJhbXMiOnsiaXYiOiJiNzc3OTVjNThmODA1NGQ2ZTQwOTdiNjAxNzdjZDQwYiJ9LCJjaXBoZXJ0ZXh0IjoiN2Q1YWI1ODQ1ZWM4YzI2MDYzMjNmNDcxZTBkMTE1NGM2ZjA2YWNhOGQyMGFiYjVjNmU3N2E5MGY1ODk3OGVjNjRmMzU3OWJhZTg1ZThjODMzZWIzMzdhMjc4OTM4MWZlNTc2NmZlODk5NmMwYTJhZmVhYzIxNzVmMzdkMzc0Zjk2ODZkMzc2MmU0ZDJhMWIwMWMzZjMzNmMzZjg0MTMxOTIwODk4MDhmZGE5MDlmNWYwZDI0NzY5YTg5NWNhMTMwZGJlZTdjYzQxMTU2MGMzNDVlZWNiYTFlNzc0OTIzNTI1ZjNlODVmMWRmMzcwNmEzZDk0ODFjN2ExMmM2NDI4YzI1MzUxNzZlNjRhYmY3MjE4YTVlZTEwOTE3ZTQyMTViY2UwOGRiOGYxZmQwZjQyMGI2MDNmYjZmM2MyMTU0ZWI3ZDE4MzY1YTNkZWVhNDUzNmZhMmJjZDQiLCJrZGYiOiJzY3J5cHQiLCJrZGZwYXJhbXMiOnsiZGtsZW4iOjMyLCJuIjo4MTkyLCJwIjoxLCJyIjo4LCJzYWx0IjoiNTc2M2U5NDFjMjRlNmYyMjU3YTc5NjEyYWE1MDA3ZDI4YzEzNzliZWVkMjA0N2JjYzM4YWExOGE3NWE1ODY3OCJ9LCJtYWMiOiJkYTBjYzVlMjMyMjhhYWY4ODEzNzQyMjAzZjMwZDRhMDZhOWU1MTU0YWVlZTIyNzNjNDI0NTJjNzgwMGNkMDM1In0sImlkIjoiYjczNzgwZGMtZDcwZC00Y2YyLWExNGYtYmU4ZTU2NzAwZTQxIiwidmVyc2lvbiI6M30="
+      nodeAddress: "0xd9001175f4770941b144c7b750fb0a1977439a35"
+      safeAddress: "0x83B8cf5Af80E44f3f8a6D1869Daf21E192c3E72B"
+      moduleAddress: "0x84Cb6FaF83b476d3D10Fe11b64c804D872B7c143"
+    hoprd-operator-2:
+      identityFile: "eyJjcnlwdG8iOnsiY2lwaGVyIjoiYWVzLTEyOC1jdHIiLCJjaXBoZXJwYXJhbXMiOnsiaXYiOiJkMWE2NzVmYTljNTJkNDYyYTE3ZjcxNmI1OWNiZDBiMyJ9LCJjaXBoZXJ0ZXh0IjoiYTQzOTc4NTY1NDNiZDhkMWMzZGEzMzllMGQzZjE5Nzk1NjNiZTUwNGUyMzQ3MGZkZDkzNDg4NGQwMzk2YjE5MmZjYjQ4YTc2ZTFkMThiZDFmNzc5MGFmMWNlN2NjNzEyZDg5NjdmMTNkNTgzYjM3OTU1N2VmZWViOTVjYTM0YzIyY2YxNDMyYTQwZWY4NGQxMzQ1ZGUyMGVkNzhhZWQ4YmI2NzE1MWI3Yjc0OGYyNzE2Y2VjYmYyYjM5NWYwYWQ5ZjQwOWZhNTY5MWNmZjE2NDIxZmIzOTZkZGM4NTNiOGY1NzgwMzBmMjQ2ZTZmMTYwZDE2ZGU3OTI0YWY4NWI4ZGExZjVlNTIwNmVhOTNlODc5MWVkOWI4ZmFmYmJhMzY4ZmUzZGYwMWU3YWFjN2M4YzcwMDRlYzQ3MjVmYjM0NzQ4NTJhY2ViYzI3NDNkNDNlYjc5YjcxNjAiLCJrZGYiOiJzY3J5cHQiLCJrZGZwYXJhbXMiOnsiZGtsZW4iOjMyLCJuIjo4MTkyLCJwIjoxLCJyIjo4LCJzYWx0IjoiOGMwMjQyYzZhMjU2YmJkYmQ3NTUwNGUwOTMxZTk5MGVkMDkzY2U1MWM5YTRiNDIzMmI2MjIxMjNiNWEyZTI0OSJ9LCJtYWMiOiJhNDk1NDZhNDVkYzQ2YTBjMjAxZDVjODY5ZjhiNTdhMTYwMzE0NTA0MGQwOWIxNTYyZTY5MDBiMWRiZTRlYzU4In0sImlkIjoiOGZhN2Y5YzUtZjY2Mi00NzM1LWFiM2YtNmFmYjFmYjZjNGJkIiwidmVyc2lvbiI6M30="
+      nodeAddress: "0x2f9f820daf6de037c62a84ead1f157397eee9007"
+      safeAddress: "0x78b7eDE90F9073A92d7805383E096E59E69b8667"
+      moduleAddress: "0x31B7E3CcA4556044fAAd2AD3e4C54AeC25cbADCB"

@@ -33,8 +33,7 @@ use tracing::{error, info, warn};
 pub struct IdentityHoprdSpec {
     pub identity_pool_name: String,
     pub identity_file: String,
-    pub peer_id: String,
-    pub native_address: String,
+    pub node_address: String,
     pub safe_address: String,
     pub module_address: String,
 }

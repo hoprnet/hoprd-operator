@@ -1,13 +1,6 @@
 ## @section Common parameters
 ##
 
-## @param nameOverride String to partially override common.names.fullname
-##
-nameOverride: ""
-## @param fullnameOverride String to fully override common.names.fullname
-##
-fullnameOverride: ""
-
 ## @param environmentName Name of the environment
 ##
 environmentName: ""

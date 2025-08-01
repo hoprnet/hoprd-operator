@@ -47,10 +47,8 @@ pub struct ClusterHoprdSpec {
     pub enabled: Option<bool>,
     pub supported_release: SupportedReleaseEnum,
     pub force_identity_name: Option<bool>,
-    pub service: Option<HoprdServiceSpec>,
+    pub service: HoprdServiceSpec,
     pub deployment: Option<HoprdDeploymentSpec>,
-    #[schemars(range(min = 1024, max = 65535))]
-    pub ports_allocation: Option<u16>,
 }
 
 /// The status object of `Hoprd`
@@ -272,7 +270,7 @@ impl ClusterHoprd {
         if !self.spec.identity_pool_name.eq(&spec.identity_pool_name) {
             error!("Cluster configuration is invalid, identity_pool_name field cannot be changed on {}.", self.name_any());
             true
-        } else if self.spec.service.is_some() && !self.spec.service.as_ref().unwrap().r#type.eq(&spec.service.as_ref().unwrap().r#type) {
+        } else if self.spec.service.r#type != spec.service.r#type {
             error!("Cluster configuration is invalid, service Type field cannot be changed on {}.", self.name_any());
             true
         } else {
@@ -373,9 +371,11 @@ impl ClusterHoprd {
             identity_pool_name: self.spec.identity_pool_name.to_owned(),
             supported_release: self.spec.supported_release.to_owned(),
             delete_database: Some(false),
-            service: Some(self.spec.service.as_ref().unwrap_or(&HoprdServiceSpec::default()).to_owned()),
+            service: HoprdServiceSpec {
+                r#type: self.spec.service.r#type.to_owned(),
+                ports_allocation: self.spec.service.ports_allocation.to_owned(),
+            },
             identity_name,
-            ports_allocation: self.spec.ports_allocation.to_owned(),
         };
         match self.create_hoprd_resource(context_data.clone(), node_name.to_owned(), hoprd_spec).await {
             Ok(_) => {
@@ -447,9 +447,11 @@ impl ClusterHoprd {
             delete_database: Some(false),
             identity_pool_name: self.spec.identity_pool_name.to_owned(),
             supported_release: self.spec.supported_release.to_owned(),
-            service: self.spec.service.to_owned(),
+            service: HoprdServiceSpec {
+                r#type: self.spec.service.r#type.to_owned(),
+                ports_allocation: self.spec.service.ports_allocation.to_owned(),
+            },
             identity_name: None,
-            ports_allocation: self.spec.ports_allocation.to_owned(),
         };
 
         for hoprd_node in self.get_my_nodes(api.clone()).await.unwrap() {

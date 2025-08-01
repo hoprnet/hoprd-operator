@@ -56,10 +56,7 @@ spec:
                   type: string
                   format: password
                   description: 'Contents of the hoprd identity file'
-                peerId:
-                  type: string
-                  description: 'PeerId of the Hoprd node'
-                nativeAddress:
+                nodeAddress:
                   type: string
                   description: 'Ethereum native address of the Hoprd node'
                 safeAddress:
@@ -71,8 +68,7 @@ spec:
               required:
                 - identityPoolName
                 - identityFile
-                - peerId
-                - nativeAddress
+                - nodeAddress
                 - safeAddress
                 - moduleAddress
             status:

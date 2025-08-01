@@ -24,11 +24,15 @@ use crate::{constants, context_data::ContextData, utils};
 #[serde(rename_all = "camelCase")]
 pub struct HoprdServiceSpec {
     pub r#type: ServiceTypeEnum,
+    pub ports_allocation: u16,
 }
 
 impl Default for HoprdServiceSpec {
     fn default() -> Self {
-        Self { r#type: ServiceTypeEnum::ClusterIP }
+        Self { 
+            r#type: ServiceTypeEnum::ClusterIP,
+            ports_allocation: constants::HOPRD_PORTS_ALLOCATION,
+        }
     }
 }
 

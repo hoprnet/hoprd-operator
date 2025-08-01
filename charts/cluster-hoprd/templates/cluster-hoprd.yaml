@@ -8,15 +8,15 @@ metadata:
     argocd.argoproj.io/sync-wave: "4"
 spec:
   identityPoolName: {{ include "cluster-hoprd.name" . }}
-  replicas: {{ .Values.replicas }}
-  version: {{ .Values.version | quote }}
-  enabled: {{ .Values.enabled | default true }}
-  supportedRelease: {{ .Values.supportedRelease | default "kaunas" }}
-  forceIdentityName: {{ .Values.forceIdentityName | default true }}
-  {{- if .Values.deployment }}
-  deployment: {{ .Values.deployment | toYaml | nindent 4 }}
+  replicas: {{ .Values.clusterHoprd.replicas }}
+  version: {{ .Values.clusterHoprd.version | quote }}
+  enabled: {{ .Values.clusterHoprd.enabled | default true }}
+  supportedRelease: {{ .Values.clusterHoprd.supportedRelease | default "kaunas" }}
+  forceIdentityName: {{ .Values.clusterHoprd.forceIdentityName | default true }}
+  {{- if .Values.clusterHoprd.nodes.deployment }}
+  deployment: {{ .Values.clusterHoprd.nodes.deployment | toYaml | nindent 4 }}
   {{- end }}
-  portsAllocation: {{ .Values.portsAllocation }}
-  service: {{ .Values.service | toYaml | nindent 4 }}
-
-  config: {{ .Values.config | toYaml | nindent 4 }}
+  service:
+    type: {{ .Values.clusterHoprd.nodes.service.type | default "LoadBalancer" }}
+    portsAllocation: {{ .Values.clusterHoprd.nodes.service.portsAllocation | default 10 }}
+  config: {{ .Values.clusterHoprd.nodes.config | toYaml | nindent 4 }}

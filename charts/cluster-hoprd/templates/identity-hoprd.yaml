@@ -1,6 +1,6 @@
 {{- $release := .Release -}}
 {{- $releaseName := include "cluster-hoprd.name" . -}}
-{{- range $key, $value := .Values.identities }}
+{{- range $key, $value := .Values.clusterHoprd.identities }}
 ---
 apiVersion: hoprnet.org/v1alpha2
 kind: IdentityHoprd
@@ -12,8 +12,7 @@ metadata:
 spec:
   identityPoolName: {{ $releaseName }}
   identityFile: {{ $value.identityFile | quote }}
-  peerId: {{ $value.peerId | quote }}
-  nativeAddress: {{ $value.nativeAddress | quote }}
+  nodeAddress: {{ $value.nodeAddress | quote }}
   safeAddress: {{ $value.safeAddress | quote }}
   moduleAddress: {{ $value.moduleAddress | quote }}
 {{- end }}
