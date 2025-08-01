@@ -111,7 +111,7 @@ pub async fn build_deployment_spec(
             if ! ls /app/hoprd-db/db/hopr_logs.db* 1> /dev/null 2>&1; then\n\
             apk add --no-cache curl tar;\n\
             mkdir -p /app/hoprd-db/db;\n\
-            curl -sf --retry 3 \"$HOPRD_LOGS_SHNAPSHOT_URL\" -o /app/hoprd-db/db/snapshot.tar.xz;\n\
+            curl -sf --retry 3 \"$HOPRD_LOGS_SNAPSHOT_URL\" -o /app/hoprd-db/db/snapshot.tar.xz;\n\
             tar xf /app/hoprd-db/db/snapshot.tar.xz -C /app/hoprd-db/db;\n\
             rm -f /app/hoprd-db/db/snapshot.tar.xz;\n\
             fi;\n\
@@ -158,7 +158,7 @@ pub async fn build_deployment_spec(
                     image: Some(image),
                     image_pull_policy: Some("Always".to_owned()),
                     ports: Some(build_ports(starting_port.into(), last_port.into())),
-                    env: Some(build_env_vars(&identity_pool, identity_hoprd, &hoprd_host_port, hoprd_spec, session_port_range)),
+                    env: Some(build_env_vars(identity_hoprd, &hoprd_host_port, hoprd_spec, session_port_range)),
                     env_from: Some(vec![
                         EnvFromSource {
                             secret_ref: Some(SecretEnvSource {
@@ -245,7 +245,15 @@ pub fn metrics_container(identity_pool: &IdentityPool, supported_release: &Suppo
             protocol: Some("TCP".to_owned()),
             ..ContainerPort::default()
         }]),
-        env: Some(vec![ env_var_hoprd_api_token(identity_pool)]),
+        env_from: Some(vec![
+            EnvFromSource {
+                secret_ref: Some(SecretEnvSource {
+                    name: Some(format!("{}-env-vars", identity_pool.name_any())),
+                    ..SecretEnvSource::default()
+                }),
+                ..EnvFromSource::default()
+            }
+        ]),
         readiness_probe: Some( Probe {
             tcp_socket: Some( TCPSocketAction {
                 port: IntOrString::Int(8080),
@@ -456,8 +464,8 @@ fn build_ports(starting_port: i32, last_port: i32) -> Vec<ContainerPort> {
 
 ///Build struct environment variable
 ///
-fn build_env_vars(identity_pool: &IdentityPool, identity_hoprd: &IdentityHoprd, hoprd_host: &String, hoprd_spec: &HoprdSpec, session_port_range: String) -> Vec<EnvVar> {
-    let mut env_vars = build_secret_env_var(identity_pool);
+fn build_env_vars(identity_hoprd: &IdentityHoprd, hoprd_host: &String, hoprd_spec: &HoprdSpec, session_port_range: String) -> Vec<EnvVar> {
+    let mut env_vars = Vec::new();
     env_vars.extend_from_slice(&HoprdDeploymentSpec::get_environment_variables(hoprd_spec.deployment.to_owned()));
 
     env_vars.push(EnvVar {
@@ -486,41 +494,4 @@ fn build_env_vars(identity_pool: &IdentityPool, identity_hoprd: &IdentityHoprd, 
         ..EnvVar::default()
     });
     env_vars
-}
-
-fn env_var_hoprd_api_token(identity_pool: &IdentityPool) -> EnvVar{
-        EnvVar {
-            name: constants::HOPRD_API_TOKEN.to_owned(),
-            value_from: Some(EnvVarSource {
-                secret_key_ref: Some(SecretKeySelector {
-                    key: constants::IDENTITY_POOL_API_TOKEN_REF_KEY.to_owned(),
-                    name: Some(identity_pool.spec.secret_name.to_owned()),
-                    ..SecretKeySelector::default()
-                }),
-                ..EnvVarSource::default()
-            }),
-            ..EnvVar::default()
-        }
-}
-
-/// Build environment variables from secrets
-///
-/// # Arguments
-/// - `secret` - Secret struct used to build HOPRD_PASSWORD and HOPRD_API_TOKEN
-fn build_secret_env_var(identity_pool: &IdentityPool) -> Vec<EnvVar> {
-    vec![
-        EnvVar {
-            name: constants::HOPRD_PASSWORD.to_owned(),
-            value_from: Some(EnvVarSource {
-                secret_key_ref: Some(SecretKeySelector {
-                    key: constants::IDENTITY_POOL_IDENTITY_PASSWORD_REF_KEY.to_owned(),
-                    name: Some(identity_pool.spec.secret_name.to_owned()),
-                    ..SecretKeySelector::default()
-                }),
-                ..EnvVarSource::default()
-            }),
-            ..EnvVar::default()
-        },
-        env_var_hoprd_api_token(identity_pool),
-    ]
 }

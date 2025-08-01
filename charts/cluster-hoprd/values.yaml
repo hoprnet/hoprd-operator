@@ -112,7 +112,6 @@ defaultHoprdEnvVars:
 logs:
   download:
     ## @param logs.download.enabled Enable downloading logs from trusted source
-    ## Required: true
     enabled: false
 
     ## @param logs.download.snapshotUrl URL to the trusted source of logs

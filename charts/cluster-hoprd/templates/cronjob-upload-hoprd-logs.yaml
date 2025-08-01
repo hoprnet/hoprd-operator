@@ -90,7 +90,7 @@ spec:
       - name: stop-deployment
         serviceAccountName: upload-hoprd-logs-sa
         container:
-          image: bitnami/kubectl:latest
+          image: bitnami/kubectl:1.29
           command: ["/bin/bash", "-c"]
           args:
             - |
@@ -158,7 +158,7 @@ spec:
       - name: start-deployment
         serviceAccountName: upload-hoprd-logs-sa
         container:
-          image: bitnami/kubectl:latest
+          image: bitnami/kubectl:1.29
           command: ["/bin/bash", "-c"]
           args:
             - |

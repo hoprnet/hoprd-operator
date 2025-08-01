@@ -40,8 +40,6 @@ pub const HOPR_DOCKER_METRICS_IMAGE_NAME: &str = "hoprassociation/docker-images/
 
 // HOPRD Arguments
 pub const HOPRD_IDENTITY_FILE: &str = "HOPRD_IDENTITY_FILE";
-pub const HOPRD_PASSWORD: &str = "HOPRD_PASSWORD";
-pub const HOPRD_API_TOKEN: &str = "HOPRD_API_TOKEN";
 pub const HOPRD_CONFIGURATION: &str = "HOPRD_CONFIGURATION";
 pub const HOPRD_SAFE_ADDRESS: &str = "HOPRD_SAFE_ADDRESS";
 pub const HOPRD_MODULE_ADDRESS: &str = "HOPRD_MODULE_ADDRESS";

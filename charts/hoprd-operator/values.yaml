@@ -157,7 +157,7 @@ operator:
     ## Required: true
     enabled: false
 
-    ## @param operator.logs.bucketName Name of the bucket to store the logs
+    ## @param operator.fastSync.bucketName Name of the bucket to store the logs
     ## Required: true when fast-sync is enabled
     bucketName: ""
 
