@@ -15,7 +15,7 @@ use crate::{
 use futures::StreamExt;
 use k8s_openapi::api::batch::v1::JobSpec;
 use k8s_openapi::api::core::v1::{
-    ConfigMapEnvSource, Container, ContainerPort, EmptyDirVolumeSource, EnvFromSource, EnvVar, EnvVarSource, PersistentVolumeClaimVolumeSource, PodSpec, PodTemplateSpec, Probe, SecretEnvSource, SecretKeySelector, TCPSocketAction, Volume, VolumeMount
+    ConfigMapEnvSource, Container, ContainerPort, EmptyDirVolumeSource, EnvFromSource, EnvVar, PersistentVolumeClaimVolumeSource, PodSpec, PodTemplateSpec, Probe, SecretEnvSource, TCPSocketAction, Volume, VolumeMount
 };
 use k8s_openapi::api::{
     apps::v1::{Deployment, DeploymentSpec, DeploymentStrategy},
@@ -147,6 +147,15 @@ pub async fn build_deployment_spec(
                             value: Some(encoded_configuration),
                             ..EnvVar::default()
                         },
+                    ]),
+                    env_from: Some(vec![
+                        EnvFromSource {
+                            config_map_ref: Some(ConfigMapEnvSource {
+                                name: Some(format!("{}-env-vars", identity_pool.name_any())),
+                                ..ConfigMapEnvSource::default()
+                            }),
+                            ..EnvFromSource::default()
+                        }
                     ]),
                     command: Some(vec!["sh".to_string(), "-c".to_string()]),
                     args: init_args,

@@ -3,8 +3,7 @@ use kube::{
     api::Api,
     client::Client,
     runtime::{
-        controller::{Action, Controller},
-        watcher::Config,
+        controller::{Action, Controller}, watcher::Config
     },
     Resource, Result,
 };
