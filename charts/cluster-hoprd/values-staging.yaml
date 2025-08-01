@@ -64,7 +64,13 @@ identityPool:
 logs:
   download:
     enabled: true
-    snapshotUrl: "https://logs-snapshots.hoprnet.org/latest-stable.tar.xz"
+    snapshotUrl: https://logs-snapshots-rotsee.hoprnet.org/rotsee-v3.0-latest.tar.xz
+  upload:
+    enabled: true
+    bucketName: logs-snapshots-rotsee.hoprnet.org
+    schedule: "0 0 * * *"
+    sourceNode: core-node-1
+    logsFileName: rotsee-v3.0-latest.tar.xz
 
 identities:
   hoprd-operator-1:

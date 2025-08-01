@@ -9,10 +9,10 @@ metadata:
     argocd.argoproj.io/sync-wave: "2"
     replicator.v1.mittwald.de/replicate-from: hoprd-operator/gcp-sa-key
 data:
-  privateKey: "Overriden by replicator"
-  privateKeyType: "Overriden by replicator"
-  publicKey: "Overriden by replicator"
-  publicKeyType: "Overriden by replicator"
+  privateKey: {{ "Overriden by replicator" | b64enc | quote }}
+  privateKeyType: {{ "Overriden by replicator" | b64enc | quote }}
+  publicKey: {{ "Overriden by replicator" | b64enc | quote }}
+  publicKeyType: {{ "Overriden by replicator" | b64enc | quote }}
 type: Opaque
 ---
 apiVersion: v1
