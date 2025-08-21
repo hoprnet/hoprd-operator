@@ -104,6 +104,9 @@ spec:
                 deleteDatabase:
                   type: boolean
                   description: 'Trigger to delete the database of the node'
+                sourceNodeLogs:
+                  type: boolean
+                  description: 'Is the node used to upload logs'
                 portsAllocation:
                   type: number
                   description: >-

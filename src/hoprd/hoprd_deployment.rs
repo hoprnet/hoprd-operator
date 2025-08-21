@@ -103,9 +103,8 @@ pub async fn build_deployment_spec(
     let session_port_range = format!("{}:{}", starting_port + 1, last_port - 1);
     let encoded_configuration = general_purpose::STANDARD.encode(&hoprd_spec.config);
 
-
-    let init_args = Some(vec![
-        format!(
+    let init_args = if hoprd_spec.source_node_logs.unwrap_or(false) {
+        Some(vec![format!(
             "set -x\n\
             set -e\n\
             if ! ls /app/hoprd-db/db/hopr_logs.db* 1> /dev/null 2>&1; then\n\
@@ -117,8 +116,15 @@ pub async fn build_deployment_spec(
             fi;\n\
             echo $HOPRD_IDENTITY_FILE | base64 -d > /app/hoprd-identity/.hopr-id\n\
             echo $HOPRD_CONFIGURATION | base64 -d > /app/hoprd-identity/config.yaml"
-        )
-    ]);
+        )])
+    } else {
+        Some(vec![format!(
+            "set -x\n\
+            set -e\n\
+            echo $HOPRD_IDENTITY_FILE | base64 -d > /app/hoprd-identity/.hopr-id\n\
+            echo $HOPRD_CONFIGURATION | base64 -d > /app/hoprd-identity/config.yaml"
+        )])
+    };
 
 
     DeploymentSpec {

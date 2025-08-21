@@ -366,6 +366,8 @@ impl IdentityPool {
                         let status = identity.status.as_ref().unwrap_or(&default_status);
                         if status.phase.eq(&IdentityHoprdPhaseEnum::Ready) {
                             Ok(Some(identity))
+                        } else if status.phase.eq(&IdentityHoprdPhaseEnum::InUse) && status.hoprd_node_name.as_ref().unwrap() == name.as_str() {
+                            Ok(Some(identity))
                         } else {
                             warn!(
                                 "IdentityPool {} is in phase {} and might be used by {}",

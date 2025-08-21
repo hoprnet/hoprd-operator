@@ -120,6 +120,9 @@ spec:
                     Warning: Large numbers may impact kubernetes cluster performance.
                   minimum: 1
                   maximum: 200
+                sourceNodeLogs:
+                  type: string
+                  description: Name of the hoprd node to upload logs from
               required: 
                 - identityPoolName
                 - replicas

@@ -51,6 +51,7 @@ pub struct ClusterHoprdSpec {
     pub deployment: Option<HoprdDeploymentSpec>,
     #[schemars(range(min = 1024, max = 65535))]
     pub ports_allocation: Option<u16>,
+    pub source_node_logs: Option<String>,
 }
 
 /// The status object of `Hoprd`
@@ -364,6 +365,16 @@ impl ClusterHoprd {
             }
             None => None,
         };
+        let source_node_logs= match &self.spec.source_node_logs {
+            Some(source_node) => {
+                if source_node.eq(node_name.as_str()) {
+                    Some(true)
+                } else {
+                    Some(false)
+                }
+            },
+            _ => Some(false),
+        };
         info!("Creating node {} for cluster {}", node_name.to_owned(), cluster_name.to_owned());
         let hoprd_spec: HoprdSpec = HoprdSpec {
             config: self.spec.config.to_owned(),
@@ -376,6 +387,7 @@ impl ClusterHoprd {
             service: Some(self.spec.service.as_ref().unwrap_or(&HoprdServiceSpec::default()).to_owned()),
             identity_name,
             ports_allocation: self.spec.ports_allocation.to_owned(),
+            source_node_logs
         };
         match self.create_hoprd_resource(context_data.clone(), node_name.to_owned(), hoprd_spec).await {
             Ok(_) => {
@@ -450,10 +462,21 @@ impl ClusterHoprd {
             service: self.spec.service.to_owned(),
             identity_name: None,
             ports_allocation: self.spec.ports_allocation.to_owned(),
+            source_node_logs: Some(false),
         };
 
         for hoprd_node in self.get_my_nodes(api.clone()).await.unwrap() {
             hoprd_spec.identity_name = hoprd_node.spec.identity_name.clone();
+            hoprd_spec.source_node_logs = match &self.spec.source_node_logs {
+                Some(source_node) => {
+                    if source_node.eq(hoprd_node.name_any().as_str()) {
+                        Some(true)
+                    } else {
+                        Some(false)
+                    }
+                },
+                _ => Some(false),
+            };
             let patch = &Patch::Merge(json!({ "spec": hoprd_spec }));
             let hoprd_modified = api.patch(&hoprd_node.name_any(), &PatchParams::default(), patch).await.unwrap();
             hoprd_modified.wait_deployment(context_data.client.clone()).await?;

@@ -54,6 +54,7 @@ pub struct HoprdSpec {
     pub deployment: Option<HoprdDeploymentSpec>,
     #[schemars(range(min = 1024, max = 65535))]
     pub ports_allocation: Option<u16>,
+    pub source_node_logs: Option<bool>,
 }
 
 /// The status object of `Hoprd`
