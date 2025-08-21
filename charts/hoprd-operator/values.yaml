@@ -145,48 +145,31 @@ operator:
     ##
     native: 0.01
 
-
-  logs:
-    ## @param operator.logs.bucketName Name of the bucket to store the logs
-    ## Required: true when fast-sync is enabled
-    bucketName: ""
-    ## @param operator.logs.snapshotUrl URL to the latest stable logs snapshot
-    snapshotUrl: ""
-
-  crossplane:
-    provider:
-      ## @param operator.crossplane.provider.crossplane Crossplane provider name for Crossplane
-      ##
-      crossplane: ""
-      ## @param operator.crossplane.provider.upbound Crossplane provider name for GCP
-      ##
-      upbound: ""
-
-    ## @param operator.crossplane.gcpProjectId GCP Project ID
-    ##
-    gcpProjectId: ""
-
-
   fastSync:
     ## @param operator.fastSync.enabled Enable Fast Sync
     ## Required: true
     enabled: false
 
-    ## @param operator.fastSync.schedule Schedule for Fast Sync
-    ## Required: true when fast-sync  is enabled
-    ## Format: Cron expression (5 fields)
-    ## Example: "0 0 * * *" (daily at midnight)
-    schedule: "0 0 * * *"
+    ## @param operator.fastSync.bucketName Name of the bucket to store the logs
+    ## Required: true when fast-sync is enabled
+    bucketName: ""
 
-    source:
+    ## @param operator.fastSync.namespaces Allowed namespaces for uploading logs
+    namespaces: []
 
-      ## @param operator.fastSync.source.namespace Namespace of the Fast Sync source pod
-      ## Required: true when fast-sync is enabled
-      namespace: ""
-    
-      ## @param operator.fastSync.source.deployment Name of the hoprd node deployment use as source for Fast Sync
-      ## Required: true when fast-sync is enabled
-      deployment: ""
+    crossplane:
+      provider:
+        ## @param operator.fastSync.crossplane.provider.crossplane Crossplane provider name for Crossplane
+        ##
+        crossplane: ""
+        ## @param operator.fastSync.crossplane.provider.upbound Crossplane provider name for GCP
+        ##
+        upbound: ""
+
+      ## @param operator.fastSync.crossplane.gcpProjectId GCP Project ID
+      ##
+      gcpProjectId: ""
+
   
   ## @param operator.defaultHoprdEnvVars Environment variables to be set in the Hoprd Nodes
   ##

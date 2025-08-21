@@ -37,8 +37,16 @@ clusterHoprd:
     overrideEnvVars: true
     envVars:
       HOPRD_PROVIDER: Overriden by Hoprd Operator default value
-
- 
+  logs:
+    download:
+      enabled: true
+      snapshotUrl: https://logs-snapshots-rotsee.hoprnet.org/rotsee-v3.0-latest.tar.xz
+    upload:
+      enabled: true
+      bucketName: logs-snapshots-rotsee.hoprnet.org
+      schedule: "0 0 * * *"
+      sourceNode: core-node-1
+      logsFileName: rotsee-v3.0-latest.tar.xz
   identities:
     hoprd-operator-1:
       identityFile: "eyJjcnlwdG8iOnsiY2lwaGVyIjoiYWVzLTEyOC1jdHIiLCJjaXBoZXJwYXJhbXMiOnsiaXYiOiJiNzc3OTVjNThmODA1NGQ2ZTQwOTdiNjAxNzdjZDQwYiJ9LCJjaXBoZXJ0ZXh0IjoiN2Q1YWI1ODQ1ZWM4YzI2MDYzMjNmNDcxZTBkMTE1NGM2ZjA2YWNhOGQyMGFiYjVjNmU3N2E5MGY1ODk3OGVjNjRmMzU3OWJhZTg1ZThjODMzZWIzMzdhMjc4OTM4MWZlNTc2NmZlODk5NmMwYTJhZmVhYzIxNzVmMzdkMzc0Zjk2ODZkMzc2MmU0ZDJhMWIwMWMzZjMzNmMzZjg0MTMxOTIwODk4MDhmZGE5MDlmNWYwZDI0NzY5YTg5NWNhMTMwZGJlZTdjYzQxMTU2MGMzNDVlZWNiYTFlNzc0OTIzNTI1ZjNlODVmMWRmMzcwNmEzZDk0ODFjN2ExMmM2NDI4YzI1MzUxNzZlNjRhYmY3MjE4YTVlZTEwOTE3ZTQyMTViY2UwOGRiOGYxZmQwZjQyMGI2MDNmYjZmM2MyMTU0ZWI3ZDE4MzY1YTNkZWVhNDUzNmZhMmJjZDQiLCJrZGYiOiJzY3J5cHQiLCJrZGZwYXJhbXMiOnsiZGtsZW4iOjMyLCJuIjo4MTkyLCJwIjoxLCJyIjo4LCJzYWx0IjoiNTc2M2U5NDFjMjRlNmYyMjU3YTc5NjEyYWE1MDA3ZDI4YzEzNzliZWVkMjA0N2JjYzM4YWExOGE3NWE1ODY3OCJ9LCJtYWMiOiJkYTBjYzVlMjMyMjhhYWY4ODEzNzQyMjAzZjMwZDRhMDZhOWU1MTU0YWVlZTIyNzNjNDI0NTJjNzgwMGNkMDM1In0sImlkIjoiYjczNzgwZGMtZDcwZC00Y2YyLWExNGYtYmU4ZTU2NzAwZTQxIiwidmVyc2lvbiI6M30="

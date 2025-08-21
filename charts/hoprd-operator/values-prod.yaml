@@ -2,20 +2,16 @@ environmentName: prod
 operator:
   persistence:
     storageClassName: standard-rwo
-  logs:
-    bucketName: logs-snapshots.hoprnet.org
-    snapshotUrl: https://logs-snapshots.hoprnet.org/latest-stable.tar.gz
-  crossplane:
-    provider:
-      crossplane: gcp-crossplane
-      upbound: gcp-upbound
-    gcpProjectId: hopr-prod
   fastSync:
-    enabled: false
-    schedule: "0 0 * * *"
-    source:
-      namespace: core-team
-      deployment: core-node-1
+    enabled: true
+    bucketName: logs-snapshots.hoprnet.org
+    namespaces:
+      - ctdapp
+    crossplane:
+      provider:
+        crossplane: gcp-crossplane
+        upbound: gcp-upbound
+      gcpProjectId: hopr-prod
   image:
     tag: latest
     pullPolicy: Always

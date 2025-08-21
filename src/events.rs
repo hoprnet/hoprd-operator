@@ -85,6 +85,7 @@ pub enum ClusterHoprdEventEnum {
     NodeCreated,
     DeletingNode,
     NodeDeleted,
+    Modified,
 }
 
 impl ResourceEvent for ClusterHoprdEventEnum {
@@ -162,6 +163,13 @@ impl ResourceEvent for ClusterHoprdEventEnum {
                 reason: "NodeDeleted".to_string(),
                 note: Some(format!("Node {} is deleted from the cluster", parsed_attribute)),
                 action: "Node is deleted from the cluster".to_string(),
+                secondary: None,
+            },
+            ClusterHoprdEventEnum::Modified => Event {
+                type_: EventType::Normal,
+                reason: "Modified".to_string(),
+                note: Some("ClusterHoprd configuration change detected".to_owned()),
+                action: "ClusterHoprd reconfigured".to_string(),
                 secondary: None,
             },
         }
