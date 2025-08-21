@@ -107,13 +107,6 @@ pub async fn build_deployment_spec(
         Some(vec![format!(
             "set -x\n\
             set -e\n\
-            if ! ls /app/hoprd-db/db/hopr_logs.db* 1> /dev/null 2>&1; then\n\
-            apk add --no-cache curl tar;\n\
-            mkdir -p /app/hoprd-db/db;\n\
-            curl -sf --retry 3 \"$HOPRD_LOGS_SNAPSHOT_URL\" -o /app/hoprd-db/db/snapshot.tar.xz;\n\
-            tar xf /app/hoprd-db/db/snapshot.tar.xz -C /app/hoprd-db/db;\n\
-            rm -f /app/hoprd-db/db/snapshot.tar.xz;\n\
-            fi;\n\
             echo $HOPRD_IDENTITY_FILE | base64 -d > /app/hoprd-identity/.hopr-id\n\
             echo $HOPRD_CONFIGURATION | base64 -d > /app/hoprd-identity/config.yaml"
         )])
@@ -121,6 +114,13 @@ pub async fn build_deployment_spec(
         Some(vec![format!(
             "set -x\n\
             set -e\n\
+            if ! ls /app/hoprd-db/db/hopr_logs.db* 1> /dev/null 2>&1; then\n\
+            apk add --no-cache curl tar;\n\
+            mkdir -p /app/hoprd-db/db;\n\
+            curl -sf --retry 3 \"$HOPRD_LOGS_SNAPSHOT_URL\" -o /app/hoprd-db/db/snapshot.tar.xz;\n\
+            tar xf /app/hoprd-db/db/snapshot.tar.xz -C /app/hoprd-db/db;\n\
+            rm -f /app/hoprd-db/db/snapshot.tar.xz;\n\
+            fi;\n\
             echo $HOPRD_IDENTITY_FILE | base64 -d > /app/hoprd-identity/.hopr-id\n\
             echo $HOPRD_CONFIGURATION | base64 -d > /app/hoprd-identity/config.yaml"
         )])
