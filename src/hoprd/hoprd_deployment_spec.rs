@@ -63,11 +63,12 @@ impl CustomEnvVar {
 #[derive(Serialize, Debug, Deserialize, PartialEq, Clone, JsonSchema, Hash)]
 #[serde(rename_all = "camelCase")]
 pub struct HoprdDeploymentSpec {
-    env: Option<String>,
-    resources: Option<String>,
-    startup_probe: Option<String>,
-    liveness_probe: Option<String>,
-    readiness_probe: Option<String>,
+    pub env: Option<String>,
+    pub resources: Option<String>,
+    pub startup_probe: Option<String>,
+    pub liveness_probe: Option<String>,
+    pub readiness_probe: Option<String>,
+    pub extra_containers: Option<String>,
 }
 
 impl Default for HoprdDeploymentSpec {
@@ -91,7 +92,6 @@ impl Default for HoprdDeploymentSpec {
             CustomEnvVar::new_value("RUST_BACKTRACE".to_owned(), "full".to_owned()),
             CustomEnvVar::new_value("RUST_LOG".to_owned(), "info".to_owned()),
             CustomEnvVar::new_value("HOPRD_LOG_FORMAT".to_owned(), "json".to_owned()),
-            CustomEnvVar::new_value("HOPRD_MAX_RPC_REQUESTS_PER_SEC".to_owned(), "1000".to_owned()),
         ];
         let default_env_string = Some(serde_yaml::to_string(&default_env).unwrap());
 
@@ -101,6 +101,7 @@ impl Default for HoprdDeploymentSpec {
             liveness_probe: default_probe_string.clone(),
             readiness_probe: default_probe_string.clone(),
             env: default_env_string,
+            extra_containers: None,
         }
     }
 }
@@ -115,11 +116,16 @@ impl HoprdDeploymentSpec {
     }
 
     pub fn get_environment_variables(hoprd_deployment_spec: Option<HoprdDeploymentSpec>) -> Vec<EnvVar> {
+        // Get default env vars
         let default_deployment_spec = HoprdDeploymentSpec::default();
         let hoprd_deployment_spec = hoprd_deployment_spec.unwrap_or(default_deployment_spec.clone());
         let default_environment_variables: Vec<CustomEnvVar> = serde_yaml::from_str(default_deployment_spec.env.as_ref().unwrap()).unwrap();
+        
+        // Get custom env vars
         let custom_environment_variables_string = hoprd_deployment_spec.env.as_ref().unwrap_or(default_deployment_spec.env.as_ref().unwrap());
         let custom_environment_variables: Vec<CustomEnvVar> = serde_yaml::from_str(custom_environment_variables_string).unwrap();
+
+        // Merge default and custom env vars, giving precedence to custom ones in case of name conflicts
         default_environment_variables.iter().filter(| &default_environment_variable| {
             !custom_environment_variables.iter().any(|custom_environment_variable| custom_environment_variable.name == default_environment_variable.name)
         }).chain(custom_environment_variables.iter()).map(|env| env.to_env_var()).collect()

@@ -66,8 +66,8 @@ spec:
         steps:
           - - name: stop-deployment
               template: stop-deployment
-          - - name: update-logs
-              template: update-logs
+          - - name: backup-logs
+              template: backup-logs
           - - name: start-deployment
               template: start-deployment
 
@@ -88,8 +88,8 @@ spec:
               memory: "64Mi"
               cpu: "50m"
 
-      # Task 2: Update logs
-      - name: update-logs
+      # Task 2: Backup logs
+      - name: backup-logs
         serviceAccountName: upload-hoprd-logs-sa
         container:
           image: gcr.io/google.com/cloudsdktool/google-cloud-cli:stable

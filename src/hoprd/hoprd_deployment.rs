@@ -87,44 +87,10 @@ pub async fn build_deployment_spec(
     starting_port: u16,
     last_port: u16
 ) -> DeploymentSpec {
-    let image = format!(
-        "{}/{}:{}",
-        constants::HOPR_DOCKER_REGISTRY.to_owned(),
-        constants::HOPR_DOCKER_IMAGE_NAME.to_owned(),
-        &hoprd_spec.version.to_owned()
-    );
     let replicas: i32 = if hoprd_spec.enabled.unwrap_or(true) { 1 } else { 0 };
-    let resources = Some(HoprdDeploymentSpec::get_resource_requirements(hoprd_spec.deployment.clone()));
-    let liveness_probe = HoprdDeploymentSpec::get_liveness_probe(hoprd_spec.deployment.clone());
-    let readiness_probe = HoprdDeploymentSpec::get_readiness_probe(hoprd_spec.deployment.clone());
-    let startup_probe = HoprdDeploymentSpec::get_startup_probe(hoprd_spec.deployment.clone());
-    let volume_mounts: Option<Vec<VolumeMount>> = build_volume_mounts();
-    let hoprd_host_port = format!("{}:{}", hoprd_host, starting_port);
-    let session_port_range = format!("{}:{}", starting_port + 1, last_port - 1);
-    let encoded_configuration = general_purpose::STANDARD.encode(&hoprd_spec.config);
-
-    let init_args = if hoprd_spec.source_node_logs.unwrap_or(false) {
-        Some(vec![format!(
-            "set -x\n\
-            set -e\n\
-            echo $HOPRD_IDENTITY_FILE | base64 -d > /app/hoprd-identity/.hopr-id\n\
-            echo $HOPRD_CONFIGURATION | base64 -d > /app/hoprd-identity/config.yaml"
-        )])
-    } else {
-        Some(vec![format!(
-            "set -x\n\
-            set -e\n\
-            if ! ls /app/hoprd-db/db/hopr_logs.db* 1> /dev/null 2>&1; then\n\
-            apk add --no-cache curl tar;\n\
-            mkdir -p /app/hoprd-db/db;\n\
-            curl -sf --retry 3 \"$HOPRD_LOGS_SNAPSHOT_URL\" -o /app/hoprd-db/db/snapshot.tar.xz;\n\
-            tar xf /app/hoprd-db/db/snapshot.tar.xz -C /app/hoprd-db/db;\n\
-            rm -f /app/hoprd-db/db/snapshot.tar.xz;\n\
-            fi;\n\
-            echo $HOPRD_IDENTITY_FILE | base64 -d > /app/hoprd-identity/.hopr-id\n\
-            echo $HOPRD_CONFIGURATION | base64 -d > /app/hoprd-identity/config.yaml"
-        )])
-    };
+    let mut containers: Vec<Container> = extra_containers(hoprd_spec.deployment.clone());
+    containers.push(hoprd_container(hoprd_spec, &identity_pool, identity_hoprd, hoprd_host, starting_port, last_port));
+    containers.push(metrics_container(&identity_pool, &hoprd_spec.supported_release.clone()));
 
 
     DeploymentSpec {
@@ -139,64 +105,8 @@ pub async fn build_deployment_spec(
         },
         template: PodTemplateSpec {
             spec: Some(PodSpec {
-                init_containers: Some(vec![Container {
-                    name: "init".to_owned(),
-                    image: Some("alpine".to_owned()),
-                    env: Some(vec![
-                        EnvVar {
-                            name: constants::HOPRD_IDENTITY_FILE.to_owned(),
-                            value: Some(identity_hoprd.spec.identity_file.to_owned()),
-                            ..EnvVar::default()
-                        },
-                        EnvVar {
-                            name: constants::HOPRD_CONFIGURATION.to_owned(),
-                            value: Some(encoded_configuration),
-                            ..EnvVar::default()
-                        },
-                    ]),
-                    env_from: Some(vec![
-                        EnvFromSource {
-                            config_map_ref: Some(ConfigMapEnvSource {
-                                name: Some(format!("{}-env-vars", identity_pool.name_any())),
-                                ..ConfigMapEnvSource::default()
-                            }),
-                            ..EnvFromSource::default()
-                        }
-                    ]),
-                    command: Some(vec!["sh".to_string(), "-c".to_string()]),
-                    args: init_args,
-                    volume_mounts: volume_mounts.to_owned(),
-                    ..Container::default()
-                }]),
-                containers: vec![Container {
-                    name: "hoprd".to_owned(),
-                    image: Some(image),
-                    image_pull_policy: Some("Always".to_owned()),
-                    ports: Some(build_ports(starting_port.into(), last_port.into())),
-                    env: Some(build_env_vars(identity_hoprd, &hoprd_host_port, hoprd_spec, session_port_range)),
-                    env_from: Some(vec![
-                        EnvFromSource {
-                            secret_ref: Some(SecretEnvSource {
-                                name: Some(format!("{}-env-vars", identity_pool.name_any())),
-                                ..SecretEnvSource::default()
-                            }),
-                            ..EnvFromSource::default()
-                        },
-                        EnvFromSource {
-                            config_map_ref: Some(ConfigMapEnvSource {
-                                name: Some(format!("{}-env-vars", identity_pool.name_any())),
-                                ..ConfigMapEnvSource::default()
-                            }),
-                            ..EnvFromSource::default()
-                        }
-                    ]),
-                    liveness_probe,
-                    readiness_probe,
-                    startup_probe,
-                    volume_mounts,
-                    resources,
-                    ..Container::default()
-                }, metrics_container(&identity_pool, &hoprd_spec.supported_release.clone())],
+                init_containers: Some(vec![init_container(hoprd_spec, &identity_pool, identity_hoprd)]),
+                containers,
                 volumes: Some(build_volumes(&identity_hoprd.name_any()).await),
                 ..PodSpec::default()
             }),
@@ -242,6 +152,127 @@ pub async fn modify_deployment(context_data: Arc<ContextData>, deployment_name: 
     let patch = &Patch::Merge(json!({ "spec": spec }));
     api.patch(deployment_name, &PatchParams::default(), patch).await.unwrap();
     Ok(())
+}
+
+pub fn extra_containers(hoprd_deployment_spec: Option<HoprdDeploymentSpec>) -> Vec<Container> {
+    let default_deployment_spec = HoprdDeploymentSpec::default();
+    let hoprd_deployment_spec = hoprd_deployment_spec.unwrap_or(default_deployment_spec.clone());
+    if let Some(extra_containers_string) = hoprd_deployment_spec.extra_containers {
+        let extra_containers: Vec<Container> = serde_yaml::from_str(&extra_containers_string).unwrap();
+        extra_containers
+    } else {
+        vec![]
+    }
+}
+
+pub fn init_container(hoprd_spec: &HoprdSpec,
+    identity_pool: &IdentityPool,
+    identity_hoprd: &IdentityHoprd,) -> Container {
+    let encoded_configuration = general_purpose::STANDARD.encode(&hoprd_spec.config);
+    let volume_mounts: Option<Vec<VolumeMount>> = build_volume_mounts();
+    let init_args = if hoprd_spec.source_node_logs.unwrap_or(false) {
+        Some(vec![format!(
+            "set -x\n\
+            set -e\n\
+            echo $HOPRD_IDENTITY_FILE | base64 -d > /app/hoprd-identity/.hopr-id\n\
+            echo $HOPRD_CONFIGURATION | base64 -d > /app/hoprd-identity/config.yaml"
+        )])
+    } else {
+        Some(vec![format!(
+            "set -x\n\
+            set -e\n\
+            if ! ls /app/hoprd-db/db/hopr_logs.db* 1> /dev/null 2>&1; then\n\
+            apk add --no-cache curl tar;\n\
+            mkdir -p /app/hoprd-db/db;\n\
+            curl -sf --retry 3 \"$HOPRD_LOGS_SNAPSHOT_URL\" -o /app/hoprd-db/db/snapshot.tar.xz;\n\
+            tar xf /app/hoprd-db/db/snapshot.tar.xz -C /app/hoprd-db/db;\n\
+            rm -f /app/hoprd-db/db/snapshot.tar.xz;\n\
+            fi;\n\
+            echo $HOPRD_IDENTITY_FILE | base64 -d > /app/hoprd-identity/.hopr-id\n\
+            echo $HOPRD_CONFIGURATION | base64 -d > /app/hoprd-identity/config.yaml"
+        )])
+    };
+    Container {
+        name: "init".to_owned(),
+        image: Some("alpine".to_owned()),
+        env: Some(vec![
+            EnvVar {
+                name: constants::HOPRD_IDENTITY_FILE.to_owned(),
+                value: Some(identity_hoprd.spec.identity_file.to_owned()),
+                ..EnvVar::default()
+            },
+            EnvVar {
+                name: constants::HOPRD_CONFIGURATION.to_owned(),
+                value: Some(encoded_configuration),
+                ..EnvVar::default()
+            },
+        ]),
+        env_from: Some(vec![
+            EnvFromSource {
+                config_map_ref: Some(ConfigMapEnvSource {
+                    name: Some(format!("{}-env-vars", identity_pool.name_any())),
+                    ..ConfigMapEnvSource::default()
+                }),
+                ..EnvFromSource::default()
+            }
+        ]),
+        command: Some(vec!["sh".to_string(), "-c".to_string()]),
+        args: init_args,
+        volume_mounts: volume_mounts.to_owned(),
+        ..Container::default()
+    }
+}
+
+pub fn hoprd_container(hoprd_spec: &HoprdSpec,
+    identity_pool: &IdentityPool,
+    identity_hoprd: &IdentityHoprd,
+    hoprd_host: &str,
+    starting_port: u16,
+    last_port: u16) -> Container {
+    let image = format!(
+        "{}/{}:{}",
+        constants::HOPR_DOCKER_REGISTRY.to_owned(),
+        constants::HOPR_DOCKER_IMAGE_NAME.to_owned(),
+        &hoprd_spec.version.to_owned()
+    );
+
+    let resources = Some(HoprdDeploymentSpec::get_resource_requirements(hoprd_spec.deployment.clone()));
+    let liveness_probe = HoprdDeploymentSpec::get_liveness_probe(hoprd_spec.deployment.clone());
+    let readiness_probe = HoprdDeploymentSpec::get_readiness_probe(hoprd_spec.deployment.clone());
+    let startup_probe = HoprdDeploymentSpec::get_startup_probe(hoprd_spec.deployment.clone());
+    let volume_mounts: Option<Vec<VolumeMount>> = build_volume_mounts();
+    let hoprd_host_port = format!("{}:{}", hoprd_host, starting_port);
+    let session_port_range = format!("{}:{}", starting_port + 1, last_port - 1);
+
+    Container {
+        name: "hoprd".to_owned(),
+        image: Some(image),
+        image_pull_policy: Some("Always".to_owned()),
+        ports: Some(build_ports(starting_port.into(), last_port.into())),
+        env: Some(build_env_vars(identity_hoprd, &hoprd_host_port, hoprd_spec, session_port_range)),
+        env_from: Some(vec![
+            EnvFromSource {
+                secret_ref: Some(SecretEnvSource {
+                    name: Some(format!("{}-env-vars", identity_pool.name_any())),
+                    ..SecretEnvSource::default()
+                }),
+                ..EnvFromSource::default()
+            },
+            EnvFromSource {
+                config_map_ref: Some(ConfigMapEnvSource {
+                    name: Some(format!("{}-env-vars", identity_pool.name_any())),
+                    ..ConfigMapEnvSource::default()
+                }),
+                ..EnvFromSource::default()
+            }
+        ]),
+        liveness_probe,
+        readiness_probe,
+        startup_probe,
+        volume_mounts,
+        resources,
+        ..Container::default()
+    }
 }
 
 pub fn metrics_container(identity_pool: &IdentityPool, supported_release: &SupportedReleaseEnum) -> Container {
