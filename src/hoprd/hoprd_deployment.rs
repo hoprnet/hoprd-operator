@@ -130,8 +130,7 @@ pub async fn modify_deployment(context_data: Arc<ContextData>, deployment_name: 
         .spec
         .unwrap()
         .containers
-        .first()
-        .as_ref()
+        .iter().find(|&container| container.name == "hoprd")
         .unwrap()
         .env
         .as_ref()
