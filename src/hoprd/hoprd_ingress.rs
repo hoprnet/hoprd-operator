@@ -15,7 +15,7 @@ use kube::{
 };
 use serde_json::json;
 use std::{collections::BTreeMap, sync::Arc};
-use tracing::{error, info};
+use tracing::{debug, error, info};
 
 use crate::{context_data::ContextData, operator_config::IngressConfig, utils};
 use crate::{hoprd::hoprd_ingress, model::Error as HoprError};
@@ -134,6 +134,10 @@ pub async fn open_port(client: Client, service_namespace: &str, service_name: &s
             session_port_allocation, starting_port, ingress_config.port_max
         )));
     }
+    if session_port_allocation == 0 {
+        debug!("No ports to allocate, skipping opening nginx ports");
+        return Ok(starting_port);
+    }
     // Iterate over the session_port_allocation and insert entries starting from starting_port
     for i in 0..session_port_allocation.to_owned() {
         let current_port = starting_port + i;
@@ -186,12 +190,14 @@ fn find_next_port(ports: Vec<u16>, session_port_allocation: u16, min_port: u16) 
 
     // If the first port used is greater than the min_port plus session_port_allocation, fill the gap
     if (ports[0] - min_port) >= session_port_allocation {
-        return ports[0] - session_port_allocation;
+        if ports[0] > min_port { // Ensure there is a gap in case the session_port_allocation is 0
+            return ports[0] - session_port_allocation;
+        }
     }
 
     // Find a gap in the ports vector where the values between two consecutive ports are greater than the session_port_allocation
     for i in 1..ports.len() {
-        if ports[i] - ports[i - 1] >= session_port_allocation {
+        if ports[i] - ports[i - 1] - 1 >= session_port_allocation && session_port_allocation > 0 {
             return ports[i - 1] + 1;
         }
     }

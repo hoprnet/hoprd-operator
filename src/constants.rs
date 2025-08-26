@@ -46,7 +46,6 @@ pub const HOPRD_MODULE_ADDRESS: &str = "HOPRD_MODULE_ADDRESS";
 pub const HOPRD_HOST: &str = "HOPRD_HOST";
 pub const HOPRD_API: &str = "HOPRD_API";
 pub const HOPRD_SESSION_PORT_RANGE: &str = "HOPRD_SESSION_PORT_RANGE";
-pub const HOPRD_PORTS_ALLOCATION: u16 = 10;
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Default, Clone, Hash, Copy, JsonSchema)]
 pub enum SupportedReleaseEnum {
