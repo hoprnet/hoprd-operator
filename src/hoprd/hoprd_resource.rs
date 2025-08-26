@@ -53,7 +53,7 @@ pub struct HoprdSpec {
     pub service: Option<HoprdServiceSpec>,
     pub deployment: Option<HoprdDeploymentSpec>,
     #[schemars(range(min = 1024, max = 65535))]
-    pub ports_allocation: Option<u16>,
+    pub ports_allocation: u16,
     pub source_node_logs: Option<bool>,
 }
 
@@ -130,7 +130,7 @@ impl Hoprd {
         if let Some(identity) = self.lock_identity(context_data.clone()).await? {
             resource_generics::add_finalizer(client.clone(), self).await;
             let service_type = self.spec.service.as_ref().unwrap_or(&HoprdServiceSpec::default()).r#type.clone();
-            let session_ports_allocation = self.spec.ports_allocation.unwrap_or(constants::HOPRD_PORTS_ALLOCATION);
+            let session_ports_allocation = self.spec.ports_allocation;
             let starting_port = hoprd_ingress::create_ingress(
                 context_data.clone(),
                 &service_type,
@@ -345,12 +345,8 @@ impl Hoprd {
             true
         } else {
             match (&previous_hoprd.ports_allocation, &self.spec.ports_allocation) {
-                (Some(prev), Some(curr)) if prev != curr => {
+                (prev, curr) if prev != curr => {
                     error!("Hoprd configuration is invalid, 'ports_allocation' field cannot be changed on {}.", self.name_any());
-                    true
-                }
-                (Some(_), None) => {
-                    error!("Hoprd configuration is invalid, 'ports_allocation' cannot be removed on {}.", self.name_any());
                     true
                 }
                 _ => false,

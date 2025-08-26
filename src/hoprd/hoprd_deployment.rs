@@ -144,8 +144,7 @@ pub async fn modify_deployment(context_data: Arc<ContextData>, deployment_name: 
         .to_owned();
     let hoprd_host = *hoprd_host_port.split(':').collect::<Vec<&str>>().get(0).unwrap();
     let starting_port = hoprd_host_port.split(':').collect::<Vec<&str>>().get(1).unwrap().to_string().parse::<u16>().unwrap();
-    let ports_allocation = hoprd_spec.ports_allocation.clone().unwrap_or(constants::HOPRD_PORTS_ALLOCATION);
-    let last_port = starting_port + ports_allocation;
+    let last_port = starting_port + hoprd_spec.ports_allocation;
     let identity_pool: IdentityPool = identity_hoprd.get_identity_pool(context_data.client.clone()).await.unwrap();
     let spec = build_deployment_spec(deployment.labels().to_owned(), hoprd_spec, identity_pool, identity_hoprd, &hoprd_host, starting_port, last_port).await;
     let patch = &Patch::Merge(json!({ "spec": spec }));
@@ -241,7 +240,13 @@ pub fn hoprd_container(hoprd_spec: &HoprdSpec,
     let startup_probe = HoprdDeploymentSpec::get_startup_probe(hoprd_spec.deployment.clone());
     let volume_mounts: Option<Vec<VolumeMount>> = build_volume_mounts();
     let hoprd_host_port = format!("{}:{}", hoprd_host, starting_port);
-    let session_port_range = format!("{}:{}", starting_port + 1, last_port - 1);
+
+    // Only define the session port range env var if the ports allocated value is greater than 0
+    let session_port_range: Option<String> = if starting_port != last_port {
+        Some(format!("{}:{}", starting_port + 1, last_port - 1))
+    } else {
+        None
+    };
 
     Container {
         name: "hoprd".to_owned(),
@@ -464,8 +469,7 @@ async fn build_volumes(pvc_name: &String) -> Vec<Volume> {
 
 /// Build struct ContainerPort
 fn build_ports(starting_port: i32, last_port: i32) -> Vec<ContainerPort> {
-    let port_range = (last_port - starting_port - 1) as usize;
-    let mut ports: Vec<ContainerPort> = Vec::with_capacity(2 + port_range * 2);
+    let mut ports: Vec<ContainerPort> = Vec::new();
     ports.push(ContainerPort {
         container_port: 3001,
         name: Some("api".to_owned()),
@@ -509,7 +513,7 @@ fn build_ports(starting_port: i32, last_port: i32) -> Vec<ContainerPort> {
 
 ///Build struct environment variable
 ///
-fn build_env_vars(identity_hoprd: &IdentityHoprd, hoprd_host: &String, hoprd_spec: &HoprdSpec, session_port_range: String) -> Vec<EnvVar> {
+fn build_env_vars(identity_hoprd: &IdentityHoprd, hoprd_host: &String, hoprd_spec: &HoprdSpec, session_port_range: Option<String>) -> Vec<EnvVar> {
     let mut env_vars = Vec::new();
     env_vars.extend_from_slice(&HoprdDeploymentSpec::get_environment_variables(hoprd_spec.deployment.to_owned()));
 
@@ -533,10 +537,13 @@ fn build_env_vars(identity_hoprd: &IdentityHoprd, hoprd_host: &String, hoprd_spe
         value: Some("1".to_owned()),
         ..EnvVar::default()
     });
-    env_vars.push(EnvVar {
-        name: constants::HOPRD_SESSION_PORT_RANGE.to_owned(),
-        value: Some(session_port_range),
-        ..EnvVar::default()
-    });
+
+    if session_port_range.is_some() {
+        env_vars.push(EnvVar {
+            name: constants::HOPRD_SESSION_PORT_RANGE.to_owned(),
+            value: session_port_range.clone(),
+            ..EnvVar::default()
+        });
+    }
     env_vars
 }

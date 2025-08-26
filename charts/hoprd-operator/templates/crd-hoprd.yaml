@@ -116,12 +116,13 @@ spec:
                     Number of ports to be opened for session management in the hoprd node.
                     Each session requires one port. Default: 10 ports if not specified.
                     Warning: Large numbers may impact kubernetes cluster performance.
-                  minimum: 1
+                  minimum: 0
                   maximum: 200
               required: 
                 - version
                 - identityPoolName
                 - supportedRelease
+                - portsAllocation
             status:
               description: The status object of Hoprd node
               nullable: true
