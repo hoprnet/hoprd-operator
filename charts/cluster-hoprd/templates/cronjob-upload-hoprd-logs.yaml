@@ -96,8 +96,7 @@ spec:
                 kubectl wait --for=condition=available deployment/{{ .Values.logs.upload.sourceNode }} --timeout=120m
                 corrupted_channels=$(curl -s -X 'GET' 'http://{{ .Values.logs.upload.sourceNode }}-p2p-tcp:3001/api/v4/channels/corrupted' -H 'accept: application/json' -H "X-Auth-Token: $HOPRD_API_TOKEN")
                 if [[ $(jq -r '.channelIds | length' <<<"$corrupted_channels") -gt 0 ]]; then
-              else
-                  echo "Channels are still corrupted after resync, aborting log upload. You might consider changing the RPC provider"
+                  echo "Channels are still corrupted after resync, aborting log backup. You might consider changing the RPC provider"
                   exit 1
                 fi
               else
