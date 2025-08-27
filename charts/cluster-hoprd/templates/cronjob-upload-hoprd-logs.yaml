@@ -18,6 +18,9 @@ rules:
   - apiGroups: ["apps"]
     resources: ["deployments/scale"]
     verbs: ["patch"]
+  - apiGroups: ["hoprnet.org"]
+    resources: ["hoprds"]
+    verbs: ["get", "list", "patch", "update"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
@@ -64,6 +67,8 @@ spec:
     templates:
       - name: main
         steps:
+          - - name: check-corrupted-logs
+              template: check-corrupted-logs
           - - name: stop-deployment
               template: stop-deployment
           - - name: backup-logs
@@ -71,11 +76,46 @@ spec:
           - - name: start-deployment
               template: start-deployment
 
-      # Task 1: Stop Deployment
+      # Task 1: Check for corrupted logs and resync if needed
+      - name: check-corrupted-logs
+        serviceAccountName: upload-hoprd-logs-sa
+        container:
+          image: alpine/k8s:1.33.4
+          command: ["/bin/bash", "-c"]
+          args:
+            - |
+              set -euo pipefail
+              corrupted_channels=$(curl -s -X 'GET' 'http://{{ .Values.logs.upload.sourceNode }}-p2p-tcp:3001/api/v4/channels/corrupted' -H 'accept: application/json' -H "X-Auth-Token: $HOPRD_API_TOKEN")
+              if [[ $(jq -r '.channelIds | length' <<<"$corrupted_channels") -gt 0 ]]; then
+                echo "There are corrupted channels, deleting nodes database to sync from scratch"
+                if ! kubectl patch Hoprds --type=json -p="[{'op': 'replace', 'path': '/spec/deleteDatabase', 'value':true}]" {{ .Values.logs.upload.sourceNode }}; then
+                  echo "Failed to patch Hoprds resource"
+                  exit 1
+                fi
+                sleep 1200 # wait 20 minutes for the node to resync
+                kubectl wait --for=condition=available deployment/{{ .Values.logs.upload.sourceNode }} --timeout=120m
+                corrupted_channels=$(curl -s -X 'GET' 'http://{{ .Values.logs.upload.sourceNode }}-p2p-tcp:3001/api/v4/channels/corrupted' -H 'accept: application/json' -H "X-Auth-Token: $HOPRD_API_TOKEN")
+                if [[ $(jq -r '.channelIds | length' <<<"$corrupted_channels") -gt 0 ]]; then
+                  echo "Channels are still corrupted after resync, aborting log backup. You might consider changing the RPC provider"
+                  exit 1
+                fi
+              else
+                echo "No corrupted channels found, proceeding with log upload"
+              fi
+
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "50m"
+          envFrom:
+            - secretRef:
+                name: {{ .Release.Name }}-env-vars
+
+      # Task 2: Stop Deployment
       - name: stop-deployment
         serviceAccountName: upload-hoprd-logs-sa
         container:
-          image: bitnami/kubectl:1.29
+          image: alpine/k8s:1.33.4
           command: ["/bin/bash", "-c"]
           args:
             - |
@@ -88,7 +128,7 @@ spec:
               memory: "64Mi"
               cpu: "50m"
 
-      # Task 2: Backup logs
+      # Task 3: Backup logs
       - name: backup-logs
         serviceAccountName: upload-hoprd-logs-sa
         container:
@@ -96,7 +136,6 @@ spec:
           command: ["/bin/bash", "-c"]
           args:
             - |
-              set -x
               apt-get update
               apt-get install -y xz-utils
               # Create backup
@@ -142,11 +181,11 @@ spec:
               items:
                 - key: privateKey
                   path: privateKey
-      # Task 3: Start Deployment
+      # Task 4: Start Deployment
       - name: start-deployment
         serviceAccountName: upload-hoprd-logs-sa
         container:
-          image: bitnami/kubectl:1.29
+          image: alpine/k8s:1.33.4
           command: ["/bin/bash", "-c"]
           args:
             - |
