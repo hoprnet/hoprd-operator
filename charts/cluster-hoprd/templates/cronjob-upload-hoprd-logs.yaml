@@ -80,7 +80,7 @@ spec:
       - name: check-corrupted-logs
         serviceAccountName: upload-hoprd-logs-sa
         container:
-          image:  alpine/k8s:1.33.4
+          image: alpine/k8s:1.33.4
           command: ["/bin/bash", "-c"]
           args:
             - |
