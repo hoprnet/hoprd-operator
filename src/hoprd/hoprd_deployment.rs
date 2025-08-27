@@ -180,7 +180,7 @@ pub fn init_container(hoprd_spec: &HoprdSpec,
             "set -x\n\
             set -e\n\
             if ! ls /app/hoprd-db/db/hopr_logs.db* 1> /dev/null 2>&1; then\n\
-            apk add --no-cache curl tar;\n\
+            apk add --no-cache curl tar xz;\n\
             mkdir -p /app/hoprd-db/db;\n\
             curl -sf --retry 3 \"$HOPRD_LOGS_SNAPSHOT_URL\" -o /app/hoprd-db/db/snapshot.tar.xz;\n\
             tar xf /app/hoprd-db/db/snapshot.tar.xz -C /app/hoprd-db/db;\n\
