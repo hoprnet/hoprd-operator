@@ -115,6 +115,9 @@ spec:
                     extraContainers:
                       type: string
                       description: The definition of extra containers to be added to the node deployment
+                profilingEnabled:
+                  type: boolean
+                  description: Flag indicating whether to enable profiling sidecar container
                 portsAllocation:
                   type: number
                   description: >-

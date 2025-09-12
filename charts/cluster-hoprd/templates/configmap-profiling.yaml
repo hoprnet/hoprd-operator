@@ -1,0 +1,93 @@
+---
+{{- if .Values.profiling.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "cluster-hoprd.name" . }}-profiling
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+data:
+  profiling.sh: |
+    #!/bin/bash
+    set -e
+    set -x
+    
+    # Install tools
+    echo "Installing tools..."
+    DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC
+    apt-get update > /dev/null 2>&1
+    if ! apt install -y linux-tools-6.8.0-1029-gke > /dev/null 2>&1; then
+        echo "Failed to install linux-tools"
+    fi
+    apt-get install -y curl xz-utils apt-transport-https ca-certificates gnupg curl lsb-release > /dev/null 2>&1
+    echo "deb [signed-by=/usr/share/keyrings/cloud.google.gpg] https://packages.cloud.google.com/apt cloud-sdk main" | tee -a /etc/apt/sources.list.d/google-cloud-sdk.list
+    curl -s https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key --keyring /usr/share/keyrings/cloud.google.gpg add -
+    apt-get update > /dev/null 2>&1
+    if ! apt-get install -y google-cloud-sdk > /dev/null 2>&1; then
+        echo "Failed to install google-cloud-sdk"
+        exit 1
+    fi
+    # Wait for file-based signal only
+    echo "Waiting for /tmp/start_profiling file to be created to start profiling..."
+    while [ ! -f /tmp/start_profiling ]; do
+      sleep 5
+    done
+    
+    echo "Profiling signal received! Starting capture..."
+    
+    # Clean up the signal file
+    rm -f /tmp/start_profiling
+    
+    # Get target PID (adjust based on your main process)
+    HOPRD_PID=$(pgrep -f "hoprd" | head -1)
+    
+    if [ -z "$HOPRD_PID" ]; then
+      echo "ERROR: Target process not found. Available processes:"
+      ps aux
+      exit 1
+    fi
+    
+    # Create output directory
+    mkdir -p /tmp/profiling
+    cd /tmp/profiling
+
+    echo "Setting sysctl parameters for perf..."
+    sysctl -w kernel.perf_event_paranoid=-1
+    sysctl -w kernel.kptr_restrict=0
+
+    echo "Profiling process PID: $HOPRD_PID for 60 seconds..."
+    # Capture profiling data for 60 seconds
+
+    perf record -F {{ .Values.profiling.sampleFrequency }} -p $HOPRD_PID -g -o /tmp/profiling/perf-${HOSTNAME}.data -- sleep {{ .Values.profiling.sampleDuration }}
+
+    # Process the binary data into human-readable format
+    perf script -i /tmp/profiling/perf-${HOSTNAME}.data > /tmp/profiling/perf-${HOSTNAME}.script
+    echo "Output is saved to /tmp/profiling/perf-${HOSTNAME}.data and /tmp/profiling/perf-${HOSTNAME}.script"
+
+    if ! tar -cJf /tmp/profiling/perf-${HOSTNAME}.tar.xz perf-${HOSTNAME}*; then
+        echo "Failed to create compressed file"
+        exit 1
+    fi
+
+    # Authenticate with GCP
+    if ! gcloud auth activate-service-account --key-file=/app/service-account/gcp-sa-key.json; then
+        echo "Failed to authenticate with GCP"
+        exit 1
+    else
+        echo "GCP authentication successful"
+    fi
+
+    echo "Uploading to Google Cloud Storage..."
+
+    BUCKET="gs://{{ .Values.profiling.bucketName }}"
+    FILENAME="$(date +%Y-%m-%d)/perf-${HOSTNAME}.tar.xz"
+
+    profile_data_size=$(du -h /tmp/profiling/perf-${HOSTNAME}.tar.xz | awk '{print $1}')
+    echo "Uploading profiling data ($profile_data_size) to $BUCKET/$FILENAME"
+    gsutil cp /tmp/profiling/perf-${HOSTNAME}.tar.xz $BUCKET/$FILENAME
+    echo "Profiling data successfully uploaded"
+    rm -f /tmp/profiling/perf-${HOSTNAME}.tar.xz
+    echo "Profiling completed. Stopping container as completed."
+    exit 0  
+{{- end }}

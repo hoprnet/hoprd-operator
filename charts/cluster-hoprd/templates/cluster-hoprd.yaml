@@ -16,6 +16,7 @@ spec:
   {{- if .Values.deployment }}
   deployment: {{ .Values.deployment | toYaml | nindent 4 }}
   {{- end }}
+  profilingEnabled: {{ .Values.profiling.enabled | default false }}
   portsAllocation: {{ .Values.portsAllocation }}
   service: {{ .Values.service | toYaml | nindent 4 }}
   config: {{ .Values.config | toYaml | nindent 4 }}

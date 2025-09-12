@@ -110,6 +110,9 @@ spec:
                 sourceNodeLogs:
                   type: boolean
                   description: 'Is the node used to upload logs'
+                profilingEnabled:
+                  type: boolean
+                  description: Flag indicating whether to enable profiling sidecar container
                 portsAllocation:
                   type: number
                   description: >-

@@ -52,6 +52,7 @@ pub struct HoprdSpec {
     pub supported_release: SupportedReleaseEnum,
     pub service: Option<HoprdServiceSpec>,
     pub deployment: Option<HoprdDeploymentSpec>,
+    pub profiling_enabled: Option<bool>,
     #[schemars(range(min = 1024, max = 65535))]
     pub ports_allocation: u16,
     pub source_node_logs: Option<bool>,

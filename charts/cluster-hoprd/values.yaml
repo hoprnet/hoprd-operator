@@ -79,6 +79,28 @@ forceIdentityName: false
 ##
 deployment: {}
 
+profiling:
+  ##
+  ## @param profiling.enabled Enable perf profiling container
+  ##
+  enabled: false
+
+  ##
+  ## @param profiling.bucketName GCS Bucket name to store profiling data
+  ##
+  bucketName: "hoprd-operator-staging"
+
+  ##
+  ## @param profiling.sampleFrequency Frequency of samples per second
+  ##
+  sampleFrequency: 99
+
+  ## @param profiling.sampleDuration Duration of profiling in seconds
+  ##
+  sampleDuration: 60
+
+
+
 ##
 ## @param portsAllocation Ports allocation
 ##
