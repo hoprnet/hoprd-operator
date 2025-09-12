@@ -11,7 +11,7 @@ data:
   profiling.sh: |
     #!/bin/bash
     set -e
-    set -x
+    # set -x
     
     # Install tools
     echo "Installing tools..."
@@ -30,6 +30,7 @@ data:
     fi
     # Wait for file-based signal only
     echo "Waiting for /tmp/start_profiling file to be created to start profiling..."
+    echo "Execute 'kubectl exec -n {{ .Release.Namespace }} ${HOSTNAME} -c hoprd-profiling -- /bin/touch /tmp/start_profiling'"
     while [ ! -f /tmp/start_profiling ]; do
       sleep 5
     done
@@ -81,7 +82,7 @@ data:
     echo "Uploading to Google Cloud Storage..."
 
     BUCKET="gs://{{ .Values.profiling.bucketName }}"
-    FILENAME="$(date +%Y-%m-%d)/perf-${HOSTNAME}.tar.xz"
+    FILENAME="$(date +%Y-%m-%d)/perf-${HOSTNAME}-$(date +%H:%M:%S).tar.xz"
 
     profile_data_size=$(du -h /tmp/profiling/perf-${HOSTNAME}.tar.xz | awk '{print $1}')
     echo "Uploading profiling data ($profile_data_size) to $BUCKET/$FILENAME"
