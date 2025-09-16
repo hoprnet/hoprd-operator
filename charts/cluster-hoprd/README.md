@@ -26,6 +26,12 @@ This chart packages the creation of a ClusterHoprd
 | `supportedRelease`                   | The kind of supported release <saint-louis>                                     | `""`                                |
 | `forceIdentityName`                  | Forces identity names to be set in child Hopd resources                         | `false`                             |
 | `deployment`                         | Deployment spec                                                                 | `{}`                                |
+| `profiling.enabled`                  | Enable perf profiling container                                                 | `false`                             |
+| `profiling.bucketName`               | GCS Bucket name to store profiling data                                         | `hoprd-operator-staging`            |
+| `profiling.cpu.sampleFrequency`      | Frequency of samples per second                                                 | `99`                                |
+| `profiling.cpu.sampleDuration`       | Duration of profiling in seconds                                                | `60`                                |
+| `profiling.memory.samples`           | Number of memory samples to generate                                            | `10`                                |
+| `profiling.memory.interval`          | Interval in seconds between memory samples                                      | `15`                                |
 | `portsAllocation`                    | Ports allocation                                                                | `10`                                |
 | `service.type`                       | Service Type                                                                    | `ClusterIP`                         |
 | `config`                             | Custom configuration of nodes                                                   | `""`                                |
