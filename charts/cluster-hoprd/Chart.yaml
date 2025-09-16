@@ -2,7 +2,7 @@
 
 apiVersion: v2
 name: cluster-hoprd
-version: 0.3.15-alpha.2
+version: 0.3.15-alpha.5
 description: A Helm chart to deploy ClusterHoprd
 type: application
 icon: "https://hoprnet.org/assets/icons/logo.svg"

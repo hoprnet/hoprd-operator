@@ -336,6 +336,11 @@ pub fn profiling_container() -> Container {
                 name: String::from("tmp-volume"),
                 mount_path: String::from("/tmp"),
                 ..VolumeMount::default()
+            },
+            VolumeMount {
+                name: "hoprd-db".to_string(),
+                mount_path: "/app/hoprd-db".to_string(),
+                ..Default::default()
             }
         ]),
         command: Some(vec![String::from("/bin/bash"), String::from("-c")]),
@@ -468,6 +473,11 @@ fn build_volume_mounts() -> Option<Vec<VolumeMount>> {
             mount_path: "/app/hoprd-db".to_owned(),
             ..VolumeMount::default()
         },
+        VolumeMount {
+            name: "tmp-volume".to_owned(),
+            mount_path: "/tmp".to_owned(),
+            ..VolumeMount::default()
+        },
     ])
 }
 
@@ -491,12 +501,12 @@ async fn build_volumes(pvc_name: &String, cluster_hoprd: Option<&String>, hoprd_
         }),
         ..Volume::default()
     });
-    if (hoprd_spec.profiling_enabled.unwrap_or(false)) {
-        volumes.push(Volume {
-            name: "tmp-volume".to_owned(),
-            empty_dir: Some(EmptyDirVolumeSource::default()),
-            ..Volume::default()
-        });
+    volumes.push(Volume {
+        name: "tmp-volume".to_owned(),
+        empty_dir: Some(EmptyDirVolumeSource::default()),
+        ..Volume::default()
+    });
+    if hoprd_spec.profiling_enabled.unwrap_or(false) {
         volumes.push(Volume {
             name: "service-account-key".to_owned(),
             secret: Some(SecretVolumeSource {
@@ -596,6 +606,14 @@ fn build_env_vars(identity_hoprd: &IdentityHoprd, hoprd_host: &String, hoprd_spe
         value: Some("1".to_owned()),
         ..EnvVar::default()
     });
+
+    if hoprd_spec.profiling_enabled.unwrap_or(false) {
+        env_vars.push(EnvVar {
+            name: "MIMALLOC_CONF".to_owned(),
+            value: Some("prof:true,prof_active:true,prof_prefix=/tmp/profiling/memory/hoprd".to_owned()),
+            ..EnvVar::default()
+        });
+    }
 
     if session_port_range.is_some() {
         env_vars.push(EnvVar {

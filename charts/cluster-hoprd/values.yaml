@@ -90,14 +90,26 @@ profiling:
   ##
   bucketName: "hoprd-operator-staging"
 
-  ##
-  ## @param profiling.sampleFrequency Frequency of samples per second
-  ##
-  sampleFrequency: 99
+  cpu:
 
-  ## @param profiling.sampleDuration Duration of profiling in seconds
-  ##
-  sampleDuration: 60
+    ##
+    ## @param profiling.cpu.sampleFrequency Frequency of samples per second
+    ##
+    sampleFrequency: 99
+
+    ## @param profiling.cpu.sampleDuration Duration of profiling in seconds
+    ##
+    sampleDuration: 60
+
+  memory:
+
+    ## @param profiling.memory.samples Number of memory samples to generate
+    ##
+    samples: 10
+
+    ##
+    ## @param profiling.memory.interval Interval in seconds between memory samples
+    interval: 15
 
 
 
