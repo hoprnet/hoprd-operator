@@ -1,0 +1,116 @@
+---
+{{- if .Values.profiling.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "cluster-hoprd.name" . }}-profiling
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+data:
+  profiling.sh: |
+    #!/bin/bash
+    set -e
+    # set -x
+    
+    DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC
+    apt-get update > /dev/null 2>&1
+    echo "Installing dependencies..."
+    apt-get install -y curl xz-utils apt-transport-https ca-certificates gnupg curl lsb-release git > /dev/null 2>&1
+
+    echo "Installing linux-tools..."
+    if ! apt install -y linux-tools-6.8.0-1029-gke > /dev/null 2>&1; then
+        echo "Failed to install linux-tools"
+    fi
+    echo "Installing google-cloud-sdk..."
+    echo "deb [signed-by=/usr/share/keyrings/cloud.google.gpg] https://packages.cloud.google.com/apt cloud-sdk main" | tee -a /etc/apt/sources.list.d/google-cloud-sdk.list
+    curl -s https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key --keyring /usr/share/keyrings/cloud.google.gpg add -
+    apt-get update > /dev/null 2>&1
+    if ! apt-get install -y google-cloud-sdk > /dev/null 2>&1; then
+        echo "Failed to install google-cloud-sdk"
+        exit 1
+    fi
+    echo "Installing FlameGraph..."
+    if [ ! -d /tmp/FlameGraph ]; then
+        git clone https://github.com/brendangregg/FlameGraph.git /tmp/FlameGraph
+    fi
+
+    # Wait for file-based signal only
+    echo "Waiting for /tmp/start_profiling file to be created to start profiling..."
+    echo "Execute 'kubectl exec -n {{ .Release.Namespace }} ${HOSTNAME} -c hoprd-profiling -- /bin/touch /tmp/start_profiling'"
+    while [ ! -f /tmp/start_profiling ]; do
+      sleep 5
+    done
+    # Clean up the signal file
+    rm -f /tmp/start_profiling
+    echo "Profiling signal received! Starting capture..."
+    HOPRD_PID=$(pgrep -f "hoprd" | head -1)
+    if [ -z "$HOPRD_PID" ]; then
+      echo "ERROR: Target process not found. Available processes:"
+      ps aux
+      exit 1
+    else
+      echo "Found hoprd process with PID: $HOPRD_PID"
+    fi
+
+    echo "Create /tmp/profiling directory"
+    mkdir -p /tmp/profiling/cpu /tmp/profiling/memory
+    chmod 777 /tmp/profiling
+    cd /tmp/profiling/cpu
+
+    echo "Setting sysctl parameters for perf..."
+    sysctl -w kernel.perf_event_paranoid=-1
+    sysctl -w kernel.kptr_restrict=0
+
+    echo "Starting CPU Profiling for {{ .Values.profiling.cpu.sampleDuration }} seconds..."
+    perf record -F {{ .Values.profiling.cpu.sampleFrequency }} -p $HOPRD_PID -g -o /tmp/profiling/cpu/perf-${HOSTNAME}.data -- sleep {{ .Values.profiling.cpu.sampleDuration }}
+    echo "CPU Profiling completed."
+
+    echo "Process the binary data into human-readable format"
+    perf script -i /tmp/profiling/cpu/perf-${HOSTNAME}.data > /tmp/profiling/cpu/perf-${HOSTNAME}.txt
+    /tmp/FlameGraph/stackcollapse-perf.pl /tmp/profiling/cpu/perf-${HOSTNAME}.txt > /tmp/profiling/cpu/perf-${HOSTNAME}.folded
+    /tmp/FlameGraph/flamegraph.pl /tmp/profiling/cpu/perf-${HOSTNAME}.folded > /tmp/profiling/cpu/${HOSTNAME}.svg
+
+    echo "Starting Memory Profiling"
+    for i in $(seq 1 {{ .Values.profiling.memory.samples }}); do
+        ts=$(date +%s)
+        echo "Taking heap dump $i/{{ .Values.profiling.memory.samples }} at $ts"
+        kill -USR1 $HOPRD_PID
+        sleep 1
+        ts=$(date +%s)
+        #mv /tmp/profiling/memory/hoprd.$i.heap /tmp/profiling/memory/heap_$ts.heap
+        sleep {{ .Values.profiling.memory.interval }}
+    done
+
+
+    echo "Backup hoprd database"
+    cp -r /app/hoprd-db /tmp/profiling/hoprd-db-backup
+    cp /app/hoprd-identity/config.yaml  /tmp/profiling/hoprd.cfg.yaml
+
+    echo "Creating compressed archive..."
+    if ! tar -cJf /tmp/profiling-${HOSTNAME}.tar.xz -C /tmp/profiling *; then
+        echo "Failed to create compressed file"
+        exit 1
+    else
+        echo "Compressed archive created: /tmp/profiling-${HOSTNAME}.tar.xz"
+    fi
+
+    echo "Authenticating with GCP..."
+    if ! gcloud auth activate-service-account --key-file=/app/service-account/gcp-sa-key.json; then
+        echo "Failed to authenticate with GCP"
+        exit 1
+    else
+        echo "GCP authentication successful"
+    fi
+
+    BUCKET="gs://{{ .Values.profiling.bucketName }}"
+    FILENAME="$(date +%Y-%m-%d)/perf-${HOSTNAME}-$(date +%H:%M:%S).tar.xz"
+    PROFILE_DATA_SIZE=$(du -h /tmp/profiling/perf-${HOSTNAME}.tar.xz | awk '{print $1}')
+    echo "Uploading data ($PROFILE_DATA_SIZE) to $BUCKET/$FILENAME"
+    gsutil cp /tmp/profiling/perf-${HOSTNAME}.tar.xz $BUCKET/$FILENAME
+    echo "Profiling data successfully uploaded"
+
+    rm -f /tmp/profiling/perf-${HOSTNAME}.tar.xz
+    echo "Profiling container tasks completed. Stopping container as completed."
+    exit 0  
+{{- end }}

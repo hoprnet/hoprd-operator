@@ -49,6 +49,7 @@ pub struct ClusterHoprdSpec {
     pub force_identity_name: Option<bool>,
     pub service: Option<HoprdServiceSpec>,
     pub deployment: Option<HoprdDeploymentSpec>,
+    pub profiling_enabled: Option<bool>,
     #[schemars(range(min = 1024, max = 65535))]
     pub ports_allocation: u16,
     pub source_node_logs: Option<String>,
@@ -381,6 +382,7 @@ impl ClusterHoprd {
             enabled: self.spec.enabled,
             version: self.spec.version.to_owned(),
             deployment: self.spec.deployment.to_owned(),
+            profiling_enabled: self.spec.profiling_enabled,
             identity_pool_name: self.spec.identity_pool_name.to_owned(),
             supported_release: self.spec.supported_release.to_owned(),
             delete_database: Some(false),
@@ -456,6 +458,7 @@ impl ClusterHoprd {
             enabled: self.spec.enabled,
             version: self.spec.version.to_owned(),
             deployment: self.spec.deployment.to_owned(),
+            profiling_enabled: self.spec.profiling_enabled,
             delete_database: Some(false),
             identity_pool_name: self.spec.identity_pool_name.to_owned(),
             supported_release: self.spec.supported_release.to_owned(),
