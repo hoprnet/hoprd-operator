@@ -155,7 +155,7 @@ pub fn init_container(hoprd_spec: &HoprdSpec,
     identity_hoprd: &IdentityHoprd,) -> Container {
     let encoded_configuration = general_purpose::STANDARD.encode(&hoprd_spec.config);
     let volume_mounts: Option<Vec<VolumeMount>> = build_volume_mounts();
-    let init_args = if hoprd_spec.source_node_logs.unwrap_or(false) {
+    let init_args = if hoprd_spec.source_node_logs.unwrap_or(false) || hoprd_spec.supported_release.eq(&SupportedReleaseEnum::SaintLouis) {
         Some(vec![format!(
             "set -x\n\
             set -e\n\
