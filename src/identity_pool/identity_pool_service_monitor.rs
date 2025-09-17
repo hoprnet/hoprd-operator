@@ -93,6 +93,21 @@ fn create_relabel_rule(source_suffix: &str, target_name: &str) -> ServiceMonitor
     }
 }
 
+    // # Temporary relabeling due to huge amount of cardinality in the following metrics
+    // metricRelabelings:
+    // - action: labeldrop
+    //   regex: "exported_endpoint"
+    // - sourceLabels: [__name__]
+    //   regex: "hopr_udp_ingress_packet_len(_.*)?|hopr_udp_egress_packet_len(_.*)?"
+    //   action: replace
+    //   targetLabel: "counterparty"
+    //   replacement: "redacted"
+    // - sourceLabels: [__name__]
+    //   regex: "hopr_packets_per_peer_count"
+    //   action: replace
+    //   targetLabel: "peer"
+    //   replacement: "redacted"
+
 fn build_metric_relabel() -> Vec<ServiceMonitorEndpointsRelabelings> {
     vec![
         create_relabel_rule("network", "network"),

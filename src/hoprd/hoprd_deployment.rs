@@ -613,6 +613,16 @@ fn build_env_vars(identity_hoprd: &IdentityHoprd, hoprd_host: &String, hoprd_spe
             value: Some("prof:true,prof_active:true,prof_prefix=/tmp/profiling/memory/hoprd".to_owned()),
             ..EnvVar::default()
         });
+        env_vars.push(EnvVar {
+            name: "MIMALLOC_VERBOSE".to_owned(),
+            value: Some("1".to_owned()),
+            ..EnvVar::default()
+        });
+        env_vars.push(EnvVar {
+            name: "MIMALLOC_SHOW_STATS".to_owned(),
+            value: Some("1".to_owned()),
+            ..EnvVar::default()
+        });
     }
 
     if session_port_range.is_some() {
