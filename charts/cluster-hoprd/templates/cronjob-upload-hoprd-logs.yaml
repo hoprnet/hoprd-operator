@@ -138,26 +138,34 @@ spec:
             - |
               apt-get update
               apt-get install -y xz-utils
-              # Create backup
+
               cd /app/hoprd-db/db
+              echo "Creating backup archive..."
               if ! tar -cJf /tmp/{{ .Values.logs.upload.logsFileName }} hopr_logs.db*; then
                   echo "Failed to create backup archive"
                   exit 1
+              else
+                  echo "Backup archive created successfully"
               fi
 
-              # Authenticate with GCP
+
+              echo "Authenticating with GCP..."
               if ! gcloud auth activate-service-account --key-file=/app/service-account/gcp-sa-key.json; then
                   echo "Failed to authenticate with GCP"
                   exit 1
+              else
+                  echo "Authenticated with GCP successfully"
               fi
 
-              # Upload to GCS with verification
+              echo "Uploading to GCS with verification..."
               if ! gcloud storage cp /tmp/{{ .Values.logs.upload.logsFileName }} gs://{{ .Values.logs.upload.bucketName }}/{{ .Values.logs.upload.logsFileName }}; then
                   echo "Failed to upload backup"
                   exit 1
+              else
+                  echo "Backup uploaded successfully"
               fi
 
-              # Cleanup
+              echo "Cleaning up..."
               rm -f /tmp/{{ .Values.logs.upload.logsFileName }}
           resources:
             requests:

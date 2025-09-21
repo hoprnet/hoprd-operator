@@ -35,6 +35,16 @@ data:
         git clone https://github.com/brendangregg/FlameGraph.git /tmp/FlameGraph
     fi
 
+    echo "Create /tmp/profiling directory"
+    rm -rf /tmp/profiling
+    mkdir -p /tmp/profiling/cpu /tmp/profiling/memory
+    chmod 777 /tmp/profiling
+    cd /tmp/profiling/cpu
+
+    echo "Setting sysctl parameters for perf..."
+    sysctl -w kernel.perf_event_paranoid=-1
+    sysctl -w kernel.kptr_restrict=0
+
     # Wait for file-based signal only
     echo "Waiting for /tmp/start_profiling file to be created to start profiling..."
     echo "Execute 'kubectl exec -n {{ .Release.Namespace }} ${HOSTNAME} -c hoprd-profiling -- /bin/touch /tmp/start_profiling'"
@@ -44,7 +54,7 @@ data:
     # Clean up the signal file
     rm -f /tmp/start_profiling
     echo "Profiling signal received! Starting capture..."
-    HOPRD_PID=$(pgrep -f "hoprd" | head -1)
+    HOPRD_PID=$(pgrep -f "hoprd")
     if [ -z "$HOPRD_PID" ]; then
       echo "ERROR: Target process not found. Available processes:"
       ps aux
@@ -52,15 +62,6 @@ data:
     else
       echo "Found hoprd process with PID: $HOPRD_PID"
     fi
-
-    echo "Create /tmp/profiling directory"
-    mkdir -p /tmp/profiling/cpu /tmp/profiling/memory
-    chmod 777 /tmp/profiling
-    cd /tmp/profiling/cpu
-
-    echo "Setting sysctl parameters for perf..."
-    sysctl -w kernel.perf_event_paranoid=-1
-    sysctl -w kernel.kptr_restrict=0
 
     echo "Starting CPU Profiling for {{ .Values.profiling.cpu.sampleDuration }} seconds..."
     perf record -F {{ .Values.profiling.cpu.sampleFrequency }} -p $HOPRD_PID -g -o /tmp/profiling/cpu/perf-${HOSTNAME}.data -- sleep {{ .Values.profiling.cpu.sampleDuration }}
