@@ -546,12 +546,6 @@ fn build_ports(starting_port: i32, last_port: i32) -> Vec<ContainerPort> {
         ..ContainerPort::default()
     });
     ports.push(ContainerPort {
-        container_port: 8080,
-        name: Some("health".to_owned()),
-        protocol: Some("TCP".to_owned()),
-        ..ContainerPort::default()
-    });
-    ports.push(ContainerPort {
         container_port: starting_port,
         name: Some("p2p-tcp".to_owned()),
         protocol: Some("TCP".to_owned()),

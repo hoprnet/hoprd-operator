@@ -136,8 +136,10 @@ spec:
           command: ["/bin/bash", "-c"]
           args:
             - |
-              apt-get update
-              apt-get install -y xz-utils
+              set -euo pipefail
+              echo "Installing xz-utils..."
+              apt-get update 2>/dev/null || { echo "Failed to update apt-get"; exit 1; }
+              apt-get install -y xz-utils 2>/dev/null || { echo "Failed to install xz-utils"; exit 1; }
 
               cd /app/hoprd-db/db
               echo "Creating backup archive..."
