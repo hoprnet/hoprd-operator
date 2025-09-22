@@ -223,8 +223,8 @@ pub fn hoprd_container(hoprd_spec: &HoprdSpec,
 
     let resources = Some(HoprdDeploymentSpec::get_resource_requirements(hoprd_spec.deployment.clone()));
     let liveness_probe = HoprdDeploymentSpec::get_liveness_probe(hoprd_spec.deployment.clone());
-    let readiness_probe = HoprdDeploymentSpec::get_readiness_probe(hoprd_spec.deployment.clone());
-    let startup_probe = HoprdDeploymentSpec::get_startup_probe(hoprd_spec.deployment.clone());
+    let readiness_probe = HoprdDeploymentSpec::get_readiness_probe(hoprd_spec.deployment.clone(), hoprd_spec.source_node_logs.unwrap_or(false));
+    let startup_probe = HoprdDeploymentSpec::get_startup_probe(hoprd_spec.deployment.clone(), hoprd_spec.source_node_logs.unwrap_or(false));
     let volume_mounts: Option<Vec<VolumeMount>> = build_volume_mounts();
     let hoprd_host_port = format!("{}:{}", hoprd_host, starting_port);
 

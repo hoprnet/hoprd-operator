@@ -160,8 +160,9 @@ impl HoprdDeploymentSpec {
         }
     }
 
-    pub fn get_startup_probe(hoprd_deployment_spec_option: Option<HoprdDeploymentSpec>) -> Option<Probe> {
-        let default_startup_probe = HoprdDeploymentSpec::build_probe("/startedz".to_owned(), Some(15), Some(1), Some(180));
+    pub fn get_startup_probe(hoprd_deployment_spec_option: Option<HoprdDeploymentSpec>, source_node_logs: bool) -> Option<Probe> {
+        let period_seconds = if source_node_logs { Some(60) } else { Some(15) };
+        let default_startup_probe = HoprdDeploymentSpec::build_probe("/startedz".to_owned(), period_seconds, Some(1), Some(60));
         if let Some(hoprd_deployment_spec) = hoprd_deployment_spec_option {
             if let Some(startup_probe_string) = hoprd_deployment_spec.startup_probe {
                 Some(serde_yaml::from_str(&startup_probe_string).unwrap())
@@ -173,8 +174,9 @@ impl HoprdDeploymentSpec {
         }
     }
 
-    pub fn get_readiness_probe(hoprd_deployment_spec_option: Option<HoprdDeploymentSpec>) -> Option<Probe> {
-        let default_readiness_probe = HoprdDeploymentSpec::build_probe("/readyz".to_owned(), Some(15), Some(1), Some(180));
+    pub fn get_readiness_probe(hoprd_deployment_spec_option: Option<HoprdDeploymentSpec>, source_node_logs: bool) -> Option<Probe> {
+        let period_seconds = if source_node_logs { Some(60) } else { Some(15) };
+        let default_readiness_probe = HoprdDeploymentSpec::build_probe("/readyz".to_owned(), period_seconds, Some(1), Some(60));
         if let Some(hoprd_deployment_spec) = hoprd_deployment_spec_option {
             if let Some(readiness_probe_string) = hoprd_deployment_spec.readiness_probe {
                 Some(serde_yaml::from_str(&readiness_probe_string).unwrap())
