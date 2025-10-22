@@ -23,6 +23,12 @@ pub enum Error {
     #[error("Invalid Hoprd configuration: {0}")]
     HoprdConfigError(String),
 
+    #[error("YAML Parsing error: {0}")]
+    ParserError(
+        #[from]
+        serde_yaml::Error,
+    ),
+
     /// The hoprd configuration is invalid
     #[error("ClusterHoprd synch error: {0}")]
     ClusterHoprdSynchError(String),

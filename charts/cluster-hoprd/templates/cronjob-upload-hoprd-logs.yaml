@@ -123,6 +123,7 @@ spec:
                   echo "Failed to stop deployment"
                   exit 0
               fi
+              kubectl wait --for=delete pod -l app={{ .Values.logs.upload.sourceNode }} --timeout=5m
           resources:
             requests:
               memory: "64Mi"

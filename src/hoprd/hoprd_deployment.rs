@@ -38,7 +38,7 @@ use tracing::{error, info};
 /// - `client` - A Kubernetes client to create the deployment with.
 /// - `hoprd` - Details about the hoprd configuration node
 ///
-pub async fn create_deployment(context_data: Arc<ContextData>, hoprd: &Hoprd, identity_hoprd: &IdentityHoprd, hoprd_host: &str, starting_port: u16, last_port: u16) -> Result<Deployment, kube::Error> {
+pub async fn create_deployment(context_data: Arc<ContextData>, hoprd: &Hoprd, identity_hoprd: &IdentityHoprd, hoprd_host: &str, starting_port: u16, last_port: u16) -> Result<Deployment, Error> {
     let namespace: String = hoprd.namespace().unwrap();
     let name: String = hoprd.name_any();
     let owner_references: Option<Vec<OwnerReference>> = Some(vec![hoprd.controller_owner_ref(&()).unwrap()]);
@@ -67,7 +67,7 @@ pub async fn create_deployment(context_data: Arc<ContextData>, hoprd: &Hoprd, id
             owner_references,
             ..ObjectMeta::default()
         },
-        spec: Some(build_deployment_spec(labels, &hoprd.spec, identity_pool, identity_hoprd, &hoprd_host, starting_port, last_port).await),
+        spec: Some(build_deployment_spec(labels, &hoprd.spec, identity_pool, identity_hoprd, &hoprd_host, starting_port, last_port).await?),
         ..Deployment::default()
     };
 
@@ -86,16 +86,16 @@ pub async fn build_deployment_spec(
     hoprd_host: &str,
     starting_port: u16,
     last_port: u16
-) -> DeploymentSpec {
+) -> Result<DeploymentSpec, Error> {
     let replicas: i32 = if hoprd_spec.enabled.unwrap_or(true) { 1 } else { 0 };
     let mut containers: Vec<Container> = extra_containers(hoprd_spec.deployment.clone());
-    containers.push(hoprd_container(hoprd_spec, &identity_pool, identity_hoprd, hoprd_host, starting_port, last_port));
+    containers.push(hoprd_container(hoprd_spec, &identity_pool, identity_hoprd, hoprd_host, starting_port, last_port)?);
     containers.push(metrics_container(&identity_pool, &hoprd_spec.supported_release.clone()));
     if hoprd_spec.profiling_enabled.unwrap_or(false) {
         containers.push(profiling_container());
     }
 
-    DeploymentSpec {
+    Ok(DeploymentSpec {
         replicas: Some(replicas),
         strategy: Some(DeploymentStrategy {
             type_: Some("Recreate".to_owned()),
@@ -119,10 +119,10 @@ pub async fn build_deployment_spec(
             }),
         },
         ..DeploymentSpec::default()
-    }
+    })
 }
 
-pub async fn modify_deployment(context_data: Arc<ContextData>, deployment_name: &str, namespace: &str, hoprd_spec: &HoprdSpec, identity_hoprd: &IdentityHoprd) -> Result<(), kube::Error> {
+pub async fn modify_deployment(context_data: Arc<ContextData>, deployment_name: &str, namespace: &str, hoprd_spec: &HoprdSpec, identity_hoprd: &IdentityHoprd) -> Result<(), Error> {
     let api: Api<Deployment> = Api::namespaced(context_data.client.clone(), namespace);
     let deployment = api.get(deployment_name).await.unwrap();
     let pod_spec = deployment.spec.clone().unwrap().template.spec.unwrap();
@@ -133,7 +133,7 @@ pub async fn modify_deployment(context_data: Arc<ContextData>, deployment_name: 
     let starting_port = hoprd_host_port.split(':').collect::<Vec<&str>>().get(1).unwrap().to_string().parse::<u16>().unwrap();
     let last_port = starting_port + hoprd_spec.ports_allocation;
     let identity_pool: IdentityPool = identity_hoprd.get_identity_pool(context_data.client.clone()).await.unwrap();
-    let spec = build_deployment_spec(deployment.labels().to_owned(), hoprd_spec, identity_pool, identity_hoprd, &hoprd_host, starting_port, last_port).await;
+    let spec = build_deployment_spec(deployment.labels().to_owned(), hoprd_spec, identity_pool, identity_hoprd, &hoprd_host, starting_port, last_port).await?;
     let patch = &Patch::Merge(json!({ "spec": spec }));
     api.patch(deployment_name, &PatchParams::default(), patch).await.unwrap();
     Ok(())
@@ -213,7 +213,7 @@ pub fn hoprd_container(hoprd_spec: &HoprdSpec,
     identity_hoprd: &IdentityHoprd,
     hoprd_host: &str,
     starting_port: u16,
-    last_port: u16) -> Container {
+    last_port: u16) -> Result<Container, Error> {
     let image = format!(
         "{}/{}:{}",
         constants::HOPR_DOCKER_REGISTRY.to_owned(),
@@ -235,12 +235,12 @@ pub fn hoprd_container(hoprd_spec: &HoprdSpec,
         None
     };
 
-    Container {
+    Ok(Container {
         name: "hoprd".to_owned(),
         image: Some(image),
         image_pull_policy: Some("Always".to_owned()),
         ports: Some(build_ports(starting_port.into(), last_port.into())),
-        env: Some(build_env_vars(identity_hoprd, &hoprd_host_port, hoprd_spec, session_port_range)),
+        env: Some(build_env_vars(identity_hoprd, &hoprd_host_port, hoprd_spec, session_port_range)?),
         env_from: Some(vec![
             EnvFromSource {
                 secret_ref: Some(SecretEnvSource {
@@ -263,7 +263,7 @@ pub fn hoprd_container(hoprd_spec: &HoprdSpec,
         volume_mounts,
         resources,
         ..Container::default()
-    }
+    })
 }
 
 pub fn metrics_container(identity_pool: &IdentityPool, supported_release: &SupportedReleaseEnum) -> Container {
@@ -576,9 +576,9 @@ fn build_ports(starting_port: i32, last_port: i32) -> Vec<ContainerPort> {
 
 ///Build struct environment variable
 ///
-fn build_env_vars(identity_hoprd: &IdentityHoprd, hoprd_host: &String, hoprd_spec: &HoprdSpec, session_port_range: Option<String>) -> Vec<EnvVar> {
+fn build_env_vars(identity_hoprd: &IdentityHoprd, hoprd_host: &String, hoprd_spec: &HoprdSpec, session_port_range: Option<String>) -> Result<Vec<EnvVar>, Error> {
     let mut env_vars = Vec::new();
-    env_vars.extend_from_slice(&HoprdDeploymentSpec::get_environment_variables(hoprd_spec.deployment.to_owned()));
+    env_vars.extend_from_slice(&HoprdDeploymentSpec::get_environment_variables(hoprd_spec.deployment.to_owned())?);
 
     env_vars.push(EnvVar {
             name: constants::HOPRD_HOST.to_owned(),
@@ -626,5 +626,5 @@ fn build_env_vars(identity_hoprd: &IdentityHoprd, hoprd_host: &String, hoprd_spe
             ..EnvVar::default()
         });
     }
-    env_vars
+    Ok(env_vars)
 }
