@@ -92,6 +92,9 @@ spec:
                     readinessProbe:
                       type: string
                       description: The definition of the readiness probe to be used by the node deployment
+                    extraContainers:
+                      type: string
+                      description: The definition of extra containers to be added to the node deployment
                 identityPoolName:
                   type: string
                   description: The name of the IdentityPool
@@ -104,18 +107,25 @@ spec:
                 deleteDatabase:
                   type: boolean
                   description: 'Trigger to delete the database of the node'
+                sourceNodeLogs:
+                  type: boolean
+                  description: 'Is the node used to upload logs'
+                profilingEnabled:
+                  type: boolean
+                  description: Flag indicating whether to enable profiling sidecar container
                 portsAllocation:
                   type: number
                   description: >-
                     Number of ports to be opened for session management in the hoprd node.
                     Each session requires one port. Default: 10 ports if not specified.
                     Warning: Large numbers may impact kubernetes cluster performance.
-                  minimum: 1
+                  minimum: 0
                   maximum: 200
               required: 
                 - version
                 - identityPoolName
                 - supportedRelease
+                - portsAllocation
             status:
               description: The status object of Hoprd node
               nullable: true

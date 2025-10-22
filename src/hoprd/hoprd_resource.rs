@@ -52,6 +52,8 @@ pub struct HoprdSpec {
     pub supported_release: SupportedReleaseEnum,
     pub service: HoprdServiceSpec,
     pub deployment: Option<HoprdDeploymentSpec>,
+    pub profiling_enabled: Option<bool>,
+    pub source_node_logs: Option<bool>,
 }
 
 /// The status object of `Hoprd`

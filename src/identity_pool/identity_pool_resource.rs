@@ -366,6 +366,8 @@ impl IdentityPool {
                         let status = identity.status.as_ref().unwrap_or(&default_status);
                         if status.phase.eq(&IdentityHoprdPhaseEnum::Ready) {
                             Ok(Some(identity))
+                        } else if status.phase.eq(&IdentityHoprdPhaseEnum::InUse) && status.hoprd_node_name.as_ref().unwrap() == name.as_str() {
+                            Ok(Some(identity))
                         } else {
                             warn!(
                                 "IdentityPool {} is in phase {} and might be used by {}",
@@ -386,8 +388,6 @@ impl IdentityPool {
         if let Some(wallet) = api.get_opt(&self.spec.secret_name).await? {
             if let Some(wallet_data) = wallet.data {
                 if wallet_data.contains_key(constants::IDENTITY_POOL_WALLET_DEPLOYER_PRIVATE_KEY_REF_KEY)
-                    && wallet_data.contains_key(constants::IDENTITY_POOL_IDENTITY_PASSWORD_REF_KEY)
-                    && wallet_data.contains_key(constants::IDENTITY_POOL_API_TOKEN_REF_KEY)
                 {
                     Ok(true)
                 } else {

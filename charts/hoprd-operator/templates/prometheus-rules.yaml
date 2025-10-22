@@ -10,24 +10,24 @@ spec:
   groups:
   - name: hoprd-nodes
     rules:
-    - alert: HoprdNodePodRestarted
-      annotations:
-        description: Hoprd node {{`{{`}}  $labels.namespace{{`}}`}} /{{`{{`}} $labels.job {{`}}`}} restarted.
-        summary: Hoprd node restarted.
-      expr: |-
-        # When the node is running for less than 1 minute
-        abs(sum (kube_pod_start_time) by (pod) - sum (hopr_up) by (pod)) <= 10 AND avg((time() - hopr_up < 60)) by (pod)
-      for: 1m
-      labels:
-        severity: critical
-        environment: {{ .Values.environmentName }}
+    # - alert: HoprdNodePodRestarted
+    #   annotations:
+    #     description: Hoprd node {{`{{`}}  $labels.namespace{{`}}`}} /{{`{{`}} $labels.job {{`}}`}} restarted.
+    #     summary: Hoprd node restarted.
+    #   expr: |-
+    #     # When the node is running for less than 1 minute
+    #     abs(sum (kube_pod_start_time) by (pod) - sum (hopr_start_time) by (pod)) <= 120 AND avg((time() - hopr_start_time < 120)) by (pod)
+    #   for: 1m
+    #   labels:
+    #     severity: critical
+    #     environment: {{ .Values.environmentName }}
     - alert: HoprdNodeProcessRebooted
       annotations:
         description: Hoprd node {{`{{`}}  $labels.namespace{{`}}`}} /{{`{{`}} $labels.job {{`}}`}} process rebooted.
         summary: Hoprd node rebooted (OOM).
       expr: |-
-        # When the pod is running correctly and the node reboots internally without affecting the pod
-        abs(sum (kube_pod_start_time) by (pod) - sum (hopr_up) by (pod)) > 10 AND avg((time() - hopr_up < 60)) by (pod)
+        # When the pod is running correctly and the hoprdnode reboots internally without affecting the pod
+        abs(sum (kube_pod_start_time) by (pod) - sum (hopr_start_time) by (pod)) > 120 AND avg((time() - hopr_start_time < 120)) by (pod)
       for: 1m
       labels:
         severity: critical
@@ -38,25 +38,25 @@ spec:
         summary: Hoprd node restarted.
       expr: |-
         # When the node is running for more than 15 minutes and the health status is not green in the last 5 minutes
-        hopr_network_health{namespace!="team-node"} < 4 and (time() - hopr_up{namespace!="team-node"}) > 900
+        hopr_network_health{namespace!~"team-node|ambassadors"} < 4 and (time() - hopr_start_time{namespace!~"team-node|ambassadors"}) > 900
       for: 5m
       labels:
         severity: critical
         environment: {{ .Values.environmentName }}
-    - alert: HoprdAPIErrors
-      annotations:
-        description: Hoprd api call errors on {{`{{`}}  $labels.namespace{{`}}`}} /{{`{{`}} $labels.job {{`}}`}} .
-        summary: Hoprd api call errors.
-      expr: |-
-        # When the node is running for more than 15 minutes and the http api call errors are more than 30 in the last 10 minutes
-        (
-          sum(increase(hopr_http_api_call_count{namespace!="team-node", exported_endpoint != "/api/v3/peers/<id>/ping", status!~"[1,2,3].*"}[10m])) by (namespace, job) > 30
-        )
-        and
-        (
-          avg((time() - hopr_up{namespace!="team-node"})) by (namespace,job) > 900
-        )
-      for: 10m
-      labels:
-        severity: critical
-        environment: {{ .Values.environmentName }}
+    # - alert: HoprdAPIErrors
+    #   annotations:
+    #     description: Hoprd api call errors on {{`{{`}}  $labels.namespace{{`}}`}} /{{`{{`}} $labels.job {{`}}`}} .
+    #     summary: Hoprd api call errors.
+    #   expr: |-
+    #     # When the node is running for more than 15 minutes and the http api call errors are more than 30 in the last 10 minutes
+    #     (
+    #       sum(increase(hopr_http_api_call_count{namespace!="team-node", exported_endpoint != "/api/v3/peers/<id>/ping", status!~"[1,2,3].*"}[10m])) by (namespace, job) > 30
+    #     )
+    #     and
+    #     (
+    #       avg((time() - hopr_start_time{namespace!="team-node"})) by (namespace,job) > 900
+    #     )
+    #   for: 10m
+    #   labels:
+    #     severity: critical
+    #     environment: {{ .Values.environmentName }}

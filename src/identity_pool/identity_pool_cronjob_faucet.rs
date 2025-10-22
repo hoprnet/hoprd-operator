@@ -58,7 +58,7 @@ pub async fn create_cron_job(context_data: Arc<ContextData>, identity_pool: &Ide
 async fn build_args_line(identity_pool: &IdentityPool) -> Option<Vec<String>> {
     let native_amount: String = identity_pool.spec.funding.clone().unwrap().native_amount.to_string();
     let network: String = identity_pool.spec.network.to_owned();
-    let command_line: String = format!("PATH=${{PATH}}:/app/hoprnet/.foundry/bin/ /bin/hopli faucet --provider-url https://gnosis.drpc.org --network {} --hopr-amount 0 --native-amount \"{}\" --address $(cat /data/addresses.txt)", network, native_amount);
+    let command_line: String = format!("PATH=${{PATH}}:/app/hoprnet/.foundry/bin/ /bin/hopli faucet --provider-url https://gnosis-rpc.publicnode.com --network {} --hopr-amount 0 --native-amount \"{}\" --address $(cat /data/addresses.txt)", network, native_amount);
     Some(vec![command_line])
 }
 
@@ -88,7 +88,7 @@ async fn get_job_template(context_data: Arc<ContextData>, identity_pool: &Identi
             spec: Some(PodSpec {
                 init_containers: Some(vec![Container {
                     name: "kubectl".to_owned(),
-                    image: Some("registry.hub.docker.com/bitnami/kubectl:1.24".to_owned()),
+                    image: Some("registry.hub.docker.com/bitnamilegacy/kubectl:1.33".to_owned()),
                     image_pull_policy: Some("IfNotPresent".to_owned()),
                     command: Some(vec!["/bin/bash".to_owned(), "-c".to_owned()]),
                     args: kubectl_args,

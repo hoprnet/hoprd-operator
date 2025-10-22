@@ -49,6 +49,8 @@ pub struct ClusterHoprdSpec {
     pub force_identity_name: Option<bool>,
     pub service: HoprdServiceSpec,
     pub deployment: Option<HoprdDeploymentSpec>,
+    pub profiling_enabled: Option<bool>,
+    pub source_node_logs: Option<String>,
 }
 
 /// The status object of `Hoprd`
@@ -362,12 +364,23 @@ impl ClusterHoprd {
             }
             None => None,
         };
+        let source_node_logs= match &self.spec.source_node_logs {
+            Some(source_node) => {
+                if source_node.eq(node_name.as_str()) {
+                    Some(true)
+                } else {
+                    Some(false)
+                }
+            },
+            _ => Some(false),
+        };
         info!("Creating node {} for cluster {}", node_name.to_owned(), cluster_name.to_owned());
         let hoprd_spec: HoprdSpec = HoprdSpec {
             config: self.spec.config.to_owned(),
             enabled: self.spec.enabled,
             version: self.spec.version.to_owned(),
             deployment: self.spec.deployment.to_owned(),
+            profiling_enabled: self.spec.profiling_enabled,
             identity_pool_name: self.spec.identity_pool_name.to_owned(),
             supported_release: self.spec.supported_release.to_owned(),
             delete_database: Some(false),
@@ -376,6 +389,7 @@ impl ClusterHoprd {
                 ports_allocation: self.spec.service.ports_allocation.to_owned(),
             },
             identity_name,
+            source_node_logs
         };
         match self.create_hoprd_resource(context_data.clone(), node_name.to_owned(), hoprd_spec).await {
             Ok(_) => {
@@ -444,6 +458,7 @@ impl ClusterHoprd {
             enabled: self.spec.enabled,
             version: self.spec.version.to_owned(),
             deployment: self.spec.deployment.to_owned(),
+            profiling_enabled: self.spec.profiling_enabled,
             delete_database: Some(false),
             identity_pool_name: self.spec.identity_pool_name.to_owned(),
             supported_release: self.spec.supported_release.to_owned(),
@@ -452,10 +467,21 @@ impl ClusterHoprd {
                 ports_allocation: self.spec.service.ports_allocation.to_owned(),
             },
             identity_name: None,
+            source_node_logs: Some(false),
         };
 
         for hoprd_node in self.get_my_nodes(api.clone()).await.unwrap() {
             hoprd_spec.identity_name = hoprd_node.spec.identity_name.clone();
+            hoprd_spec.source_node_logs = match &self.spec.source_node_logs {
+                Some(source_node) => {
+                    if source_node.eq(hoprd_node.name_any().as_str()) {
+                        Some(true)
+                    } else {
+                        Some(false)
+                    }
+                },
+                _ => Some(false),
+            };
             let patch = &Patch::Merge(json!({ "spec": hoprd_spec }));
             let hoprd_modified = api.patch(&hoprd_node.name_any(), &PatchParams::default(), patch).await.unwrap();
             hoprd_modified.wait_deployment(context_data.client.clone()).await?;

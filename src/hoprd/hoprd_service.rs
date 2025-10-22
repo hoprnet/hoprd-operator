@@ -31,7 +31,7 @@ impl Default for HoprdServiceSpec {
     fn default() -> Self {
         Self { 
             r#type: ServiceTypeEnum::ClusterIP,
-            ports_allocation: constants::HOPRD_PORTS_ALLOCATION,
+            ports_allocation: 4,
         }
     }
 }

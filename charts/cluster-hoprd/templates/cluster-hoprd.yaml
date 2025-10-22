@@ -16,7 +16,10 @@ spec:
   {{- if .Values.clusterHoprd.nodes.deployment }}
   deployment: {{ .Values.clusterHoprd.nodes.deployment | toYaml | nindent 4 }}
   {{- end }}
-  service:
-    type: {{ .Values.clusterHoprd.nodes.service.type | default "LoadBalancer" }}
-    portsAllocation: {{ .Values.clusterHoprd.nodes.service.portsAllocation | default 10 }}
+  profilingEnabled: {{ .Values.clusterHoprd.profiling.enabled | default false }}
+  portsAllocation: {{ .Values.clusterHoprd.nodes.service.portsAllocation }}
+  service: {{ .Values.clusterHoprd.nodes.service | toYaml | nindent 4 }}
   config: {{ .Values.clusterHoprd.nodes.config | toYaml | nindent 4 }}
+  {{ if .Values.clusterHoprd.logs.upload.enabled }}
+  sourceNodeLogs: {{ .Values.clusterHoprd.logs.upload.sourceNode }}
+  {{- end -}}

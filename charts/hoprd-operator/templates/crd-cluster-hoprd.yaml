@@ -120,12 +120,22 @@ spec:
                     readinessProbe:
                       type: string
                       description: The definition of the readiness probe to be used by the node deployment
+                    extraContainers:
+                      type: string
+                      description: The definition of extra containers to be added to the node deployment
+                profilingEnabled:
+                  type: boolean
+                  description: Flag indicating whether to enable profiling sidecar container
+                sourceNodeLogs:
+                  type: string
+                  description: Name of the hoprd node to upload logs from
               required: 
                 - identityPoolName
                 - replicas
                 - config
                 - version
                 - supportedRelease
+                - portsAllocation
             status:
               description: The status object of ClusterHord node
               nullable: true

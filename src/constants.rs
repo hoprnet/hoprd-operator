@@ -13,8 +13,6 @@ pub const OPERATOR_JOB_TIMEOUT: u64 = 300;
 pub const OPERATOR_NODE_SYNC_TIMEOUT: u32 = 290;
 pub const IDENTITY_POOL_WALLET_DEPLOYER_PRIVATE_KEY_REF_KEY: &str = "DEPLOYER_PRIVATE_KEY";
 pub const IDENTITY_POOL_WALLET_PRIVATE_KEY_REF_KEY: &str = "PRIVATE_KEY";
-pub const IDENTITY_POOL_IDENTITY_PASSWORD_REF_KEY: &str = "IDENTITY_PASSWORD";
-pub const IDENTITY_POOL_API_TOKEN_REF_KEY: &str = "HOPRD_API_TOKEN";
 
 // Annotations
 pub const ANNOTATION_LAST_CONFIGURATION: &str = "kubectl.kubernetes.io/last-applied-configuration";
@@ -45,7 +43,6 @@ pub const HOPRD_MODULE_ADDRESS: &str = "HOPRD_MODULE_ADDRESS";
 pub const HOPRD_HOST: &str = "HOPRD_HOST";
 pub const HOPRD_API: &str = "HOPRD_API";
 pub const HOPRD_SESSION_PORT_RANGE: &str = "HOPRD_SESSION_PORT_RANGE";
-pub const HOPRD_PORTS_ALLOCATION: u16 = 10;
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Default, Clone, Hash, Copy, JsonSchema)]
 pub enum SupportedReleaseEnum {
