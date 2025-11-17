@@ -13,7 +13,7 @@ hoprdOperator:
     size: 4Gi
     storageClassName: regional-pd
   image:
-    tag: 0.4.0+rc.1
+    tag: latest
   hopli:
     tag: 2.2.3
   fastSync:

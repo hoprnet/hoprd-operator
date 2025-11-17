@@ -43,7 +43,7 @@ push chartName:
   #!/usr/bin/env bash
   set -euo pipefail
   version=$(yq '.version' ./charts/{{ chartName }}/Chart.yaml )
-  helm push {{ chartName }}-${version}.tgz  oci://europe-west3-docker.pkg.dev/hoprassociation/helm-charts% 
+  helm push {{ chartName }}-${version}.tgz oci://europe-west3-docker.pkg.dev/hoprassociation/helm-charts
 
 # Builds docker image
 docker-build: ## Builds docker image
