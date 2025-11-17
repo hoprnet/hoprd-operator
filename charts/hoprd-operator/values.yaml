@@ -345,6 +345,7 @@ service:
   ##
   sessionAffinity: None
 
-
+crds:
+  install: true
 
 
