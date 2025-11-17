@@ -1,4 +1,3 @@
-use crate::constants::SupportedReleaseEnum;
 use crate::events::ClusterHoprdEventEnum;
 use crate::hoprd::{
     hoprd_deployment_spec::HoprdDeploymentSpec,
@@ -45,8 +44,6 @@ pub struct ClusterHoprdSpec {
     pub config: String,
     pub version: String,
     pub enabled: Option<bool>,
-    pub supported_release: SupportedReleaseEnum,
-    pub force_identity_name: Option<bool>,
     pub service: HoprdServiceSpec,
     pub deployment: Option<HoprdDeploymentSpec>,
     pub profiling_enabled: Option<bool>,
@@ -315,7 +312,7 @@ impl ClusterHoprd {
     // Finds the next free node in the cluster. We use this function, because a node might be missing in the middle of the list of nodes
     async fn get_next_free_node(&self, client: Client) -> i32 {
         let api: Api<Hoprd> = Api::namespaced(client, &self.namespace().unwrap());
-        let current_nodes = self.get_my_nodes(api).await.unwrap();
+        let current_nodes = self.get_hoprd_nodes_from_cluster(api).await.unwrap();
         debug!(
             "ClusterHoprd {} in namespace {} has currently {} nodes",
             self.name_any(),
@@ -354,16 +351,7 @@ impl ClusterHoprd {
         let node_instance = self.get_next_free_node(context_data.client.clone()).await;
         let node_name = format!("{}-{}", cluster_name.to_owned(), node_instance).to_owned();
         context_data.send_event(self, ClusterHoprdEventEnum::CreatingNode, Some(node_name.to_owned())).await;
-        let identity_name: Option<String> = match self.spec.force_identity_name {
-            Some(force) => {
-                if force {
-                    Some(format!("{}-{}", self.spec.identity_pool_name, node_instance))
-                } else {
-                    None
-                }
-            }
-            None => None,
-        };
+        let identity_name = format!("{}-{}", self.spec.identity_pool_name, node_instance);
         let source_node_logs= match &self.spec.source_node_logs {
             Some(source_node) => {
                 if source_node.eq(node_name.as_str()) {
@@ -382,7 +370,6 @@ impl ClusterHoprd {
             deployment: self.spec.deployment.to_owned(),
             profiling_enabled: self.spec.profiling_enabled,
             identity_pool_name: self.spec.identity_pool_name.to_owned(),
-            supported_release: self.spec.supported_release.to_owned(),
             delete_database: Some(false),
             service: HoprdServiceSpec {
                 r#type: self.spec.service.r#type.to_owned(),
@@ -461,16 +448,15 @@ impl ClusterHoprd {
             profiling_enabled: self.spec.profiling_enabled,
             delete_database: Some(false),
             identity_pool_name: self.spec.identity_pool_name.to_owned(),
-            supported_release: self.spec.supported_release.to_owned(),
             service: HoprdServiceSpec {
                 r#type: self.spec.service.r#type.to_owned(),
                 ports_allocation: self.spec.service.ports_allocation.to_owned(),
             },
-            identity_name: None,
+            identity_name: "temp".to_string(), // Will be overwritten in the loop
             source_node_logs: Some(false),
         };
 
-        for hoprd_node in self.get_my_nodes(api.clone()).await.unwrap() {
+        for hoprd_node in self.get_hoprd_nodes_from_cluster(api.clone()).await.unwrap() {
             hoprd_spec.identity_name = hoprd_node.spec.identity_name.clone();
             hoprd_spec.source_node_logs = match &self.spec.source_node_logs {
                 Some(source_node) => {
@@ -498,7 +484,7 @@ impl ClusterHoprd {
     }
 
     /// Get the hoprd nodes owned by the ClusterHoprd
-    async fn get_my_nodes(&self, api: Api<Hoprd>) -> Result<Vec<Hoprd>, Error> {
+    async fn get_hoprd_nodes_from_cluster(&self, api: Api<Hoprd>) -> Result<Vec<Hoprd>, Error> {
         let label_selector: String = format!("{}={}", constants::LABEL_NODE_CLUSTER, self.name_any());
         let lp = ListParams::default().labels(&label_selector);
         let nodes = api.list(&lp).await?;
@@ -508,7 +494,7 @@ impl ClusterHoprd {
     // Delete hoprd nodes related to the cluster
     async fn delete_nodes(&self, context_data: Arc<ContextData>) -> Result<(), Error> {
         let api: Api<Hoprd> = Api::namespaced(context_data.client.clone(), &self.namespace().unwrap());
-        let nodes = self.get_my_nodes(api.clone()).await?;
+        let nodes = self.get_hoprd_nodes_from_cluster(api.clone()).await?;
         for node in nodes {
             let node_name = &node.name_any();
             let uid = node.metadata.uid.unwrap();

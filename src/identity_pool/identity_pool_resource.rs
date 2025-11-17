@@ -338,49 +338,33 @@ impl IdentityPool {
     }
 
     /// Gets the first identity in ready status
-    pub async fn get_ready_identity(&mut self, client: Client, identity_name: Option<String>) -> Result<Option<IdentityHoprd>, Error> {
+    pub async fn get_ready_identity(&mut self, client: Client, identity_name: String) -> Result<Option<IdentityHoprd>, Error> {
         let pool_identities: Vec<IdentityHoprd> = self.get_pool_identities(client).await;
-
-        match identity_name {
+        let identity = pool_identities.iter().find(|&identity| identity.metadata.name.clone().unwrap().eq(&identity_name)).cloned();
+        match identity {
             None => {
-                let ready_identity = pool_identities
-                    .iter()
-                    .find(|&identity| identity.status.as_ref().unwrap().phase.eq(&IdentityHoprdPhaseEnum::Ready))
-                    .cloned();
-
-                if ready_identity.is_none() {
-                    warn!("No ready identities available in pool {}", self.name_any());
-                }
-                Ok(ready_identity)
+                warn!("Identity {} does not exist", identity_name);
+                Ok(None)
             }
-            Some(name) => {
-                let identity = pool_identities.iter().find(|&identity| identity.metadata.name.clone().unwrap().eq(&name)).cloned();
-
-                match identity {
-                    None => {
-                        warn!("IdentityPool {} does not exist", name);
-                        Ok(None)
-                    }
-                    Some(identity) => {
-                        let default_status = IdentityHoprdStatus::default();
-                        let status = identity.status.as_ref().unwrap_or(&default_status);
-                        if status.phase.eq(&IdentityHoprdPhaseEnum::Ready) {
-                            Ok(Some(identity))
-                        } else if status.phase.eq(&IdentityHoprdPhaseEnum::InUse) && status.hoprd_node_name.as_ref().unwrap() == name.as_str() {
-                            Ok(Some(identity))
-                        } else {
-                            warn!(
-                                "IdentityPool {} is in phase {} and might be used by {}",
-                                name,
-                                status.phase,
-                                status.hoprd_node_name.as_ref().unwrap_or(&"unknown".to_owned())
-                            );
-                            Ok(None)
-                        }
-                    }
+            Some(identity) => {
+                let default_status = IdentityHoprdStatus::default();
+                let status = identity.status.as_ref().unwrap_or(&default_status);
+                if status.phase.eq(&IdentityHoprdPhaseEnum::Ready) {
+                    Ok(Some(identity))
+                } else if status.phase.eq(&IdentityHoprdPhaseEnum::InUse) && status.hoprd_node_name.as_ref().unwrap() == identity_name.as_str() {
+                    Ok(Some(identity))
+                } else {
+                    warn!(
+                        "Identity {} is in phase {} and it's apparently being used by {}",
+                        identity_name,
+                        status.phase,
+                        status.hoprd_node_name.as_ref().unwrap_or(&"unknown".to_owned())
+                    );
+                    Ok(None)
                 }
             }
         }
+
     }
 
     async fn check_wallet(&self, client: Client) -> Result<bool, Error> {

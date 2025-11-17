@@ -20,11 +20,6 @@ clusterHoprd:
   ##
   version: ""
 
-  ##
-  ## @param clusterHoprd.supportedRelease The kind of supported release <saint-louis>
-  ##
-  supportedRelease: ""
-
   funding:
     ##
     ## @param clusterHoprd.funding.enabled Enable cron auto-funding
@@ -44,11 +39,6 @@ clusterHoprd:
     ## @param clusterHoprd.funding.nativeAmount Number of xDai to fund each node
     ##
     nativeAmount: 0.01
-
-  ##
-  ## @param clusterHoprd.forceIdentityName Forces identity names to be set in child Hopd resources
-  ##
-  forceIdentityName: false
 
   nodes:
     ## @param clusterHoprd.nodes.config Custom configuration for each node
@@ -82,9 +72,12 @@ clusterHoprd:
       portsAllocation: 10
 
     ##
-    ## @param clusterHoprd.nodes.overrideEnvVars Override param clusterHoprd.nodes.envVars with default values provided by Hoprd Operator
+    ## @param clusterHoprd.nodes.replicateEnvVars Override param clusterHoprd.nodes.envVars with default values provided by Hoprd Operator
     ##
-    overrideEnvVars: false
+    replicateEnvVars: false
+
+    ## @param clusterHoprd.nodes.replicateEnvVarsName Namespace/Name of the Secret to replicate when replicateEnvVars is true
+    replicateEnvVarsName: "hoprd-operator/hoprd-operator-v4-default-env-vars"
 
     ##
     ## @param clusterHoprd.nodes.envVars Environment variables to set in Hoprd nodes
@@ -94,34 +87,34 @@ clusterHoprd:
     #   HOPRD_PROVIDER: https://gnosis.drpc.org
   profiling:
     ##
-    ## @param profiling.enabled Enable perf profiling container
+    ## @param clusterHoprd.profiling.enabled Enable perf profiling container
     ##
     enabled: false
 
     ##
-    ## @param profiling.bucketName GCS Bucket name to store profiling data
+    ## @param clusterHoprd.profiling.bucketName GCS Bucket name to store profiling data
     ##
     bucketName: "hoprd-operator-staging"
 
     cpu:
 
       ##
-      ## @param profiling.cpu.sampleFrequency Frequency of samples per second
+      ## @param clusterHoprd.profiling.cpu.sampleFrequency Frequency of samples per second
       ##
       sampleFrequency: 99
 
-      ## @param profiling.cpu.sampleDuration Duration of profiling in seconds
+      ## @param clusterHoprd.profiling.cpu.sampleDuration Duration of profiling in seconds
       ##
       sampleDuration: 60
 
     memory:
 
-      ## @param profiling.memory.samples Number of memory samples to generate
+      ## @param clusterHoprd.profiling.memory.samples Number of memory samples to generate
       ##
       samples: 10
 
       ##
-      ## @param profiling.memory.interval Interval in seconds between memory samples
+      ## @param clusterHoprd.profiling.memory.interval Interval in seconds between memory samples
       interval: 15
 
   ##

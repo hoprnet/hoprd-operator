@@ -6,7 +6,6 @@ metadata:
   namespace: hoprd-operator
 spec:
   version: latest
-  supportedRelease: kaunas
   portsAllocation: 2
   identityPoolName: identity-pool-hoprd-operator
   identityName: identity-pool-hoprd-operator-1

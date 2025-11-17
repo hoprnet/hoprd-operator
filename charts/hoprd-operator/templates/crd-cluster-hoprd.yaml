@@ -5,13 +5,6 @@ metadata:
   namespace: {{ .Release.Namespace | quote }}
   labels:
     {{- include "hoprd-operator.labels" . | nindent 4 }}
-    {{- if .Values.operator.commonLabels }}
-    {{- .Values.operator.commonLabels | toYaml | nindent 4 }}
-    {{- end }}
-{{- if .Values.operator.commonAnnotations }}
-  annotations:
-    {{- .Values.operator.commonAnnotations | toYaml | nindent 4 }}
-{{- end }}
 spec:
   group: hoprnet.org
   names:
@@ -22,7 +15,7 @@ spec:
       - clusterhoprd
   scope: Namespaced
   versions:
-    - name: v1alpha2
+    - name: v1alpha3
       served: true
       storage: true
       additionalPrinterColumns:
@@ -72,15 +65,6 @@ spec:
                 enabled:
                   type: boolean
                   description: 'Flag indicating if the node should be started or stopped'
-                supportedRelease:
-                  type: string
-                  description: 'Release Name of the supported version'
-                  enum:
-                    - saint-louis
-                    - kaunas
-                forceIdentityName:
-                  type: boolean
-                  description: Flag indicating whether the identityName should be specified in child Hoprd
                 service:
                   type: object
                   description: Service configuration
@@ -134,7 +118,6 @@ spec:
                 - replicas
                 - config
                 - version
-                - supportedRelease
                 - portsAllocation
             status:
               description: The status object of ClusterHord node

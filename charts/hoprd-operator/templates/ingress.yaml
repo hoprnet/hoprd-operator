@@ -1,4 +1,4 @@
-{{- if .Values.adminUI.ingress.enabled }}
+{{- if .Values.hoprdOperator.adminUI.ingress.enabled }}
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -6,36 +6,30 @@ metadata:
   namespace: {{ .Release.Namespace | quote }}
   labels:
     {{- include "hoprd-adminui.labels" . | nindent 4 }}
-    {{- if .Values.adminUI.commonLabels }}
-    {{- .Values.adminUI.commonLabels | toYaml | nindent 4 }}
-    {{- end }}
   annotations:
-    {{- if .Values.adminUI.ingress.annotations }}
-        {{- .Values.adminUI.ingress.annotations | toYaml | nindent 4 }}
-    {{- end }}
-    {{- if .Values.adminUI.commonAnnotations }}
-        {{- .Values.adminUI.commonAnnotations | toYaml | nindent 4 }}
+    {{- if .Values.hoprdOperator.adminUI.ingress.annotations }}
+        {{- .Values.hoprdOperator.adminUI.ingress.annotations | toYaml | nindent 4 }}
     {{- end }}
 spec:
-  ingressClassName: {{ .Values.adminUI.ingress.ingressClassName | quote }}
+  ingressClassName: {{ .Values.hoprdOperator.adminUI.ingress.ingressClassName | quote }}
   rules:
-    {{- if .Values.adminUI.ingress.hostname }}
-    - host: {{ .Values.adminUI.ingress.hostname }}
+    {{- if .Values.hoprdOperator.adminUI.ingress.hostname }}
+    - host: {{ .Values.hoprdOperator.adminUI.ingress.hostname }}
       http:
         paths:
-          {{- if .Values.adminUI.ingress.extraPaths }}
-          {{- toYaml .Values.adminUI.ingress.extraPaths | nindent 10 }}
+          {{- if .Values.hoprdOperator.adminUI.ingress.extraPaths }}
+          {{- toYaml .Values.hoprdOperator.adminUI.ingress.extraPaths | nindent 10 }}
           {{- end }}
-          - path: {{ .Values.adminUI.ingress.path }}
-            pathType: {{ .Values.adminUI.ingress.pathType }}
+          - path: {{ .Values.hoprdOperator.adminUI.ingress.path }}
+            pathType: {{ .Values.hoprdOperator.adminUI.ingress.pathType }}
             backend:
                 service:
                     name: {{ include "hoprd-operator.fullname" . }}-admin
                     port:
-                        name: {{ .Values.service.ports.name }}
+                        name: {{ .Values.hoprdOperator.adminUI.service.ports.name }}
     {{- end }}
   tls:
     - hosts:
-        - {{ .Values.adminUI.ingress.hostname }}
-      secretName: {{ .Values.adminUI.ingress.hostname }}-tls
+        - {{ .Values.hoprdOperator.adminUI.ingress.hostname }}
+      secretName: {{ .Values.hoprdOperator.adminUI.ingress.hostname }}-tls
 {{- end }}

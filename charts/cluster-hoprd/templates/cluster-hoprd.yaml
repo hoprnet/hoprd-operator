@@ -11,8 +11,6 @@ spec:
   replicas: {{ .Values.clusterHoprd.replicas }}
   version: {{ .Values.clusterHoprd.version | quote }}
   enabled: {{ .Values.clusterHoprd.enabled | default true }}
-  supportedRelease: {{ .Values.clusterHoprd.supportedRelease | default "kaunas" }}
-  forceIdentityName: {{ .Values.clusterHoprd.forceIdentityName | default true }}
   {{- if .Values.clusterHoprd.nodes.deployment }}
   deployment: {{ .Values.clusterHoprd.nodes.deployment | toYaml | nindent 4 }}
   {{- end }}

@@ -5,13 +5,6 @@ metadata:
   namespace: {{ .Release.Namespace | quote }}
   labels:
     {{- include "hoprd-operator.labels" . | nindent 4 }}
-    {{- if .Values.operator.commonLabels }}
-    {{- .Values.operator.commonLabels | toYaml | nindent 4 }}
-    {{- end }}
-{{- if .Values.operator.commonAnnotations }}
-  annotations:
-    {{- .Values.operator.commonAnnotations | toYaml | nindent 4 }}
-{{- end }}
 spec:
   group: hoprnet.org
   names:
@@ -22,7 +15,7 @@ spec:
       - identityhoprd
   scope: Namespaced
   versions:
-    - name: v1alpha2
+    - name: v1alpha3
       served: true
       storage: true
       additionalPrinterColumns:

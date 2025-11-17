@@ -1,13 +1,9 @@
-use std::fmt::{Display, Formatter};
-
-use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
-
 // Operator Constants
 pub const RECONCILE_SHORT_FREQUENCY: u64 = 10;
 pub const RECONCILE_LONG_FREQUENCY: u64 = 30;
 pub const OPERATOR_ENVIRONMENT: &str = "OPERATOR_ENVIRONMENT";
 pub const OPERATOR_FINALIZER: &str = "hoprds.hoprnet.org/finalizer";
+pub const OPERATOR_METRICS_CONTAINER_TAG: &str = "edinburgh";
 pub const OPERATOR_JOB_TIMEOUT: u64 = 300;
 // This value `OPERATOR_NODE_SYNC_TIMEOUT` should be lower than 295
 pub const OPERATOR_NODE_SYNC_TIMEOUT: u32 = 290;
@@ -43,22 +39,3 @@ pub const HOPRD_MODULE_ADDRESS: &str = "HOPRD_MODULE_ADDRESS";
 pub const HOPRD_HOST: &str = "HOPRD_HOST";
 pub const HOPRD_API: &str = "HOPRD_API";
 pub const HOPRD_SESSION_PORT_RANGE: &str = "HOPRD_SESSION_PORT_RANGE";
-
-#[derive(Serialize, Deserialize, Debug, PartialEq, Default, Clone, Hash, Copy, JsonSchema)]
-pub enum SupportedReleaseEnum {
-    #[default]
-    #[serde(rename = "saint-louis")]
-    SaintLouis,
-    #[serde(rename = "kaunas")]
-    Kaunas,
-}
-
-impl Display for SupportedReleaseEnum {
-    fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
-        match self {
-            SupportedReleaseEnum::SaintLouis => write!(f, "saint-louis"),
-            SupportedReleaseEnum::Kaunas => write!(f, "kaunas"),
-
-        }
-    }
-}

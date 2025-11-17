@@ -8,7 +8,6 @@ spec:
   version: saint-louis-latest
   identityPoolName: pull-requests-rotsee
   identityName: pull-requests-rotsee-1
-  supportedRelease: kaunas
   deleteDatabase: false
   service:
     type: LoadBalancer

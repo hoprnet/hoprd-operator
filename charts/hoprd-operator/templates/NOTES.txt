@@ -9,7 +9,6 @@ metadata:
   namespace: {{ .Release.Namespace }}
 spec:
   version: latest
-  supportedRelease: kaunas
   portsAllocation: 2
   identityPoolName: {{ .Release.Namespace }}
   identityName: {{ .Release.Namespace }}-1

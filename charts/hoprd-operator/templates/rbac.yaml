@@ -6,13 +6,6 @@ metadata:
   namespace: {{ .Release.Namespace | quote }}
   labels:
     {{- include "hoprd-operator.labels" . | nindent 4 }}
-    {{- if .Values.operator.commonLabels }}
-    {{- .Values.operator.commonLabels | toYaml | nindent 4 }}
-    {{- end }}
-{{- if .Values.operator.commonAnnotations }}
-  annotations:
-    {{- .Values.operator.commonAnnotations | toYaml | nindent 4 }}
-{{- end }}
 rules:
 - apiGroups:
   - ""
@@ -122,13 +115,6 @@ metadata:
   namespace: {{ .Release.Namespace | quote }}
   labels:
     {{- include "hoprd-operator.labels" . | nindent 4 }}
-    {{- if .Values.operator.commonLabels }}
-    {{- .Values.operator.commonLabels | toYaml | nindent 4 }}
-    {{- end }}
-{{- if .Values.operator.commonAnnotations }}
-  annotations:
-    {{- .Values.operator.commonAnnotations | toYaml | nindent 4 }}
-{{- end }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -137,13 +123,6 @@ metadata:
   namespace: {{ .Release.Namespace | quote }}
   labels:
     {{- include "hoprd-operator.labels" . | nindent 4 }}
-    {{- if .Values.operator.commonLabels }}
-    {{- .Values.operator.commonLabels | toYaml | nindent 4 }}
-    {{- end }}
-{{- if .Values.operator.commonAnnotations }}
-  annotations:
-    {{- .Values.operator.commonAnnotations | toYaml | nindent 4 }}
-{{- end }}
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole

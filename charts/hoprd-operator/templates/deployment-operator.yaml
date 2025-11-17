@@ -6,17 +6,10 @@ metadata:
   namespace: {{ .Release.Namespace | quote }}
   labels:
     {{- include "hoprd-operator.labels" . | nindent 4 }}
-    {{- if .Values.operator.commonLabels }}
-    {{- .Values.operator.commonLabels | toYaml | nindent 4 }}
-    {{- end }}
-{{- if .Values.operator.commonAnnotations }}
-  annotations:
-    {{- .Values.operator.commonAnnotations | toYaml | nindent 4 }}
-{{- end }}
 spec:
-  replicas: {{ .Values.operator.replicas }}
+  replicas: 1
   strategy:
-    type: {{ .Values.operator.strategy }}
+    type: Recreate
   selector:
     matchLabels:
       app.kubernetes.io/component: operator
@@ -35,8 +28,8 @@ spec:
         runAsNonRoot: false
       containers:
       - name: operator
-        image: "{{ .Values.operator.image.registry }}/{{ .Values.operator.image.repository }}:{{ default .Chart.AppVersion .Values.operator.image.tag }}"
-        imagePullPolicy: {{ .Values.operator.image.pullPolicy }}
+        image: "{{ .Values.hoprdOperator.image.registry }}/{{ .Values.hoprdOperator.image.repository }}:{{ default .Chart.AppVersion .Values.hoprdOperator.image.tag }}"
+        imagePullPolicy: {{ .Values.hoprdOperator.image.pullPolicy }}
         securityContext:
           runAsUser: 0
           runAsGroup: 0
@@ -47,8 +40,8 @@ spec:
           capabilities:
             drop:
             - ALL
-        {{- if .Values.operator.resources }}
-        resources: {{- toYaml .Values.operator.resources | nindent 12 }}
+        {{- if .Values.hoprdOperator.resources }}
+        resources: {{- toYaml .Values.hoprdOperator.resources | nindent 12 }}
         {{- else }}
         resources:
           limits:
@@ -58,26 +51,14 @@ spec:
             cpu: 10m
             memory: 1Mi
         {{- end }}
-        {{- if .Values.operator.extraEnvVars }}
+        {{- if .Values.hoprdOperator.extraEnvVars }}
         env:
-          {{ toYaml .Values.operator.extraEnvVars | nindent 10 }} 
+          {{- toYaml .Values.hoprdOperator.extraEnvVars | nindent 10 }} 
         {{- end }}
         volumeMounts:
           - name: hopr-config-volume
             mountPath: /app/config
       serviceAccountName: {{ include "hoprd-operator.fullname" . }}
-      {{- with .Values.operator.nodeSelector }}
-      nodeSelector:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
-      {{- with .Values.operator.affinity }}
-      affinity:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
-      {{- with .Values.operator.tolerations }}
-      tolerations:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
       volumes:
         - name: hopr-config-volume
           configMap:
