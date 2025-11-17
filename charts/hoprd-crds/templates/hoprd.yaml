@@ -3,8 +3,6 @@ kind: CustomResourceDefinition
 metadata:
   name: hoprds.hoprnet.org
   namespace: {{ .Release.Namespace | quote }}
-  labels:
-    {{- include "hoprd-operator.labels" . | nindent 4 }}
 spec:
   group: hoprnet.org
   names:
@@ -144,3 +142,143 @@ spec:
               type: object
           required:
           - spec
+    - name: v1alpha2
+      additionalPrinterColumns:
+      - description: Hoprd phase
+        jsonPath: .status.phase
+        name: Phase
+        type: string
+      - description: Version
+        jsonPath: .spec.version
+        name: Version
+        type: string
+      - description: Hoprd Name
+        jsonPath: .status.identityName
+        name: IdentityHoprd
+        type: string
+      - jsonPath: .metadata.creationTimestamp
+        name: Age
+        type: date
+      
+      schema:
+        openAPIV3Schema:
+          description: Schema definition for Hoprd Node
+          properties:
+            spec:
+              properties:
+                config:
+                  description: Yaml configuration for Hoprd nodes
+                  type: string
+                deleteDatabase:
+                  description: Trigger to delete the database of the node
+                  type: boolean
+                deployment:
+                  description: Deployment configuration
+                  properties:
+                    env:
+                      description: The definition for environment variables to be used
+                        by the node deployment
+                      type: string
+                    extraContainers:
+                      description: The definition of extra containers to be added to
+                        the node deployment
+                      type: string
+                    livenessProbe:
+                      description: The definition of the liveness probe to be used by
+                        the node deployment
+                      type: string
+                    readinessProbe:
+                      description: The definition of the readiness probe to be used
+                        by the node deployment
+                      type: string
+                    resources:
+                      description: The definition for hardware resources to be used
+                        by the node deployment
+                      type: string
+                    startupProbe:
+                      description: The definition of the startup probe to be used by
+                        the node deployment
+                      type: string
+                  type: object
+                enabled:
+                  description: Flag indicating if the node should be started or stopped
+                  type: boolean
+                identityName:
+                  description: The name of the IdentityHoprd
+                  type: string
+                identityPoolName:
+                  description: The name of the IdentityPool
+                  type: string
+                portsAllocation:
+                  description: 'Number of ports to be opened for session management
+                    in the hoprd node. Each session requires one port. Default: 10 ports
+                    if not specified. Warning: Large numbers may impact kubernetes cluster
+                    performance.'
+                  maximum: 200
+                  minimum: 0
+                  type: number
+                profilingEnabled:
+                  description: Flag indicating whether to enable profiling sidecar container
+                  type: boolean
+                service:
+                  description: Service configuration
+                  properties:
+                    type:
+                      description: The type of service to create
+                      enum:
+                      - LoadBalancer
+                      - ClusterIP
+                      type: string
+                  required:
+                  - type
+                  type: object
+                sourceNodeLogs:
+                  description: Is the node used to upload logs
+                  type: boolean
+                supportedRelease:
+                  description: Release Name of the supported version
+                  enum:
+                  - saint-louis
+                  - kaunas
+                  type: string
+                version:
+                  description: An specific hoprd version. Should match with a docker
+                    tag
+                  type: string
+              required:
+              - version
+              - identityPoolName
+              - supportedRelease
+              - portsAllocation
+              type: object
+            status:
+              description: The status object of Hoprd node
+              nullable: true
+              properties:
+                checksum:
+                  description: Checksum of the last applied change
+                  type: string
+                identityName:
+                  description: Name of the HoprdNode
+                  type: string
+                phase:
+                  description: Phase of the last applied change
+                  enum:
+                  - Initializing
+                  - Running
+                  - Stopped
+                  - Failed
+                  - Deleting
+                  type: string
+                updateTimestamp:
+                  description: Timestamp of the last applied change
+                  format: date-time
+                  type: string
+              required:
+              - updateTimestamp
+              - checksum
+              - phase
+              type: object
+          required:
+          - spec
+          type: object

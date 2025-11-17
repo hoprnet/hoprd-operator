@@ -3,8 +3,6 @@ kind: CustomResourceDefinition
 metadata:
   name: identitypools.hoprnet.org
   namespace: {{ .Release.Namespace | quote }}
-  labels:
-    {{- include "hoprd-operator.labels" . | nindent 4 }}
 spec:
   group: hoprnet.org
   names:
@@ -97,3 +95,89 @@ spec:
               type: object
           required:
           - spec
+    - name: v1alpha2
+      additionalPrinterColumns:
+      - description: Hoprd network name
+        jsonPath: .spec.network
+        name: Network
+        type: string
+      - description: Identity pool phase
+        jsonPath: .status.phase
+        name: Phase
+        type: string
+      - description: Identity size
+        jsonPath: .status.size
+        name: Size
+        type: number
+      - description: Identity locked
+        jsonPath: .status.locked
+        name: Locked
+        type: number
+      - jsonPath: .metadata.creationTimestamp
+        name: Age
+        type: date
+
+      schema:
+        openAPIV3Schema:
+          description: Schema definition for Identity Hoprd
+          properties:
+            spec:
+              properties:
+                funding:
+                  properties:
+                    nativeAmount:
+                      description: xDai limit amount (unit xDai)
+                      type: string
+                    schedule:
+                      description: Cron schedule format
+                      type: string
+                  required:
+                  - schedule
+                  - nativeAmount
+                  type: object
+                network:
+                  description: Name of the Hoprd network
+                  type: string
+                secretName:
+                  description: Name of the secret containing sensitive data
+                  type: string
+              required:
+              - network
+              - secretName
+              type: object
+            status:
+              description: The status object of IdentityHoprd node
+              nullable: true
+              properties:
+                checksum:
+                  description: Checksum of the last applied change
+                  type: string
+                locked:
+                  description: Amount of locked identities
+                  type: number
+                phase:
+                  description: Phase of the last applied change
+                  enum:
+                  - Initialized
+                  - Failed
+                  - OutOfSync
+                  - Ready
+                  - Deleting
+                  type: string
+                size:
+                  description: Amount of identities created
+                  type: number
+                updateTimestamp:
+                  description: Timestamp of the last applied change
+                  format: date-time
+                  type: string
+              required:
+              - updateTimestamp
+              - checksum
+              - phase
+              - size
+              - locked
+              type: object
+          required:
+          - spec
+          type: object

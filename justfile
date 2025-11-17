@@ -5,12 +5,15 @@ login:
   helm registry login -u oauth2accesstoken --password "$token" https://europe-west3-docker.pkg.dev
 
 # Template the Helm chart for a given chart name
-template-operator chartName:
-  helm template --dry-run --namespace hoprd-operator --create-namespace -f ./charts/hoprd-operator/values-staging.yaml {{ chartName }} ./charts/hoprd-operator/
-
-# Template the Helm chart for cluster-hoprd
-template-cluster:
-  helm template --dry-run --namespace hoprd-operator-sample --create-namespace -f ./charts/cluster-hoprd/values-staging.yaml app-green ./charts/cluster-hoprd/
+template chartName:
+  #!/usr/bin/env bash
+  set -euo pipefail
+  if [ "{{ chartName }}" = "hoprd-operator" ] || [ "{{ chartName }}" = "hoprd-crds" ]; then
+    namespace="hoprd-operator"
+  else
+    namespace="hoprd-operator-sample"
+  fi
+  helm template --dry-run --namespace $namespace --create-namespace -f ./charts/{{ chartName }}/values-staging.yaml {{ chartName }} ./charts/{{ chartName }}/
 
 # Lint both Helm charts
 lint:
