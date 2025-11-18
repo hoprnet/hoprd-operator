@@ -31,28 +31,40 @@ async fn main() -> Result<()> {
     let subscriber = FmtSubscriber::builder().with_env_filter(EnvFilter::from_default_env()).finish();
     tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
 
-    let version: &str = env!("CARGO_PKG_VERSION");
-    info!("Starting hoprd-operator {}", version);
+    info!("Starting hoprd-operator {}", env!("CARGO_PKG_VERSION"));
+
+    // ⭐ 1. Start webhook IMMEDIATELY
+    let webhook_handle = tokio::spawn(async {
+        webhook_server::run_webhook_server()
+            .await;
+    });
+
+    // ⭐ 2. Wait until webhook port is ready
+    let webhook_boot = webhook_server::wait_for_webhook_ready().await;
+    if webhook_boot.is_err() {
+        panic!("Webhook server failed to start: {}", webhook_boot.err().unwrap());
+    }
+
+    // ⭐ 3. Initialize Kubernetes client and context data
     let client: Client = Client::try_default().await.expect("Failed to create kube Client");
     let context_data: Arc<ContextData> = Arc::new(ContextData::new(client.clone()).await);
     ContextData::sync_identities(context_data.clone()).await;
-    // Initiatilize Kubernetes controller state
+
+    // ⭐ 4. Initiatilize Kubernetes controllers
     bootstrap_operator::start(client.clone(), context_data.clone()).await;
     let controller_identity_pool = identity_pool::identity_pool_controller::run(client.clone(), context_data.clone()).fuse();
     let controller_identity_hoprd = identity_hoprd::identity_hoprd_controller::run(client.clone(), context_data.clone()).fuse();
     let controller_hoprd = hoprd::hoprd_controller::run(client.clone(), context_data.clone()).fuse();
     let controller_cluster = cluster::cluster_controller::run(client.clone(), context_data.clone()).fuse();
-    // Start webhook server
-    let webhook = webhook_server::run_webhook_server().fuse();
 
-    pin_mut!(controller_identity_pool, controller_identity_hoprd, controller_hoprd, controller_cluster, webhook);
+    pin_mut!(controller_identity_pool, controller_identity_hoprd, controller_hoprd, controller_cluster);
     select! {
         () = controller_identity_pool => println!("Controller IdentityPool exited"),
         () = controller_identity_hoprd => println!("Controller IdentityHoprd exited"),
         () = controller_hoprd => println!("Controller Hoprd exited"),
         () = controller_cluster => println!("Controller ClusterHoprd exited"),
-        () = webhook => println!("Webhook server exited"),
     }
+    webhook_handle.await.expect("Webhook task panicked");
 
     Ok(())
 }

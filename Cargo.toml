@@ -34,6 +34,7 @@ chrono = "0.4.31"
 tracing = "0.1.40"
 tracing-subscriber = { version = "0.3.20", default-features = true, features = ["env-filter"]}
 base64 = "0.22.1"
+anyhow = "1.0.100"
 
 [features]
 # Force openssl-sys to staticly link in the openssl library. Necessary when

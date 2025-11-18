@@ -3,6 +3,7 @@ use tracing::info;
 use std::net::SocketAddr;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use anyhow;
 
 #[derive(Serialize, Deserialize, Debug)]
 struct ConversionReview {
@@ -28,6 +29,23 @@ struct ConversionResponse {
 struct Status {
     status: String,
     message: Option<String>,
+}
+
+pub async fn wait_for_webhook_ready() -> anyhow::Result<()> {
+    use tokio::net::TcpStream;
+    use tokio::time::{sleep, Duration};
+
+    let addr = "127.0.0.1:8443";
+
+    for _ in 0..50 {
+        if TcpStream::connect(addr).await.is_ok() {
+            info!("Webhook is ready at {}", addr);
+            return Ok(());
+        }
+        sleep(Duration::from_millis(100)).await;
+    }
+
+    Err(anyhow::anyhow!("Webhook did not start on {}", addr))
 }
 
 pub async fn run_webhook_server() {
