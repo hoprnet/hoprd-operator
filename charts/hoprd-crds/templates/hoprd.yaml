@@ -3,6 +3,18 @@ kind: CustomResourceDefinition
 metadata:
   name: hoprds.hoprnet.org
 spec:
+  conversion:
+    strategy: Webhook
+    webhook:
+      clientConfig:
+        service:
+          name: {{ .Values.hoprdOperator.webhook.service.name }}
+          namespace: {{ .Release.Namespace }}
+          path: /convert
+          port: {{ .Values.hoprdOperator.webhook.service.port }}
+        caBundle: {{ .Values.hoprdOperator.webhook.tls.crt | b64enc | quote }}
+      conversionReviewVersions:
+        - v1
   group: hoprnet.org
   names:
     kind: Hoprd
@@ -275,14 +287,3 @@ spec:
           required:
           - spec
           type: object
-  conversion:
-    strategy: Webhook
-    webhook:
-      clientConfig:
-        service:
-          name: {{ .Values.hoprdOperator.webhook.serviceName }}
-          namespace: {{ .Release.Namespace }}
-          path: /convert
-        caBundle: {{ .Values.hoprdOperator.webhook.tls.crt | b64enc | quote }}
-      conversionReviewVersions:
-        - v1

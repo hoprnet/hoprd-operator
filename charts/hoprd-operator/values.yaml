@@ -229,11 +229,14 @@ hoprdOperator:
     storageClassName: ""
 
   webhook:
+
+    ## @param hoprdOperator.webhook.enabled Whether to enable the webhook server
+    ##
     enabled: true
     tls:
       ## @param hoprdOperator.webhook.tls.crt TLS certificate for the webhook server
       ##
-      tls.crt: ""
+      crt: ""
       ## @param hoprdOperator.webhook.tls.key TLS private key for the webhook server
       ##
-      tls.key: ""
+      key: ""

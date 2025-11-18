@@ -79,3 +79,6 @@ Chart version `Chart.yaml` should be increased according to [semver](http://semv
 | `hoprdOperator.ingress.deploymentName`                  | Labels selector to choose the Nginx deployment and service  | `""`                                           |
 | `hoprdOperator.persistence.size`                        | Size of the persistence Volume                              | `500Mi`                                        |
 | `hoprdOperator.persistence.storageClassName`            | Name of the storage class                                   | `""`                                           |
+| `hoprdOperator.webhook.enabled`                         | Whether to enable the webhook server                        | `true`                                         |
+| `hoprdOperator.webhook.tls.crt`                         | TLS certificate for the webhook server                      | `""`                                           |
+| `hoprdOperator.webhook.tls.key`                         | TLS private key for the webhook server                      | `""`                                           |
