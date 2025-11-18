@@ -1,3 +1,4 @@
 hoprdOperator:
   webhook:
-    serviceName: "hoprd-operator-webhook"
+    service:
+      name: "hoprd-operator-webhook"

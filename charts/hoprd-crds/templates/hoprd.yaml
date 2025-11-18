@@ -7,12 +7,12 @@ spec:
     strategy: Webhook
     webhook:
       clientConfig:
+        caBundle: {{ .Values.hoprdOperator.webhook.tls.crt | b64enc | quote }}
         service:
           name: {{ .Values.hoprdOperator.webhook.service.name }}
           namespace: {{ .Release.Namespace }}
           path: /convert
           port: {{ .Values.hoprdOperator.webhook.service.port }}
-        caBundle: {{ .Values.hoprdOperator.webhook.tls.crt | b64enc | quote }}
       conversionReviewVersions:
         - v1
   group: hoprnet.org
