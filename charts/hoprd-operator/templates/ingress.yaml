@@ -2,7 +2,7 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: {{ include "hoprd-operator.fullname" . }}-admin
+  name: {{ include "hoprd-operator.fullname" . }}-admin-ui
   namespace: {{ .Release.Namespace | quote }}
   labels:
     {{- include "hoprd-adminui.labels" . | nindent 4 }}
@@ -24,7 +24,7 @@ spec:
             pathType: {{ .Values.hoprdOperator.adminUI.ingress.pathType }}
             backend:
                 service:
-                    name: {{ include "hoprd-operator.fullname" . }}-admin
+                    name: {{ include "hoprd-operator.fullname" . }}-admin-ui
                     port:
                         name: {{ .Values.hoprdOperator.adminUI.service.ports.name }}
     {{- end }}

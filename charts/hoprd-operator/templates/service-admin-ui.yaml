@@ -2,7 +2,7 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ include "hoprd-operator.fullname" . }}-admin
+  name: {{ include "hoprd-operator.fullname" . }}-admin-ui
   namespace: {{ .Release.Namespace | quote }}
   labels:
     {{- include "hoprd-adminui.labels" . | nindent 4 }}

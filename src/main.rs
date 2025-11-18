@@ -11,7 +11,7 @@ mod identity_hoprd;
 mod identity_pool;
 pub mod model;
 mod resource_generics;
-
+mod webhook_server;
 mod operator_config;
 mod servicemonitor;
 mod utils;
@@ -42,13 +42,16 @@ async fn main() -> Result<()> {
     let controller_identity_hoprd = identity_hoprd::identity_hoprd_controller::run(client.clone(), context_data.clone()).fuse();
     let controller_hoprd = hoprd::hoprd_controller::run(client.clone(), context_data.clone()).fuse();
     let controller_cluster = cluster::cluster_controller::run(client.clone(), context_data.clone()).fuse();
+    // Start webhook server
+    let webhook = webhook_server::run_webhook_server().fuse();
 
-    pin_mut!(controller_identity_pool, controller_identity_hoprd, controller_hoprd, controller_cluster);
+    pin_mut!(controller_identity_pool, controller_identity_hoprd, controller_hoprd, controller_cluster, webhook);
     select! {
         () = controller_identity_pool => println!("Controller IdentityPool exited"),
         () = controller_identity_hoprd => println!("Controller IdentityHoprd exited"),
         () = controller_hoprd => println!("Controller Hoprd exited"),
         () = controller_cluster => println!("Controller ClusterHoprd exited"),
+        () = webhook => println!("Webhook server exited"),
     }
 
     Ok(())

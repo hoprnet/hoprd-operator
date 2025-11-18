@@ -1,1 +1,3 @@
-# Kept because it's referenced in Justfile
+hoprdOperator:
+  webhook:
+    serviceName: "hoprd-operator-webhook"

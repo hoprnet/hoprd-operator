@@ -40,6 +40,12 @@ spec:
           capabilities:
             drop:
             - ALL
+        {{- if .Values.webhook.enabled }}
+        ports:
+          - name: webhook
+            containerPort: 8443
+            protocol: TCP
+        {{- end }}
         {{- if .Values.hoprdOperator.resources }}
         resources: {{- toYaml .Values.hoprdOperator.resources | nindent 12 }}
         {{- else }}
@@ -58,8 +64,18 @@ spec:
         volumeMounts:
           - name: hopr-config-volume
             mountPath: /app/config
+        {{- if .Values.webhook.enabled }}
+          - name: webhook-tls
+            mountPath: /tls
+            readOnly: true
+        {{- end }}
       serviceAccountName: {{ include "hoprd-operator.fullname" . }}
       volumes:
         - name: hopr-config-volume
           configMap:
             name: {{ include "hoprd-operator.fullname" . }}-config
+      {{- if .Values.webhook.enabled }}
+        - name: webhook-tls
+          secret:
+            secretName: {{ include "hoprd-operator.fullname" . }}-webhook-tls
+      {{- end }}

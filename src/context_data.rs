@@ -1,11 +1,10 @@
 use k8s_openapi::NamespaceResourceScope;
+use tracing::debug;
 use std::{collections::BTreeMap, env, sync::Arc};
 use tokio::sync::RwLock;
 
 use kube::{
-    api::ListParams,
-    runtime::events::{Recorder, Reporter},
-    Api, Client, Resource, ResourceExt,
+    Api, Client, Resource, ResourceExt, api::{ListParams}, runtime::events::{Recorder, Reporter}
 };
 
 use crate::{
@@ -39,7 +38,13 @@ impl ContextData {
         let config: OperatorConfig = serde_yaml::from_reader(config_file).expect("Could not read contents of config file.");
 
         let api = Api::<IdentityPool>::all(client.clone());
-        let pools = api.list(&ListParams::default()).await.unwrap().items.clone();
+        let pools: Vec<IdentityPool> = match api.list(&ListParams::default()).await {
+            Ok(list) => list.items.clone(),
+            Err(e) => {
+                debug!("Could not fetch IdentityPools: {}", e);
+                vec![]
+            }
+        };
 
         ContextData {
             client,
@@ -61,6 +66,7 @@ impl ContextData {
             .iter()
             .map(|hoprd| format!("{}-{}", hoprd.metadata.namespace.as_ref().unwrap(), hoprd.metadata.name.as_ref().unwrap()))
             .collect();
+        // Unlock identities that no longer have a corresponding hoprd
         for identity_hoprd in all_identities {
             if let Some(status) = identity_hoprd.to_owned().status {
                 if let Some(hoprd_node_name) = status.hoprd_node_name {

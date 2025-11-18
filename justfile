@@ -13,7 +13,7 @@ template chartName:
   else
     namespace="hoprd-operator-sample"
   fi
-  helm template --dry-run --namespace $namespace --create-namespace -f ./charts/{{ chartName }}/values-staging.yaml {{ chartName }} ./charts/{{ chartName }}/
+  helm template --dry-run --namespace $namespace --create-namespace -f ./charts/{{ chartName }}/values-staging.yaml -f ./charts/{{ chartName }}/secrets-staging.yaml {{ chartName }} ./charts/{{ chartName }}/
 
 # Lint both Helm charts
 lint:

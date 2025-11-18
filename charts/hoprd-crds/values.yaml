@@ -1,0 +1,5 @@
+hoprdOperator:
+  webhook:
+    serviceName: ""
+    tls:
+      crt: ""

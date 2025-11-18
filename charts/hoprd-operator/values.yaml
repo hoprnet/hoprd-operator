@@ -227,3 +227,13 @@ hoprdOperator:
     ## @param hoprdOperator.persistence.storageClassName Name of the storage class
     ##
     storageClassName: ""
+
+  webhook:
+    enabled: true
+    tls:
+      ## @param hoprdOperator.webhook.tls.crt TLS certificate for the webhook server
+      ##
+      tls.crt: ""
+      ## @param hoprdOperator.webhook.tls.key TLS private key for the webhook server
+      ##
+      tls.key: ""

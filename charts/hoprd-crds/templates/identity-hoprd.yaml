@@ -2,7 +2,6 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   name: identityhoprds.hoprnet.org
-  namespace: {{ .Release.Namespace | quote }}
 spec:
   group: hoprnet.org
   names:
@@ -17,79 +16,85 @@ spec:
       served: true
       storage: true
       additionalPrinterColumns:
-        - name: Phase
-          type: string
-          description: Identity phase
-          jsonPath: .status.phase
-        - name: Pool
-          type: string
-          description: Pool name
-          jsonPath: .spec.identityPoolName
-        - name: HoprdNode
-          type: string
-          description: Hoprd Name
-          jsonPath: .status.hoprdNodeName
-        - name: Age
-          type: date
-          jsonPath: .metadata.creationTimestamp
+      - description: Identity phase
+        jsonPath: .status.phase
+        name: Phase
+        type: string
+      - description: Pool name
+        jsonPath: .spec.identityPoolName
+        name: Pool
+        type: string
+      - description: Hoprd Name
+        jsonPath: .status.hoprdNodeName
+        name: HoprdNode
+        type: string
+      - description: Creation timestamp
+        jsonPath: .metadata.creationTimestamp
+        name: Age
+        type: date
       schema:
         openAPIV3Schema:
           description: Schema definition for Identity Hoprd
-          type: object
           properties:
             spec:
-              type: object
               properties:
-                identityPoolName:
-                  type: string
-                  description: 'Name of the Identity Pool'
                 identityFile:
-                  type: string
+                  description: Contents of the hoprd identity file
                   format: password
-                  description: 'Contents of the hoprd identity file'
-                nodeAddress:
                   type: string
-                  description: 'Ethereum native address of the Hoprd node'
-                safeAddress:
+                identityPoolName:
+                  description: Name of the Identity Pool
                   type: string
-                  description: 'Ethereum address of the safe linked to the Hoprd node'
                 moduleAddress:
+                  description: Ethereum address of the module
                   type: string
-                  description: 'Ethereum address of the module'
+                nodeAddress:
+                  description: Ethereum native address of the Hoprd node
+                  type: string
+                safeAddress:
+                  description: Ethereum address of the safe linked to the Hoprd node
+                  type: string
               required:
-                - identityPoolName
-                - identityFile
-                - nodeAddress
-                - safeAddress
-                - moduleAddress
+              - identityPoolName
+              - identityFile
+              - nodeAddress
+              - safeAddress
+              - moduleAddress
+              type: object
             status:
               description: The status object of IdentityHoprd node
               nullable: true
               properties:
-                updateTimestamp:
-                  format: date-time
-                  type: string
-                  description: Timestamp of the last applied change
                 checksum:
-                  type: string
                   description: Checksum of the last applied change
+                  type: string
+                hoprdNodeName:
+                  description: Name of the HoprdNode
+                  type: string
                 phase:
                   description: Phase of the last applied change
-                  type: string
                   enum:
                   - Initialized
                   - Failed
                   - Ready
                   - InUse
                   - Deleting
-                hoprdNodeName:
                   type: string
-                  description: Name of the HoprdNode
-              required: [ "updateTimestamp", "checksum", "phase"]
+                updateTimestamp:
+                  description: Timestamp of the last applied change
+                  format: date-time
+                  type: string
+              required:
+              - updateTimestamp
+              - checksum
+              - phase
               type: object
           required:
           - spec
+          type: object
     - name: v1alpha2
+      served: true
+      storage: false
       additionalPrinterColumns:
       - description: Identity phase
         jsonPath: .status.phase
@@ -103,7 +108,8 @@ spec:
         jsonPath: .status.hoprdNodeName
         name: HoprdNode
         type: string
-      - jsonPath: .metadata.creationTimestamp
+      - description: Creation timestamp
+        jsonPath: .metadata.creationTimestamp
         name: Age
         type: date
       schema:
@@ -170,3 +176,14 @@ spec:
           required:
           - spec
           type: object
+  conversion:
+    strategy: Webhook
+    webhook:
+      clientConfig:
+        service:
+          name: {{ .Values.hoprdOperator.webhook.serviceName }}
+          namespace: {{ .Release.Namespace }}
+          path: /convert
+        caBundle: {{ .Values.hoprdOperator.webhook.tls.crt | b64enc | quote }}
+      conversionReviewVersions:
+        - v1
