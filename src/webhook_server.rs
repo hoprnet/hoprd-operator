@@ -1,37 +1,46 @@
-use axum::{Router, routing::post, Json};
+use axum::{Json, Router, response::IntoResponse, routing::post};
 use axum_server::{tls_rustls::{RustlsConfig, bind_rustls}};
 use rustls::{ServerConfig, pki_types::{CertificateDer, PrivateKeyDer}};
 use rustls_pemfile::{certs, pkcs8_private_keys};
 use std::{env, io::BufReader, net::SocketAddr};
 use rustls::crypto::ring::default_provider;
-use tracing::{info};
+use tracing::{info,error};
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use serde_json::{Value};
 
 use crate::operator_config::WebhookConfig;
 
-#[derive(Serialize, Deserialize, Debug)]
-struct ConversionReview {
-    request: Option<ConversionRequest>,
-    response: Option<ConversionResponse>,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 struct ConversionRequest {
+    request: ConversionRequestInner,
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+struct ConversionRequestInner {
     uid: String,
+    #[serde(rename = "desiredAPIVersion")]
     desired_apiversion: String,
-    objects: Vec<Value>, // raw JSON objects
+    objects: Vec<Value>,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 struct ConversionResponse {
-    uid: String,
-    converted_objects: Vec<Value>,
-    result: Status,
+    #[serde(rename = "apiVersion")]
+    api_version: String,
+    kind: String,
+    response: ConversionResponseInner,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
-struct Status {
+#[derive(Deserialize, Serialize, Debug)]
+struct ConversionResponseInner {
+    uid: String,
+    #[serde(rename = "convertedObjects")]
+    converted_objects: Vec<Value>,
+    result: StatusResult,
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+struct StatusResult {
     status: String,
     message: Option<String>,
 }
@@ -40,7 +49,7 @@ pub async fn wait_for_webhook_ready() -> Result<(), String> {
     use tokio::net::TcpStream;
     use tokio::time::{sleep, Duration};
 
-    let addr = "0.0.0.0:8443";
+    let addr = "127.0.0.1:8443";  // use localhost, not 0.0.0.0
 
     for _ in 0..50 {
         if TcpStream::connect(addr).await.is_ok() {
@@ -89,7 +98,6 @@ fn load_rustls_config(cert_path: &str, key_path: &str) -> anyhow::Result<ServerC
     Ok(cfg)
 }
 
-
 pub async fn run_webhook_server(webhook_config:WebhookConfig) {
     // Define Axum app with routes
     let app = Router::new().route("/convert", post(convert));
@@ -128,6 +136,15 @@ async fn convert_cluster_hoprd_v2_to_v3(resource: &mut Value) {
                     "portsAllocation": ports_allocation_value
                 }),
             );
+        } else {
+            // TODO: Delete this code
+            // If spec.portsAllocation is missing, add spec.service.portsAllocation with default value
+            spec.as_object_mut().unwrap().insert(
+                "service".to_string(),
+                serde_json::json!({
+                    "portsAllocation": 10
+                }),
+            );
         }
     }
 }
@@ -138,6 +155,10 @@ async fn convert_cluster_hoprd_v3_to_v2(resource: &mut Value) {
         if let Some(service) = spec.get_mut("service").and_then(|p| p.as_object_mut()) {
             if let Some(ports_allocation_value) = service.remove("portsAllocation") {
                 spec.insert("portsAllocation".to_string(), ports_allocation_value);
+            } else {
+                // TODO: Delete this code
+                // If spec.service.portsAllocation is missing, add spec.portsAllocation with default value
+                spec.insert("portsAllocation".to_string(), Value::Number(10.into()));
             }
         }
         spec.insert("forceIdentityName".to_string(), Value::Bool(true));
@@ -163,6 +184,15 @@ async fn convert_hoprd_v2_to_v3(resource: &mut Value) {
                     "portsAllocation": ports_allocation_value
                 }),
             );
+        } else {
+            // TODO: Delete this code
+            // If spec.portsAllocation is missing, add spec.service.portsAllocation with default value
+            spec.as_object_mut().unwrap().insert(
+                "service".to_string(),
+                serde_json::json!({
+                    "portsAllocation": 10
+                }),
+            );
         }
     }
 }
@@ -172,6 +202,10 @@ async fn convert_hoprd_v3_to_v2(resource: &mut Value) {
         if let Some(service) = spec.get_mut("service").and_then(|p| p.as_object_mut()) {
             if let Some(ports_allocation_value) = service.remove("portsAllocation") {
                 spec.insert("portsAllocation".to_string(), ports_allocation_value);
+            } else {
+                // TODO: Delete this code
+                // If spec.service.portsAllocation is missing, add spec.portsAllocation with default value
+                spec.insert("portsAllocation".to_string(), Value::Number(10.into()));
             }
         }
         spec.insert("supportedRelease".to_string(), Value::String("kaunas".to_string()));
@@ -186,6 +220,10 @@ async fn convert_identity_hoprd_v2_to_v3(resource: &mut Value) {
             spec.as_object_mut().unwrap().remove("nativeAddress");
             // Add new field
             spec.as_object_mut().unwrap().insert("nodeAddress".to_string(), native_address_value);
+        } else {
+            // TODO: Delete this code
+            // If spec.nativeAddress is missing, add spec.nodeAddress with empty string
+            spec.as_object_mut().unwrap().insert("nodeAddress".to_string(), Value::String("deprecated".to_string()));
         }
         // Remove spec.peerId
         if let Some(_) = spec.get("peerId").cloned() {
@@ -202,6 +240,10 @@ async fn convert_identity_hoprd_v3_to_v2(resource: &mut Value) {
             spec.as_object_mut().unwrap().remove("nodeAddress");
             // Add new field
             spec.as_object_mut().unwrap().insert("nativeAddress".to_string(), node_address_value);
+        } else {
+            // TODO: Delete this code
+            // If spec.nodeAddress is missing, add spec.nativeAddress with empty string
+            spec.as_object_mut().unwrap().insert("nativeAddress".to_string(), Value::String("deprecated".to_string()));
         }
         // Add spec.peerId with empty string
         spec.as_object_mut().unwrap().insert("peerId".to_string(), Value::String("deprecated".to_string()));
@@ -216,46 +258,70 @@ async fn convert_identity_pool_v3_to_v2(_resource: &mut Value) {
     // No changes needed for IdentityPool between v1alpha3 and v1alpha2
 }
 
+async fn convert_v2_to_v3(resource: &mut Value) {
+    let kind = resource.get("kind").and_then(|k| k.as_str()).unwrap_or_default();
+    match kind {
+        "ClusterHoprd" => convert_cluster_hoprd_v2_to_v3(resource).await,
+        "Hoprd" => convert_hoprd_v2_to_v3(resource).await,
+        "IdentityHoprd" => convert_identity_hoprd_v2_to_v3(resource).await,
+        "IdentityPool" => convert_identity_pool_v2_to_v3(resource).await,
+        _ => {
+            error!("Unsupported kind for conversion to v3: {}", kind);
+        }
+    }
+}
+
+async fn convert_v3_to_v2(resource: &mut Value) {
+    let kind = resource.get("kind").and_then(|k| k.as_str()).unwrap_or_default();
+    match kind {
+        "ClusterHoprd" => convert_cluster_hoprd_v3_to_v2(resource).await,
+        "Hoprd" => convert_hoprd_v3_to_v2(resource).await,
+        "IdentityHoprd" => convert_identity_hoprd_v3_to_v2(resource).await,
+        "IdentityPool" => convert_identity_pool_v3_to_v2(resource).await,
+        _ => {
+            error!("Unsupported kind for conversion to v2: {}", kind);
+        }
+    }
+}
+
 // Conversion handler
-async fn convert(Json(review): Json<ConversionReview>) -> Json<ConversionReview> {
-    let mut response = ConversionResponse {
-        uid: review.request.as_ref().unwrap().uid.clone(),
+async fn convert(Json(request): Json<ConversionRequest>) -> impl IntoResponse {
+    //info!("Received conversion request: {:?}", request);
+    let mut response_inner = ConversionResponseInner {
+        uid: request.request.uid.clone(),
         converted_objects: vec![],
-        result: Status {
+        result: StatusResult {
             status: "Success".to_string(),
             message: None,
         },
     };
 
-    let req = review.request.unwrap();
-    for obj in req.objects {
+    for obj in request.request.objects {
         let mut resource = obj.clone();
 
-        match req.desired_apiversion.as_str() {
-            "clusterhoprds.hoprnet.org/v1alpha3" => convert_cluster_hoprd_v2_to_v3(&mut resource).await,
-            "clusterhoprds.hoprnet.org/v1alpha2" => convert_cluster_hoprd_v3_to_v2(&mut resource).await,
-            "hoprds.hoprnet.org/v1alpha3" => convert_hoprd_v2_to_v3(&mut resource).await,
-            "hoprds.hoprnet.org/v1alpha2" => convert_hoprd_v3_to_v2(&mut resource).await,
-            "identityhoprds.hoprnet.org/v1alpha3" => convert_identity_hoprd_v2_to_v3(&mut resource).await,
-            "identityhoprds.hoprnet.org/v1alpha2" => convert_identity_hoprd_v3_to_v2(&mut resource).await,
-            "identitypools.hoprnet.org/v1alpha3" => convert_identity_pool_v2_to_v3(&mut resource).await,
-            "identitypools.hoprnet.org/v1alpha2" => convert_identity_pool_v3_to_v2(&mut resource).await,
+        match request.request.desired_apiversion.as_str() {
+            "hoprnet.org/v1alpha2" => convert_v2_to_v3(&mut resource).await,
+            "hoprnet.org/v1alpha3" => convert_v3_to_v2(&mut resource).await,
             _ => {
-                response.result = Status {
+                response_inner.result = StatusResult {
                     status: "Failure".to_string(),
-                    message: Some(format!("Unsupported desired API version: {}", req.desired_apiversion)),
+                    message: Some(format!("Unsupported desired API version: {}", request.request.desired_apiversion)),
                 };
-                return Json(ConversionReview {
-                    request: None,
-                    response: Some(response),
+                return Json(ConversionResponse {
+                    api_version: "apiextensions.k8s.io/v1".to_string(),
+                    kind: "ConversionReview".to_string(),
+                    response: response_inner,
                 });
             }
-            }
-        response.converted_objects.push(resource);
+        }
+        // IMPORTANT: override apiVersion to match requested version
+        resource["apiVersion"] = serde_json::Value::String(request.request.desired_apiversion.clone());
+        response_inner.converted_objects.push(resource);
     }
-
-    Json(ConversionReview {
-        request: None,
-        response: Some(response),
+    //info!("Conversion completed successfully with {:?}", response_inner.converted_objects);
+    Json(ConversionResponse {
+        api_version: "apiextensions.k8s.io/v1".to_string(),
+        kind: "ConversionReview".to_string(),
+        response: response_inner,
     })
 }

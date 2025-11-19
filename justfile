@@ -8,11 +8,10 @@ login:
 debug:
   #!/usr/bin/env bash
   set -euo pipefail
-  set -x
   DISABLE_SYNC='[{"op": "remove", "path": "/spec/syncPolicy/automated"}]'
   kubectl patch Applications -n argocd hoprd-operator --type=json -p "${DISABLE_SYNC}" 2>/dev/null || true
   kubectl scale -n hoprd-operator deployment hoprd-operator-controller --replicas=0
-  openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout ./test-data/tls.key -out ./test-data/tls.crt -subj "/CN=malilla.duckdns.org"
+  openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout ./test-data/tls.key -out ./test-data/tls.crt -config ./test-data/tls.conf
   export CA_BUNDLE=$(cat ./test-data/tls.crt | base64 | tr -d '\n')
   WEBHOOK_CLIENT_CONFIG="[{
       \"op\": \"replace\",
