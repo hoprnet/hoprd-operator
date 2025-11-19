@@ -4,6 +4,30 @@ login:
   token=$(gcloud auth print-access-token)
   helm registry login -u oauth2accesstoken --password "$token" https://europe-west3-docker.pkg.dev
 
+# Start a debugging session by opening a port-forward to the hoprd-operator pod
+debug:
+  #!/usr/bin/env bash
+  set -euo pipefail
+  set -x
+  DISABLE_SYNC='[{"op": "remove", "path": "/spec/syncPolicy/automated"}]'
+  kubectl patch Applications -n argocd hoprd-operator --type=json -p "${DISABLE_SYNC}" 2>/dev/null || true
+  kubectl scale -n hoprd-operator deployment hoprd-operator-controller --replicas=0
+  openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout ./test-data/tls.key -out ./test-data/tls.crt -subj "/CN=malilla.duckdns.org"
+  export CA_BUNDLE=$(cat ./test-data/tls.crt | base64 | tr -d '\n')
+  WEBHOOK_CLIENT_CONFIG="[{
+      \"op\": \"replace\",
+      \"path\": \"/spec/conversion/webhook/clientConfig\",
+      \"value\": {
+        \"url\": \"https://malilla.duckdns.org:8443/convert\",
+        \"caBundle\": \"${CA_BUNDLE}\"
+      }
+  }]"
+  kubectl patch crd identitypools.hoprnet.org --type='json' -p "${WEBHOOK_CLIENT_CONFIG}"
+  kubectl patch crd identityhoprds.hoprnet.org --type='json' -p "${WEBHOOK_CLIENT_CONFIG}"
+  kubectl patch crd clusterhoprds.hoprnet.org --type='json' -p "${WEBHOOK_CLIENT_CONFIG}"
+  kubectl patch crd hoprds.hoprnet.org --type='json' -p "${WEBHOOK_CLIENT_CONFIG}"
+  
+
 # Template the Helm chart for a given chart name
 template chartName:
   #!/usr/bin/env bash
@@ -32,7 +56,13 @@ build:
 
 # Run the Rust project in the background
 run:
-  nohup cargo run &
+  #!/usr/bin/env bash
+  export OPERATOR_INSTANCE_NAME="hoprd-operator"
+  export OPERATOR_INSTANCE_NAMESPACE="hoprd-operator"
+  export OPERATOR_ENVIRONMENT="staging"
+  export RUST_BACKTRACE="full"
+  export RUST_LOG="hoprd_operator=DEBUG"
+  cargo run
 
 # Package a Helm chart for a given chart name
 package chartName:

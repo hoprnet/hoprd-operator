@@ -2,7 +2,7 @@
 
 apiVersion: v2
 name: hoprd-crds
-version: 0.1.0-rc.6
+version: 0.1.0-rc.7
 appVersion: 0.1.0-rc.1
 description: A Helm chart to install CRDs for hoprd-operator
 type: application

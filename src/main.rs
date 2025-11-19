@@ -33,24 +33,28 @@ async fn main() -> Result<()> {
 
     info!("Starting hoprd-operator {}", env!("CARGO_PKG_VERSION"));
 
-    // ⭐ 1. Start webhook IMMEDIATELY
-    let webhook_handle = tokio::spawn(async {
-        webhook_server::run_webhook_server()
+    // ⭐ 1. Load operator configuration
+    let operator_config = context_data::load_operator_config().await; // Preload config to fail fast if invalid
+
+    // ⭐ 2. Start webhook IMMEDIATELY
+    let webhook_config = operator_config.webhook.clone();
+    let webhook_handle = tokio::spawn(async move {
+        webhook_server::run_webhook_server(webhook_config)
             .await;
     });
 
-    // ⭐ 2. Wait until webhook port is ready
+    // ⭐ 3. Wait until webhook port is ready
     let webhook_boot = webhook_server::wait_for_webhook_ready().await;
     if webhook_boot.is_err() {
         panic!("Webhook server failed to start: {}", webhook_boot.err().unwrap());
     }
 
-    // ⭐ 3. Initialize Kubernetes client and context data
+    // ⭐ 4. Initialize Kubernetes client and context data
     let client: Client = Client::try_default().await.expect("Failed to create kube Client");
-    let context_data: Arc<ContextData> = Arc::new(ContextData::new(client.clone()).await);
+    let context_data: Arc<ContextData> = Arc::new(ContextData::new(client.clone(), operator_config).await);
     ContextData::sync_identities(context_data.clone()).await;
 
-    // ⭐ 4. Initiatilize Kubernetes controllers
+    // ⭐ 5. Initiatilize Kubernetes controllers
     bootstrap_operator::start(client.clone(), context_data.clone()).await;
     let controller_identity_pool = identity_pool::identity_pool_controller::run(client.clone(), context_data.clone()).fuse();
     let controller_identity_hoprd = identity_hoprd::identity_hoprd_controller::run(client.clone(), context_data.clone()).fuse();

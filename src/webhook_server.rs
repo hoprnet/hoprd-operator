@@ -1,9 +1,14 @@
 use axum::{Router, routing::post, Json};
-use tracing::info;
-use std::net::SocketAddr;
+use axum_server::{tls_rustls::{RustlsConfig, bind_rustls}};
+use rustls::{ServerConfig, pki_types::{CertificateDer, PrivateKeyDer}};
+use rustls_pemfile::{certs, pkcs8_private_keys};
+use std::{env, io::BufReader, net::SocketAddr};
+use rustls::crypto::ring::default_provider;
+use tracing::{info};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use anyhow;
+
+use crate::operator_config::WebhookConfig;
 
 #[derive(Serialize, Deserialize, Debug)]
 struct ConversionReview {
@@ -31,11 +36,11 @@ struct Status {
     message: Option<String>,
 }
 
-pub async fn wait_for_webhook_ready() -> anyhow::Result<()> {
+pub async fn wait_for_webhook_ready() -> Result<(), String> {
     use tokio::net::TcpStream;
     use tokio::time::{sleep, Duration};
 
-    let addr = "127.0.0.1:8443";
+    let addr = "0.0.0.0:8443";
 
     for _ in 0..50 {
         if TcpStream::connect(addr).await.is_ok() {
@@ -45,18 +50,60 @@ pub async fn wait_for_webhook_ready() -> anyhow::Result<()> {
         sleep(Duration::from_millis(100)).await;
     }
 
-    Err(anyhow::anyhow!("Webhook did not start on {}", addr))
+    Err(format!("Webhook did not start on {}", addr))
 }
 
-pub async fn run_webhook_server() {
+fn load_rustls_config(cert_path: &str, key_path: &str) -> anyhow::Result<ServerConfig> {
+    // Install the ring crypto provider globally
+    default_provider().install_default().expect("Install ring provider");
+
+    // Load certificate chain
+    let dir = env::current_dir().as_ref().unwrap().to_str().unwrap().to_owned();
+    let cert_path = format!("{}/{}", dir.clone(), cert_path);
+    let cert_file = std::fs::File::open(&cert_path).expect(format!("Could not open cert file: {}", cert_path).as_str());
+    let mut cert_reader = BufReader::new(cert_file);
+    let cert_chain = certs(&mut cert_reader)
+        .collect::<Result<Vec<_>, _>>()?
+        .into_iter()
+        .map(CertificateDer::from)
+        .collect::<Vec<_>>();
+
+    // Load private key
+    let key_path = format!("{}/{}", dir.clone(), key_path);
+    let key_file = std::fs::File::open(&key_path).expect(format!("Could not open key file: {}", key_path).as_str());
+    let mut key_reader = BufReader::new(key_file);
+    let mut keys_raw = pkcs8_private_keys(&mut key_reader)
+        .collect::<Result<Vec<_>, _>>()?;
+    if keys_raw.is_empty() {
+        anyhow::bail!("No private keys found in {}", key_path);
+    }
+    let key = PrivateKeyDer::Pkcs8(keys_raw.remove(0).into());
+
+    // Build server config (no client auth)
+    let mut cfg = ServerConfig::builder()
+        .with_no_client_auth()
+        .with_single_cert(cert_chain, key)?;
+
+    cfg.alpn_protocols = vec![b"http/1.1".to_vec()];
+
+    Ok(cfg)
+}
+
+
+pub async fn run_webhook_server(webhook_config:WebhookConfig) {
+    // Define Axum app with routes
     let app = Router::new().route("/convert", post(convert));
     let addr = SocketAddr::from(([0, 0, 0, 0], 8443));
-    info!("hoprd-operator conversion webhook listening on {}", addr);
 
-    axum::Server::bind(&addr)
+    info!("Starting webhook server with TLS");
+    let server_config: ServerConfig = load_rustls_config(webhook_config.crt_file.as_str(), webhook_config.key_file.as_str()).expect("Invalid TLS");
+    let tls_config = RustlsConfig::from_config(server_config.into());
+    bind_rustls(addr, tls_config)
         .serve(app.into_make_service())
         .await
         .unwrap();
+
+    info!("hoprd-operator conversion webhook listening on {}", addr);
 }
 
 async fn convert_cluster_hoprd_v2_to_v3(resource: &mut Value) {

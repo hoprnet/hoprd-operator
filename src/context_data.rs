@@ -12,6 +12,20 @@ use crate::{
     operator_config::OperatorConfig,
 };
 
+pub async fn load_operator_config() -> OperatorConfig {
+    let operator_environment = env::var(constants::OPERATOR_ENVIRONMENT).unwrap();
+    let config_path = if operator_environment.eq("production") {
+        "/app/config/config.yaml".to_owned()
+    } else {
+        let mut path = env::current_dir().as_ref().unwrap().to_str().unwrap().to_owned();
+        path.push_str(&format!("/test-data/sample_config-{operator_environment}.yaml"));
+        path
+    };
+    let config_file = std::fs::File::open(&config_path).expect("Could not open config file.");
+    let config: OperatorConfig = serde_yaml::from_reader(config_file).expect("Could not read contents of config file.");
+    config
+}
+
 #[derive(Clone)]
 pub struct ContextData {
     /// Kubernetes client to make Kubernetes API requests with. Required for K8S resource management.
@@ -25,18 +39,7 @@ pub struct ContextData {
 /// State wrapper around the controller outputs for the web server
 impl ContextData {
     // Create a Controller Context that can update State
-    pub async fn new(client: Client) -> Self {
-        let operator_environment = env::var(constants::OPERATOR_ENVIRONMENT).unwrap();
-        let config_path = if operator_environment.eq("production") {
-            "/app/config/config.yaml".to_owned()
-        } else {
-            let mut path = env::current_dir().as_ref().unwrap().to_str().unwrap().to_owned();
-            path.push_str(&format!("/test-data/sample_config-{operator_environment}.yaml"));
-            path
-        };
-        let config_file = std::fs::File::open(&config_path).expect("Could not open config file.");
-        let config: OperatorConfig = serde_yaml::from_reader(config_file).expect("Could not read contents of config file.");
-
+    pub async fn new(client: Client, config: OperatorConfig) -> Self {
         let api = Api::<IdentityPool>::all(client.clone());
         let pools: Vec<IdentityPool> = match api.list(&ListParams::default()).await {
             Ok(list) => list.items.clone(),

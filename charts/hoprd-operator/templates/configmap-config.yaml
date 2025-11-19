@@ -24,5 +24,8 @@ data:
     persistence:
       size: "{{- .Values.hoprdOperator.persistence.size }}"
       storage_class_name:  "{{- .Values.hoprdOperator.persistence.storageClassName }}"
+    webhook:
+      crt_file: /tls/tls.crt
+      key_file: /tls/tls.key
 
     
