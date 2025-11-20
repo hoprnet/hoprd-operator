@@ -25,7 +25,7 @@ spec:
   scope: Namespaced
   versions:
     - name: v1alpha3
-      served: true
+      served: false
       storage: false
       additionalPrinterColumns:
       - description: Hoprd network name
