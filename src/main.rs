@@ -104,6 +104,7 @@ async fn wait_for_service_ready(client: Client) -> () {
                         .count();
                     if ready_addresses > 0 {
                         info!("Service {}/{} has {} ready endpoint(s)", service_namespace, service_name, ready_addresses);
+                        tokio::time::sleep(Duration::from_millis(5000)).await;
                         return;
                     } else {
                         warn!("Service {}/{} has no ready addresses yet — waiting…", service_namespace, service_name);
