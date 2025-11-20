@@ -4,7 +4,7 @@ use rustls::{ServerConfig, pki_types::{CertificateDer, PrivateKeyDer}};
 use rustls_pemfile::{certs, pkcs8_private_keys};
 use std::{env, io::BufReader, net::SocketAddr};
 use rustls::crypto::ring::default_provider;
-use tracing::{debug, error, info};
+use tracing::{debug, error, info, warn};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value};
 use tokio::net::TcpStream;
@@ -112,179 +112,216 @@ pub async fn run_webhook_server(webhook_config:WebhookConfig) {
     info!("hoprd-operator conversion webhook listening on {}", addr);
 }
 
-async fn convert_cluster_hoprd_v2_to_v3(resource: &mut Value) {
-    // v1alpha2 -> v1alpha3
-    if let Some(spec) = resource.get_mut("spec") {
-        // Remove spec.forceIdentityName
-        if let Some(_) = spec.get("forceIdentityName").cloned() {
-            spec.as_object_mut().unwrap().remove("forceIdentityName");
-        }
-        // Remove spec.supportedRelease
-        if let Some(_) = spec.get("supportedRelease").cloned() {
-            spec.as_object_mut().unwrap().remove("supportedRelease");
-        }
-        // Move spec.portsAllocation to spec.service.portsAllocation
-        if let Some(ports_allocation_value) = spec.get("portsAllocation").cloned() {
-            // Remove old required field
-            spec.as_object_mut().unwrap().remove("portsAllocation");
-            // Add new nested field
-            spec.as_object_mut().unwrap().insert(
-                "service".to_string(),
-                serde_json::json!({
-                    "portsAllocation": ports_allocation_value
-                }),
-            );
+async fn convert_cluster_hoprd_v2_to_v3(resource: &mut Value) -> Result<(), String> {
+    debug!("Convert clusterHoprd: v1alpha2 -> v1alpha3");
+
+    let spec = resource
+        .get_mut("spec")
+        .ok_or("Missing 'spec' field in IdentityHoprd v3 object")?;
+
+    let spec_obj = spec
+        .as_object_mut()
+        .ok_or("Spec is not a JSON object")?;
+
+
+    // Move spec.portsAllocation to spec.service.portsAllocation
+    // First, remove portsAllocation from spec_obj to avoid double mutable borrow
+    let ports_allocation_value = spec_obj.remove("portsAllocation");
+    if let Some(service) = spec_obj.get_mut("service").and_then(|p| p.as_object_mut()) {
+        if let Some(ports_allocation_value) = ports_allocation_value {
+            service.insert("portsAllocation".to_string(), ports_allocation_value);
         } else {
-            // TODO: Delete this code
-            // If spec.portsAllocation is missing, add spec.service.portsAllocation with default value
-            spec.as_object_mut().unwrap().insert(
-                "service".to_string(),
-                serde_json::json!({
-                    "portsAllocation": 10
-                }),
-            );
+            warn!("spec.portsAllocation missing; adding default portsAllocation");
+            service.insert("portsAllocation".to_string(), Value::Number(10.into()));
         }
     }
+
+    // Remove spec.supportedRelease
+    spec_obj.remove("supportedRelease");
+    // Remove spec.forceIdentityName
+    spec_obj.remove("forceIdentityName");
+
+    Ok(())
+
 }
 
-async fn convert_cluster_hoprd_v3_to_v2(resource: &mut Value) {
-    // v1alpha3 -> v1alpha2
-    if let Some(spec) = resource.get_mut("spec").and_then(|s| s.as_object_mut()) {
-        if let Some(service) = spec.get_mut("service").and_then(|p| p.as_object_mut()) {
-            if let Some(ports_allocation_value) = service.remove("portsAllocation") {
-                spec.insert("portsAllocation".to_string(), ports_allocation_value);
-            } else {
-                // TODO: Delete this code
-                // If spec.service.portsAllocation is missing, add spec.portsAllocation with default value
-                spec.insert("portsAllocation".to_string(), Value::Number(10.into()));
-            }
-        }
-        spec.insert("forceIdentityName".to_string(), Value::Bool(true));
-        spec.insert("supportedRelease".to_string(), Value::String("kaunas".to_string()));
-    }
-}
+async fn convert_cluster_hoprd_v3_to_v2(resource: &mut Value) -> Result<(), String> {
+    debug!("Convert clusterHoprd: v1alpha3 -> v1alpha2");
 
-async fn convert_hoprd_v2_to_v3(resource: &mut Value) {
-    // v1alpha2 -> v1alpha3
-    if let Some(spec) = resource.get_mut("spec") {
-        // Remove spec.supportedRelease
-        if let Some(_) = spec.get("supportedRelease").cloned() {
-            spec.as_object_mut().unwrap().remove("supportedRelease");
-        }
-        // Move spec.portsAllocation to spec.service.portsAllocation
-        if let Some(ports_allocation_value) = spec.get("portsAllocation").cloned() {
-            // Remove old required field
-            spec.as_object_mut().unwrap().remove("portsAllocation");
-            // Add new nested field
-            spec.as_object_mut().unwrap().insert(
-                "service".to_string(),
-                serde_json::json!({
-                    "portsAllocation": ports_allocation_value
-                }),
-            );
+    let spec = resource
+        .get_mut("spec")
+        .ok_or("Missing 'spec' field in IdentityHoprd v3 object")?;
+
+    let spec_obj = spec
+        .as_object_mut()
+        .ok_or("Spec is not a JSON object")?;
+
+    // Move spec.service.portsAllocation to spec.portsAllocation
+    if let Some(service) = spec_obj.get_mut("service").and_then(|p| p.as_object_mut()) {
+        if let Some(ports_allocation_value) = service.remove("portsAllocation") {
+            spec_obj.insert("portsAllocation".to_string(), ports_allocation_value);
         } else {
-            // TODO: Delete this code
-            // If spec.portsAllocation is missing, add spec.service.portsAllocation with default value
-            spec.as_object_mut().unwrap().insert(
-                "service".to_string(),
-                serde_json::json!({
-                    "portsAllocation": 10
-                }),
-            );
+            warn!("spec.service.portsAllocation missing; adding default portsAllocation");
+            spec_obj.insert("portsAllocation".to_string(), Value::Number(10.into()));
         }
     }
+
+    // Insert spec.supportedRelease with "kaunas" value
+    spec_obj.insert("supportedRelease".to_string(), Value::String("kaunas".to_string()));
+
+    // Insert spec.forceIdentityName with true value
+    spec_obj.insert("forceIdentityName".to_string(), Value::Bool(true));
+
+    Ok(())
+
 }
 
-async fn convert_hoprd_v3_to_v2(resource: &mut Value) {
-    if let Some(spec) = resource.get_mut("spec").and_then(|s| s.as_object_mut()) {
-        if let Some(service) = spec.get_mut("service").and_then(|p| p.as_object_mut()) {
-            if let Some(ports_allocation_value) = service.remove("portsAllocation") {
-                spec.insert("portsAllocation".to_string(), ports_allocation_value);
-            } else {
-                // TODO: Delete this code
-                // If spec.service.portsAllocation is missing, add spec.portsAllocation with default value
-                spec.insert("portsAllocation".to_string(), Value::Number(10.into()));
-            }
-        }
-        spec.insert("supportedRelease".to_string(), Value::String("kaunas".to_string()));
-    }
-}
+async fn convert_hoprd_v2_to_v3(resource: &mut Value) -> Result<(), String> {
+    debug!("Convert hoprd: v1alpha2 -> v1alpha3");
 
-async fn convert_identity_hoprd_v2_to_v3(resource: &mut Value) {
-    if let Some(spec) = resource.get_mut("spec") {
-        // Rename spec.nativeAddress to spec.nodeAddress
-        if let Some(native_address_value) = spec.get("nativeAddress").cloned() {
-            // Remove old field
-            spec.as_object_mut().unwrap().remove("nativeAddress");
-            // Add new field
-            spec.as_object_mut().unwrap().insert("nodeAddress".to_string(), native_address_value);
+    let spec = resource
+        .get_mut("spec")
+        .ok_or("Missing 'spec' field in IdentityHoprd v3 object")?;
+
+    let spec_obj = spec
+        .as_object_mut()
+        .ok_or("Spec is not a JSON object")?;
+
+    // Move spec.portsAllocation to spec.service.portsAllocation
+    // First, remove portsAllocation from spec_obj to avoid double mutable borrow
+    let ports_allocation_value = spec_obj.remove("portsAllocation");
+    if let Some(service) = spec_obj.get_mut("service").and_then(|p| p.as_object_mut()) {
+        if let Some(ports_allocation_value) = ports_allocation_value {
+            service.insert("portsAllocation".to_string(), ports_allocation_value);
         } else {
-            // TODO: Delete this code
-            // If spec.nativeAddress is missing, add spec.nodeAddress with empty string
-            spec.as_object_mut().unwrap().insert("nodeAddress".to_string(), Value::String("deprecated".to_string()));
-        }
-        // Remove spec.peerId
-        if let Some(_) = spec.get("peerId").cloned() {
-            spec.as_object_mut().unwrap().remove("peerId");
+            warn!("spec.portsAllocation missing; adding default portsAllocation");
+            service.insert("portsAllocation".to_string(), Value::Number(10.into()));
         }
     }
+    // Remove spec.supportedRelease
+    spec_obj.remove("supportedRelease");
+
+    Ok(())
+
+
 }
 
-async fn convert_identity_hoprd_v3_to_v2(resource: &mut Value) {
-    if let Some(spec) = resource.get_mut("spec") {
-        // Rename spec.nodeAddress to spec.nativeAddress
-        if let Some(node_address_value) = spec.get("nodeAddress").cloned() {
-            // Remove old field
-            spec.as_object_mut().unwrap().remove("nodeAddress");
-            // Add new field
-            spec.as_object_mut().unwrap().insert("nativeAddress".to_string(), node_address_value);
+async fn convert_hoprd_v3_to_v2(resource: &mut Value) -> Result<(), String> {
+    debug!("Convert hoprd: v1alpha3 -> v1alpha2");
+
+    let spec = resource
+        .get_mut("spec")
+        .ok_or("Missing 'spec' field in IdentityHoprd v3 object")?;
+
+    let spec_obj = spec
+        .as_object_mut()
+        .ok_or("Spec is not a JSON object")?;
+
+    // Move spec.service.portsAllocation to spec.portsAllocation
+    if let Some(service) = spec_obj.get_mut("service").and_then(|p| p.as_object_mut()) {
+        if let Some(ports_allocation_value) = service.remove("portsAllocation") {
+            spec_obj.insert("portsAllocation".to_string(), ports_allocation_value);
         } else {
-            // TODO: Delete this code
-            // If spec.nodeAddress is missing, add spec.nativeAddress with empty string
-            spec.as_object_mut().unwrap().insert("nativeAddress".to_string(), Value::String("deprecated".to_string()));
+            warn!("spec.service.portsAllocation missing; adding default portsAllocation");
+            spec_obj.insert("portsAllocation".to_string(), Value::Number(10.into()));
         }
-        // Add spec.peerId with empty string
-        spec.as_object_mut().unwrap().insert("peerId".to_string(), Value::String("deprecated".to_string()));
     }
+
+    // Insert spec.supportedRelease with "kaunas" value
+    spec_obj.insert("supportedRelease".to_string(), Value::String("kaunas".to_string()));
+    Ok(())
 }
 
-async fn convert_identity_pool_v2_to_v3(_resource: &mut Value) {
+async fn convert_identity_hoprd_v2_to_v3(resource: &mut Value) -> Result<(), String> {
+    debug!("Convert identityHoprd: v1alpha2 -> v1alpha3");
+
+    let spec = resource
+        .get_mut("spec")
+        .ok_or("Missing 'spec' field in IdentityHoprd v3 object")?;
+
+    let spec_obj = spec
+        .as_object_mut()
+        .ok_or("Spec is not a JSON object")?;
+
+    // Rename spec.nativeAddress to spec.nodeAddress
+    if let Some(native_address) = spec_obj.remove("nativeAddress") {
+        spec_obj.insert("nodeAddress".to_string(), native_address);
+    } else {
+        warn!("spec.nativeAddress missing; adding placeholder nativeAddress");
+        spec_obj.insert("nodeAddress".to_string(), Value::String("lost".into()));
+    }
+
+    // Remove spec.peerId if present
+    spec_obj.remove("peerId");
+
+    Ok(())
+
+}
+
+async fn convert_identity_hoprd_v3_to_v2(resource: &mut Value) -> Result<(), String> {
+    debug!("Convert identityHoprd: v1alpha3 -> v1alpha2");
+
+    let spec = resource
+        .get_mut("spec")
+        .ok_or("Missing 'spec' field in IdentityHoprd v3 object")?;
+
+    let spec_obj = spec
+        .as_object_mut()
+        .ok_or("Spec is not a JSON object")?;
+
+    // Rename spec.nodeAddress to spec.nativeAddress
+    if let Some(native_address) = spec_obj.remove("nodeAddress") {
+        spec_obj.insert("nativeAddress".to_string(), native_address);
+    } else {
+        warn!("spec.nodeAddress missing; adding placeholder nativeAddress");
+        spec_obj.insert("nativeAddress".to_string(), Value::String("unknown".into()));
+    }
+
+    // Insert spec.peerId with unknown placeholder
+    spec_obj.insert("peerId".to_string(), Value::String("unknown".into()));
+
+    Ok(())
+
+}
+
+async fn convert_identity_pool_v2_to_v3(_resource: &mut Value) -> Result<(), String> {
     // No changes needed for IdentityPool between v1alpha2 and v1alpha3
+    Ok(())
 }
 
-async fn convert_identity_pool_v3_to_v2(_resource: &mut Value) {
+async fn convert_identity_pool_v3_to_v2(_resource: &mut Value) -> Result<(), String> {
     // No changes needed for IdentityPool between v1alpha3 and v1alpha2
+    Ok(())
 }
 
-async fn convert_v2_to_v3(resource: &mut Value) {
-    let kind = resource.get("kind").and_then(|k| k.as_str()).unwrap_or_default();
+async fn convert_v2_to_v3(resource: &mut Value) -> Result<(), String> {
+    let kind = resource.get("kind").and_then(|k| k.as_str()).ok_or("Missing 'kind' field")?;
     match kind {
         "ClusterHoprd" => convert_cluster_hoprd_v2_to_v3(resource).await,
         "Hoprd" => convert_hoprd_v2_to_v3(resource).await,
         "IdentityHoprd" => convert_identity_hoprd_v2_to_v3(resource).await,
         "IdentityPool" => convert_identity_pool_v2_to_v3(resource).await,
         _ => {
-            error!("Unsupported kind for conversion to v3: {}", kind);
+            Err(format!("Unsupported kind for conversion from v2 to v3: {}", kind))
         }
     }
 }
 
-async fn convert_v3_to_v2(resource: &mut Value) {
-    let kind = resource.get("kind").and_then(|k| k.as_str()).unwrap_or_default();
+async fn convert_v3_to_v2(resource: &mut Value) -> Result<(), String> {
+    let kind = resource.get("kind").and_then(|k| k.as_str()).ok_or("Missing 'kind' field")?;
     match kind {
         "ClusterHoprd" => convert_cluster_hoprd_v3_to_v2(resource).await,
         "Hoprd" => convert_hoprd_v3_to_v2(resource).await,
         "IdentityHoprd" => convert_identity_hoprd_v3_to_v2(resource).await,
         "IdentityPool" => convert_identity_pool_v3_to_v2(resource).await,
         _ => {
-            error!("Unsupported kind for conversion to v2: {}", kind);
+            Err(format!("Unsupported kind for conversion from v3 to v2: {}", kind))
         }
     }
 }
 
 // Conversion handler
 async fn convert(Json(request): Json<ConversionRequest>) -> impl IntoResponse {
-    //debug!("Received conversion request: {:?}", request);
     let mut response_inner = ConversionResponseInner {
         uid: request.request.uid.clone(),
         converted_objects: vec![],
@@ -297,26 +334,26 @@ async fn convert(Json(request): Json<ConversionRequest>) -> impl IntoResponse {
     for obj in request.request.objects {
         let mut resource = obj.clone();
 
-        match request.request.desired_apiversion.as_str() {
-            "hoprnet.org/v1alpha2" => convert_v2_to_v3(&mut resource).await,
-            "hoprnet.org/v1alpha3" => convert_v3_to_v2(&mut resource).await,
+        let conversion_result = match request.request.desired_apiversion.as_str() {
+            "hoprnet.org/v1alpha2" => Ok(convert_v2_to_v3(&mut resource).await),
+            "hoprnet.org/v1alpha3" => Ok(convert_v3_to_v2(&mut resource).await),
             _ => {
-                response_inner.result = StatusResult {
-                    status: "Failure".to_string(),
-                    message: Some(format!("Unsupported desired API version: {}", request.request.desired_apiversion)),
-                };
-                return Json(ConversionResponse {
-                    api_version: "apiextensions.k8s.io/v1".to_string(),
-                    kind: "ConversionReview".to_string(),
-                    response: response_inner,
-                });
+                let msg = format!("Unsupported desired API version: {}", request.request.desired_apiversion.as_str());
+                Err(msg)
             }
+        };
+
+        if let Err(err_msg) = conversion_result {
+            response_inner.result.status = "Failure".to_string();
+            response_inner.result.message = Some(err_msg.clone());
+            error!("{}: {}", request.request.desired_apiversion.as_str(), err_msg);
+            continue; // skip this object, still try others
         }
-        // IMPORTANT: override apiVersion to match requested version
+        // Override apiVersion to match requested version
         resource["apiVersion"] = serde_json::Value::String(request.request.desired_apiversion.clone());
         response_inner.converted_objects.push(resource);
     }
-    //info!("Conversion completed successfully with {:?}", response_inner.converted_objects);
+    //debug!("Conversion completed successfully with {:?}", response_inner.converted_objects);
     Json(ConversionResponse {
         api_version: "apiextensions.k8s.io/v1".to_string(),
         kind: "ConversionReview".to_string(),
