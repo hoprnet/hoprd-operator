@@ -96,6 +96,7 @@ async fn wait_for_pod_ready(client: Client) -> () {
                 if let Some(conds) = status.conditions {
                     if conds.iter().any(|condition| condition.type_ == "Ready" && condition.status == "True" ) {
                         info!("Pod is Ready — Continuing bootstrap");
+                        tokio::time::sleep(Duration::from_secs(5)).await;
                         return ();
                     } else {
                         warn!("Pod {}/{} is not Ready yet — waiting…", pod_namespace, pod_name);
