@@ -68,17 +68,14 @@ async fn load_operator_config() -> OperatorConfig {
 
 // Start the webhook server in a separate task
 async fn start_webhook_server( webhook_config: operator_config::WebhookConfig) {
-    let webhook_handle = tokio::spawn(async move {
-        webhook_server::run_webhook_server(webhook_config)
-            .await;
+    tokio::spawn(async move {
+        webhook_server::run_webhook_server(webhook_config).await;
     });
-
 
     let webhook_boot = webhook_server::wait_for_webhook_ready().await;
     if webhook_boot.is_err() {
         panic!("Webhook server failed to start: {}", webhook_boot.err().unwrap());
     }
-    webhook_handle.await.expect("Webhook task panicked");
 }
 
 // Wait for the operator Pod to be in Ready state
@@ -113,10 +110,12 @@ async fn wait_for_pod_ready(client: Client) -> () {
 // Start all Kubernetes controllers
 async fn start_controllers(operator_config: operator_config::OperatorConfig, client: Client) {
     // ⭐ 4. Initialize Kubernetes client and context data
+    info!("Initializing Context Data...");
     let context_data: Arc<ContextData> = Arc::new(ContextData::new(client.clone(), operator_config).await);
     ContextData::sync_identities(context_data.clone()).await;
 
     // ⭐ 5. Initiatilize Kubernetes controllers
+    info!("Starting Controllers...");
     bootstrap_operator::start(client.clone(), context_data.clone()).await;
     let controller_identity_pool = identity_pool::identity_pool_controller::run(client.clone(), context_data.clone()).fuse();
     let controller_identity_hoprd = identity_hoprd::identity_hoprd_controller::run(client.clone(), context_data.clone()).fuse();

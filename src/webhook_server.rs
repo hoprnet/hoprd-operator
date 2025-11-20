@@ -7,7 +7,8 @@ use rustls::crypto::ring::default_provider;
 use tracing::{info,error};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value};
-
+use tokio::net::TcpStream;
+use tokio::time::{sleep, Duration};
 use crate::operator_config::WebhookConfig;
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -46,11 +47,8 @@ struct StatusResult {
 }
 
 pub async fn wait_for_webhook_ready() -> Result<(), String> {
-    use tokio::net::TcpStream;
-    use tokio::time::{sleep, Duration};
-
     let addr = "127.0.0.1:8443";  // use localhost, not 0.0.0.0
-
+    info!("Waiting for webhook to be ready at {}", addr);
     for _ in 0..50 {
         if TcpStream::connect(addr).await.is_ok() {
             info!("Webhook is ready at {}", addr);
