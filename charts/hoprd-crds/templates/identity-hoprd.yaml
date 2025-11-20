@@ -25,7 +25,7 @@ spec:
   scope: Namespaced
   versions:
     - name: v1alpha3
-      served: false
+      served: true
       storage: false
       additionalPrinterColumns:
       - description: Identity phase
