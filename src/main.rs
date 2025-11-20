@@ -23,7 +23,7 @@ use futures::{
     pin_mut,
     select,
 };
-use tracing::info;
+use tracing::{info, warn};
 use tracing_subscriber::{filter::EnvFilter, FmtSubscriber};
 
 #[tokio::main]
@@ -87,23 +87,29 @@ async fn wait_for_pod_ready(client: Client) -> () {
 
     let pod_name = env::var("POD_NAME").expect("The POD_NAME environment variable is not set");
     let pod_namespace = env::var("POD_NAMESPACE").expect("The POD_NAMESPACE environment variable is not set");
-    info!("Waiting for Pod {} to be Ready...", pod_name);
+    info!("Waiting for Pod {}/{} to be Ready...", pod_namespace, pod_name);
     let pods: Api<Pod> = Api::namespaced(client, &pod_namespace);
 
     loop {
         if let Ok(pod) = pods.get(&pod_name).await {
-            info!("Checking Pod {} with id {}", pod_name, pod.metadata.uid.clone().unwrap_or_default());
             if let Some(status) = pod.status {
                 if let Some(conds) = status.conditions {
                     info!("Pod conditions: {:?}", conds);
                     if conds.iter().any(|condition| condition.type_ == "Ready" && condition.status == "True" ) {
                         println!("Pod is Ready — Continuing bootstrap");
                         return ();
+                    } else {
+                        warn!("Pod {}/{} is not Ready yet — waiting…", pod_namespace, pod_name);
                     }
+                } else {
+                    warn!("Pod {}/{} has no conditions yet — waiting…", pod_namespace, pod_name);
                 }
+            } else {
+                warn!("Pod {}/{} has no status yet — waiting…", pod_namespace, pod_name);
             }
+        } else {
+            warn!("Pod {}/{} not found yet — waiting…", pod_namespace, pod_name);
         }
-        info!("Pod {} not Ready yet — waiting…", pod_name);
         tokio::time::sleep(Duration::from_secs(2)).await;
     }
 }
