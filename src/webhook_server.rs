@@ -4,7 +4,7 @@ use rustls::{ServerConfig, pki_types::{CertificateDer, PrivateKeyDer}};
 use rustls_pemfile::{certs, pkcs8_private_keys};
 use std::{env, io::BufReader, net::SocketAddr};
 use rustls::crypto::ring::default_provider;
-use tracing::{info,error};
+use tracing::{debug, error, info};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value};
 use tokio::net::TcpStream;
@@ -284,7 +284,7 @@ async fn convert_v3_to_v2(resource: &mut Value) {
 
 // Conversion handler
 async fn convert(Json(request): Json<ConversionRequest>) -> impl IntoResponse {
-    //info!("Received conversion request: {:?}", request);
+    debug!("Received conversion request: {:?}", request);
     let mut response_inner = ConversionResponseInner {
         uid: request.request.uid.clone(),
         converted_objects: vec![],

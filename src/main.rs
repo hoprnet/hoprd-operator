@@ -94,23 +94,16 @@ async fn wait_for_pod_ready(client: Client) -> () {
         if let Ok(pod) = pods.get(&pod_name).await {
             if let Some(status) = pod.status {
                 if let Some(conds) = status.conditions {
-                    info!("Pod conditions: {:?}", conds);
                     if conds.iter().any(|condition| condition.type_ == "Ready" && condition.status == "True" ) {
-                        println!("Pod is Ready — Continuing bootstrap");
+                        info!("Pod is Ready — Continuing bootstrap");
                         return ();
                     } else {
                         warn!("Pod {}/{} is not Ready yet — waiting…", pod_namespace, pod_name);
                     }
-                } else {
-                    warn!("Pod {}/{} has no conditions yet — waiting…", pod_namespace, pod_name);
                 }
-            } else {
-                warn!("Pod {}/{} has no status yet — waiting…", pod_namespace, pod_name);
             }
-        } else {
-            warn!("Pod {}/{} not found yet — waiting…", pod_namespace, pod_name);
         }
-        tokio::time::sleep(Duration::from_secs(2)).await;
+        tokio::time::sleep(Duration::from_secs(5)).await;
     }
 }
 
