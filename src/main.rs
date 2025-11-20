@@ -43,10 +43,10 @@ async fn main() -> Result<()> {
     let client: Client = Client::try_default().await.expect("Failed to create kube Client");
 
     // ⭐ 5. Wait for pod to be ready
-    wait_for_endpoint_ready(client.clone()).await;
+    wait_for_service_ready(client.clone()).await;
 
     // ⭐ 6. Start controllers
-    start_controllers(operator_config, client.clone()).await;
+    //start_controllers(operator_config, client.clone()).await;
 
     Ok(())
 }
@@ -79,7 +79,7 @@ async fn start_webhook_server(webhook_config: operator_config::WebhookConfig) {
 }
 
 // Wait for the operator Service endpoint to be in Ready state
-async fn wait_for_endpoint_ready(client: Client) -> () {
+async fn wait_for_service_ready(client: Client) -> () {
     if env::var(constants::OPERATOR_ENVIRONMENT).unwrap() != "production" {
         info!("Skipping Pod readiness check in non Kubernetes environment");
         return ();
@@ -108,6 +108,7 @@ async fn wait_for_endpoint_ready(client: Client) -> () {
                 } else {
                     warn!("Service {}/{} has no subsets yet — waiting…", service_namespace, service_name);
                 }
+                tokio::time::sleep(Duration::from_secs(5)).await;
             }
             Err(e) => {
                 warn!("Failed to get Endpoints for Service {}/{}: {} — retrying…", service_namespace, service_name, e);
