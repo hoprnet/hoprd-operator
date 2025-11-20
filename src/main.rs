@@ -46,7 +46,7 @@ async fn main() -> Result<()> {
     wait_for_service_ready(client.clone()).await;
 
     // ⭐ 6. Start controllers
-    //start_controllers(operator_config, client.clone()).await;
+    start_controllers(operator_config, client.clone()).await;
 
     Ok(())
 }
@@ -77,8 +77,8 @@ async fn start_webhook_server(webhook_config: operator_config::WebhookConfig) {
         panic!("Webhook server failed to start: {}", webhook_boot.err().unwrap());
     }
 
-    // Wait for ever
-    webhook_server.await.expect("Webhook task panicked");
+    // Blocking here to keep the webhook server running. Uncomment if you want to test webhook server only.
+    // webhook_server.await.expect("Webhook task panicked");
 }
 
 // Wait for the operator Service endpoint to be in Ready state
