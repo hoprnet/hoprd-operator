@@ -42,7 +42,7 @@ rules:
 - apiGroups:
   - ""
   resources:
-  - pods
+  - endpoints
   - secrets
   - services
   - configmaps
