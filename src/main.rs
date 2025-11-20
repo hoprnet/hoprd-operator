@@ -68,7 +68,7 @@ async fn load_operator_config() -> OperatorConfig {
 
 // Start the webhook server in a separate task
 async fn start_webhook_server(webhook_config: operator_config::WebhookConfig) {
-    let webhook_server =tokio::spawn(async move {
+    let _webhook_server =tokio::spawn(async move {
         webhook_server::run_webhook_server(webhook_config).await;
     });
 
