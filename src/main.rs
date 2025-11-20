@@ -92,8 +92,10 @@ async fn wait_for_pod_ready(client: Client) -> () {
 
     loop {
         if let Ok(pod) = pods.get(&pod_name).await {
+            info!("Checking Pod {} with id {}", pod_name, pod.metadata.uid.clone().unwrap_or_default());
             if let Some(status) = pod.status {
                 if let Some(conds) = status.conditions {
+                    info!("Pod conditions: {:?}", conds);
                     if conds.iter().any(|condition| condition.type_ == "Ready" && condition.status == "True" ) {
                         println!("Pod is Ready — Continuing bootstrap");
                         return ();
@@ -101,7 +103,6 @@ async fn wait_for_pod_ready(client: Client) -> () {
                 }
             }
         }
-
         info!("Pod {} not Ready yet — waiting…", pod_name);
         tokio::time::sleep(Duration::from_secs(2)).await;
     }
