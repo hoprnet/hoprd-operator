@@ -40,8 +40,9 @@ template chartName:
 
 # Lint both Helm charts
 lint:
-  helm lint -f ./charts/hoprd-operator/values-staging.yaml ./charts/hoprd-operator
-  helm lint -f ./charts/cluster-hoprd/values-staging.yaml ./charts/cluster-hoprd
+  helm lint -f ./charts/hoprd-crds/values-staging.yaml -f ./charts/hoprd-crds/secrets-staging.yaml ./charts/hoprd-crds
+  helm lint -f ./charts/hoprd-operator/values-staging.yaml -f ./charts/hoprd-operator/secrets-staging.yaml ./charts/hoprd-operator
+  helm lint -f ./charts/cluster-hoprd/values-staging.yaml -f ./charts/cluster-hoprd/secrets-staging.yaml ./charts/cluster-hoprd
 
 # Generate README.md files for both Helm charts
 docs:

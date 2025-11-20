@@ -7,24 +7,9 @@ use kube::{
     Api, Client, Resource, ResourceExt, api::{ListParams}, runtime::events::{Recorder, Reporter}
 };
 
-use crate::{
-    constants, events::ResourceEvent, hoprd::hoprd_resource::Hoprd, identity_hoprd::identity_hoprd_resource::IdentityHoprd, identity_pool::identity_pool_resource::IdentityPool,
+use crate::{ events::ResourceEvent, hoprd::hoprd_resource::Hoprd, identity_hoprd::identity_hoprd_resource::IdentityHoprd, identity_pool::identity_pool_resource::IdentityPool,
     operator_config::OperatorConfig,
 };
-
-pub async fn load_operator_config() -> OperatorConfig {
-    let operator_environment = env::var(constants::OPERATOR_ENVIRONMENT).unwrap();
-    let config_path = if operator_environment.eq("production") {
-        "/app/config/config.yaml".to_owned()
-    } else {
-        let mut path = env::current_dir().as_ref().unwrap().to_str().unwrap().to_owned();
-        path.push_str(&format!("/test-data/sample_config-{operator_environment}.yaml"));
-        path
-    };
-    let config_file = std::fs::File::open(&config_path).expect("Could not open config file.");
-    let config: OperatorConfig = serde_yaml::from_reader(config_file).expect("Could not read contents of config file.");
-    config
-}
 
 #[derive(Clone)]
 pub struct ContextData {

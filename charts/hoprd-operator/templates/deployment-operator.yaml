@@ -45,6 +45,20 @@ spec:
           - name: webhook
             containerPort: 8443
             protocol: TCP
+        livenessProbe:
+          tcpSocket:
+            port: 8443
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 2
+          failureThreshold: 3
+        readinessProbe:
+          tcpSocket:
+            port: 8443
+          initialDelaySeconds: 2
+          periodSeconds: 5
+          timeoutSeconds: 2
+          failureThreshold: 3
         {{- end }}
         {{- if .Values.hoprdOperator.resources }}
         resources: {{- toYaml .Values.hoprdOperator.resources | nindent 12 }}
