@@ -1,6 +1,6 @@
 use k8s_openapi::NamespaceResourceScope;
 use tracing::debug;
-use std::{collections::BTreeMap, env, sync::Arc};
+use std::{collections::BTreeMap, sync::Arc};
 use tokio::sync::RwLock;
 
 use kube::{

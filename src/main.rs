@@ -87,9 +87,10 @@ async fn wait_for_pod_ready(client: Client) -> () {
         info!("Skipping Pod readiness check in non Kubernetes environment");
         return ();
     }
+
     let pod_name = env::var("POD_NAME").expect("The POD_NAME environment variable is not set");
     let pod_namespace = env::var("POD_NAMESPACE").expect("The POD_NAMESPACE environment variable is not set");
-
+    info!("Waiting for Pod {} to be Ready...", pod_name);
     let pods: Api<Pod> = Api::namespaced(client, &pod_namespace);
 
     loop {
@@ -112,7 +113,6 @@ async fn wait_for_pod_ready(client: Client) -> () {
 // Start all Kubernetes controllers
 async fn start_controllers(operator_config: operator_config::OperatorConfig, client: Client) {
     // ⭐ 4. Initialize Kubernetes client and context data
-    let client: Client = Client::try_default().await.expect("Failed to create kube Client");
     let context_data: Arc<ContextData> = Arc::new(ContextData::new(client.clone(), operator_config).await);
     ContextData::sync_identities(context_data.clone()).await;
 
