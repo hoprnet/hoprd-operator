@@ -96,7 +96,7 @@ pub async fn run(client: Client, context_data: Arc<ContextData>) {
         .run(reconciler, on_error, context_data)
         .for_each(|reconciliation_result| async move {
             match reconciliation_result {
-                Ok(_cluster_hoprd_resource) => {}
+                Ok(_) => {}
                 Err(reconciliation_err) => {
                     let err_string = reconciliation_err.to_string();
                     if !err_string.contains("that was not found in local store") && !err_string.contains("event queue error") {
