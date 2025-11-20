@@ -68,7 +68,7 @@ async fn load_operator_config() -> OperatorConfig {
 
 // Start the webhook server in a separate task
 async fn start_webhook_server(webhook_config: operator_config::WebhookConfig) {
-    tokio::spawn(async move {
+    let webhook_server =tokio::spawn(async move {
         webhook_server::run_webhook_server(webhook_config).await;
     });
 
@@ -76,6 +76,9 @@ async fn start_webhook_server(webhook_config: operator_config::WebhookConfig) {
     if webhook_boot.is_err() {
         panic!("Webhook server failed to start: {}", webhook_boot.err().unwrap());
     }
+
+    // Wait for ever
+    webhook_server.await.expect("Webhook task panicked");
 }
 
 // Wait for the operator Service endpoint to be in Ready state
