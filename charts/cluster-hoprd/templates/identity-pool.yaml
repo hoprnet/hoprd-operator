@@ -7,10 +7,10 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "2"
 spec:
-  network: {{ .Values.network }}
+  network: {{ .Values.clusterHoprd.network }}
   secretName: {{ include "cluster-hoprd.name" . }}-wallet
-  {{- if .Values.identityPool.funding.enabled }}
+  {{- if .Values.clusterHoprd.funding.enabled }}
   funding:
-    schedule: {{ .Values.identityPool.funding.schedule }}
-    nativeAmount: {{ .Values.identityPool.funding.nativeAmount | quote }}
+    schedule: {{ .Values.clusterHoprd.funding.schedule }}
+    nativeAmount: {{ .Values.clusterHoprd.funding.nativeAmount | quote }}
   {{- end }}

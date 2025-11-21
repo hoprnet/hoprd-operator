@@ -192,7 +192,3 @@ impl HoprdDeploymentSpec {
         }
     }
 }
-#[derive(Serialize, Debug, Deserialize, PartialEq, Clone, JsonSchema, Hash)]
-pub struct EnablingFlag {
-    pub enabled: bool,
-}

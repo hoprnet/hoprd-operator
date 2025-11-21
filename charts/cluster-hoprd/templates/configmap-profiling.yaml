@@ -1,5 +1,5 @@
 ---
-{{- if .Values.profiling.enabled }}
+{{- if .Values.clusterHoprd.profiling.enabled }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -63,8 +63,8 @@ data:
       echo "Found hoprd process with PID: $HOPRD_PID"
     fi
 
-    echo "Starting CPU Profiling for {{ .Values.profiling.cpu.sampleDuration }} seconds..."
-    perf record -F {{ .Values.profiling.cpu.sampleFrequency }} -p $HOPRD_PID -g -o /tmp/profiling/cpu/perf-${HOSTNAME}.data -- sleep {{ .Values.profiling.cpu.sampleDuration }}
+    echo "Starting CPU Profiling for {{ .Values.clusterHoprd.profiling.cpu.sampleDuration }} seconds..."
+    perf record -F {{ .Values.clusterHoprd.profiling.cpu.sampleFrequency }} -p $HOPRD_PID -g -o /tmp/profiling/cpu/perf-${HOSTNAME}.data -- sleep {{ .Values.clusterHoprd.profiling.cpu.sampleDuration }}
     echo "CPU Profiling completed."
 
     echo "Process the binary data into human-readable format"
@@ -73,14 +73,14 @@ data:
     /tmp/FlameGraph/flamegraph.pl /tmp/profiling/cpu/perf-${HOSTNAME}.folded > /tmp/profiling/cpu/${HOSTNAME}.svg
 
     echo "Starting Memory Profiling"
-    for i in $(seq 1 {{ .Values.profiling.memory.samples }}); do
+    for i in $(seq 1 {{ .Values.clusterHoprd.profiling.memory.samples }}); do
         ts=$(date +%s)
-        echo "Taking heap dump $i/{{ .Values.profiling.memory.samples }} at $ts"
+        echo "Taking heap dump $i/{{ .Values.clusterHoprd.profiling.memory.samples }} at $ts"
         kill -USR1 $HOPRD_PID
         sleep 1
         ts=$(date +%s)
         #mv /tmp/profiling/memory/hoprd.$i.heap /tmp/profiling/memory/heap_$ts.heap
-        sleep {{ .Values.profiling.memory.interval }}
+        sleep {{ .Values.clusterHoprd.profiling.memory.interval }}
     done
 
 
@@ -104,7 +104,7 @@ data:
         echo "GCP authentication successful"
     fi
 
-    BUCKET="gs://{{ .Values.profiling.bucketName }}"
+    BUCKET="gs://{{ .Values.clusterHoprd.profiling.bucketName }}"
     FILENAME="$(date +%Y-%m-%d)/perf-${HOSTNAME}-$(date +%H:%M:%S).tar.xz"
     PROFILE_DATA_SIZE=$(du -h /tmp/profiling/perf-${HOSTNAME}.tar.xz | awk '{print $1}')
     echo "Uploading data ($PROFILE_DATA_SIZE) to $BUCKET/$FILENAME"
