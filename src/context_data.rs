@@ -1,5 +1,5 @@
 use k8s_openapi::NamespaceResourceScope;
-use tracing::debug;
+use tracing::{debug, info};
 use std::{collections::BTreeMap, sync::Arc};
 use tokio::sync::RwLock;
 
@@ -42,8 +42,10 @@ impl ContextData {
     }
 
     pub async fn sync_identities(context_data: Arc<ContextData>) {
-        let api_identities = Api::<IdentityHoprd>::all(context_data.client.clone());
-        let all_identities = api_identities.list(&ListParams::default()).await.unwrap().items.clone();
+        info!("IdentityHoprd apiVersion from type at runtime: {}",<IdentityHoprd as Resource>::api_version(&()));
+        let api_identities: Api<IdentityHoprd> = Api::all(context_data.client.clone());
+        let identities_list = api_identities.list(&ListParams::default()).await.unwrap();
+        let identities = identities_list.items.clone();
         let api_hoprd = Api::<Hoprd>::all(context_data.client.clone());
         let all_hoprds: Vec<String> = api_hoprd
             .list(&ListParams::default())
@@ -55,7 +57,7 @@ impl ContextData {
             .map(|hoprd| format!("{}-{}", hoprd.metadata.namespace.as_ref().unwrap(), hoprd.metadata.name.as_ref().unwrap()))
             .collect();
         // Unlock identities that no longer have a corresponding hoprd
-        for identity_hoprd in all_identities {
+        for identity_hoprd in identities {
             if let Some(status) = identity_hoprd.to_owned().status {
                 if let Some(hoprd_node_name) = status.hoprd_node_name {
                     let identity_full_name = format!("{}-{}", identity_hoprd.to_owned().metadata.namespace.unwrap(), hoprd_node_name);

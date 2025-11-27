@@ -3,7 +3,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "hoprd-operator.fullname" . }}-admin
+  name: {{ include "hoprd-operator.fullname" . }}-admin-ui
   namespace: {{ .Release.Namespace | quote }}
   labels:
     {{- include "hoprd-adminui.labels" . | nindent 4 }}
@@ -11,13 +11,13 @@ spec:
   replicas: {{ .Values.hoprdOperator.adminUI.replicas }}
   selector:
     matchLabels:
-      app.kubernetes.io/component: admin
+      app.kubernetes.io/component: admin-ui
       app.kubernetes.io/instance: {{ include "hoprd-operator.name" . }}
       app.kubernetes.io/name: {{ .Release.Name }}
   template:
     metadata:
       labels:
-        app.kubernetes.io/component: admin
+        app.kubernetes.io/component: admin-ui
         app.kubernetes.io/instance: {{ include "hoprd-operator.name" . }}
         app.kubernetes.io/name: {{ .Release.Name }}
     spec:

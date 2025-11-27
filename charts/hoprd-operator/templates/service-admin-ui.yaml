@@ -17,7 +17,7 @@ spec:
       name: {{ .Values.hoprdOperator.adminUI.service.ports.name }}
       targetPort: {{ .Values.hoprdOperator.adminUI.service.ports.name }}
   selector:
-      app.kubernetes.io/component: admin
+      app.kubernetes.io/component: admin-ui
       app.kubernetes.io/instance: {{ include "hoprd-operator.name" . }}
       app.kubernetes.io/name: {{ .Release.Name }}
 {{- end }}
