@@ -2,17 +2,15 @@
 
 cat <<EOF |  apply -f -
 ---
-apiVersion: hoprnet.org/v1alpha2
+apiVersion: hoprnet.org/v1alpha3
 kind: Hoprd
 metadata:
   name: {{ .Release.Namespace }}-1
   namespace: {{ .Release.Namespace }}
 spec:
   version: latest
-  portsAllocation: 2
   identityPoolName: {{ .Release.Namespace }}
   identityName: {{ .Release.Namespace }}-1
-  enabled: true
   config: |
     ...
 EOF

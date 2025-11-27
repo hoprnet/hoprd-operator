@@ -5,7 +5,7 @@ use rustls_pemfile::{certs, pkcs8_private_keys};
 use std::{env, io::BufReader, net::SocketAddr};
 use rustls::crypto::ring::default_provider;
 use tracing::{debug, error, info, warn};
-use serde::{Deserialize, Serialize, de};
+use serde::{Deserialize, Serialize};
 use serde_json::{Value};
 use tokio::net::TcpStream;
 use tokio::time::{sleep, Duration};
@@ -101,7 +101,7 @@ pub async fn run_webhook_server(webhook_config:WebhookConfig) {
     let app = Router::new().route("/convert", post(convert));
     let addr = SocketAddr::from(([0, 0, 0, 0], 8443));
 
-    debug!("Starting webhook server with TLS");
+    info!("Starting webhook server with TLS");
     let server_config: ServerConfig = load_rustls_config(webhook_config.crt_file.as_str(), webhook_config.key_file.as_str()).expect("Invalid TLS");
     let tls_config = RustlsConfig::from_config(server_config.into());
     bind_rustls(addr, tls_config)
@@ -322,8 +322,8 @@ async fn convert_v3_to_v2(resource: &mut Value) -> Result<(), String> {
 
 // Conversion handler
 async fn convert(Json(request): Json<ConversionRequest>) -> impl IntoResponse {
-    debug!("Received conversion request: {:?}", request);
-    debug!("Processing desired_apiversion: {:?}", request.request.desired_apiversion.as_str());
+    info!("Received conversion request: {:?}", request);
+    info!("Processing desired_apiversion: {:?}", request.request.desired_apiversion.as_str());
     let mut response_inner = ConversionResponseInner {
         uid: request.request.uid.clone(),
         converted_objects: vec![],

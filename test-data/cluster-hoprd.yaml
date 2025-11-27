@@ -1,5 +1,5 @@
 ---
-apiVersion: hoprnet.org/v1alpha2
+apiVersion: hoprnet.org/v1alpha3
 kind: ClusterHoprd
 metadata:
   name: pr-1234
