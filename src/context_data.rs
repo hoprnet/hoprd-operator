@@ -42,19 +42,14 @@ impl ContextData {
     }
 
     pub async fn sync_identities(context_data: Arc<ContextData>) {
+        // BEGIN DEBUGGING BUG
         info!("IdentityHoprd apiVersion from type at runtime: {}",<IdentityHoprd as Resource>::api_version(&()));
         let gvk = GroupVersionKind::gvk("hoprnet.org", "v1alpha3", "IdentityHoprd");
         let ar = kube::core::ApiResource::from_gvk(&gvk);
-        let api: Api<DynamicObject> = Api::all_with(context_data.client.clone(), &ar);
-        let list = api.list(&Default::default()).await.unwrap();
-        info!("(debug) Got {} IdentityHoprd objects (DynamicObject)", list.items.len());
-        for (idx, item) in list.items.iter().enumerate() {
-            if let Some(name) = item.metadata.name.as_ref() {
-                if name.eq("core-node-1") {
-                    info!("(debug) IdentityHoprd[{}] name: {} raw: {:#?}", idx, name, item);
-                }
-            }
-        }
+        let api: Api<DynamicObject> = Api::namespaced_with(context_data.client.clone(), "core-team", &ar);
+        let object = api.get("core-node-1").await.unwrap();
+        debug!("Got IdentityHoprd {:#?}", object);
+        // END DEBUGGING BUG
 
         let api_identities: Api<IdentityHoprd> = Api::all(context_data.client.clone());
         let identities = api_identities.list(&ListParams::default()).await.unwrap().items.clone();
