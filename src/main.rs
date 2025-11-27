@@ -1,5 +1,6 @@
 use k8s_openapi::api::core::v1::{Endpoints};
 use kube::{Api, Client, Result};
+use rustls::crypto::ring;
 use std::{env, sync::Arc, time::Duration};
 
 mod bootstrap_operator;
@@ -32,6 +33,7 @@ async fn main() -> Result<()> {
     let subscriber = FmtSubscriber::builder().with_env_filter(EnvFilter::from_default_env()).finish();
     tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
     info!("Starting hoprd-operator {}", env!("CARGO_PKG_VERSION"));
+    init_crypto();
 
     // 2. Load operator configuration
     let operator_config = load_operator_config().await;
@@ -53,6 +55,17 @@ async fn main() -> Result<()> {
     }
 
     Ok(())
+}
+
+fn init_crypto() {
+    use std::sync::Once;
+    static INIT: Once = Once::new();
+
+    INIT.call_once(|| {
+        ring::default_provider()
+            .install_default()
+            .expect("failed to install rustls ring CryptoProvider");
+    });
 }
 
 async fn start_webhook(operator_config: OperatorConfig) {
