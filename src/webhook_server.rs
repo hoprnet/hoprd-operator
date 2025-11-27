@@ -101,7 +101,7 @@ pub async fn run_webhook_server(webhook_config:WebhookConfig) {
     let app = Router::new().route("/convert", post(convert));
     let addr = SocketAddr::from(([0, 0, 0, 0], 8443));
 
-    info!("Starting webhook server with TLS");
+    debug!("Starting webhook server with TLS");
     let server_config: ServerConfig = load_rustls_config(webhook_config.crt_file.as_str(), webhook_config.key_file.as_str()).expect("Invalid TLS");
     let tls_config = RustlsConfig::from_config(server_config.into());
     bind_rustls(addr, tls_config)
