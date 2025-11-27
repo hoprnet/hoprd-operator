@@ -2,6 +2,7 @@ use axum::{Json, Router, response::IntoResponse, routing::post};
 use axum_server::{tls_rustls::{RustlsConfig, bind_rustls}};
 use rustls::{ServerConfig, pki_types::{CertificateDer, PrivateKeyDer}};
 use rustls_pemfile::{certs, pkcs8_private_keys};
+use tracing_subscriber::field::debug;
 use std::{env, io::BufReader, net::SocketAddr};
 use rustls::crypto::ring::default_provider;
 use tracing::{debug, error, info, warn};
@@ -245,6 +246,7 @@ async fn convert_identity_hoprd_v2_to_v3(resource: &mut Value) -> Result<(), Str
 
     // Rename spec.nativeAddress to spec.nodeAddress
     if let Some(native_address) = spec_obj.remove("nativeAddress") {
+        debug!("Renaming spec.nativeAddress to spec.nodeAddress");
         spec_obj.insert("nodeAddress".to_string(), native_address);
     } else {
         warn!("spec.nativeAddress missing; adding placeholder nativeAddress");
@@ -252,6 +254,7 @@ async fn convert_identity_hoprd_v2_to_v3(resource: &mut Value) -> Result<(), Str
     }
 
     // Remove spec.peerId if present
+    debug!("Removing spec.peerId if present");
     spec_obj.remove("peerId");
 
     Ok(())
