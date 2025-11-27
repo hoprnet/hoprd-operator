@@ -28,27 +28,24 @@ use tracing_subscriber::{filter::EnvFilter, FmtSubscriber};
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    // ⭐ 1. Initialize Tracing Subscriber
+    // 1. Initialize Tracing Subscriber
     let subscriber = FmtSubscriber::builder().with_env_filter(EnvFilter::from_default_env()).finish();
     tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
     info!("Starting hoprd-operator {}", env!("CARGO_PKG_VERSION"));
 
-    // ⭐ 2. Load operator configuration
+    // 2. Load operator configuration
     let operator_config = load_operator_config().await;
 
-    // ⭐ 3. Initialize Kubernetes client
-    let client: Client = Client::try_default().await.expect("Failed to create kube Client");
-
-
+    // 3. Determine operator mode and start appropriate components  
     let mode = std::env::var("OPERATOR_MODE").unwrap_or_else(|_| "controller".into());
     match mode.as_str() {
         "webhook" => {
             info!("Starting in Webhook mode");
-            start_webhook(client.clone(), operator_config.clone()).await;
+            start_webhook(operator_config.clone()).await;
         }
         "controller" => {
             info!("Starting in Controller mode");
-            start_controllers(operator_config.clone(), client.clone()).await;
+            start_controllers(operator_config.clone()).await;
         }
         _ => {
             panic!("Invalid OPERATOR_MODE: {}. Must be either 'webhook' or 'controller'", mode);
@@ -58,8 +55,8 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
-async fn start_webhook(client: Client, operator_config: OperatorConfig) {
-    // ⭐ 1. Start webhook server in a separate task
+async fn start_webhook(operator_config: OperatorConfig) {
+    // 1. Start webhook server in a separate task
     let webhook_server =tokio::spawn(async move {
         webhook_server::run_webhook_server(operator_config.webhook).await;
     });
@@ -69,10 +66,10 @@ async fn start_webhook(client: Client, operator_config: OperatorConfig) {
         panic!("Webhook server failed to start: {}", webhook_boot.err().unwrap());
     }
 
-    // ⭐ 2. Wait for pod to be ready
+    // 2. Wait for pod to be ready
     //wait_for_service_ready(client.clone()).await;
 
-    // ⭐ 3. Keep the webhook server running
+    // 3. Keep the webhook server running
     webhook_server.await.expect("Webhook server task panicked");
 
 }
@@ -87,6 +84,7 @@ async fn load_operator_config() -> OperatorConfig {
         path.push_str(&format!("/test-data/sample_config-{operator_environment}.yaml"));
         path
     };
+    info!("Loading operator configuration from: {}", config_path);
     let config_file = std::fs::File::open(&config_path).expect("Could not open config file.");
     let config: OperatorConfig = serde_yaml::from_reader(config_file).expect("Could not read contents of config file.");
     config
@@ -135,9 +133,10 @@ async fn wait_for_service_ready(client: Client) -> () {
 }
 
 // Start all Kubernetes controllers
-async fn start_controllers(operator_config: operator_config::OperatorConfig, client: Client) {
+async fn start_controllers(operator_config: operator_config::OperatorConfig) {
     // ⭐ 4. Initialize Kubernetes client and context data
     info!("Initializing Context Data...");
+    let client: Client = Client::try_default().await.expect("Failed to create kube Client");
     let context_data: Arc<ContextData> = Arc::new(ContextData::new(client.clone(), operator_config).await);
     ContextData::sync_identities(context_data.clone()).await;
 

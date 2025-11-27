@@ -32,9 +32,10 @@ tracing-subscriber = { version = "0.3.20", default-features = true, features = [
 base64 = "0.22.1"
 axum = { version = "0.7.9", features = ["json"] }
 axum-server = { version = "0.7.3", features = ["tls-rustls"] }
-rustls = { version = "0.23.35", features = ["ring"] }
+rustls = { version = "0.23.35", default-features = false, features = ["ring"] }
+tokio-rustls = { version = "0.26.4", default-features = false, features = ["ring"] }
 rustls-pemfile = "2.2.0"
-tokio-rustls = { version = "0.26.4", features = ["ring"] }
+
 anyhow = "1.0"
 
 [features]
