@@ -4,7 +4,7 @@ use std::{collections::BTreeMap, sync::Arc};
 use tokio::sync::RwLock;
 
 use kube::{
-    Api, Client, Resource, ResourceExt, api::{ListParams}, runtime::events::{Recorder, Reporter}
+    Api, Client, Resource, ResourceExt, api::{DynamicObject, GroupVersionKind, ListParams}, runtime::events::{Recorder, Reporter}
 };
 
 use crate::{ events::ResourceEvent, hoprd::hoprd_resource::Hoprd, identity_hoprd::identity_hoprd_resource::IdentityHoprd, identity_pool::identity_pool_resource::IdentityPool,
@@ -43,9 +43,17 @@ impl ContextData {
 
     pub async fn sync_identities(context_data: Arc<ContextData>) {
         info!("IdentityHoprd apiVersion from type at runtime: {}",<IdentityHoprd as Resource>::api_version(&()));
+        let gvk = GroupVersionKind::gvk("hoprnet.org", "v1alpha3", "IdentityHoprd");
+        let ar = kube::core::ApiResource::from_gvk(&gvk);
+        let api: Api<DynamicObject> = Api::all_with(context_data.client.clone(), &ar);
+        let list = api.list(&Default::default()).await.unwrap();
+        info!("(debug) Got {} IdentityHoprd objects (DynamicObject)", list.items.len());
+        for (idx, item) in list.items.iter().enumerate() {
+            info!("(debug) IdentityHoprd[{}] raw: {:#?}", idx, item);
+        }
+
         let api_identities: Api<IdentityHoprd> = Api::all(context_data.client.clone());
-        let identities_list = api_identities.list(&ListParams::default()).await.unwrap();
-        let identities = identities_list.items.clone();
+        let identities = api_identities.list(&ListParams::default()).await.unwrap().items.clone();
         let api_hoprd = Api::<Hoprd>::all(context_data.client.clone());
         let all_hoprds: Vec<String> = api_hoprd
             .list(&ListParams::default())
