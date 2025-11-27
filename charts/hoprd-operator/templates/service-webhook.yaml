@@ -14,7 +14,7 @@ spec:
       name: webhook
       targetPort: webhook
   selector:
-      app.kubernetes.io/component: operator
+      app.kubernetes.io/component: webhook
       app.kubernetes.io/instance: {{ include "hoprd-operator.name" . }}
       app.kubernetes.io/name: {{ .Release.Name }}
 {{- end }}
