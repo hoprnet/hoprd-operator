@@ -49,7 +49,11 @@ impl ContextData {
         let list = api.list(&Default::default()).await.unwrap();
         info!("(debug) Got {} IdentityHoprd objects (DynamicObject)", list.items.len());
         for (idx, item) in list.items.iter().enumerate() {
-            info!("(debug) IdentityHoprd[{}] raw: {:#?}", idx, item);
+            if let Some(name) = item.metadata.name.as_ref() {
+                if name.eq("core-node-1") {
+                    info!("(debug) IdentityHoprd[{}] name: {} raw: {:#?}", idx, name, item);
+                }
+            }
         }
 
         let api_identities: Api<IdentityHoprd> = Api::all(context_data.client.clone());
