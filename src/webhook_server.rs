@@ -322,8 +322,7 @@ async fn convert_v3_to_v2(resource: &mut Value) -> Result<(), String> {
 
 // Conversion handler
 async fn convert(Json(request): Json<ConversionRequest>) -> impl IntoResponse {
-    info!("Received conversion request: {:?}", request);
-    info!("Processing desired_apiversion: {:?}", request.request.desired_apiversion.as_str());
+    //debug!("Received conversion request: {:?}", request);
     let mut response_inner = ConversionResponseInner {
         uid: request.request.uid.clone(),
         converted_objects: vec![],
@@ -338,8 +337,8 @@ async fn convert(Json(request): Json<ConversionRequest>) -> impl IntoResponse {
         debug!("Converting resource: {:?}", resource);
 
         let conversion_result = match request.request.desired_apiversion.as_str() {
-            "hoprnet.org/v1alpha2" => Ok(convert_v2_to_v3(&mut resource).await),
-            "hoprnet.org/v1alpha3" => Ok(convert_v3_to_v2(&mut resource).await),
+            "hoprnet.org/v1alpha2" => Ok(convert_v3_to_v2(&mut resource).await),
+            "hoprnet.org/v1alpha3" => Ok(convert_v2_to_v3(&mut resource).await),
             _ => {
                 let msg = format!("Unsupported desired API version: {}", request.request.desired_apiversion.as_str());
                 Err(msg)
