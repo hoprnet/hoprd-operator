@@ -33,7 +33,7 @@ async fn main() -> Result<()> {
     let subscriber = FmtSubscriber::builder().with_env_filter(EnvFilter::from_default_env()).finish();
     tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
     info!("Starting hoprd-operator {}", env!("CARGO_PKG_VERSION"));
-    init_crypto();
+    //init_crypto();
 
     // 2. Load operator configuration
     let operator_config = load_operator_config().await;
@@ -149,6 +149,7 @@ async fn wait_for_service_ready(client: Client) -> () {
 async fn start_controllers(operator_config: operator_config::OperatorConfig) {
     // ⭐ 4. Initialize Kubernetes client and context data
     info!("Initializing Context Data...");
+    ring::default_provider().install_default().expect("failed to install rustls ring CryptoProvider");
     let client: Client = Client::try_default().await.expect("Failed to create kube Client");
     let context_data: Arc<ContextData> = Arc::new(ContextData::new(client.clone(), operator_config).await);
     ContextData::sync_identities(context_data.clone()).await;
