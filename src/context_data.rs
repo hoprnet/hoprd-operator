@@ -48,7 +48,7 @@ impl ContextData {
         let ar = kube::core::ApiResource::from_gvk(&gvk);
         let api: Api<DynamicObject> = Api::namespaced_with(context_data.client.clone(), "core-team", &ar);
         let mut object = api.get("core-node-1").await.unwrap();
-        debug!("Get node address {}", object.data.take()["spec"].take()["nodeAddress"].as_str().unwrap());
+        debug!("Get node address {}", object.data.take()["spec"].take()["nodeAddress"].as_str().unwrap_or("unknown"));
 
         // This code does NOT invoke the webhook, and the nodeAddress field is missing, so there is a bug somewhere.
         info!("List IdentityHoprd apiVersion from type at runtime: {}",<IdentityHoprd as Resource>::api_version(&()));
@@ -58,7 +58,7 @@ impl ContextData {
         for (idx, item) in list.items.iter().enumerate() {
             let name = item.metadata.name.as_ref().unwrap();
             let node_address_value = item.data.to_owned()["spec"].to_owned()["nodeAddress"].to_owned();
-            let node_address = node_address_value.as_str().unwrap();
+            let node_address = node_address_value.as_str().unwrap_or("unknown");
             info!("IdentityHoprd[{}] name: {} nodeAddress: {:?}", idx, name, node_address);
         }
 
