@@ -25,15 +25,14 @@ use futures::{
     select,
 };
 use tracing::{info, warn};
-use tracing_subscriber::{filter::EnvFilter, FmtSubscriber};
+use tracing_subscriber::{Layer, layer::SubscriberExt};
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    // 1. Initialize Tracing Subscriber
-    let subscriber = FmtSubscriber::builder().with_env_filter(EnvFilter::from_default_env()).finish();
-    tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
-    info!("Starting hoprd-operator {}", env!("CARGO_PKG_VERSION"));
-    //init_crypto();
+    // 1. Initialize logger
+    init_logger().expect("Failed to initialize logger");
+    let version = env!("CARGO_PKG_VERSION");
+    info!("Starting hoprd-operator {}", version);
 
     // 2. Load operator configuration
     let operator_config = load_operator_config().await;
@@ -55,17 +54,6 @@ async fn main() -> Result<()> {
     }
 
     Ok(())
-}
-
-fn init_crypto() {
-    use std::sync::Once;
-    static INIT: Once = Once::new();
-
-    INIT.call_once(|| {
-        ring::default_provider()
-            .install_default()
-            .expect("failed to install rustls ring CryptoProvider");
-    });
 }
 
 async fn start_webhook(operator_config: OperatorConfig) {
@@ -169,4 +157,33 @@ async fn start_controllers(operator_config: operator_config::OperatorConfig) {
         () = controller_hoprd => println!("Controller Hoprd exited"),
         () = controller_cluster => println!("Controller ClusterHoprd exited"),
     }
+}
+
+
+    // let subscriber = FmtSubscriber::builder().with_env_filter(EnvFilter::from_default_env()).finish();
+    // tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
+
+fn init_logger() -> anyhow::Result<()> {
+    let env_filter = match tracing_subscriber::EnvFilter::try_from_default_env() {
+        Ok(filter) => filter,
+        Err(_) => tracing_subscriber::filter::EnvFilter::new("info")
+            .add_directive("kube=info".parse()?)
+            .add_directive("kube_client=info".parse()?)
+    };
+
+    let registry = tracing_subscriber::Registry::default().with(env_filter);
+
+    let format = tracing_subscriber::fmt::layer()
+        .with_level(true)
+        .with_target(true)
+        .with_thread_ids(true)
+        .with_thread_names(false);
+
+    let format = format.json().boxed();
+
+    let registry = registry.with(format);
+
+    tracing::subscriber::set_global_default(registry)?;
+
+    Ok(())
 }

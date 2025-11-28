@@ -48,19 +48,41 @@ impl ContextData {
         let ar = kube::core::ApiResource::from_gvk(&gvk);
         let api: Api<DynamicObject> = Api::namespaced_with(context_data.client.clone(), "core-team", &ar);
         let mut object = api.get("core-node-1").await.unwrap();
-        debug!("Get node address {}", object.data.take()["spec"].take()["nodeAddress"].as_str().unwrap_or("unknown"));
+        let mut objects = api.list(&Default::default()).await.unwrap();
+        for(idx, obj) in objects.items.iter_mut().enumerate() {
+            let types = obj.types.take().unwrap();
+            let api_version = types.api_version.clone();
+            let kind = types.kind.clone();
+            let name = obj.metadata.name.as_ref().unwrap();
+            let spec = obj.data.take()["spec"].clone();
+            let node_address = spec["nodeAddress"].as_str().unwrap_or("unknown");
+            let native_address = spec["nativeAddress"].as_str().unwrap_or("unknown");
+            debug!("IdentityHoprd list[{}] name: {} apiVersion: {} kind: {} nodeAddress: {} nativeAddress: {}", idx, name, api_version, kind, node_address, native_address);
+        }
+        let types = object.types.take().unwrap();
+        let api_version = types.api_version.clone();
+        let kind = types.kind.clone();
+        let name = object.metadata.name.as_ref().unwrap();
+        let spec = object.data.take()["spec"].clone();
+        let node_address = spec["nodeAddress"].as_str().unwrap_or("unknown");
+        let native_address = spec["nativeAddress"].as_str().unwrap_or("unknown");
+        debug!("IdentityHoprd name[0]: {} apiVersion: {} kind: {} nodeAddress: {} nativeAddress: {}", name, api_version, kind, node_address, native_address);
 
         // This code does NOT invoke the webhook, and the nodeAddress field is missing, so there is a bug somewhere.
-        info!("List IdentityHoprd apiVersion from type at runtime: {}",<IdentityHoprd as Resource>::api_version(&()));
-        let api: Api<DynamicObject> = Api::all_with(context_data.client.clone(), &ar);
-        let list = api.list(&Default::default()).await.unwrap();
-        info!("(debug) Got {} IdentityHoprd objects (DynamicObject)", list.items.len());
-        for (idx, item) in list.items.iter().enumerate() {
-            let name = item.metadata.name.as_ref().unwrap();
-            let node_address_value = item.data.to_owned()["spec"].to_owned()["nodeAddress"].to_owned();
-            let node_address = node_address_value.as_str().unwrap_or("unknown");
-            info!("IdentityHoprd[{}] name: {} nodeAddress: {:?}", idx, name, node_address);
-        }
+        // info!("List IdentityHoprd apiVersion from type at runtime: {}",<IdentityHoprd as Resource>::api_version(&()));
+        // let api: Api<DynamicObject> = Api::all_with(context_data.client.clone(), &ar);
+        // let list = api.list(&Default::default()).await.unwrap();
+        // info!("(debug) Got {} IdentityHoprd objects (DynamicObject)", list.items.len());
+        // for (idx, mut item) in list.items.into_iter().enumerate() {
+        //     let types = item.types.take().unwrap();
+        //     let api_version = types.api_version.clone();
+        //     let kind = types.kind.clone();
+        //     let name = item.metadata.name.as_ref().unwrap();
+        //     let spec = item.data.take()["spec"].clone();
+        //     let node_address = spec["nodeAddress"].as_str().unwrap_or("unknown");
+        //     let native_address = spec["nativeAddress"].as_str().unwrap_or("unknown");
+        //     debug!("IdentityHoprd[{}] name: {} apiVersion: {} kind: {} nodeAddress: {} nativeAddress: {}", idx, name, api_version, kind, node_address, native_address);
+        // }
 
 
         let api_identities: Api<IdentityHoprd> = Api::all(context_data.client.clone());
