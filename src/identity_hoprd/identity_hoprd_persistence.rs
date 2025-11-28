@@ -1,5 +1,5 @@
 use crate::context_data::ContextData;
-use k8s_openapi::api::core::v1::{PersistentVolumeClaim, PersistentVolumeClaimSpec, ResourceRequirements};
+use k8s_openapi::api::core::v1::{PersistentVolumeClaim, PersistentVolumeClaimSpec, VolumeResourceRequirements};
 use k8s_openapi::apimachinery::pkg::api::resource::Quantity;
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::OwnerReference;
 use kube::api::{ObjectMeta, PostParams};
@@ -31,9 +31,9 @@ pub async fn create_pvc(context: Arc<ContextData>, identity_hoprd: &IdentityHopr
         },
         spec: Some(PersistentVolumeClaimSpec {
             access_modes: Some(vec!["ReadWriteOnce".to_string()]),
-            resources: Some(ResourceRequirements {
+            resources: Some(VolumeResourceRequirements {
                 requests: Some(resource),
-                ..ResourceRequirements::default()
+                ..VolumeResourceRequirements::default()
             }),
             storage_class_name: Some(context.config.persistence.storage_class_name.to_owned()),
             ..PersistentVolumeClaimSpec::default()

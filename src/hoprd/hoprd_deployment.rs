@@ -5,6 +5,7 @@ use crate::model::Error;
 use crate::{context_data::ContextData, hoprd::hoprd_deployment};
 use base64::{engine::general_purpose, Engine as _};
 use k8s_openapi::apimachinery::pkg::util::intstr::IntOrString;
+use rand::distr::Alphanumeric;
 
 use crate::{
     constants,
@@ -24,7 +25,6 @@ use k8s_openapi::apimachinery::pkg::apis::meta::v1::{LabelSelector, OwnerReferen
 use kube::api::{DeleteParams, ObjectMeta, Patch, PatchParams, PostParams, WatchEvent, WatchParams};
 use kube::runtime::wait::{await_condition, conditions};
 use kube::{Api, Client, Resource, ResourceExt};
-use rand::distributions::Alphanumeric;
 use rand::Rng;
 use serde_json::json;
 use std::collections::BTreeMap;
@@ -142,7 +142,7 @@ pub fn extra_containers(hoprd_deployment_spec: Option<HoprdDeploymentSpec>) -> V
     let default_deployment_spec = HoprdDeploymentSpec::default();
     let hoprd_deployment_spec = hoprd_deployment_spec.unwrap_or(default_deployment_spec.clone());
     if let Some(extra_containers_string) = hoprd_deployment_spec.extra_containers {
-        let extra_containers: Vec<Container> = serde_yaml::from_str(&extra_containers_string).unwrap();
+        let extra_containers: Vec<Container> = serde_yml::from_str(&extra_containers_string).unwrap();
         extra_containers
     } else {
         vec![]
@@ -194,7 +194,7 @@ pub fn init_container(hoprd_spec: &HoprdSpec,
         env_from: Some(vec![
             EnvFromSource {
                 config_map_ref: Some(ConfigMapEnvSource {
-                    name: Some(format!("{}-env-vars", identity_pool.name_any())),
+                    name: format!("{}-env-vars", identity_pool.name_any()),
                     ..ConfigMapEnvSource::default()
                 }),
                 ..EnvFromSource::default()
@@ -243,14 +243,14 @@ pub fn hoprd_container(hoprd_spec: &HoprdSpec,
         env_from: Some(vec![
             EnvFromSource {
                 secret_ref: Some(SecretEnvSource {
-                    name: Some(format!("{}-env-vars", identity_pool.name_any())),
+                    name: format!("{}-env-vars", identity_pool.name_any()),
                     ..SecretEnvSource::default()
                 }),
                 ..EnvFromSource::default()
             },
             EnvFromSource {
                 config_map_ref: Some(ConfigMapEnvSource {
-                    name: Some(format!("{}-env-vars", identity_pool.name_any())),
+                    name: format!("{}-env-vars", identity_pool.name_any()),
                     ..ConfigMapEnvSource::default()
                 }),
                 ..EnvFromSource::default()
@@ -284,7 +284,7 @@ pub fn metrics_container(identity_pool: &IdentityPool) -> Container {
         env_from: Some(vec![
             EnvFromSource {
                 secret_ref: Some(SecretEnvSource {
-                    name: Some(format!("{}-env-vars", identity_pool.name_any())),
+                    name: format!("{}-env-vars", identity_pool.name_any()),
                     ..SecretEnvSource::default()
                 }),
                 ..EnvFromSource::default()
@@ -392,7 +392,7 @@ pub async fn delete_database(context_data: Arc<ContextData>, deployment_name: &s
 
 pub async fn job_delete_database(context_data: Arc<ContextData>, deployment_name: &str, namespace: &str, pvc_name: &str) -> Result<(), Error> {
     let api: Api<Job> = Api::namespaced(context_data.client.clone(), namespace);
-    let rng = rand::thread_rng();
+    let rng = rand::rng();
     let suffix: String = rng.sample_iter(&Alphanumeric).take(10).map(char::from).collect();
     let command = "rm -rf /app/hoprd-db/db/hopr_index.db* /app/hoprd-db/db/hopr_logs.db*".to_string();
 
@@ -524,7 +524,7 @@ async fn build_volumes(pvc_name: &String, cluster_hoprd: Option<&String>, hoprd_
                 name: "profiling-volume".to_owned(),
                 config_map: Some(
                     ConfigMapVolumeSource {
-                        name: Some(format!("{}-profiling", cluster_hoprd.unwrap().to_owned())),
+                        name: format!("{}-profiling", cluster_hoprd.unwrap().to_owned()),
                         default_mode: Some(493), // Octal 755
                         ..ConfigMapVolumeSource::default()
                     }),

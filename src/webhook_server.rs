@@ -2,7 +2,6 @@ use axum::{Json, Router, response::IntoResponse, routing::post};
 use axum_server::{tls_rustls::{RustlsConfig, bind_rustls}};
 use rustls::{ServerConfig, pki_types::{CertificateDer, PrivateKeyDer}};
 use rustls_pemfile::{certs, pkcs8_private_keys};
-use tracing_subscriber::field::debug;
 use std::{env, io::BufReader, net::SocketAddr};
 use rustls::crypto::ring::default_provider;
 use tracing::{debug, error, info, warn};

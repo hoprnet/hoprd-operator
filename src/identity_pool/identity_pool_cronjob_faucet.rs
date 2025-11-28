@@ -124,7 +124,7 @@ async fn get_env_var(secret_name: String) -> Vec<EnvVar> {
             value_from: Some(EnvVarSource {
                 secret_key_ref: Some(SecretKeySelector {
                     key: constants::IDENTITY_POOL_WALLET_DEPLOYER_PRIVATE_KEY_REF_KEY.to_owned(),
-                    name: Some(secret_name.to_owned()),
+                    name: secret_name.to_owned(),
                     ..SecretKeySelector::default()
                 }),
                 ..EnvVarSource::default()
@@ -136,7 +136,7 @@ async fn get_env_var(secret_name: String) -> Vec<EnvVar> {
             value_from: Some(EnvVarSource {
                 secret_key_ref: Some(SecretKeySelector {
                     key: constants::IDENTITY_POOL_WALLET_DEPLOYER_PRIVATE_KEY_REF_KEY.to_owned(),
-                    name: Some(secret_name.to_owned()),
+                    name: secret_name.to_owned(),
                     ..SecretKeySelector::default()
                 }),
                 ..EnvVarSource::default()

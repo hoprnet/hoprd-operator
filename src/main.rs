@@ -87,7 +87,7 @@ async fn load_operator_config() -> OperatorConfig {
     };
     info!("Loading operator configuration from: {}", config_path);
     let config_file = std::fs::File::open(&config_path).expect("Could not open config file.");
-    let config: OperatorConfig = serde_yaml::from_reader(config_file).expect("Could not read contents of config file.");
+    let config: OperatorConfig = serde_yml::from_reader(config_file).expect("Could not read contents of config file.");
     config
 }
 

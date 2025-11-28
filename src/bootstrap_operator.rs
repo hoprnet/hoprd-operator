@@ -1,8 +1,8 @@
 use crate::model::Error as HoprError;
 use json_patch::{PatchOperation, ReplaceOperation};
+use jsonptr::PointerBuf;
 use k8s_openapi::{
-    api::{apps::v1::Deployment, core::v1::ContainerPort},
-    serde_value::Value,
+    api::{apps::v1::Deployment, core::v1::ContainerPort}
 };
 use kube::{
     api::{ListParams, Patch, PatchParams},
@@ -10,6 +10,7 @@ use kube::{
     Api, Result,
 };
 use serde_json::json;
+use serde_json::Value;
 use std::sync::Arc;
 use tracing::error;
 
@@ -54,10 +55,10 @@ async fn open_nginx_deployment_ports(client: Client, ingress_config: &IngressCon
     deployment.spec.as_mut().unwrap().template.spec.as_mut().unwrap().containers[0].ports = Some(new_deployment_ports.to_owned());
 
     let json_patch = json_patch::Patch(vec![PatchOperation::Replace(ReplaceOperation {
-        path: "/spec/template/spec/containers".to_owned(),
+        path: PointerBuf::parse("/spec/template/spec/containers").unwrap(),
         value: json!([deployment.spec.as_mut().unwrap().template.spec.as_mut().unwrap().containers[0]]),
     })]);
-    let patch: Patch<&Value> = Patch::Json::<&Value>(json_patch);
+    let patch: Patch<Value> = Patch::Json(json_patch);
 
     match api_deployment.patch(&deployment.metadata.name.as_ref().unwrap().to_owned(), &PatchParams::default(), &patch).await {
         Ok(_) => Ok(()),
