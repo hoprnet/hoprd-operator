@@ -1,35 +1,36 @@
 ---
-{{- if .Values.operator.fastSync.enabled }}
+{{- if .Values.hoprdOperator.fastSync.enabled }}
 apiVersion: iam.gcp.crossplane.io/v1alpha1
 kind: ServiceAccount
 metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "1"
-  name: hoprd-operator-sa
+  name: {{ include "hoprd-operator.fullname" . }}-sa
 spec:
   deletionPolicy: Delete
   forProvider:
     description: Hoprd Operator Service Account for GCP
     displayName: Hoprd Operator Service Account
   providerConfigRef:
-    name: {{ required "Error: You must specify a value for operator.fastSync.crossplane.provider.crossplane"  .Values.operator.fastSync.crossplane.provider.crossplane }}
+    name: {{ required "Error: You must specify a value for operator.fastSync.crossplane.provider.crossplane"  .Values.hoprdOperator.fastSync.crossplane.provider.crossplane }}
 
-{{- if gt (len .Values.operator.fastSync.namespaces) 0 }}
-{{ range $i, $namespace := .Values.operator.fastSync.namespaces }}
+{{- if gt (len .Values.hoprdOperator.fastSync.namespaces) 0 }}
+{{- $fullName := include "hoprd-operator.fullname" . -}}
+{{ range $i, $namespace := .Values.hoprdOperator.fastSync.namespaces }}
 ---
 apiVersion: iam.gcp.crossplane.io/v1alpha1
 kind: ServiceAccountKey
 metadata:
-  name: gcp-sa-key-{{ $namespace }}
+  name: "{{ $fullName }}-gcp-sa-key-{{ $namespace }}"
 spec:
   deletionPolicy: Delete
   forProvider:
     serviceAccountRef:
-      name: hoprd-operator-sa
+      name: {{ $fullName }}-sa
   providerConfigRef:
-    name: {{ $.Values.operator.fastSync.crossplane.provider.crossplane }}
+    name: {{ $.Values.hoprdOperator.fastSync.crossplane.provider.crossplane }}
   writeConnectionSecretToRef:
-    name: gcp-sa-key
+    name: google-service-account-key
     namespace: {{ $namespace }}
 {{- end}}
 {{- end }}
@@ -39,40 +40,40 @@ kind: ServiceAccountPolicy
 metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "2"
-  name: hoprd-operator-sa-policy
+  name: {{ include "hoprd-operator.fullname" . }}-sa-policy
 spec:
   deletionPolicy: Delete
   forProvider:
     policy:
       bindings:
       - members:
-        - "serviceAccount:hoprd-operator-sa@{{ required "Error: You must specify a value for operator.fastSync.crossplane.gcpProjectId" .Values.operator.fastSync.crossplane.gcpProjectId }}.iam.gserviceaccount.com"
+        - "serviceAccount:{{ include "hoprd-operator.fullname" . }}-sa@{{ required "Error: You must specify a value for operator.fastSync.crossplane.gcpProjectId" .Values.hoprdOperator.fastSync.crossplane.gcpProjectId }}.iam.gserviceaccount.com"
         role: roles/iam.workloadIdentityUser
-    serviceAccount: projects/{{ .Values.operator.fastSync.crossplane.gcpProjectId }}/serviceAccounts/hoprd-operator-sa@{{ .Values.operator.fastSync.crossplane.gcpProjectId }}.iam.gserviceaccount.com
+    serviceAccount: projects/{{ .Values.hoprdOperator.fastSync.crossplane.gcpProjectId }}/serviceAccounts/{{ include "hoprd-operator.fullname" . }}-sa@{{ .Values.hoprdOperator.fastSync.crossplane.gcpProjectId }}.iam.gserviceaccount.com
   providerConfigRef:
-    name: {{ .Values.operator.fastSync.crossplane.provider.crossplane }}
+    name: {{ .Values.hoprdOperator.fastSync.crossplane.provider.crossplane }}
 ---
 apiVersion: storage.gcp.upbound.io/v1beta1
 kind: BucketIAMMember
 metadata:
-  name: hoprd-operator-bucket-read
+  name: {{ include "hoprd-operator.fullname" . }}-bucket-read
 spec:
   forProvider:
-    bucket: {{ required "Error: .Values.operator.fastSync.bucketName must be set" .Values.operator.fastSync.bucketName }}
+    bucket: {{ required "Error: .Values.hoprdOperator.fastSync.bucketName must be set" .Values.hoprdOperator.fastSync.bucketName }}
     member: allUsers
     role: roles/storage.objectViewer
   providerConfigRef:
-    name: {{ .Values.operator.fastSync.crossplane.provider.upbound }}
+    name: {{ required "Error: .Values.hoprdOperator.fastSync.crossplane.provider.upbound must be set" .Values.hoprdOperator.fastSync.crossplane.provider.upbound }}
 ---
 apiVersion: storage.gcp.upbound.io/v1beta1
 kind: BucketIAMMember
 metadata:
-  name: hoprd-operator-bucket-write
+  name: {{ include "hoprd-operator.fullname" . }}-bucket-write
 spec:
   forProvider:
-    bucket:  {{ .Values.operator.fastSync.bucketName }}
-    member: serviceAccount:hoprd-operator-sa@{{ .Values.operator.fastSync.crossplane.gcpProjectId }}.iam.gserviceaccount.com
+    bucket:  {{ .Values.hoprdOperator.fastSync.bucketName }}
+    member: serviceAccount:{{ include "hoprd-operator.fullname" . }}-sa@{{ .Values.hoprdOperator.fastSync.crossplane.gcpProjectId }}.iam.gserviceaccount.com
     role: roles/storage.legacyBucketWriter
   providerConfigRef:
-    name: {{ .Values.operator.fastSync.crossplane.provider.upbound }}
+    name: {{ .Values.hoprdOperator.fastSync.crossplane.provider.upbound }}
 {{- end }}

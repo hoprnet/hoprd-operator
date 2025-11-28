@@ -1,12 +1,11 @@
 ---
-apiVersion: hoprnet.org/v1alpha2
+apiVersion: hoprnet.org/v1alpha3
 kind: Hoprd
 metadata:
   name: hoprd-node-1
   namespace: hoprd-operator
 spec:
   version: latest
-  supportedRelease: kaunas
   portsAllocation: 2
   identityPoolName: identity-pool-hoprd-operator
   identityName: identity-pool-hoprd-operator-1

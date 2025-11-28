@@ -26,7 +26,7 @@ pub enum Error {
     #[error("YAML Parsing error: {0}")]
     ParserError(
         #[from]
-        serde_yaml::Error,
+        serde_yml::Error,
     ),
 
     /// The hoprd configuration is invalid

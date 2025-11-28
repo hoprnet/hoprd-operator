@@ -1,30 +1,23 @@
 ---
-{{- if .Values.adminUI.enabled }}
+{{- if .Values.hoprdOperator.adminUI.enabled }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "hoprd-operator.fullname" . }}-admin
+  name: {{ include "hoprd-operator.fullname" . }}-admin-ui
   namespace: {{ .Release.Namespace | quote }}
   labels:
     {{- include "hoprd-adminui.labels" . | nindent 4 }}
-    {{- if .Values.adminUI.commonLabels }}
-    {{- .Values.adminUI.commonLabels | toYaml | nindent 4 }}
-    {{- end }}
-{{- if .Values.adminUI.commonAnnotations }}
-  annotations:
-    {{- .Values.adminUI.commonAnnotations | toYaml | nindent 4 }}
-{{- end }}
 spec:
-  replicas: {{ .Values.adminUI.replicas }}
+  replicas: {{ .Values.hoprdOperator.adminUI.replicas }}
   selector:
     matchLabels:
-      app.kubernetes.io/component: admin
+      app.kubernetes.io/component: admin-ui
       app.kubernetes.io/instance: {{ include "hoprd-operator.name" . }}
       app.kubernetes.io/name: {{ .Release.Name }}
   template:
     metadata:
       labels:
-        app.kubernetes.io/component: admin
+        app.kubernetes.io/component: admin-ui
         app.kubernetes.io/instance: {{ include "hoprd-operator.name" . }}
         app.kubernetes.io/name: {{ .Release.Name }}
     spec:
@@ -34,8 +27,8 @@ spec:
         runAsNonRoot: false
       containers:
       - name: admin-ui
-        image: {{ printf "%s/%s:%s" .Values.adminUI.image.registry .Values.adminUI.image.repository .Values.adminUI.image.tag }}
-        imagePullPolicy: {{ .Values.adminUI.image.pullPolicy }}
+        image: {{ printf "%s/%s:%s" .Values.hoprdOperator.adminUI.image.registry .Values.hoprdOperator.adminUI.image.repository .Values.hoprdOperator.adminUI.image.tag }}
+        imagePullPolicy: {{ .Values.hoprdOperator.adminUI.image.pullPolicy }}
         securityContext:
           runAsUser: 0
           runAsGroup: 0
@@ -43,8 +36,8 @@ spec:
           readOnlyRootFilesystem: true
           seccompProfile: 
             type: RuntimeDefault
-        {{- if .Values.adminUI.resources }}
-        resources: {{- toYaml .Values.adminUI.resources | nindent 12 }}
+        {{- if .Values.hoprdOperator.adminUI.resources }}
+        resources: {{- toYaml .Values.hoprdOperator.adminUI.resources | nindent 12 }}
         {{- else }}
         resources:
           limits:
@@ -66,7 +59,7 @@ spec:
           timeoutSeconds: 5
         ports:
         - containerPort: 4677
-          name: {{ .Values.service.ports.name }}
+          name: {{ .Values.hoprdOperator.adminUI.service.ports.name }}
           protocol: TCP
         readinessProbe:
           failureThreshold: 6
@@ -84,18 +77,6 @@ spec:
           - mountPath: /var/run
             name: nginx-run
       serviceAccountName: {{ include "hoprd-operator.fullname" . }}
-      {{- with .Values.adminUI.nodeSelector }}
-      nodeSelector:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
-      {{- with .Values.adminUI.affinity }}
-      affinity:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
-      {{- with .Values.adminUI.tolerations }}
-      tolerations:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
       volumes:
         - name: nginx-cache
           emptyDir: {}

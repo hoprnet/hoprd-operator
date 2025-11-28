@@ -6,7 +6,8 @@ pub struct OperatorConfig {
     pub instance: OperatorInstance,
     pub ingress: IngressConfig,
     pub hopli_image: String,
-    pub persistence: PersistenceConfig
+    pub persistence: PersistenceConfig,
+    pub webhook: WebhookConfig,
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone, Hash)]
@@ -31,4 +32,10 @@ pub struct IngressConfig {
 pub struct PersistenceConfig {
     pub size: String,
     pub storage_class_name: String,
+}
+
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Hash)]
+pub struct WebhookConfig {
+    pub crt_file: String,
+    pub key_file: String,
 }

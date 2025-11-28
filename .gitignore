@@ -36,3 +36,6 @@ target/
 
 test-data/identity-pool-secret.yaml
 *hoprd-*.tgz
+charts/*/secrets-*.yaml
+test-data/tls.crt
+test-data/tls.key

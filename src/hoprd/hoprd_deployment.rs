@@ -1,4 +1,3 @@
-use crate::constants::SupportedReleaseEnum;
 use crate::hoprd::hoprd_deployment_spec::HoprdDeploymentSpec;
 use crate::identity_hoprd::identity_hoprd_resource::IdentityHoprd;
 use crate::identity_pool::identity_pool_resource::IdentityPool;
@@ -6,6 +5,7 @@ use crate::model::Error;
 use crate::{context_data::ContextData, hoprd::hoprd_deployment};
 use base64::{engine::general_purpose, Engine as _};
 use k8s_openapi::apimachinery::pkg::util::intstr::IntOrString;
+use rand::distr::Alphanumeric;
 
 use crate::{
     constants,
@@ -25,7 +25,6 @@ use k8s_openapi::apimachinery::pkg::apis::meta::v1::{LabelSelector, OwnerReferen
 use kube::api::{DeleteParams, ObjectMeta, Patch, PatchParams, PostParams, WatchEvent, WatchParams};
 use kube::runtime::wait::{await_condition, conditions};
 use kube::{Api, Client, Resource, ResourceExt};
-use rand::distributions::Alphanumeric;
 use rand::Rng;
 use serde_json::json;
 use std::collections::BTreeMap;
@@ -47,8 +46,7 @@ pub async fn create_deployment(context_data: Arc<ContextData>, hoprd: &Hoprd, id
     let mut labels: BTreeMap<String, String> = utils::common_lables(context_data.config.instance.name.to_owned(), Some(name.to_owned()), Some("node".to_owned()));
     labels.insert(constants::LABEL_NODE_NETWORK.to_owned(), identity_pool.spec.network.clone());
     labels.insert(constants::LABEL_KUBERNETES_IDENTITY_POOL.to_owned(), identity_pool.name_any());
-    labels.insert(constants::LABEL_NODE_NATIVE_ADDRESS.to_owned(), identity_hoprd.spec.native_address.to_owned());
-    labels.insert(constants::LABEL_NODE_PEER_ID.to_owned(), identity_hoprd.spec.peer_id.to_owned());
+    labels.insert(constants::LABEL_NODE_ADDRESS.to_owned(), identity_hoprd.spec.node_address.to_owned());
     labels.insert(constants::LABEL_NODE_SAFE_ADDRESS.to_owned(), identity_hoprd.spec.safe_address.to_owned());
     labels.insert(constants::LABEL_NODE_MODULE_ADDRESS.to_owned(), identity_hoprd.spec.module_address.to_owned());
 
@@ -90,7 +88,7 @@ pub async fn build_deployment_spec(
     let replicas: i32 = if hoprd_spec.enabled.unwrap_or(true) { 1 } else { 0 };
     let mut containers: Vec<Container> = extra_containers(hoprd_spec.deployment.clone());
     containers.push(hoprd_container(hoprd_spec, &identity_pool, identity_hoprd, hoprd_host, starting_port, last_port)?);
-    containers.push(metrics_container(&identity_pool, &hoprd_spec.supported_release.clone()));
+    containers.push(metrics_container(&identity_pool));
     if hoprd_spec.profiling_enabled.unwrap_or(false) {
         containers.push(profiling_container());
     }
@@ -131,7 +129,8 @@ pub async fn modify_deployment(context_data: Arc<ContextData>, deployment_name: 
     let hoprd_host_port = hoprd_host_env_var.value.as_ref().unwrap().to_owned();
     let hoprd_host = *hoprd_host_port.split(':').collect::<Vec<&str>>().get(0).unwrap();
     let starting_port = hoprd_host_port.split(':').collect::<Vec<&str>>().get(1).unwrap().to_string().parse::<u16>().unwrap();
-    let last_port = starting_port + hoprd_spec.ports_allocation;
+    let ports_allocation = hoprd_spec.service.ports_allocation.clone();
+    let last_port = starting_port + ports_allocation;
     let identity_pool: IdentityPool = identity_hoprd.get_identity_pool(context_data.client.clone()).await.unwrap();
     let spec = build_deployment_spec(deployment.labels().to_owned(), hoprd_spec, identity_pool, identity_hoprd, &hoprd_host, starting_port, last_port).await?;
     let patch = &Patch::Merge(json!({ "spec": spec }));
@@ -143,7 +142,7 @@ pub fn extra_containers(hoprd_deployment_spec: Option<HoprdDeploymentSpec>) -> V
     let default_deployment_spec = HoprdDeploymentSpec::default();
     let hoprd_deployment_spec = hoprd_deployment_spec.unwrap_or(default_deployment_spec.clone());
     if let Some(extra_containers_string) = hoprd_deployment_spec.extra_containers {
-        let extra_containers: Vec<Container> = serde_yaml::from_str(&extra_containers_string).unwrap();
+        let extra_containers: Vec<Container> = serde_yml::from_str(&extra_containers_string).unwrap();
         extra_containers
     } else {
         vec![]
@@ -155,7 +154,7 @@ pub fn init_container(hoprd_spec: &HoprdSpec,
     identity_hoprd: &IdentityHoprd,) -> Container {
     let encoded_configuration = general_purpose::STANDARD.encode(&hoprd_spec.config);
     let volume_mounts: Option<Vec<VolumeMount>> = build_volume_mounts();
-    let init_args = if hoprd_spec.source_node_logs.unwrap_or(false) || hoprd_spec.supported_release.eq(&SupportedReleaseEnum::SaintLouis) {
+    let args = if hoprd_spec.source_node_logs.unwrap_or(false) {
         Some(vec![format!(
             "set -x\n\
             set -e\n\
@@ -195,15 +194,15 @@ pub fn init_container(hoprd_spec: &HoprdSpec,
         env_from: Some(vec![
             EnvFromSource {
                 config_map_ref: Some(ConfigMapEnvSource {
-                    name: Some(format!("{}-env-vars", identity_pool.name_any())),
+                    name: format!("{}-env-vars", identity_pool.name_any()),
                     ..ConfigMapEnvSource::default()
                 }),
                 ..EnvFromSource::default()
             }
         ]),
         command: Some(vec!["sh".to_string(), "-c".to_string()]),
-        args: init_args,
-        volume_mounts: volume_mounts.to_owned(),
+        args,
+        volume_mounts,
         ..Container::default()
     }
 }
@@ -244,14 +243,14 @@ pub fn hoprd_container(hoprd_spec: &HoprdSpec,
         env_from: Some(vec![
             EnvFromSource {
                 secret_ref: Some(SecretEnvSource {
-                    name: Some(format!("{}-env-vars", identity_pool.name_any())),
+                    name: format!("{}-env-vars", identity_pool.name_any()),
                     ..SecretEnvSource::default()
                 }),
                 ..EnvFromSource::default()
             },
             EnvFromSource {
                 config_map_ref: Some(ConfigMapEnvSource {
-                    name: Some(format!("{}-env-vars", identity_pool.name_any())),
+                    name: format!("{}-env-vars", identity_pool.name_any()),
                     ..ConfigMapEnvSource::default()
                 }),
                 ..EnvFromSource::default()
@@ -266,12 +265,12 @@ pub fn hoprd_container(hoprd_spec: &HoprdSpec,
     })
 }
 
-pub fn metrics_container(identity_pool: &IdentityPool, supported_release: &SupportedReleaseEnum) -> Container {
+pub fn metrics_container(identity_pool: &IdentityPool) -> Container {
     let image: String = format!(
         "{}/{}:{}",
-        constants::HOPR_DOCKER_REGISTRY.to_owned(),
-        constants::HOPR_DOCKER_METRICS_IMAGE_NAME.to_owned(),
-        supported_release.to_string()
+        constants::HOPR_DOCKER_REGISTRY,
+        constants::HOPR_DOCKER_METRICS_IMAGE_NAME,
+        constants::OPERATOR_METRICS_CONTAINER_TAG
     );
     Container {
         name: "hoprd-metrics".to_owned(),
@@ -285,7 +284,7 @@ pub fn metrics_container(identity_pool: &IdentityPool, supported_release: &Suppo
         env_from: Some(vec![
             EnvFromSource {
                 secret_ref: Some(SecretEnvSource {
-                    name: Some(format!("{}-env-vars", identity_pool.name_any())),
+                    name: format!("{}-env-vars", identity_pool.name_any()),
                     ..SecretEnvSource::default()
                 }),
                 ..EnvFromSource::default()
@@ -393,7 +392,7 @@ pub async fn delete_database(context_data: Arc<ContextData>, deployment_name: &s
 
 pub async fn job_delete_database(context_data: Arc<ContextData>, deployment_name: &str, namespace: &str, pvc_name: &str) -> Result<(), Error> {
     let api: Api<Job> = Api::namespaced(context_data.client.clone(), namespace);
-    let rng = rand::thread_rng();
+    let rng = rand::rng();
     let suffix: String = rng.sample_iter(&Alphanumeric).take(10).map(char::from).collect();
     let command = "rm -rf /app/hoprd-db/db/hopr_index.db* /app/hoprd-db/db/hopr_logs.db*".to_string();
 
@@ -510,7 +509,7 @@ async fn build_volumes(pvc_name: &String, cluster_hoprd: Option<&String>, hoprd_
         volumes.push(Volume {
             name: "service-account-key".to_owned(),
             secret: Some(SecretVolumeSource {
-                secret_name: Some("gcp-sa-key".to_owned()),
+                secret_name: Some("google-service-account-key".to_owned()),
                 items: Some(vec![KeyToPath {
                     key: "privateKey".to_owned(),
                     path: "privateKey".to_owned(),
@@ -525,7 +524,7 @@ async fn build_volumes(pvc_name: &String, cluster_hoprd: Option<&String>, hoprd_
                 name: "profiling-volume".to_owned(),
                 config_map: Some(
                     ConfigMapVolumeSource {
-                        name: Some(format!("{}-profiling", cluster_hoprd.unwrap().to_owned())),
+                        name: format!("{}-profiling", cluster_hoprd.unwrap().to_owned()),
                         default_mode: Some(493), // Octal 755
                         ..ConfigMapVolumeSource::default()
                     }),

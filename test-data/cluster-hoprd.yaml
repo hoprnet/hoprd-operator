@@ -1,5 +1,5 @@
 ---
-apiVersion: hoprnet.org/v1alpha2
+apiVersion: hoprnet.org/v1alpha3
 kind: ClusterHoprd
 metadata:
   name: pr-1234
@@ -10,7 +10,6 @@ spec:
   identityPoolName: pull-requests-rotsee
   replicas: 1
   version: singapore-latest
-  supportedRelease: kaunas
   enabled: true
   service:
     type: LoadBalancer
