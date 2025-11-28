@@ -42,28 +42,26 @@ impl ContextData {
     }
 
     pub async fn sync_identities(context_data: Arc<ContextData>) {
-        // BEGIN DEBUGGING BUG
-        // info!("IdentityHoprd apiVersion from type at runtime: {}",<IdentityHoprd as Resource>::api_version(&()));
-        // let gvk = GroupVersionKind::gvk("hoprnet.org", "v1alpha3", "IdentityHoprd");
-        // let ar = kube::core::ApiResource::from_gvk(&gvk);
-        // let api: Api<DynamicObject> = Api::namespaced_with(context_data.client.clone(), "core-team", &ar);
-        // let object = api.get("core-node-1").await.unwrap();
-        // debug!("Got IdentityHoprd {:#?}", object);
-
-        info!("IdentityHoprd apiVersion from type at runtime: {}",<IdentityHoprd as Resource>::api_version(&()));
+        // This code invokes the webhook and returns the nodeAddress field correctly, so the webhook is working as expected.
+        info!("Get IdentityHoprd apiVersion from type at runtime: {}",<IdentityHoprd as Resource>::api_version(&()));
         let gvk = GroupVersionKind::gvk("hoprnet.org", "v1alpha3", "IdentityHoprd");
         let ar = kube::core::ApiResource::from_gvk(&gvk);
+        let api: Api<DynamicObject> = Api::namespaced_with(context_data.client.clone(), "core-team", &ar);
+        let mut object = api.get("core-node-1").await.unwrap();
+        debug!("Get node address {}", object.data.take()["spec"].take()["nodeAddress"].as_str().unwrap());
+
+        // This code does NOT invoke the webhook, and the nodeAddress field is missing, so there is a bug somewhere.
+        info!("List IdentityHoprd apiVersion from type at runtime: {}",<IdentityHoprd as Resource>::api_version(&()));
         let api: Api<DynamicObject> = Api::all_with(context_data.client.clone(), &ar);
         let list = api.list(&Default::default()).await.unwrap();
         info!("(debug) Got {} IdentityHoprd objects (DynamicObject)", list.items.len());
         for (idx, item) in list.items.iter().enumerate() {
-            if let Some(name) = item.metadata.name.as_ref() {
-                if name.eq("core-node-1") {
-                    info!("(debug) IdentityHoprd[{}] name: {} raw: {:#?}", idx, name, item);
-                }
-            }
+            let name = item.metadata.name.as_ref().unwrap();
+            let node_address_value = item.data.to_owned()["spec"].to_owned()["nodeAddress"].to_owned();
+            let node_address = node_address_value.as_str().unwrap();
+            info!("IdentityHoprd[{}] name: {} nodeAddress: {:?}", idx, name, node_address);
         }
-        // END DEBUGGING BUG
+
 
         let api_identities: Api<IdentityHoprd> = Api::all(context_data.client.clone());
         let identities = api_identities.list(&ListParams::default()).await.unwrap().items.clone();
