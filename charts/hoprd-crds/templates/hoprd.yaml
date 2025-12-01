@@ -125,12 +125,12 @@ spec:
               description: The status object of Hoprd node
               nullable: true
               properties:
-                observedGeneration:
-                  description: The current applied metadata.generation specificaction
-                  type: number
                 identityName:
                   description: Name of the HoprdNode
                   type: string
+                observedGeneration:
+                  description: The current applied metadata.generation specificaction
+                  type: number
                 phase:
                   description: Phase of the last applied change
                   enum:

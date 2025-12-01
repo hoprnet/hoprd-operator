@@ -119,9 +119,12 @@ async fn add_observed_generation(resource: &mut Value) -> Result<(), String> {
         .and_then(|m| m.get("generation"))
         .cloned()
         .unwrap_or(Value::Number(0.into()));
+    debug!("Setting observedGeneration to {:?}", observed_generation);
     let status = resource.get_mut("status").ok_or("Missing 'status' field in v3 object")?;
     let status_obj = status.as_object_mut().ok_or("Status is not a JSON object")?;
+    debug!("Current status object before update: {:?}", status_obj);
     status_obj.insert("observed_generation".to_owned(), observed_generation);
+    debug!("Updated status object after insert: {:?}", status_obj);
     Ok(())
 }
 
@@ -283,7 +286,7 @@ async fn convert_identity_hoprd_v2_to_v3(resource: &mut Value) -> Result<(), Str
 
     // Rename spec.nativeAddress to spec.nodeAddress
     if let Some(native_address) = spec_obj.remove("nativeAddress") {
-        debug!("Renaming spec.nativeAddress to spec.nodeAddress");
+        //debug!("Renaming spec.nativeAddress to spec.nodeAddress");
         spec_obj.insert("nodeAddress".to_string(), native_address);
     } else {
         warn!("spec.nativeAddress missing; adding placeholder nativeAddress");
@@ -291,7 +294,7 @@ async fn convert_identity_hoprd_v2_to_v3(resource: &mut Value) -> Result<(), Str
     }
 
     // Remove spec.peerId if present
-    debug!("Removing spec.peerId if present");
+    //debug!("Removing spec.peerId if present");
     spec_obj.remove("peerId");
 
     add_observed_generation(resource).await?;

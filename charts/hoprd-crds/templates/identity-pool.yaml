@@ -80,11 +80,11 @@ spec:
               description: The status object of IdentityHoprd node
               nullable: true
               properties:
-                observedGeneration:
-                  description: The current applied metadata.generation specificaction
-                  type: number
                 locked:
                   description: Amount of locked identities
+                  type: number
+                observedGeneration:
+                  description: The current applied metadata.generation specificaction
                   type: number
                 phase:
                   description: Phase of the last applied change

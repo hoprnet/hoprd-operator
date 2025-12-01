@@ -132,11 +132,11 @@ spec:
               description: The status object of ClusterHord node
               nullable: true
               properties:
-                observedGeneration:
-                  description: The current applied metadata.generation specificaction
-                  type: number
                 currentNodes:
                   description: Number of nodes running
+                  type: number
+                observedGeneration:
+                  description: The current applied metadata.generation specificaction
                   type: number
                 phase:
                   description: Phase of the last applied change
