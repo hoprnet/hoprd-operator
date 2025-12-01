@@ -124,7 +124,7 @@ async fn add_observed_generation(resource: &mut Value) -> Result<(), String> {
     let status_obj = status.as_object_mut().ok_or("Status is not a JSON object")?;
     //debug!("Current status object before update: {:?}", status_obj);
     status_obj.insert("observedGeneration".to_owned(), observed_generation);
-    //debug!("Updated status object after insert: {:?}", status_obj);
+    debug!("Updated status object after insert: {:?}", status_obj);
     Ok(())
 }
 
@@ -145,7 +145,7 @@ async fn add_status_checksum(resource: &mut Value) -> Result<(), String> {
 }
 
 async fn convert_cluster_hoprd_v2_to_v3(resource: &mut Value) -> Result<(), String> {
-    debug!("Convert clusterHoprd: v1alpha2 -> v1alpha3");
+    //debug!("Convert clusterHoprd: v1alpha2 -> v1alpha3");
 
     let spec = resource
         .get_mut("spec")
@@ -180,7 +180,7 @@ async fn convert_cluster_hoprd_v2_to_v3(resource: &mut Value) -> Result<(), Stri
 }
 
 async fn convert_cluster_hoprd_v3_to_v2(resource: &mut Value) -> Result<(), String> {
-    debug!("Convert clusterHoprd: v1alpha3 -> v1alpha2");
+    //debug!("Convert clusterHoprd: v1alpha3 -> v1alpha2");
 
     let spec = resource
         .get_mut("spec")
@@ -213,12 +213,11 @@ async fn convert_cluster_hoprd_v3_to_v2(resource: &mut Value) -> Result<(), Stri
 }
 
 async fn convert_hoprd_v2_to_v3(resource: &mut Value) -> Result<(), String> {
-    debug!("Convert hoprd: v1alpha2 -> v1alpha3");
+    //debug!("Convert hoprd: v1alpha2 -> v1alpha3");
 
     let spec = resource
         .get_mut("spec")
         .ok_or("Missing 'spec' field in IdentityHoprd v3 object")?;
-
     let spec_obj = spec
         .as_object_mut()
         .ok_or("Spec is not a JSON object")?;
@@ -245,12 +244,11 @@ async fn convert_hoprd_v2_to_v3(resource: &mut Value) -> Result<(), String> {
 }
 
 async fn convert_hoprd_v3_to_v2(resource: &mut Value) -> Result<(), String> {
-    debug!("Convert hoprd: v1alpha3 -> v1alpha2");
+    //debug!("Convert hoprd: v1alpha3 -> v1alpha2");
 
     let spec = resource
         .get_mut("spec")
         .ok_or("Missing 'spec' field in IdentityHoprd v3 object")?;
-
     let spec_obj = spec
         .as_object_mut()
         .ok_or("Spec is not a JSON object")?;
@@ -274,12 +272,11 @@ async fn convert_hoprd_v3_to_v2(resource: &mut Value) -> Result<(), String> {
 }
 
 async fn convert_identity_hoprd_v2_to_v3(resource: &mut Value) -> Result<(), String> {
-    debug!("Convert identityHoprd: v1alpha2 -> v1alpha3");
+    //debug!("Convert identityHoprd: v1alpha2 -> v1alpha3");
 
     let spec = resource
         .get_mut("spec")
         .ok_or("Missing 'spec' field in IdentityHoprd v3 object")?;
-
     let spec_obj = spec
         .as_object_mut()
         .ok_or("Spec is not a JSON object")?;
@@ -304,12 +301,11 @@ async fn convert_identity_hoprd_v2_to_v3(resource: &mut Value) -> Result<(), Str
 }
 
 async fn convert_identity_hoprd_v3_to_v2(resource: &mut Value) -> Result<(), String> {
-    debug!("Convert identityHoprd: v1alpha3 -> v1alpha2");
+    //debug!("Convert identityHoprd: v1alpha3 -> v1alpha2");
 
     let spec = resource
         .get_mut("spec")
         .ok_or("Missing 'spec' field in IdentityHoprd v3 object")?;
-
     let spec_obj = spec
         .as_object_mut()
         .ok_or("Spec is not a JSON object")?;
@@ -333,6 +329,7 @@ async fn convert_identity_hoprd_v3_to_v2(resource: &mut Value) -> Result<(), Str
 
 async fn convert_identity_pool_v2_to_v3(resource: &mut Value) -> Result<(), String> {
     add_observed_generation(resource).await?;
+    debug!("Converted identityPool v2 to v3: {:?}", resource);
     Ok(())
 }
 
@@ -370,7 +367,7 @@ async fn convert_v3_to_v2(resource: &mut Value) -> Result<(), String> {
 
 // Conversion handler
 async fn convert(Json(request): Json<ConversionRequest>) -> impl IntoResponse {
-    debug!("Received conversion request: {:?}", request);
+    //debug!("Received conversion request: {:?}", request);
     let mut response_inner = ConversionResponseInner {
         uid: request.request.uid.clone(),
         converted_objects: vec![],
