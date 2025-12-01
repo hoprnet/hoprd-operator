@@ -328,12 +328,14 @@ async fn convert_identity_hoprd_v3_to_v2(resource: &mut Value) -> Result<(), Str
 }
 
 async fn convert_identity_pool_v2_to_v3(resource: &mut Value) -> Result<(), String> {
+    debug!("Convert identityPool: v1alpha2 -> v1alpha3");
     add_observed_generation(resource).await?;
     debug!("Converted identityPool v2 to v3: {:?}", resource);
     Ok(())
 }
 
 async fn convert_identity_pool_v3_to_v2(resource: &mut Value) -> Result<(), String> {
+    debug!("Convert identityPool: v1alpha3 -> v1alpha2");
     add_status_checksum(resource).await?;
 
     Ok(())

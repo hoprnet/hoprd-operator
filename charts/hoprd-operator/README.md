@@ -68,7 +68,7 @@ Chart version `Chart.yaml` should be increased according to [semver](http://semv
 | `hoprdOperator.image.registry`                          | Docker registry to operator deployment                      | `europe-west3-docker.pkg.dev`                  |
 | `hoprdOperator.image.repository`                        | Docker image repository to operator deployment              | `hoprassociation/docker-images/hoprd-operator` |
 | `hoprdOperator.image.tag`                               | Docker image tag to operator deployment                     | `""`                                           |
-| `hoprdOperator.image.pullPolicy`                        | Pull policy to operator deployment as deinfed in            | `IfNotPresent`                                 |
+| `hoprdOperator.image.pullPolicy`                        | Pull policy to operator deployment as deinfed in            | `Always`                                       |
 | `hoprdOperator.ingress.ingressClassName`                | Name of the ingress class name to be used by Hoprd nodes    | `nginx`                                        |
 | `hoprdOperator.ingress.dnsDomain`                       | Name of the DNS suffix domain to be added to Hoprd nodes    | `""`                                           |
 | `hoprdOperator.ingress.namespace`                       | Namespace of the running ingress controller                 | `""`                                           |
