@@ -119,12 +119,12 @@ async fn add_observed_generation(resource: &mut Value) -> Result<(), String> {
         .and_then(|m| m.get("generation"))
         .cloned()
         .unwrap_or(Value::Number(0.into()));
-    debug!("Setting observedGeneration to {:?}", observed_generation);
+    //debug!("Setting observedGeneration to {:?}", observed_generation);
     let status = resource.get_mut("status").ok_or("Missing 'status' field in v3 object")?;
     let status_obj = status.as_object_mut().ok_or("Status is not a JSON object")?;
-    debug!("Current status object before update: {:?}", status_obj);
+    //debug!("Current status object before update: {:?}", status_obj);
     status_obj.insert("observedGeneration".to_owned(), observed_generation);
-    debug!("Updated status object after insert: {:?}", status_obj);
+    //debug!("Updated status object after insert: {:?}", status_obj);
     Ok(())
 }
 
