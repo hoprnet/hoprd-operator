@@ -124,6 +124,7 @@ async fn add_observed_generation(resource: &mut Value) -> Result<(), String> {
     let status_obj = status.as_object_mut().ok_or("Status is not a JSON object")?;
     //debug!("Current status object before update: {:?}", status_obj);
     status_obj.insert("observedGeneration".to_owned(), observed_generation);
+    status_obj.remove("checksum");
     debug!("Updated status object after insert: {:?}", status_obj);
     Ok(())
 }
@@ -140,6 +141,7 @@ async fn add_status_checksum(resource: &mut Value) -> Result<(), String> {
     let checksum = hasher.finish().to_string();
 
     status_obj.insert("checksum".to_string(), Value::String(checksum.clone()));
+    status_obj.remove("observedGeneration");
 
     Ok(())
 }
