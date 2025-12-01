@@ -369,7 +369,7 @@ async fn convert_v3_to_v2(resource: &mut Value) -> Result<(), String> {
 
 // Conversion handler
 async fn convert(Json(request): Json<ConversionRequest>) -> impl IntoResponse {
-    //debug!("Received conversion request: {:?}", request);
+    debug!("Received conversion request: {:?}", request);
     let mut response_inner = ConversionResponseInner {
         uid: request.request.uid.clone(),
         converted_objects: vec![],
