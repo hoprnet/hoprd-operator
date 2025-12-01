@@ -1,7 +1,6 @@
-use k8s_openapi::api::core::v1::{Endpoints};
-use kube::{Api, Client, Result};
+use kube::{Client, Result};
 use rustls::crypto::ring;
-use std::{env, sync::Arc, time::Duration};
+use std::{env, sync::Arc};
 
 mod bootstrap_operator;
 mod cluster;
@@ -24,7 +23,7 @@ use futures::{
     pin_mut,
     select,
 };
-use tracing::{info, warn};
+use tracing::{info};
 use tracing_subscriber::{Layer, layer::SubscriberExt};
 
 #[tokio::main]
@@ -89,48 +88,6 @@ async fn load_operator_config() -> OperatorConfig {
     let config_file = std::fs::File::open(&config_path).expect("Could not open config file.");
     let config: OperatorConfig = serde_yml::from_reader(config_file).expect("Could not read contents of config file.");
     config
-}
-
-// Wait for the operator Service endpoint to be in Ready state
-async fn wait_for_service_ready(client: Client) -> () {
-    if env::var(constants::OPERATOR_ENVIRONMENT).unwrap() != "production" {
-        info!("Skipping Pod readiness check in non Kubernetes environment");
-        return ();
-    }
-
-    let service_namespace = env::var("POD_NAMESPACE").expect("The POD_NAMESPACE environment variable is not set");
-    let service_name = format!("{}-webhook", service_namespace); // TODO: Assuming chart name is same as namespace
-    info!("Waiting for Service Endpoint {}/{} to be Ready...", service_namespace, service_name);
-
-    let endpoints: Api<Endpoints> = Api::namespaced(client, service_namespace.as_str());
-
-    loop {
-        match endpoints.get(&service_name).await {
-            Ok(endpoint) => {
-                if let Some(subsets) = endpoint.subsets {
-                    let ready_addresses: usize = subsets
-                        .iter()
-                        .flat_map(|subset| subset.addresses.as_ref().unwrap_or(&vec![]).clone())
-                        .count();
-                    if ready_addresses > 0 {
-                        info!("Service {}/{} has {} ready endpoint(s)", service_namespace, service_name, ready_addresses);
-                        tokio::time::sleep(Duration::from_millis(5000)).await;
-                        return;
-                    } else {
-                        warn!("Service {}/{} has no ready addresses yet — waiting…", service_namespace, service_name);
-                    }
-                } else {
-                    warn!("Service {}/{} has no subsets yet — waiting…", service_namespace, service_name);
-                }
-                tokio::time::sleep(Duration::from_secs(5)).await;
-            }
-            Err(e) => {
-                warn!("Failed to get Endpoints for Service {}/{}: {} — retrying…", service_namespace, service_name, e);
-                tokio::time::sleep(Duration::from_secs(5)).await;
-                continue;
-            }
-        }
-    }
 }
 
 // Start all Kubernetes controllers

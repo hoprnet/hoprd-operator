@@ -80,9 +80,9 @@ spec:
               description: The status object of IdentityHoprd node
               nullable: true
               properties:
-                checksum:
-                  description: Checksum of the last applied change
-                  type: string
+                observedGeneration:
+                  description: The current applied metadata.generation specificaction
+                  type: number
                 locked:
                   description: Amount of locked identities
                   type: number
@@ -104,7 +104,7 @@ spec:
                   type: string
               required:
               - updateTimestamp
-              - checksum
+              - observedGeneration
               - phase
               - size
               - locked

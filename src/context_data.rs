@@ -1,10 +1,10 @@
 use k8s_openapi::NamespaceResourceScope;
-use tracing::{debug, info};
+use tracing::{debug};
 use std::{collections::BTreeMap, sync::Arc};
 use tokio::sync::RwLock;
 
 use kube::{
-    Api, Client, Resource, ResourceExt, api::{DynamicObject, GroupVersionKind, ListParams}, runtime::events::{Recorder, Reporter}
+    Api, Client, Resource, ResourceExt, api::{ListParams}, runtime::events::{Recorder, Reporter}
 };
 
 use crate::{ events::ResourceEvent, hoprd::hoprd_resource::Hoprd, identity_hoprd::identity_hoprd_resource::IdentityHoprd, identity_pool::identity_pool_resource::IdentityPool,

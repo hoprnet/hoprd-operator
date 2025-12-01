@@ -3,6 +3,8 @@ use axum_server::{tls_rustls::{RustlsConfig, bind_rustls}};
 use rustls::{ServerConfig, pki_types::{CertificateDer, PrivateKeyDer}};
 use rustls_pemfile::{certs, pkcs8_private_keys};
 use std::{env, io::BufReader, net::SocketAddr};
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
 use rustls::crypto::ring::default_provider;
 use tracing::{debug, error, info, warn};
 use serde::{Deserialize, Serialize};
@@ -112,6 +114,33 @@ pub async fn run_webhook_server(webhook_config:WebhookConfig) {
     info!("hoprd-operator conversion webhook listening on {}", addr);
 }
 
+async fn add_observed_generation(resource: &mut Value) -> Result<(), String> {
+    let observed_generation = resource.get("metadata")
+        .and_then(|m| m.get("generation"))
+        .cloned()
+        .unwrap_or(Value::Number(0.into()));
+    let status = resource.get_mut("status").ok_or("Missing 'status' field in v3 object")?;
+    let status_obj = status.as_object_mut().ok_or("Status is not a JSON object")?;
+    status_obj.insert("observed_generation".to_owned(), observed_generation);
+    Ok(())
+}
+
+
+async fn add_status_checksum(resource: &mut Value) -> Result<(), String> {
+    // Clone the spec value before mutably borrowing resource
+    let spec = resource.get("spec").cloned().ok_or("Missing 'spec' field in object")?;
+    let status = resource.get_mut("status").ok_or("Missing 'status' field in object")?;
+    let status_obj = status.as_object_mut().ok_or("Status is not a JSON object")?;
+
+    let mut hasher: DefaultHasher = DefaultHasher::new();
+    spec.hash(&mut hasher);
+    let checksum = hasher.finish().to_string();
+
+    status_obj.insert("checksum".to_string(), Value::String(checksum.clone()));
+
+    Ok(())
+}
+
 async fn convert_cluster_hoprd_v2_to_v3(resource: &mut Value) -> Result<(), String> {
     debug!("Convert clusterHoprd: v1alpha2 -> v1alpha3");
 
@@ -140,6 +169,8 @@ async fn convert_cluster_hoprd_v2_to_v3(resource: &mut Value) -> Result<(), Stri
     spec_obj.remove("supportedRelease");
     // Remove spec.forceIdentityName
     spec_obj.remove("forceIdentityName");
+
+    add_observed_generation(resource).await?;
 
     Ok(())
 
@@ -172,6 +203,8 @@ async fn convert_cluster_hoprd_v3_to_v2(resource: &mut Value) -> Result<(), Stri
     // Insert spec.forceIdentityName with true value
     spec_obj.insert("forceIdentityName".to_string(), Value::Bool(true));
 
+    add_status_checksum(resource).await?;
+
     Ok(())
 
 }
@@ -201,6 +234,8 @@ async fn convert_hoprd_v2_to_v3(resource: &mut Value) -> Result<(), String> {
     // Remove spec.supportedRelease
     spec_obj.remove("supportedRelease");
 
+    add_observed_generation(resource).await?;
+
     Ok(())
 
 
@@ -229,6 +264,9 @@ async fn convert_hoprd_v3_to_v2(resource: &mut Value) -> Result<(), String> {
 
     // Insert spec.supportedRelease with "kaunas" value
     spec_obj.insert("supportedRelease".to_string(), Value::String("kaunas".to_string()));
+
+    add_status_checksum(resource).await?;
+
     Ok(())
 }
 
@@ -256,6 +294,8 @@ async fn convert_identity_hoprd_v2_to_v3(resource: &mut Value) -> Result<(), Str
     debug!("Removing spec.peerId if present");
     spec_obj.remove("peerId");
 
+    add_observed_generation(resource).await?;
+
     Ok(())
 
 }
@@ -282,17 +322,20 @@ async fn convert_identity_hoprd_v3_to_v2(resource: &mut Value) -> Result<(), Str
     // Insert spec.peerId with unknown placeholder
     spec_obj.insert("peerId".to_string(), Value::String("unknown".into()));
 
+    add_status_checksum(resource).await?;
+
     Ok(())
 
 }
 
-async fn convert_identity_pool_v2_to_v3(_resource: &mut Value) -> Result<(), String> {
-    // No changes needed for IdentityPool between v1alpha2 and v1alpha3
+async fn convert_identity_pool_v2_to_v3(resource: &mut Value) -> Result<(), String> {
+    add_observed_generation(resource).await?;
     Ok(())
 }
 
-async fn convert_identity_pool_v3_to_v2(_resource: &mut Value) -> Result<(), String> {
-    // No changes needed for IdentityPool between v1alpha3 and v1alpha2
+async fn convert_identity_pool_v3_to_v2(resource: &mut Value) -> Result<(), String> {
+    add_status_checksum(resource).await?;
+
     Ok(())
 }
 

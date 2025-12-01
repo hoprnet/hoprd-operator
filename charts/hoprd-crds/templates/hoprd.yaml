@@ -125,9 +125,9 @@ spec:
               description: The status object of Hoprd node
               nullable: true
               properties:
-                checksum:
-                  description: Checksum of the last applied change
-                  type: string
+                observedGeneration:
+                  description: The current applied metadata.generation specificaction
+                  type: number
                 identityName:
                   description: Name of the HoprdNode
                   type: string
@@ -146,7 +146,7 @@ spec:
                   type: string
               required:
               - updateTimestamp
-              - checksum
+              - observedGeneration
               - phase
               type: object
           required:

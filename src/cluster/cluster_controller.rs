@@ -49,15 +49,14 @@ fn determine_action(cluster_hoprd: &ClusterHoprd) -> ClusterHoprdAction {
     } else if cluster_hoprd.status.as_ref().unwrap().phase == ClusterHoprdPhaseEnum::Deleting {
         ClusterHoprdAction::NoOp
     } else {
-        let current_checksum = cluster_hoprd.get_checksum();
-        let previous_checksum: String = cluster_hoprd.status.as_ref().map_or("0".to_owned(), |status| status.checksum.to_owned());
-        // When the resource is created, does not have previous checksum and needs to be skip the modification because it's being handled already by the creation operation
-        if previous_checksum.eq(&"0".to_owned()) || current_checksum.eq(&previous_checksum) {
-            ClusterHoprdAction::NoOp
-        } else {
+        let current_generation = cluster_hoprd.meta().generation.unwrap_or(0);
+        let observed_generation = cluster_hoprd.status.as_ref().map_or(0, |status| status.observed_generation);
+        if observed_generation < current_generation {
             ClusterHoprdAction::Modify
+        } else {
+            ClusterHoprdAction::NoOp
         }
-    };
+    }
 }
 
 async fn reconciler(cluster_hoprd: Arc<ClusterHoprd>, context: Arc<ContextData>) -> Result<Action, Error> {

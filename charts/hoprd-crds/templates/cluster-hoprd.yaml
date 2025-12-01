@@ -132,9 +132,9 @@ spec:
               description: The status object of ClusterHord node
               nullable: true
               properties:
-                checksum:
-                  description: Checksum of the last applied change
-                  type: string
+                observedGeneration:
+                  description: The current applied metadata.generation specificaction
+                  type: number
                 currentNodes:
                   description: Number of nodes running
                   type: number
@@ -154,7 +154,7 @@ spec:
                   type: string
               required:
               - updateTimestamp
-              - checksum
+              - observedGeneration
               - phase
               - currentNodes
               type: object

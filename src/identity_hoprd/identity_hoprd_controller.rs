@@ -44,13 +44,12 @@ fn determine_action(identity_hoprd: &IdentityHoprd) -> IdentityHoprdAction {
     } else if identity_hoprd.meta().finalizers.as_ref().map_or(true, |finalizers| finalizers.is_empty()) {
         IdentityHoprdAction::Create
     } else {
-        let current_checksum = identity_hoprd.get_checksum();
-        let previous_checksum: String = identity_hoprd.status.as_ref().map_or("0".to_owned(), |status| status.checksum.to_owned());
-        // When the resource is created, does not have previous checksum and needs to be skip the modification because it's being handled already by the creation operation
-        if previous_checksum.eq(&"0".to_owned()) || current_checksum.eq(&previous_checksum) {
-            IdentityHoprdAction::NoOp
-        } else {
+        let current_generation = identity_hoprd.meta().generation.unwrap_or(0);
+        let observed_generation = identity_hoprd.status.as_ref().map_or(0, |status| status.observed_generation);
+        if observed_generation < current_generation {
             IdentityHoprdAction::Modify
+        } else {
+            IdentityHoprdAction::NoOp
         }
     };
 }
