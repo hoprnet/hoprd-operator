@@ -1,5 +1,6 @@
 use axum::{Json, Router, response::IntoResponse, routing::post};
 use axum_server::{tls_rustls::{RustlsConfig, bind_rustls}};
+use chrono::Utc;
 use rustls::{ServerConfig, pki_types::{CertificateDer, PrivateKeyDer}};
 use rustls_pemfile::{certs, pkcs8_private_keys};
 use std::{env, io::BufReader, net::SocketAddr};
@@ -142,6 +143,26 @@ async fn add_status_checksum(resource: &mut Value) -> Result<(), String> {
 
     status_obj.insert("checksum".to_string(), Value::String(checksum.clone()));
     status_obj.remove("observedGeneration");
+
+    Ok(())
+}
+
+async fn add_updated_timestamp(resource: &mut Value) -> Result<(), String> {
+    let status = resource.get_mut("status").ok_or("Missing 'status' field in object")?;
+    let status_obj = status.as_object_mut().ok_or("Status is not a JSON object")?;
+
+    let timestamp = Utc::now().to_rfc3339();
+
+    status_obj.insert("updateTimestamp".to_string(), Value::String(timestamp.clone()));
+
+    Ok(())
+}
+
+async fn remove_updated_timestamp(resource: &mut Value) -> Result<(), String> {
+    let status = resource.get_mut("status").ok_or("Missing 'status' field in object")?;
+    let status_obj = status.as_object_mut().ok_or("Status is not a JSON object")?;
+
+    status_obj.remove("updateTimestamp");
 
     Ok(())
 }
@@ -332,6 +353,7 @@ async fn convert_identity_hoprd_v3_to_v2(resource: &mut Value) -> Result<(), Str
 async fn convert_identity_pool_v2_to_v3(resource: &mut Value) -> Result<(), String> {
     debug!("Convert identityPool: v1alpha2 -> v1alpha3");
     add_observed_generation(resource).await?;
+    remove_updated_timestamp(resource).await?;
     debug!("Converted identityPool v2 to v3: {:?}", resource);
     Ok(())
 }
@@ -339,7 +361,7 @@ async fn convert_identity_pool_v2_to_v3(resource: &mut Value) -> Result<(), Stri
 async fn convert_identity_pool_v3_to_v2(resource: &mut Value) -> Result<(), String> {
     debug!("Convert identityPool: v1alpha3 -> v1alpha2");
     add_status_checksum(resource).await?;
-
+    add_updated_timestamp(resource).await?;
     Ok(())
 }
 
@@ -404,7 +426,7 @@ async fn convert(Json(request): Json<ConversionRequest>) -> impl IntoResponse {
         resource["apiVersion"] = serde_json::Value::String(request.request.desired_apiversion.clone());
         response_inner.converted_objects.push(resource);
     }
-    //debug!("Conversion completed successfully with {:?}", response_inner.converted_objects);
+    debug!("Conversion completed successfully with {:?}", response_inner.converted_objects);
     Json(ConversionResponse {
         api_version: "apiextensions.k8s.io/v1".to_string(),
         kind: "ConversionReview".to_string(),
