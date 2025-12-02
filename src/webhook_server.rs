@@ -147,22 +147,25 @@ async fn add_status_checksum(resource: &mut Value) -> Result<(), String> {
     Ok(())
 }
 
-async fn add_updated_timestamp(resource: &mut Value) -> Result<(), String> {
+async fn add_new_updated_timestamp(resource: &mut Value) -> Result<(), String> {
     let status = resource.get_mut("status").ok_or("Missing 'status' field in object")?;
     let status_obj = status.as_object_mut().ok_or("Status is not a JSON object")?;
 
     let timestamp = Utc::now().to_rfc3339();
 
-    status_obj.insert("updateTimestamp".to_string(), Value::String(timestamp.clone()));
+    status_obj.insert("updateTimestampNew".to_string(), Value::String(timestamp.clone()));
+    status_obj.remove("updateTimestamp");
 
     Ok(())
 }
 
-async fn remove_updated_timestamp(resource: &mut Value) -> Result<(), String> {
+async fn add_old_updated_timestamp(resource: &mut Value) -> Result<(), String> {
     let status = resource.get_mut("status").ok_or("Missing 'status' field in object")?;
     let status_obj = status.as_object_mut().ok_or("Status is not a JSON object")?;
 
-    status_obj.remove("updateTimestamp");
+    status_obj.remove("updateTimestampNew");
+    let timestamp = Utc::now().to_rfc3339();
+    status_obj.insert("updateTimestamp".to_string(), Value::String(timestamp.clone()));
 
     Ok(())
 }
@@ -353,7 +356,7 @@ async fn convert_identity_hoprd_v3_to_v2(resource: &mut Value) -> Result<(), Str
 async fn convert_identity_pool_v2_to_v3(resource: &mut Value) -> Result<(), String> {
     debug!("Convert identityPool: v1alpha2 -> v1alpha3");
     add_observed_generation(resource).await?;
-    remove_updated_timestamp(resource).await?;
+    add_new_updated_timestamp(resource).await?;
     debug!("Converted identityPool v2 to v3: {:?}", resource);
     Ok(())
 }
@@ -361,7 +364,7 @@ async fn convert_identity_pool_v2_to_v3(resource: &mut Value) -> Result<(), Stri
 async fn convert_identity_pool_v3_to_v2(resource: &mut Value) -> Result<(), String> {
     debug!("Convert identityPool: v1alpha3 -> v1alpha2");
     add_status_checksum(resource).await?;
-    add_updated_timestamp(resource).await?;
+    add_old_updated_timestamp(resource).await?;
     Ok(())
 }
 
@@ -393,7 +396,7 @@ async fn convert_v3_to_v2(resource: &mut Value) -> Result<(), String> {
 
 // Conversion handler
 async fn convert(Json(request): Json<ConversionRequest>) -> impl IntoResponse {
-    debug!("Received conversion request: {:?}", request);
+    //debug!("Received conversion request: {:?}", request);
     let mut response_inner = ConversionResponseInner {
         uid: request.request.uid.clone(),
         converted_objects: vec![],

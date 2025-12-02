@@ -98,12 +98,12 @@ spec:
                 size:
                   description: Amount of identities created
                   type: number
-                # updateTimestamp:
-                #   description: Timestamp of the last applied change
-                #   format: date-time
-                #   type: string
+                updateTimestampNew:
+                  description: Timestamp of the last applied change
+                  format: date-time
+                  type: string
               required:
-              # - updateTimestamp
+              - updateTimestampNew
               - observedGeneration
               - phase
               - size
