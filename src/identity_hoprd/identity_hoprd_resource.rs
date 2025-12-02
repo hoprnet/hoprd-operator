@@ -3,7 +3,6 @@ use crate::identity_pool::identity_pool_resource::{IdentityPool, IdentityPoolPha
 use crate::model::Error;
 use crate::{constants, context_data::ContextData};
 use crate::{identity_hoprd::identity_hoprd_persistence, resource_generics};
-use chrono::Utc;
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::OwnerReference;
 use kube::core::ObjectMeta;
 use kube::Resource;
@@ -40,7 +39,6 @@ pub struct IdentityHoprdSpec {
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct IdentityHoprdStatus {
-    pub update_timestamp: String,
     pub phase: IdentityHoprdPhaseEnum,
     pub observed_generation: i64,
     pub hoprd_node_name: Option<String>,
@@ -49,7 +47,6 @@ pub struct IdentityHoprdStatus {
 impl Default for IdentityHoprdStatus {
     fn default() -> Self {
         Self {
-            update_timestamp: Utc::now().to_rfc3339(),
             phase: IdentityHoprdPhaseEnum::Initialized,
             observed_generation: 0,
             hoprd_node_name: None,
@@ -253,7 +250,6 @@ impl IdentityHoprd {
             Ok(())
         } else {
             let status = IdentityHoprdStatus {
-                update_timestamp: Utc::now().to_rfc3339(),
                 phase,
                 observed_generation: self.metadata.generation.unwrap_or(0),
                 hoprd_node_name: hoprd_name,

@@ -6,7 +6,6 @@ use crate::{
     identity_pool::{identity_pool_cronjob_faucet, identity_pool_service_account, identity_pool_service_monitor},
     resource_generics,
 };
-use chrono::Utc;
 use k8s_openapi::api::batch::v1::CronJob;
 use k8s_openapi::api::core::v1::Secret;
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::OwnerReference;
@@ -46,8 +45,6 @@ pub struct IdentityPoolFunding {
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct IdentityPoolStatus {
-    // pub update_timestamp: String,
-    pub update_timestamp_new: String,
     pub phase: IdentityPoolPhaseEnum,
     pub size: i32,
     pub locked: i32,
@@ -57,8 +54,6 @@ pub struct IdentityPoolStatus {
 impl Default for IdentityPoolStatus {
     fn default() -> Self {
         Self {
-            // update_timestamp: Utc::now().to_rfc3339(),
-            update_timestamp_new: Utc::now().to_rfc3339(),
             phase: IdentityPoolPhaseEnum::Initialized,
             size: 0,
             locked: 0,
@@ -267,8 +262,6 @@ impl IdentityPool {
         if phase.eq(&IdentityPoolPhaseEnum::Deleting) {
             Ok(())
         } else {
-            // identity_pool_status.update_timestamp = Utc::now().to_rfc3339();
-            identity_pool_status.update_timestamp_new = Utc::now().to_rfc3339();
             identity_pool_status.observed_generation = self.metadata.generation.unwrap_or(0);
             identity_pool_status.phase = phase;
             if phase.eq(&IdentityPoolPhaseEnum::IdentityCreated) {

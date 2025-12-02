@@ -147,28 +147,28 @@ async fn add_status_checksum(resource: &mut Value) -> Result<(), String> {
     Ok(())
 }
 
-async fn add_new_updated_timestamp(resource: &mut Value) -> Result<(), String> {
-    let status = resource.get_mut("status").ok_or("Missing 'status' field in object")?;
-    let status_obj = status.as_object_mut().ok_or("Status is not a JSON object")?;
+// async fn add_new_updated_timestamp(resource: &mut Value) -> Result<(), String> {
+//     let status = resource.get_mut("status").ok_or("Missing 'status' field in object")?;
+//     let status_obj = status.as_object_mut().ok_or("Status is not a JSON object")?;
 
-    let timestamp = Utc::now().to_rfc3339();
+//     let timestamp = Utc::now().to_rfc3339();
 
-    status_obj.insert("updateTimestampNew".to_string(), Value::String(timestamp.clone()));
-    status_obj.remove("updateTimestamp");
+//     status_obj.insert("updateTimestampNew".to_string(), Value::String(timestamp.clone()));
+//     status_obj.remove("updateTimestamp");
 
-    Ok(())
-}
+//     Ok(())
+// }
 
-async fn add_old_updated_timestamp(resource: &mut Value) -> Result<(), String> {
-    let status = resource.get_mut("status").ok_or("Missing 'status' field in object")?;
-    let status_obj = status.as_object_mut().ok_or("Status is not a JSON object")?;
+// async fn add_old_updated_timestamp(resource: &mut Value) -> Result<(), String> {
+//     let status = resource.get_mut("status").ok_or("Missing 'status' field in object")?;
+//     let status_obj = status.as_object_mut().ok_or("Status is not a JSON object")?;
 
-    status_obj.remove("updateTimestampNew");
-    let timestamp = Utc::now().to_rfc3339();
-    status_obj.insert("updateTimestamp".to_string(), Value::String(timestamp.clone()));
+//     status_obj.remove("updateTimestampNew");
+//     let timestamp = Utc::now().to_rfc3339();
+//     status_obj.insert("updateTimestamp".to_string(), Value::String(timestamp.clone()));
 
-    Ok(())
-}
+//     Ok(())
+// }
 
 async fn convert_cluster_hoprd_v2_to_v3(resource: &mut Value) -> Result<(), String> {
     trace!("Convert clusterHoprd: v1alpha2 -> v1alpha3");
@@ -356,7 +356,7 @@ async fn convert_identity_hoprd_v3_to_v2(resource: &mut Value) -> Result<(), Str
 async fn convert_identity_pool_v2_to_v3(resource: &mut Value) -> Result<(), String> {
     trace!("Convert identityPool: v1alpha2 -> v1alpha3");
     add_observed_generation(resource).await?;
-    add_new_updated_timestamp(resource).await?;
+    // add_new_updated_timestamp(resource).await?;
     trace!("Converted identityPool v2 to v3: {:?}", resource);
     Ok(())
 }
@@ -364,7 +364,7 @@ async fn convert_identity_pool_v2_to_v3(resource: &mut Value) -> Result<(), Stri
 async fn convert_identity_pool_v3_to_v2(resource: &mut Value) -> Result<(), String> {
     trace!("Convert identityPool: v1alpha3 -> v1alpha2");
     add_status_checksum(resource).await?;
-    add_old_updated_timestamp(resource).await?;
+    // add_old_updated_timestamp(resource).await?;
     trace!("Converted identityPool v3 to v2: {:?}", resource);
     Ok(())
 }

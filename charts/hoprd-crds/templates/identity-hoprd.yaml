@@ -92,12 +92,7 @@ spec:
                   - InUse
                   - Deleting
                   type: string
-                updateTimestamp:
-                  description: Timestamp of the last applied change
-                  format: date-time
-                  type: string
               required:
-              - updateTimestamp
               - observedGeneration
               - phase
               type: object

@@ -9,7 +9,6 @@ use crate::{
     context_data::ContextData,
     hoprd::{hoprd_deployment, hoprd_deployment_spec::HoprdDeploymentSpec, hoprd_ingress, hoprd_service, hoprd_service::HoprdServiceSpec},
 };
-use chrono::Utc;
 use futures::{StreamExt, TryStreamExt};
 use k8s_openapi::api::apps::v1::Deployment;
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::OwnerReference;
@@ -56,7 +55,6 @@ pub struct HoprdSpec {
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct HoprdStatus {
-    pub update_timestamp: String,
     pub phase: HoprdPhaseEnum,
     pub observed_generation: i64,
 }
@@ -64,7 +62,6 @@ pub struct HoprdStatus {
 impl Default for HoprdStatus {
     fn default() -> Self {
         Self {
-            update_timestamp: Utc::now().to_rfc3339(),
             phase: HoprdPhaseEnum::Initializing,
             observed_generation: 0,
         }
@@ -347,7 +344,6 @@ impl Hoprd {
 
         let api: Api<Hoprd> = Api::namespaced(client.clone(), &hoprd_namespace.to_owned());
         let mut status = self.status.as_ref().unwrap_or(&HoprdStatus::default()).to_owned();
-        status.update_timestamp = Utc::now().to_rfc3339();
         status.phase = phase;
         status.observed_generation = self.metadata.generation.unwrap_or(0);
         let patch = Patch::Merge(json!({ "status": status }));

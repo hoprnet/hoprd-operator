@@ -7,7 +7,6 @@ use crate::hoprd::{
 use crate::model::Error;
 use crate::{constants, context_data::ContextData};
 use crate::{resource_generics, utils};
-use chrono::Utc;
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::OwnerReference;
 use kube::api::{DeleteParams, ListParams, PostParams};
 use kube::core::ObjectMeta;
@@ -52,7 +51,6 @@ pub struct ClusterHoprdSpec {
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ClusterHoprdStatus {
-    pub update_timestamp: String,
     pub phase: ClusterHoprdPhaseEnum,
     pub observed_generation: i64,
     pub current_nodes: i32,
@@ -61,7 +59,6 @@ pub struct ClusterHoprdStatus {
 impl Default for ClusterHoprdStatus {
     fn default() -> Self {
         Self {
-            update_timestamp: Utc::now().to_rfc3339(),
             phase: ClusterHoprdPhaseEnum::Initialized,
             observed_generation: 0,
             current_nodes: 0,
@@ -285,7 +282,6 @@ impl ClusterHoprd {
         let cluster_hoprd = api.get(&cluster_hoprd_name).await.unwrap();
         let mut cluster_hoprd_status = cluster_hoprd.status.as_ref().unwrap_or(&ClusterHoprdStatus::default()).to_owned();
 
-        cluster_hoprd_status.update_timestamp = Utc::now().to_rfc3339();
         cluster_hoprd_status.observed_generation = cluster_hoprd.metadata.generation.unwrap_or(0);
         cluster_hoprd_status.phase = phase;
         if phase.eq(&ClusterHoprdPhaseEnum::NodeCreated) {
