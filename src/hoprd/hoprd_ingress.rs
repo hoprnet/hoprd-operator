@@ -1,11 +1,11 @@
 use json_patch::{PatchOperation, ReplaceOperation};
+use jsonptr::PointerBuf;
 use k8s_openapi::{
     api::{
         core::v1::ConfigMap,
         networking::v1::{HTTPIngressPath, HTTPIngressRuleValue, Ingress, IngressBackend, IngressRule, IngressServiceBackend, IngressSpec, IngressTLS, ServiceBackendPort},
     },
-    apimachinery::pkg::apis::meta::v1::OwnerReference,
-    serde_value::Value,
+    apimachinery::pkg::apis::meta::v1::OwnerReference
 };
 use kube::{
     api::{DeleteParams, Patch, PatchParams, PostParams},
@@ -13,7 +13,7 @@ use kube::{
     runtime::wait::{await_condition, conditions},
     Api, Client, Error,
 };
-use serde_json::json;
+use serde_json::{Value, json};
 use std::{collections::BTreeMap, sync::Arc};
 use tracing::{debug, error, info};
 
@@ -223,7 +223,7 @@ pub async fn close_port(client: Client, service_namespace: &str, service_name: &
         .filter(|entry| !entry.1.contains(&service_fqn))
         .collect::<BTreeMap<String, String>>();
     let json_patch = json_patch::Patch(vec![PatchOperation::Replace(ReplaceOperation {
-        path: "/data".to_owned(),
+        path: PointerBuf::parse("/data".to_owned()).unwrap(),
         value: json!(new_data),
     })]);
     let patch: Patch<&Value> = Patch::Json::<&Value>(json_patch);
@@ -246,7 +246,7 @@ pub async fn close_port(client: Client, service_namespace: &str, service_name: &
         .collect::<BTreeMap<String, String>>();
 
     let json_patch = json_patch::Patch(vec![PatchOperation::Replace(ReplaceOperation {
-        path: "/data".to_owned(),
+        path: PointerBuf::parse("/data".to_owned()).unwrap(),
         value: json!(new_data),
     })]);
     let patch: Patch<&Value> = Patch::Json::<&Value>(json_patch);

@@ -26,7 +26,7 @@ impl CustomValueFrom {
         EnvVarSource {
             secret_key_ref: Some(SecretKeySelector {
                 key: self.secret_key_ref.key.to_owned(),
-                name: Some(self.secret_key_ref.name.to_owned()),
+                name: self.secret_key_ref.name.to_owned(),
                 ..SecretKeySelector::default()
 
             }),
@@ -82,21 +82,22 @@ impl Default for HoprdDeploymentSpec {
         limits.insert("memory".to_owned(), Quantity("2Gi".to_owned()));
         requests.insert("cpu".to_owned(), Quantity("750m".to_owned()));
         requests.insert("memory".to_owned(), Quantity("512Mi".to_owned()));
-        let resources_spec = serde_yaml::to_string(&ResourceRequirements {
+        let resources_spec = serde_yml::to_string(&ResourceRequirements {
             requests: Some(requests),
             limits: Some(limits),
+            ..Default::default()
         })
         .unwrap();
 
         let default_probe = HoprdDeploymentSpec::build_probe("some/path".to_string(), Some(5), Some(1), Some(10));
-        let default_probe_string = Some(serde_yaml::to_string(&default_probe).unwrap());
+        let default_probe_string = Some(serde_yml::to_string(&default_probe).unwrap());
 
         let default_env = vec![
             CustomEnvVar::new_value("RUST_BACKTRACE".to_owned(), "full".to_owned()),
             CustomEnvVar::new_value("RUST_LOG".to_owned(), "info".to_owned()),
             CustomEnvVar::new_value("HOPRD_LOG_FORMAT".to_owned(), "json".to_owned()),
         ];
-        let default_env_string = Some(serde_yaml::to_string(&default_env).unwrap());
+        let default_env_string = Some(serde_yml::to_string(&default_env).unwrap());
 
         Self {
             resources: Some(resources_spec),
@@ -114,7 +115,7 @@ impl HoprdDeploymentSpec {
         let default_deployment_spec = HoprdDeploymentSpec::default();
         let hoprd_deployment_spec = hoprd_deployment_spec.unwrap_or(default_deployment_spec.clone());
         let resource_requirements_string = hoprd_deployment_spec.resources.as_ref().unwrap_or(default_deployment_spec.resources.as_ref().unwrap());
-        let resource_requirements: ResourceRequirements = serde_yaml::from_str(resource_requirements_string).unwrap();
+        let resource_requirements: ResourceRequirements = serde_yml::from_str(resource_requirements_string).unwrap();
         resource_requirements
     }
 
@@ -122,12 +123,12 @@ impl HoprdDeploymentSpec {
         // Get default env vars
         let default_deployment_spec = HoprdDeploymentSpec::default();
         let hoprd_deployment_spec = hoprd_deployment_spec.unwrap_or(default_deployment_spec.clone());
-        let default_environment_variables: Vec<CustomEnvVar> = serde_yaml::from_str(default_deployment_spec.env.as_ref().unwrap()).unwrap();
+        let default_environment_variables: Vec<CustomEnvVar> = serde_yml::from_str(default_deployment_spec.env.as_ref().unwrap()).unwrap();
         debug!("Default environment variables: {:?}", default_environment_variables);
         // Get custom env vars
         let custom_environment_variables_string = hoprd_deployment_spec.env.as_ref().unwrap_or(default_deployment_spec.env.as_ref().unwrap());
         debug!("Custom environment variables string: {}", custom_environment_variables_string);
-        let custom_environment_variables: Vec<CustomEnvVar> = serde_yaml::from_str(custom_environment_variables_string)?;
+        let custom_environment_variables: Vec<CustomEnvVar> = serde_yml::from_str(custom_environment_variables_string)?;
 
         // Merge default and custom env vars, giving precedence to custom ones in case of name conflicts
         let env_vars: Vec<EnvVar> = default_environment_variables.iter().filter(| &default_environment_variable| {
@@ -155,7 +156,7 @@ impl HoprdDeploymentSpec {
         let default_liveness_probe = HoprdDeploymentSpec::build_probe("/healthyz".to_owned(), Some(5), Some(1), Some(3));
         if let Some(hoprd_deployment_spec) = hoprd_deployment_spec_option {
             if let Some(liveness_probe_string) = hoprd_deployment_spec.liveness_probe {
-                Some(serde_yaml::from_str(&liveness_probe_string).unwrap())
+                Some(serde_yml::from_str(&liveness_probe_string).unwrap())
             } else {
                 Some(default_liveness_probe)
             }
@@ -169,7 +170,7 @@ impl HoprdDeploymentSpec {
         let default_startup_probe = HoprdDeploymentSpec::build_probe("/startedz".to_owned(), period_seconds, Some(1), Some(60));
         if let Some(hoprd_deployment_spec) = hoprd_deployment_spec_option {
             if let Some(startup_probe_string) = hoprd_deployment_spec.startup_probe {
-                Some(serde_yaml::from_str(&startup_probe_string).unwrap())
+                Some(serde_yml::from_str(&startup_probe_string).unwrap())
             } else {
                 Some(default_startup_probe)
             }
@@ -183,7 +184,7 @@ impl HoprdDeploymentSpec {
         let default_readiness_probe = HoprdDeploymentSpec::build_probe("/readyz".to_owned(), period_seconds, Some(1), Some(60));
         if let Some(hoprd_deployment_spec) = hoprd_deployment_spec_option {
             if let Some(readiness_probe_string) = hoprd_deployment_spec.readiness_probe {
-                Some(serde_yaml::from_str(&readiness_probe_string).unwrap())
+                Some(serde_yml::from_str(&readiness_probe_string).unwrap())
             } else {
                 Some(default_readiness_probe)
             }
@@ -191,8 +192,4 @@ impl HoprdDeploymentSpec {
             Some(default_readiness_probe)
         }
     }
-}
-#[derive(Serialize, Debug, Deserialize, PartialEq, Clone, JsonSchema, Hash)]
-pub struct EnablingFlag {
-    pub enabled: bool,
 }

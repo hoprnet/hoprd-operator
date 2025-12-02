@@ -1,0 +1,305 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: clusterhoprds.hoprnet.org
+spec:
+  conversion:
+    strategy: Webhook
+    webhook:
+      clientConfig:
+        caBundle: {{ .Values.hoprdOperator.webhook.tls.crt | b64enc | quote }}
+        service:
+          name: {{ .Values.hoprdOperator.webhook.service.name }}
+          namespace: {{ .Release.Namespace }}
+          path: /convert
+          port: {{ .Values.hoprdOperator.webhook.service.port }}
+      conversionReviewVersions:
+        - v1
+  group: hoprnet.org
+  names:
+    kind: ClusterHoprd
+    plural: clusterhoprds
+    singular: clusterhoprd
+    shortNames:
+      - clusterhoprd
+  scope: Namespaced
+  versions:
+    - name: v1alpha3
+      served: true
+      storage: false
+      additionalPrinterColumns:
+        - description: ClusterHoprd phase
+          jsonPath: .status.phase
+          name: Phase
+          type: string
+        - description: Pool name
+          jsonPath: .spec.identityPoolName
+          name: Pool
+          type: string
+        - description: Hoprd version
+          jsonPath: .spec.version
+          name: version
+          type: string
+        - description: Replicas
+          jsonPath: .spec.replicas
+          name: Replicas
+          type: number
+        - description: Nodes running
+          jsonPath: .status.currentNodes
+          name: Current
+          type: number
+        - description: Age
+          jsonPath: .metadata.creationTimestamp
+          name: Age
+          type: date
+      schema:
+        openAPIV3Schema:
+          description: Schema definition for ClusterHoprd Node
+          properties:
+            spec:
+              properties:
+                config:
+                  description: Yaml configuration for Hoprd nodes
+                  type: string
+                deployment:
+                  description: Deployment configuration
+                  properties:
+                    env:
+                      description: The definition for environment variables to be used by the node deployment
+                      type: string
+                    extraContainers:
+                      description: The definition of extra containers to be added to the node deployment
+                      type: string
+                    livenessProbe:
+                      description: The definition of the liveness probe to be used by the node deployment
+                      type: string
+                    readinessProbe:
+                      description: The definition of the readiness probe to be used by the node deployment
+                      type: string
+                    resources:
+                      description: The definition for hardware resources to be used by the node deployment
+                      type: string
+                    startupProbe:
+                      description: The definition of the startup probe to be used by the node deployment
+                      type: string
+                  type: object
+                enabled:
+                  description: 'Flag indicating if the node should be started or stopped'
+                  type: boolean
+                identityPoolName:
+                  description: The name of the IdentityPool
+                  type: string
+                profilingEnabled:
+                  description: Flag indicating whether to enable profiling sidecar container
+                  type: boolean
+                replicas:
+                  description: Number of instances for this configuration
+                  type: number
+                service:
+                  description: Service configuration
+                  properties:
+                    type:
+                      description: The type of service to create
+                      enum:
+                        - LoadBalancer
+                        - ClusterIP
+                      type: string
+                    portsAllocation:
+                      description: 'Number of ports to be opened for session management
+                    in the hoprd node. Each session requires one port. Default: 10 ports
+                    if not specified. Warning: Large numbers may impact kubernetes cluster
+                    performance.'
+                      maximum: 200
+                      minimum: 1
+                      type: number
+                  required:
+                    - type
+                  type: object
+                sourceNodeLogs:
+                  description: Name of the hoprd node to upload logs from
+                  type: string
+                version:
+                  description: An specific hoprd version. Should match with a docker tag
+                  type: string
+              required:
+                - identityPoolName
+                - replicas
+                - config
+                - version
+                - service
+              type: object
+            status:
+              description: The status object of ClusterHord node
+              nullable: true
+              properties:
+                currentNodes:
+                  description: Number of nodes running
+                  type: number
+                observedGeneration:
+                  description: The current applied metadata.generation specification
+                  type: number
+                phase:
+                  description: Phase of the last applied change
+                  enum:
+                  - Initialized
+                  - NotScaled
+                  - Scaling
+                  - Failed
+                  - Ready
+                  - Deleting
+                  type: string
+              required:
+              - observedGeneration
+              - phase
+              - currentNodes
+              type: object
+          required:
+            - spec
+          type: object
+    - name: v1alpha2
+      served: true
+      storage: true
+      additionalPrinterColumns:
+        - description: ClusterHoprd phase
+          jsonPath: .status.phase
+          name: Phase
+          type: string
+        - description: Pool name
+          jsonPath: .spec.identityPoolName
+          name: Pool
+          type: string
+        - description: Hoprd version
+          jsonPath: .spec.version
+          name: version
+          type: string
+        - description: Replicas
+          jsonPath: .spec.replicas
+          name: Replicas
+          type: number
+        - description: Nodes running
+          jsonPath: .status.currentNodes
+          name: Current
+          type: number
+        - jsonPath: .metadata.creationTimestamp
+          name: Age
+          type: date
+      schema:
+        openAPIV3Schema:
+          description: Schema definition for ClusterHoprd Node
+          properties:
+            spec:
+              properties:
+                config:
+                  description: Yaml configuration for Hoprd nodes
+                  type: string
+                deployment:
+                  description: Deployment configuration
+                  properties:
+                    env:
+                      description: The definition for environment variables to be used by the node deployment
+                      type: string
+                    extraContainers:
+                      description: The definition of extra containers to be added to the node deployment
+                      type: string
+                    livenessProbe:
+                      description: The definition of the liveness probe to be used by the node deployment
+                      type: string
+                    readinessProbe:
+                      description: The definition of the readiness probe to be used by the node deployment
+                      type: string
+                    resources:
+                      description: The definition for hardware resources to be used by the node deployment
+                      type: string
+                    startupProbe:
+                      description: The definition of the startup probe to be used by the node deployment
+                      type: string
+                  type: object
+                enabled:
+                  description: Flag indicating if the node should be started or stopped
+                  type: boolean
+                forceIdentityName:
+                  description: Flag indicating whether the identityName should be specified
+                    in child Hoprd
+                  type: boolean
+                identityPoolName:
+                  description: The name of the IdentityPool
+                  type: string
+                portsAllocation:
+                  description: 'Number of ports to be opened for session management
+                    in the hoprd node. Each session requires one port. Default: 10 ports
+                    if not specified. Warning: Large numbers may impact kubernetes cluster
+                    performance.'
+                  maximum: 200
+                  minimum: 0
+                  type: number
+                profilingEnabled:
+                  description: Flag indicating whether to enable profiling sidecar container
+                  type: boolean
+                replicas:
+                  description: Number of instances for this configuration
+                  type: number
+                service:
+                  description: Service configuration
+                  properties:
+                    type:
+                      description: The type of service to create
+                      enum:
+                        - LoadBalancer
+                        - ClusterIP
+                      type: string
+                  required:
+                    - type
+                  type: object
+                sourceNodeLogs:
+                  description: Name of the hoprd node to upload logs from
+                  type: string
+                supportedRelease:
+                  description: Release Name of the supported version
+                  enum:
+                  - saint-louis
+                  - kaunas
+                  type: string
+                version:
+                  description: An specific hoprd version. Should match with a docker tag
+                  type: string
+              required:
+                - identityPoolName
+                - replicas
+                - config
+                - version
+                - supportedRelease
+                - portsAllocation
+              type: object
+            status:
+              description: The status object of ClusterHord node
+              nullable: true
+              properties:
+                checksum:
+                  description: Checksum of the last applied change
+                  type: string
+                currentNodes:
+                  description: Number of nodes running
+                  type: number
+                phase:
+                  description: Phase of the last applied change
+                  enum:
+                  - Initialized
+                  - NotScaled
+                  - Scaling
+                  - Failed
+                  - Ready
+                  - Deleting
+                  type: string
+                updateTimestamp:
+                  description: Timestamp of the last applied change
+                  format: date-time
+                  type: string
+              required:
+              - updateTimestamp
+              - checksum
+              - phase
+              - currentNodes
+              type: object
+          required:
+            - spec
+          type: object

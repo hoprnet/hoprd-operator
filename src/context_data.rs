@@ -1,15 +1,13 @@
 use k8s_openapi::NamespaceResourceScope;
-use std::{collections::BTreeMap, env, sync::Arc};
+use tracing::{debug, error};
+use std::{collections::BTreeMap, sync::Arc};
 use tokio::sync::RwLock;
 
 use kube::{
-    api::ListParams,
-    runtime::events::{Recorder, Reporter},
-    Api, Client, Resource, ResourceExt,
+    Api, Client, Resource, ResourceExt, api::{ListParams}, runtime::events::{Recorder, Reporter}
 };
 
-use crate::{
-    constants, events::ResourceEvent, hoprd::hoprd_resource::Hoprd, identity_hoprd::identity_hoprd_resource::IdentityHoprd, identity_pool::identity_pool_resource::IdentityPool,
+use crate::{ events::ResourceEvent, hoprd::hoprd_resource::Hoprd, identity_hoprd::identity_hoprd_resource::IdentityHoprd, identity_pool::identity_pool_resource::IdentityPool,
     operator_config::OperatorConfig,
 };
 
@@ -26,20 +24,15 @@ pub struct ContextData {
 /// State wrapper around the controller outputs for the web server
 impl ContextData {
     // Create a Controller Context that can update State
-    pub async fn new(client: Client) -> Self {
-        let operator_environment = env::var(constants::OPERATOR_ENVIRONMENT).unwrap();
-        let config_path = if operator_environment.eq("production") {
-            "/app/config/config.yaml".to_owned()
-        } else {
-            let mut path = env::current_dir().as_ref().unwrap().to_str().unwrap().to_owned();
-            path.push_str(&format!("/test-data/sample_config-{operator_environment}.yaml"));
-            path
-        };
-        let config_file = std::fs::File::open(&config_path).expect("Could not open config file.");
-        let config: OperatorConfig = serde_yaml::from_reader(config_file).expect("Could not read contents of config file.");
-
+    pub async fn new(client: Client, config: OperatorConfig) -> Self {
         let api = Api::<IdentityPool>::all(client.clone());
-        let pools = api.list(&ListParams::default()).await.unwrap().items.clone();
+        let pools: Vec<IdentityPool> = match api.list(&ListParams::default()).await {
+            Ok(list) => list.items.clone(),
+            Err(e) => {
+                debug!("Could not fetch IdentityPools: {}", e);
+                vec![]
+            }
+        };
 
         ContextData {
             client,
@@ -48,9 +41,13 @@ impl ContextData {
         }
     }
 
-    pub async fn sync_identities(context_data: Arc<ContextData>) {
-        let api_identities = Api::<IdentityHoprd>::all(context_data.client.clone());
-        let all_identities = api_identities.list(&ListParams::default()).await.unwrap().items.clone();
+    pub async fn sync_identities(context_data: Arc<ContextData>) -> Result<(), String> {
+        let api_identities: Api<IdentityHoprd> = Api::all(context_data.client.clone());
+        let identities = api_identities.list(&ListParams::default()).await
+            .map_err(|e| {
+                error!("Could not fetch IdentityHoprd: {}", e);
+                "Could not fetch IdentityHoprd".to_string()
+            })?.items.clone();
         let api_hoprd = Api::<Hoprd>::all(context_data.client.clone());
         let all_hoprds: Vec<String> = api_hoprd
             .list(&ListParams::default())
@@ -61,7 +58,8 @@ impl ContextData {
             .iter()
             .map(|hoprd| format!("{}-{}", hoprd.metadata.namespace.as_ref().unwrap(), hoprd.metadata.name.as_ref().unwrap()))
             .collect();
-        for identity_hoprd in all_identities {
+        // Unlock identities that no longer have a corresponding hoprd
+        for identity_hoprd in identities {
             if let Some(status) = identity_hoprd.to_owned().status {
                 if let Some(hoprd_node_name) = status.hoprd_node_name {
                     let identity_full_name = format!("{}-{}", identity_hoprd.to_owned().metadata.namespace.unwrap(), hoprd_node_name);
@@ -72,11 +70,12 @@ impl ContextData {
                 }
             }
         }
+        Ok(())
     }
 
     pub async fn send_event<T: Resource<Scope = NamespaceResourceScope, DynamicType = ()>, K: ResourceEvent>(&self, resource: &T, event: K, attribute: Option<String>) {
-        let recorder = Recorder::new(self.client.clone(), self.state.read().await.reporter.clone(), resource.object_ref(&()));
-        recorder.publish(event.to_event(attribute)).await.unwrap();
+        let recorder = Recorder::new(self.client.clone(), self.state.read().await.reporter.clone());
+        recorder.publish(&event.to_event(attribute), &resource.object_ref(&())).await.unwrap();
     }
 }
 

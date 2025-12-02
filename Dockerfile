@@ -1,4 +1,4 @@
-ARG RUST_IMAGE=${RUST_IMAGE:-rust:1.75}
+ARG RUST_IMAGE=${RUST_IMAGE:-rust:1.91}
 
 FROM ${RUST_IMAGE} as builder
 

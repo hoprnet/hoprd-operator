@@ -1,0 +1,4 @@
+hoprdOperator:
+  webhook:
+    service:
+      name: "hoprd-operator-webhook"

@@ -97,10 +97,8 @@ spec:
         cpu: 2000m
         memory: 1Gi
   enabled: true
-  forceIdentityName: true
   identityPoolName: hoprd-core-rotsee
   replicas: 5
-  supportedRelease: kaunas
   version: 2.1.0
 status:
   currentNodes: 5
@@ -143,7 +141,6 @@ spec:
   enabled: true
   identityName: hoprd-core-rotsee-1
   identityPoolName: hoprd-core-rotsee
-  supportedRelease: kaunas
   version: 2.1.0
 status:
   identityName: hoprd-core-rotsee-1

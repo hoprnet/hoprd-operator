@@ -1,15 +1,15 @@
-{{ if .Values.logs.upload.enabled }}
+{{ if .Values.clusterHoprd.logs.upload.enabled }}
 ---
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: upload-hoprd-logs-sa
+  name: {{ include "cluster-hoprd.name" . }}-upload-hoprd-logs-sa
   namespace: {{ .Release.Namespace }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
-  name: upload-hoprd-logs-role
+  name: {{ include "cluster-hoprd.name" . }}-upload-hoprd-logs-role
   namespace: {{ .Release.Namespace }}
 rules:
   - apiGroups: ["apps"]
@@ -25,25 +25,25 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
-  name: upload-hoprd-logs-role-binding
+  name: {{ include "cluster-hoprd.name" . }}-upload-hoprd-logs-role-binding
   namespace: {{ .Release.Namespace }}
 subjects:
   - kind: ServiceAccount
-    name: upload-hoprd-logs-sa
+    name: {{ include "cluster-hoprd.name" . }}-upload-hoprd-logs-sa
     namespace: {{ .Release.Namespace }}
 roleRef:
   kind: Role
-  name: upload-hoprd-logs-role
+  name: {{ include "cluster-hoprd.name" . }}-upload-hoprd-logs-role
   apiGroup: rbac.authorization.k8s.io
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
-  name: argo-workflows-workflow-role-binding
+  name: {{ include "cluster-hoprd.name" . }}-argo-workflows-workflow-role-binding
   namespace: {{ .Release.Namespace }}
 subjects:
   - kind: ServiceAccount
-    name: upload-hoprd-logs-sa
+    name: {{ include "cluster-hoprd.name" . }}-upload-hoprd-logs-sa
     namespace: {{ .Release.Namespace }}
 roleRef:
   kind: Role
@@ -53,10 +53,10 @@ roleRef:
 apiVersion: argoproj.io/v1alpha1
 kind: CronWorkflow
 metadata:
-  name: upload-hoprd-logs
+  name: {{ include "cluster-hoprd.name" . }}-upload-hoprd-logs
   namespace: {{ .Release.Namespace }}
 spec:
-  schedule: "{{ .Values.logs.upload.schedule }}"
+  schedule: "{{ .Values.clusterHoprd.logs.upload.schedule }}"
   timezone: Europe/Zurich # Adjust timezone if necessary
   concurrencyPolicy: "Replace" # Ensures only one job runs at a time
   startingDeadlineSeconds: 600 # Deadline to start the job in seconds
@@ -85,16 +85,16 @@ spec:
           args:
             - |
               set -euo pipefail
-              corrupted_channels=$(curl -s -X 'GET' 'http://{{ .Values.logs.upload.sourceNode }}-p2p-tcp:3001/api/v4/channels/corrupted' -H 'accept: application/json' -H "X-Auth-Token: $HOPRD_API_TOKEN")
+              corrupted_channels=$(curl -s -X 'GET' 'http://{{ .Values.clusterHoprd.logs.upload.sourceNode }}-p2p-tcp:3001/api/v4/channels/corrupted' -H 'accept: application/json' -H "X-Auth-Token: $HOPRD_API_TOKEN")
               if [[ $(jq -r '.channelIds | length' <<<"$corrupted_channels") -gt 0 ]]; then
                 echo "There are corrupted channels, deleting nodes database to sync from scratch"
-                if ! kubectl patch Hoprds --type=json -p="[{'op': 'replace', 'path': '/spec/deleteDatabase', 'value':true}]" {{ .Values.logs.upload.sourceNode }}; then
+                if ! kubectl patch Hoprds --type=json -p="[{'op': 'replace', 'path': '/spec/deleteDatabase', 'value':true}]" {{ .Values.clusterHoprd.logs.upload.sourceNode }}; then
                   echo "Failed to patch Hoprds resource"
                   exit 1
                 fi
                 sleep 1200 # wait 20 minutes for the node to resync
-                kubectl wait --for=condition=available deployment/{{ .Values.logs.upload.sourceNode }} --timeout=120m
-                corrupted_channels=$(curl -s -X 'GET' 'http://{{ .Values.logs.upload.sourceNode }}-p2p-tcp:3001/api/v4/channels/corrupted' -H 'accept: application/json' -H "X-Auth-Token: $HOPRD_API_TOKEN")
+                kubectl wait --for=condition=available deployment/{{ .Values.clusterHoprd.logs.upload.sourceNode }} --timeout=120m
+                corrupted_channels=$(curl -s -X 'GET' 'http://{{ .Values.clusterHoprd.logs.upload.sourceNode }}-p2p-tcp:3001/api/v4/channels/corrupted' -H 'accept: application/json' -H "X-Auth-Token: $HOPRD_API_TOKEN")
                 if [[ $(jq -r '.channelIds | length' <<<"$corrupted_channels") -gt 0 ]]; then
                   echo "Channels are still corrupted after resync, aborting log backup. You might consider changing the RPC provider"
                   exit 1
@@ -119,11 +119,11 @@ spec:
           command: ["/bin/bash", "-c"]
           args:
             - |
-              if ! kubectl scale deployment {{ .Values.logs.upload.sourceNode }} --replicas=0; then
+              if ! kubectl scale deployment {{ .Values.clusterHoprd.logs.upload.sourceNode }} --replicas=0; then
                   echo "Failed to stop deployment"
                   exit 0
               fi
-              kubectl wait --for=delete pod -l app={{ .Values.logs.upload.sourceNode }} --timeout=5m
+              kubectl wait --for=delete pod -l app={{ .Values.clusterHoprd.logs.upload.sourceNode }} --timeout=5m
           resources:
             requests:
               memory: "64Mi"
@@ -144,7 +144,7 @@ spec:
 
               cd /app/hoprd-db/db
               echo "Creating backup archive..."
-              if ! tar -cJf /tmp/{{ .Values.logs.upload.logsFileName }} hopr_logs.db*; then
+              if ! tar -cJf /tmp/{{ .Values.clusterHoprd.logs.upload.logsFileName }} hopr_logs.db*; then
                   echo "Failed to create backup archive"
                   exit 1
               else
@@ -161,7 +161,7 @@ spec:
               fi
 
               echo "Uploading to GCS with verification..."
-              if ! gcloud storage cp /tmp/{{ .Values.logs.upload.logsFileName }} gs://{{ .Values.logs.upload.bucketName }}/{{ .Values.logs.upload.logsFileName }}; then
+              if ! gcloud storage cp /tmp/{{ .Values.clusterHoprd.logs.upload.logsFileName }} gs://{{ .Values.clusterHoprd.logs.upload.bucketName }}/{{ .Values.clusterHoprd.logs.upload.logsFileName }}; then
                   echo "Failed to upload backup"
                   exit 1
               else
@@ -169,7 +169,7 @@ spec:
               fi
 
               echo "Cleaning up..."
-              rm -f /tmp/{{ .Values.logs.upload.logsFileName }}
+              rm -f /tmp/{{ .Values.clusterHoprd.logs.upload.logsFileName }}
           resources:
             requests:
               memory: "128Mi"
@@ -185,10 +185,10 @@ spec:
         volumes:
           - name: hoprd-db
             persistentVolumeClaim:
-              claimName: {{ .Values.logs.upload.sourceNode }}
+              claimName: {{ .Values.clusterHoprd.logs.upload.sourceNode }}
           - name: service-account-key
             secret:
-              secretName: gcp-sa-key
+              secretName: google-service-account-key
               items:
                 - key: privateKey
                   path: privateKey
@@ -200,7 +200,7 @@ spec:
           command: ["/bin/bash", "-c"]
           args:
             - |
-              if ! kubectl scale deployment {{ .Values.logs.upload.sourceNode }} --replicas=1; then
+              if ! kubectl scale deployment {{ .Values.clusterHoprd.logs.upload.sourceNode }} --replicas=1; then
                   echo "Failed to start deployment"
                   exit 1
               fi

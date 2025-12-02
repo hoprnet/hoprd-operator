@@ -49,15 +49,14 @@ fn determine_action(identity_pool: &IdentityPool) -> IdentityPoolAction {
     } else if identity_pool.status.as_ref().unwrap().phase.eq(&IdentityPoolPhaseEnum::OutOfSync) {
         IdentityPoolAction::Sync
     } else {
-        let current_checksum = identity_pool.get_checksum();
-        let previous_checksum: String = identity_pool.status.as_ref().map_or("0".to_owned(), |status| status.checksum.to_owned());
-        // When the resource is created, does not have previous checksum and needs to be skip the modification because it's being handled already by the creation operation
-        if previous_checksum.eq(&"0".to_owned()) || current_checksum.eq(&previous_checksum) {
-            IdentityPoolAction::NoOp
-        } else {
+        let current_generation = identity_pool.meta().generation.unwrap_or(0);
+        let observed_generation = identity_pool.status.as_ref().map_or(0, |status| status.observed_generation);
+        if observed_generation < current_generation {
             IdentityPoolAction::Modify
+        } else {
+            IdentityPoolAction::NoOp
         }
-    };
+    }
 }
 
 async fn reconciler(identity_pool: Arc<IdentityPool>, context: Arc<ContextData>) -> Result<Action, Error> {
@@ -100,7 +99,7 @@ pub async fn run(client: Client, context_data: Arc<ContextData>) {
         .run(reconciler, on_error, context_data)
         .for_each(|reconciliation_result| async move {
             match reconciliation_result {
-                Ok(_identity_hoprd_resource) => {}
+                Ok(_) => {}
                 Err(reconciliation_err) => {
                     let err_string = reconciliation_err.to_string();
                     if !err_string.contains("that was not found in local store") && !err_string.contains("event queue error") {

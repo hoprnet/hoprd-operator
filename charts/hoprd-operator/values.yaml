@@ -1,44 +1,149 @@
-## @section Common parameters
+hoprdOperator:
+
+  ## @section Hopr AdminUI Parameters
+  ##
+
+  adminUI:
+
+    ## @param hoprdOperator.adminUI.enabled Whether to install Hopr Admin UI
+    ##
+    enabled: true
+
+    ## @param hoprdOperator.adminUI.replicas Replicas for AdminUI deployment
+    ##
+    replicas: 1
+
+    ## @param hoprdOperator.adminUI.resources Resource specification to AdminUI deployment
+    ##
+    resources: {}
+        # We usually recommend not to specify default resources and to leave this as a conscious
+        # choice for the user. This also increases chances charts run on environments with little
+        # resources, such as Minikube. If you do want to specify resources, uncomment the following
+        # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
+        # limits:
+        #   cpu: 100m
+        #   memory: 128Mi
+        # requests:
+        #   cpu: 100m
+        #   memory: 128Mi
+
+    image:
+      ## @param hoprdOperator.adminUI.image.registry Docker registry to AdminUI deployment
+      ##
+      registry: europe-west3-docker.pkg.dev
+
+      ## @param hoprdOperator.adminUI.image.repository Docker image repository to AdminUI deployment
+      ##
+      repository: hoprassociation/docker-images/hopr-admin
+
+      ## @param hoprdOperator.adminUI.image.tag Docker image tag to AdminUI deployment
+      ##
+      tag: stable
+
+      ## @param hoprdOperator.adminUI.image.pullPolicy Pull policy to AdminUI deployment as defined in 
+      ##
+      pullPolicy: Always
+
+    service:
+
+      ## @param hoprdOperator.adminUI.service.type service type
+      ##
+      type: ClusterIP
+      ports:
+
+        ## @param hoprdOperator.adminUI.service.ports.http service HTTP port number
+        ##  
+        http: 8080
+
+        ## @param hoprdOperator.adminUI.service.ports.name service HTTP port name
+        ##
+        name: http
+
+    ingress:
+
+      ## @param hoprdOperator.adminUI.ingress.enabled Enable ingress record generation
+      ##
+      enabled: true
+
+      ## @param hoprdOperator.adminUI.ingress.pathType Ingress path type
+      ##
+      pathType: ImplementationSpecific
+
+      ## @param hoprdOperator.adminUI.ingress.ingressClassName IngressClass that will be be used to implement the Ingress
+      ##
+      ingressClassName: "nginx"
+
+      ## @param hoprdOperator.adminUI.ingress.hostname Default host for the ingress record
+      ##
+      hostname: admin.hoprd.cluster.local
+
+      ## @param hoprdOperator.adminUI.ingress.path Default path for the ingress record
+      ##
+      path: /
+
+      ## @param hoprdOperator.adminUI.ingress.annotations [object] Additional custom annotations for the ingress record
+      ##
+      annotations: {}
+
+      ## @param hoprdOperator.adminUI.ingress.extraPaths [array] An array with additional arbitrary paths that may need to be added to the ingress under the main host
+      ## e.g:
+      ## extraPaths:
+      ## - path: /*
+      ##   backend:
+      ##     service:
+      ##       name: other-service
+      ##       port:
+      ##         name: service-port-name
+      ##
+      extraPaths: []
+
+## @section Hopr Operator Parameters
 ##
 
-## @param nameOverride String to partially override common.names.fullname
-##
-nameOverride: ""
-## @param fullnameOverride String to fully override common.names.fullname
-##
-fullnameOverride: ""
+  hopli:
+    ## @param hoprdOperator.hopli.registry Docker registry to hopli image
+    ##
+    registry: europe-west3-docker.pkg.dev
 
-## @param environmentName Name of the environment
-##
-environmentName: ""
+    ## @param hoprdOperator.hopli.repository Docker image to hopli binary
+    ##
+    repository: hoprassociation/docker-images/hopli
 
-## @section Hopr AdminUI Parameters
-##
+    ## @param hoprdOperator.hopli.tag Docker image tag to hopli image
+    ##
+    tag: latest
 
-adminUI:
+  fastSync:
+    ## @param hoprdOperator.fastSync.enabled Enable Fast Sync
+    ## Required: true
+    enabled: false
 
-  ## @param adminUI.enabled Whether to install Hopr Admin UI
+    ## @param hoprdOperator.fastSync.bucketName Name of the bucket to store the logs
+    ## Required: true when fast-sync is enabled
+    bucketName: ""
+
+    ## @param hoprdOperator.fastSync.namespaces Allowed namespaces for uploading logs
+    namespaces: []
+
+    crossplane:
+      provider:
+        ## @param hoprdOperator.fastSync.crossplane.provider.crossplane Crossplane provider name for Crossplane
+        ##
+        crossplane: ""
+        ## @param hoprdOperator.fastSync.crossplane.provider.upbound Crossplane provider name for GCP
+        ##
+        upbound: ""
+
+      ## @param hoprdOperator.fastSync.crossplane.gcpProjectId GCP Project ID
+      ##
+      gcpProjectId: ""
+
+  ## @param hoprdOperator.defaultHoprdEnvVars Environment variables to be set in the Hoprd Nodes
   ##
-  enabled: true
+  defaultHoprdEnvVars: {}
+  # HOPRD_PROVIDER: http://localhost:8080/apiKey
 
-  ## @param adminUI.replicas Replicas for AdminUI deployment
-  ##
-  replicas: 1
-
-  ## @param adminUI.commonLabels [object] Labels to add to AdminUI deployment
-  ##
-  commonLabels: {}
-
-  ## @param adminUI.commonAnnotations [object] Annotations to AdminUI deployment
-  ##
-  commonAnnotations: {}
-
-  ## @param adminUI.nodeSelector Object containing node selection constraint to AdminUI deployment
-  ## https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#nodeselector
-  ##
-  nodeSelector: {}
-
-  ## @param adminUI.resources Resource specification to AdminUI deployment
+  ## @param hoprdOperator.resources Resource specification to operator deployment
   ##
   resources: {}
       # We usually recommend not to specify default resources and to leave this as a conscious
@@ -52,145 +157,7 @@ adminUI:
       #   cpu: 100m
       #   memory: 128Mi
 
-  ## @param adminUI.tolerations Tolerations specifications to AdminUI deployment
-  ##
-  tolerations: []
-
-  ## @param adminUI.affinity Affinity specifications to AdminUI deployment
-  ##
-  affinity: {}
-
-  image:
-    ## @param adminUI.image.registry Docker registry to AdminUI deployment
-    ##
-    registry: europe-west3-docker.pkg.dev
-
-    ## @param adminUI.image.repository Docker image repository to AdminUI deployment
-    ##
-    repository: hoprassociation/docker-images/hopr-admin
-
-    ## @param adminUI.image.tag Docker image tag to AdminUI deployment
-    ##
-    tag: stable
-
-    ## @param adminUI.image.pullPolicy Pull policy to AdminUI deployment as deinfed in 
-    ## ref: http://kubernetes.io/docs/user-guide/images/#pre-pulling-images
-    ##
-    pullPolicy: Always
-
-  ingress:
-
-    ## @param adminUI.ingress.enabled Enable ingress record generation
-    ##
-    enabled: true
-
-    ## @param adminUI.ingress.pathType Ingress path type
-    ##
-    pathType: ImplementationSpecific
-
-    ## @param adminUI.ingress.ingressClassName IngressClass that will be be used to implement the Ingress
-    ## This is supported in Kubernetes 1.18+ and required if you have more than one IngressClass marked as the default for your cluster.
-    ## ref: https://kubernetes.io/blog/2020/04/02/improvements-to-the-ingress-api-in-kubernetes-1.18/
-    ##
-    ingressClassName: ""
-
-    ## @param adminUI.ingress.hostname Default host for the ingress record
-    ##
-    hostname: admin.hoprd.cluster.local
-
-    ## @param adminUI.ingress.path Default path for the ingress record
-    ##
-    path: /
-
-    ## @param adminUI.ingress.annotations [object] Additional custom annotations for the ingress record
-    ##
-    annotations: {}
-
-    ## @param adminUI.ingress.extraPaths [array] An array with additional arbitrary paths that may need to be added to the ingress under the main host
-    ## e.g:
-    ## extraPaths:
-    ## - path: /*
-    ##   backend:
-    ##     service:
-    ##       name: other-service
-    ##       port:
-    ##         name: service-port-name
-    ##
-    extraPaths: []
-
-
-## @section Hopr Operator Parameters
-##
-
-operator:
-  ## @param operator.replicas Replicas for operator deployment
-  ##
-  replicas: 1
-
-  ## @param operator.strategy Strategy for operator deployment
-  ##
-  strategy: "Recreate"
-
-  hopli:
-    ## @param operator.hopli.registry Docker registry to hopli image
-    ##
-    registry: europe-west3-docker.pkg.dev
-
-    ## @param operator.hopli.repository Docker image to hopli binary
-    ##
-    repository: hoprassociation/docker-images/hopli
-
-    ## @param operator.hopli.tag Docker image tag to hopli image
-    ##
-    tag: latest
-
-  tokenAmount:
-    ## @param operator.tokenAmount.hopr Hopr token amount to fund nodes
-    ##
-    hopr: 10
-    ## @param operator.tokenAmount.native Native(xDAI) token amount to fund nodes
-    ##
-    native: 0.01
-
-  fastSync:
-    ## @param operator.fastSync.enabled Enable Fast Sync
-    ## Required: true
-    enabled: false
-
-    ## @param operator.fastSync.bucketName Name of the bucket to store the logs
-    ## Required: true when fast-sync is enabled
-    bucketName: ""
-
-    ## @param operator.fastSync.namespaces Allowed namespaces for uploading logs
-    namespaces: []
-
-    crossplane:
-      provider:
-        ## @param operator.fastSync.crossplane.provider.crossplane Crossplane provider name for Crossplane
-        ##
-        crossplane: ""
-        ## @param operator.fastSync.crossplane.provider.upbound Crossplane provider name for GCP
-        ##
-        upbound: ""
-
-      ## @param operator.fastSync.crossplane.gcpProjectId GCP Project ID
-      ##
-      gcpProjectId: ""
-
-  
-  ## @param operator.defaultHoprdEnvVars Environment variables to be set in the Hoprd Nodes
-  ##
-  defaultHoprdEnvVars: {}
-
-  ## @param operator.commonLabels [object] Labels to add to all operator related objects
-  ##
-  commonLabels: {}
-
-  ## @param operator.commonAnnotations [object] Annotations to to all operator related objects
-  ##
-  commonAnnotations: {}
-
-  ## @param operator.extraEnvVars Array of extra environment variables
+  ## @param hoprdOperator.extraEnvVars Array of extra environment variables
   ##
   extraEnvVars: []
   # extraEnvVars: 
@@ -199,153 +166,76 @@ operator:
   #   - name: RUST_LOG
   #     value: "hoprd_operator=INFO"
 
-  ingress:
-    ## @param operator.ingress.ingressClassName Name of the ingress class name to be used by Hoprd nodes
+  image:
+    ## @param hoprdOperator.image.registry Docker registry to operator deployment
     ##
-    ingressClassName: ""
+    registry: europe-west3-docker.pkg.dev
 
-    ## @param operator.ingress.dnsDomain Name of the DNS suffix domain to be added to Hoprd nodes
+    ## @param hoprdOperator.image.repository Docker image repository to operator deployment
+    ##
+    repository: hoprassociation/docker-images/hoprd-operator
+
+    ## @param hoprdOperator.image.tag Docker image tag to operator deployment
+    ##
+    tag: ""
+
+    ## @param hoprdOperator.image.pullPolicy Pull policy to operator deployment as defined in 
+    ## ref: http://kubernetes.io/docs/user-guide/images/#pre-pulling-images
+    ##
+    pullPolicy: Always
+
+  ingress:
+    ## @param hoprdOperator.ingress.ingressClassName Name of the ingress class name to be used by Hoprd nodes
+    ##
+    ingressClassName: "nginx"
+
+    ## @param hoprdOperator.ingress.dnsDomain Name of the DNS suffix domain to be added to Hoprd nodes
     ##
     dnsDomain: ""
 
-    ## @param operator.ingress.namespace Namespace of the running ingress controller
+    ## @param hoprdOperator.ingress.namespace Namespace of the running ingress controller
     ##
     namespace: ""
 
-    ## @param operator.ingress.annotations Annotations to be added to ingress resources of Hoprd nodes
-    ## @skip operator.ingress.annotations
+    ## @param hoprdOperator.ingress.annotations Annotations to be added to ingress resources of Hoprd nodes
+    ## @skip hoprdOperator.ingress.annotations
     ##
     annotations: {}
 
-    ## @param operator.ingress.loadBalancerIP Public IP of the LoadBalancer Service for the Ingress 
+    ## @param hoprdOperator.ingress.loadBalancerIP Public IP of the LoadBalancer Service for the Ingress 
     ##
     loadBalancerIP: ""
 
     ports:
-      ## @param operator.ingress.ports.min Starting port to open on Ingress controller
+      ## @param hoprdOperator.ingress.ports.min Starting port to open on Ingress controller
       ##
       min: 9000
 
-      ## @param operator.ingress.ports.max End port to open on Ingress controller
+      ## @param hoprdOperator.ingress.ports.max End port to open on Ingress controller
       ##
       max: 10000
 
-    ## @param operator.ingress.deploymentName Labels selector to choose the Nginx deployment and service
+    ## @param hoprdOperator.ingress.deploymentName Labels selector to choose the Nginx deployment and service
     ##
     deploymentName: ""
 
-  ## @param operator.nodeSelector Object containing node selection constraint to operator deployment
-  ## https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#nodeselector
-  ##
-  nodeSelector: {}
-
-  ## @param operator.resources Resource specification to operator deployment
-  ##
-  resources: {}
-      # We usually recommend not to specify default resources and to leave this as a conscious
-      # choice for the user. This also increases chances charts run on environments with little
-      # resources, such as Minikube. If you do want to specify resources, uncomment the following
-      # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
-      # limits:
-      #   cpu: 100m
-      #   memory: 128Mi
-      # requests:
-      #   cpu: 100m
-      #   memory: 128Mi
-
-  ## @param operator.tolerations Tolerations specifications to operator deployment
-  ##
-  tolerations: []
-
-  ## @param operator.affinity Affinity specifications to operator deployment
-  ##
-  affinity: {}
-
-  image:
-    ## @param operator.image.registry Docker registry to operator deployment
-    ##
-    registry: europe-west3-docker.pkg.dev
-
-    ## @param operator.image.repository Docker image repository to operator deployment
-    ##
-    repository: hoprassociation/docker-images/hoprd-operator
-
-    ## @param operator.image.tag Docker image tag to operator deployment
-    ##
-    tag: ""
-
-    ## @param operator.image.pullPolicy Pull policy to operator deployment as deinfed in 
-    ## ref: http://kubernetes.io/docs/user-guide/images/#pre-pulling-images
-    ##
-    pullPolicy: IfNotPresent
-
   persistence:
-    ## @param operator.persistence.size Size of the persistence Volume
+    ## @param hoprdOperator.persistence.size Size of the persistence Volume
     ##
     size: 500Mi
-    ## @param operator.persistence.storageClassName Name of the storage class
+    ## @param hoprdOperator.persistence.storageClassName Name of the storage class
     ##
     storageClassName: ""
 
-## @section Service Parameters
-##
+  webhook:
 
-service:
-
-  ## @param service.type service type
-  ##
-  type: ClusterIP
-  ports:
-
-    ## @param service.ports.http service HTTP port number
-    ##  
-    http: 8080
-
-    ## @param service.ports.name service HTTP port name
+    ## @param hoprdOperator.webhook.enabled Whether to enable the webhook server
     ##
-    name: http
-
-
-  nodePorts:
-
-    ## @param service.nodePorts.http Node port for HTTP
-    ## Specify the nodePort value for the LoadBalancer and NodePort service types
-    ## ref: https://kubernetes.io/docs/concepts/services-networking/service/#type-nodeport
-    ## NOTE: choose port between <30000-32767>
-    ##
-    http: ""
-
-  ## @param service.clusterIP service Cluster IP
-  ## e.g.:
-  ## clusterIP: None
-  ##
-  clusterIP: ""
-
-  ## @param service.loadBalancerIP service Load Balancer IP
-  ## ref: https://kubernetes.io/docs/concepts/services-networking/service/#type-loadbalancer
-  ##
-  loadBalancerIP: ""
-
-  ## @param service.loadBalancerSourceRanges [array] service Load Balancer sources
-  ## ref: https://kubernetes.io/docs/tasks/access-application-cluster/configure-cloud-provider-firewall/#restrict-access-for-loadbalancer-service
-  ## e.g:
-  ## loadBalancerSourceRanges:
-  ##   - 10.10.10.0/24
-  ##
-  loadBalancerSourceRanges: []
-
-  ## @param service.externalTrafficPolicy service external traffic policy
-  ## ref: http://kubernetes.io/docs/tasks/access-application-cluster/create-external-load-balancer/#preserving-the-client-source-ip
-  ##
-  externalTrafficPolicy: Cluster
-
-  ## @param service.sessionAffinity Control where client requests go, to the same pod or round-robin
-  ## Values: ClientIP or None
-  ## ref: https://kubernetes.io/docs/user-guide/services/
-  ##
-  sessionAffinity: None
-
-crds:
-  install: true
-
-
+    enabled: true
+    tls:
+      ## @param hoprdOperator.webhook.tls.crt TLS certificate for the webhook server
+      ##
+      crt: ""
+      ## @param hoprdOperator.webhook.tls.key TLS private key for the webhook server
+      ##
+      key: ""

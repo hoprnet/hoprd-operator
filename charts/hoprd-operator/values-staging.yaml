@@ -1,28 +1,39 @@
-environmentName: staging
-operator:
+hoprdOperator:
+  adminUI:
+    enabled: true
+    hostname: hoprd-v4.staging.hoprnet.link
+    image:
+      tag: 3.0.3
+    ingress:
+      annotations:
+        cert-manager.io/cluster-issuer: gcp-issuer
+        nginx.ingress.kubernetes.io/server-snippets: |
+            more_set_headers "Content-Security-Policy: upgrade-insecure-requests";
   persistence:
-    storageClassName: standard-rwo
+    size: 4Gi
+    storageClassName: regional-pd
+  image:
+    tag: latest
+  hopli:
+    tag: 2.2.3
   fastSync:
     enabled: true
     bucketName: logs-snapshots-rotsee.hoprnet.org
     namespaces:
       - core-team
+      - ctdapp
+      - demo-nodes
     crossplane:
       provider:
         crossplane: gcp-crossplane
         upbound: gcp-upbound
       gcpProjectId: hopr-staging
-
-  image:
-    tag: latest
-    pullPolicy: Always
   extraEnvVars: 
     - name: RUST_BACKTRACE
       value: full
     - name: RUST_LOG
       value: "hoprd_operator=DEBUG"
   ingress:
-    ingressClassName: nginx
     dnsDomain: staging.hoprnet.link
     annotations:
       nginx.ingress.kubernetes.io/enable-cors: "true"
@@ -34,10 +45,3 @@ operator:
     namespace: ingress-nginx
     loadBalancerIP: 34.159.20.69
     deploymentName: ingress-nginx-controller
-adminUI:
-  ingress:
-    ingressClassName: nginx
-    hostname: hoprd.staging.hoprnet.link
-    annotations:
-      nginx.ingress.kubernetes.io/server-snippets: |
-          more_set_headers "Content-Security-Policy: upgrade-insecure-requests";

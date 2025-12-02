@@ -1,170 +1,149 @@
 ## @section Common parameters
 ##
 
-## @param nameOverride String to partially override common.names.fullname
-##
-nameOverride: ""
-
-
-wallet:
+clusterHoprd:
   ##
-  ## @param wallet.deployerPrivateKey The staking wallet private key used to create identities and to auto fund nodes
+  ## @param clusterHoprd.enabled Running status of the nodes
   ##
-  deployerPrivateKey: ""
+  enabled: true
+
+  ## @param clusterHoprd.network Hoprd Network: rotsee, dufour
+  network: ""
 
   ##
-  ## @param wallet.identityPassword Password used by all identities defined bellow
+  ## @param clusterHoprd.replicas Number of instances
   ##
-  identityPassword: ""
+  replicas: 1
 
   ##
-  ## @param wallet.hoprdApiToken API Token used by all nodes of the cluster
+  ## @param clusterHoprd.version Hoprd node version to run
   ##
-  hoprdApiToken: ""
+  version: ""
 
-##
-## @param network Hoprd Network: rotsee, dufour
-##
-network: ""
-
-identityPool:
   funding:
     ##
-    ## @param identityPool.funding.enabled Enable cron auto-funding
+    ## @param clusterHoprd.funding.enabled Enable cron auto-funding
     ##
     enabled: false
 
     ##
-    ## @param identityPool.funding.schedule Cron schedule to run auto-funding job.
+    ## @param clusterHoprd.funding.deployerPrivateKey The staking wallet private key used to fund identities
+    deployerPrivateKey: ""
+
+    ##
+    ## @param clusterHoprd.funding.schedule Cron schedule to run auto-funding job.
     ##
     schedule: 0 1 * * 1
 
     ##
-    ## @param identityPool.funding.nativeAmount Number of xDai to fund each node
+    ## @param clusterHoprd.funding.nativeAmount Number of xDai to fund each node
     ##
     nativeAmount: 0.01
 
-  ##
-  ## @param identities Map of identities to create
-  ##
-identities: {}
-
-##
-## @param replicas Number of instances
-##
-replicas: 1
-
-##
-## @param version Hoprd node version to run
-##
-version: ""
-
-##
-## @param enabled Running status of the nodes
-##
-enabled: true
-
-##
-## @param supportedRelease The kind of supported release <saint-louis>
-##
-supportedRelease: ""
-
-##
-## @param forceIdentityName Forces identity names to be set in child Hopd resources
-##
-forceIdentityName: false
-
-##
-## @param deployment Deployment spec
-##
-deployment: {}
-
-profiling:
-  ##
-  ## @param profiling.enabled Enable perf profiling container
-  ##
-  enabled: false
-
-  ##
-  ## @param profiling.bucketName GCS Bucket name to store profiling data
-  ##
-  bucketName: "hoprd-operator-staging"
-
-  cpu:
+  nodes:
+    ## @param clusterHoprd.nodes.config Custom configuration for each node
+    ##
+    config: ""
 
     ##
-    ## @param profiling.cpu.sampleFrequency Frequency of samples per second
+    ## @param clusterHoprd.nodes.identityPassword Password used by all identities defined bellow
     ##
-    sampleFrequency: 99
-
-    ## @param profiling.cpu.sampleDuration Duration of profiling in seconds
-    ##
-    sampleDuration: 60
-
-  memory:
-
-    ## @param profiling.memory.samples Number of memory samples to generate
-    ##
-    samples: 10
+    identityPassword: ""
 
     ##
-    ## @param profiling.memory.interval Interval in seconds between memory samples
-    interval: 15
+    ## @param clusterHoprd.nodes.hoprdApiToken API Token used by all nodes of the cluster
+    ##
+    hoprdApiToken: ""
 
+    ##
+    ## @param clusterHoprd.nodes.deployment Deployment spec
+    ##
+    deployment: {}
 
+    service:
+      ##
+      ## @param clusterHoprd.nodes.service.type Service Type
+      ##
+      type: "ClusterIP"
 
-##
-## @param portsAllocation Ports allocation
-##
-portsAllocation: 10
+      ##
+      ## @param clusterHoprd.nodes.service.portsAllocation Ports allocation
+      ##
+      portsAllocation: 10
 
-service:
-  ##
-  ## @param service.type Service Type
-  ##
-  type: "ClusterIP"
+    ##
+    ## @param clusterHoprd.nodes.replicateEnvVars Override param clusterHoprd.nodes.envVars with default values provided by Hoprd Operator
+    ##
+    replicateEnvVars: false
 
+    ## @param clusterHoprd.nodes.replicateEnvVarsName Namespace/Name of the Secret to replicate when replicateEnvVars is true
+    replicateEnvVarsName: "hoprd-operator/hoprd-operator-v4-default-env-vars"
 
-##
-## @param config Custom configuration of nodes
-##
-config: ""
-
-replicateDefaultEnvSecret:
-  ##
-  ## @param replicateDefaultEnvSecret.enabled Enable secret replication
-  ##
-  enabled: true
-
-
-defaultHoprdEnvVars:
-  ##
-  ## @param defaultHoprdEnvVars.HOPRD_PROVIDER RPC Provider to use by default to all hoprd nodes
-  ##
-  HOPRD_PROVIDER: https://gnosis-rpc.publicnode.com
-
-logs:
-  download:
-    ## @param logs.download.enabled Enable downloading logs from trusted source
+    ##
+    ## @param clusterHoprd.nodes.envVars Environment variables to set in Hoprd nodes
+    ##
+    envVars: {}
+    # envVars:
+    #   HOPRD_PROVIDER: https://gnosis.drpc.org
+  profiling:
+    ##
+    ## @param clusterHoprd.profiling.enabled Enable perf profiling container
+    ##
     enabled: false
 
-    ## @param logs.download.snapshotUrl URL to the trusted source of logs
-    snapshotUrl: ""
+    ##
+    ## @param clusterHoprd.profiling.bucketName GCS Bucket name to store profiling data
+    ##
+    bucketName: "hoprd-operator-staging"
 
-  upload:
-    ## @param logs.upload.enabled Enable publishing logs to GCS
-    enabled: false
+    cpu:
 
-    ## @param logs.upload.bucketName Name of the bucket to store the logs
-    bucketName: ""
+      ##
+      ## @param clusterHoprd.profiling.cpu.sampleFrequency Frequency of samples per second
+      ##
+      sampleFrequency: 99
 
-    ## @param logs.upload.schedule Schedule for uploading logs
-    ## Format: Cron expression (5 fields)
-    ## Example: "0 0 * * *" (daily at midnight)
-    schedule: "0 0 * * *"
+      ## @param clusterHoprd.profiling.cpu.sampleDuration Duration of profiling in seconds
+      ##
+      sampleDuration: 60
 
-    ## @param logs.upload.sourceNode Name of the hoprd node deployment use as source
-    sourceNode: ""
+    memory:
 
-    ## @param logs.upload.logsFileName Name of the logs file to upload. It should be extension like .tar.xz
-    logsFileName: ""
+      ## @param clusterHoprd.profiling.memory.samples Number of memory samples to generate
+      ##
+      samples: 10
+
+      ##
+      ## @param clusterHoprd.profiling.memory.interval Interval in seconds between memory samples
+      interval: 15
+
+  ##
+  ## @param clusterHoprd.identities Map of identities to create
+  ##
+  identities: {}
+
+  logs:
+    download:
+      ## @param clusterHoprd.logs.download.enabled Enable downloading logs from trusted source
+      enabled: false
+
+      ## @param clusterHoprd.logs.download.snapshotUrl URL to the trusted source of logs
+      snapshotUrl: ""
+
+    upload:
+      ## @param clusterHoprd.logs.upload.enabled Enable publishing logs to GCS
+      enabled: false
+
+      ## @param clusterHoprd.logs.upload.bucketName Name of the bucket to store the logs
+      bucketName: ""
+
+      ## @param clusterHoprd.logs.upload.schedule Schedule for uploading logs
+      ## Format: Cron expression (5 fields)
+      ## Example: "0 0 * * *" (daily at midnight)
+      schedule: "0 0 * * *"
+
+      ## @param clusterHoprd.logs.upload.sourceNode Name of the hoprd node deployment use as source
+      sourceNode: ""
+
+      ## @param clusterHoprd.logs.upload.logsFileName Name of the logs file to upload. It should be extension like .tar.xz
+      logsFileName: ""
