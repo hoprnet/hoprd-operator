@@ -7,7 +7,7 @@ use std::{env, io::BufReader, net::SocketAddr};
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 use rustls::crypto::ring::default_provider;
-use tracing::{debug, error, info, warn};
+use tracing::{trace, error, info, warn};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value};
 use tokio::net::TcpStream;
@@ -120,13 +120,13 @@ async fn add_observed_generation(resource: &mut Value) -> Result<(), String> {
         .and_then(|m| m.get("generation"))
         .cloned()
         .unwrap_or(Value::Number(0.into()));
-    //debug!("Setting observedGeneration to {:?}", observed_generation);
+    trace!("Setting observedGeneration to {:?}", observed_generation);
     let status = resource.get_mut("status").ok_or("Missing 'status' field in v3 object")?;
     let status_obj = status.as_object_mut().ok_or("Status is not a JSON object")?;
-    //debug!("Current status object before update: {:?}", status_obj);
+    trace!("Current status object before update: {:?}", status_obj);
     status_obj.insert("observedGeneration".to_owned(), observed_generation);
     status_obj.remove("checksum");
-    //debug!("Updated status object after insert: {:?}", status_obj);
+    trace!("Updated status object after insert: {:?}", status_obj);
     Ok(())
 }
 
@@ -171,7 +171,7 @@ async fn add_old_updated_timestamp(resource: &mut Value) -> Result<(), String> {
 }
 
 async fn convert_cluster_hoprd_v2_to_v3(resource: &mut Value) -> Result<(), String> {
-    //debug!("Convert clusterHoprd: v1alpha2 -> v1alpha3");
+    trace!("Convert clusterHoprd: v1alpha2 -> v1alpha3");
 
     let spec = resource
         .get_mut("spec")
@@ -206,7 +206,7 @@ async fn convert_cluster_hoprd_v2_to_v3(resource: &mut Value) -> Result<(), Stri
 }
 
 async fn convert_cluster_hoprd_v3_to_v2(resource: &mut Value) -> Result<(), String> {
-    //debug!("Convert clusterHoprd: v1alpha3 -> v1alpha2");
+    trace!("Convert clusterHoprd: v1alpha3 -> v1alpha2");
 
     let spec = resource
         .get_mut("spec")
@@ -239,7 +239,7 @@ async fn convert_cluster_hoprd_v3_to_v2(resource: &mut Value) -> Result<(), Stri
 }
 
 async fn convert_hoprd_v2_to_v3(resource: &mut Value) -> Result<(), String> {
-    //debug!("Convert hoprd: v1alpha2 -> v1alpha3");
+    trace!("Convert hoprd: v1alpha2 -> v1alpha3");
 
     let spec = resource
         .get_mut("spec")
@@ -270,7 +270,7 @@ async fn convert_hoprd_v2_to_v3(resource: &mut Value) -> Result<(), String> {
 }
 
 async fn convert_hoprd_v3_to_v2(resource: &mut Value) -> Result<(), String> {
-    //debug!("Convert hoprd: v1alpha3 -> v1alpha2");
+    trace!("Convert hoprd: v1alpha3 -> v1alpha2");
 
     let spec = resource
         .get_mut("spec")
@@ -298,7 +298,7 @@ async fn convert_hoprd_v3_to_v2(resource: &mut Value) -> Result<(), String> {
 }
 
 async fn convert_identity_hoprd_v2_to_v3(resource: &mut Value) -> Result<(), String> {
-    //debug!("Convert identityHoprd: v1alpha2 -> v1alpha3");
+    trace!("Convert identityHoprd: v1alpha2 -> v1alpha3");
 
     let spec = resource
         .get_mut("spec")
@@ -309,7 +309,7 @@ async fn convert_identity_hoprd_v2_to_v3(resource: &mut Value) -> Result<(), Str
 
     // Rename spec.nativeAddress to spec.nodeAddress
     if let Some(native_address) = spec_obj.remove("nativeAddress") {
-        //debug!("Renaming spec.nativeAddress to spec.nodeAddress");
+        trace!("Renaming spec.nativeAddress to spec.nodeAddress");
         spec_obj.insert("nodeAddress".to_string(), native_address);
     } else {
         warn!("spec.nativeAddress missing; adding placeholder nativeAddress");
@@ -317,7 +317,7 @@ async fn convert_identity_hoprd_v2_to_v3(resource: &mut Value) -> Result<(), Str
     }
 
     // Remove spec.peerId if present
-    //debug!("Removing spec.peerId if present");
+    trace!("Removing spec.peerId if present");
     spec_obj.remove("peerId");
 
     add_observed_generation(resource).await?;
@@ -327,7 +327,7 @@ async fn convert_identity_hoprd_v2_to_v3(resource: &mut Value) -> Result<(), Str
 }
 
 async fn convert_identity_hoprd_v3_to_v2(resource: &mut Value) -> Result<(), String> {
-    //debug!("Convert identityHoprd: v1alpha3 -> v1alpha2");
+    trace!("Convert identityHoprd: v1alpha3 -> v1alpha2");
 
     let spec = resource
         .get_mut("spec")
@@ -354,7 +354,7 @@ async fn convert_identity_hoprd_v3_to_v2(resource: &mut Value) -> Result<(), Str
 }
 
 async fn convert_identity_pool_v2_to_v3(resource: &mut Value) -> Result<(), String> {
-    //debug!("Convert identityPool: v1alpha2 -> v1alpha3");
+    trace!("Convert identityPool: v1alpha2 -> v1alpha3");
     add_observed_generation(resource).await?;
     add_new_updated_timestamp(resource).await?;
     debug!("Converted identityPool v2 to v3: {:?}", resource);
@@ -362,7 +362,7 @@ async fn convert_identity_pool_v2_to_v3(resource: &mut Value) -> Result<(), Stri
 }
 
 async fn convert_identity_pool_v3_to_v2(resource: &mut Value) -> Result<(), String> {
-    //debug!("Convert identityPool: v1alpha3 -> v1alpha2");
+    trace!("Convert identityPool: v1alpha3 -> v1alpha2");
     add_status_checksum(resource).await?;
     add_old_updated_timestamp(resource).await?;
     Ok(())
@@ -396,7 +396,7 @@ async fn convert_v3_to_v2(resource: &mut Value) -> Result<(), String> {
 
 // Conversion handler
 async fn convert(Json(request): Json<ConversionRequest>) -> impl IntoResponse {
-    //debug!("Received conversion request: {:?}", request);
+    trace!("Received conversion request: {:?}", request);
     let mut response_inner = ConversionResponseInner {
         uid: request.request.uid.clone(),
         converted_objects: vec![],
@@ -408,7 +408,7 @@ async fn convert(Json(request): Json<ConversionRequest>) -> impl IntoResponse {
 
     for obj in request.request.objects {
         let mut resource = obj.clone();
-        //debug!("Converting resource: {:?}", resource);
+        trace!("Converting resource: {:?}", resource);
 
         let conversion_result = match request.request.desired_apiversion.as_str() {
             "hoprnet.org/v1alpha2" => Ok(convert_v3_to_v2(&mut resource).await),
@@ -429,7 +429,7 @@ async fn convert(Json(request): Json<ConversionRequest>) -> impl IntoResponse {
         resource["apiVersion"] = serde_json::Value::String(request.request.desired_apiversion.clone());
         response_inner.converted_objects.push(resource);
     }
-    //debug!("Conversion completed successfully with {:?}", response_inner.converted_objects);
+    trace!("Conversion completed successfully with {:?}", response_inner.converted_objects);
     Json(ConversionResponse {
         api_version: "apiextensions.k8s.io/v1".to_string(),
         kind: "ConversionReview".to_string(),
