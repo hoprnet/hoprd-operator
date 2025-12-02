@@ -1,0 +1,129 @@
+---
+
+name: 'Package Helm chart CRDs'
+
+on:
+  pull_request:
+    types:
+      - opened
+      - synchronize
+      - ready_for_review
+    branches:
+      - master
+    paths:
+      - "charts/hoprd-crds/**"
+concurrency:
+  group: ${{ github.head_ref }}-crds
+  cancel-in-progress: true
+jobs:
+  bump_version:
+    name: Bump version
+    runs-on: self-hosted-hoprnet-small
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Bump Chart version
+        id: bumping_version
+        run: |
+          helm_chart_version=$(grep '^version:' Chart.yaml | sed 's/.*: //')
+          git_tag=$(git tag -l helm-hoprd-crds-${helm_chart_version})
+          echo "Workspace version is helm-hoprd-crds-${helm_chart_version} while tagged is ${git_tag}"
+          if [ "${git_tag}" = "helm-hoprd-crds-${helm_chart_version}" ]; then
+            patch_number=$(echo $helm_chart_version | sed 's/.*\.//')
+            release_number=$(echo $helm_chart_version | sed "s/\.${patch_number}//")
+            bump_version=${release_number}.$((patch_number + 1))
+            echo "The helm chart version ${git_tag} already exists, bumping to version helm-hoprd-crds-${bump_version}";
+            sed -i "s/^version: ${helm_chart_version}/version: ${bump_version}/" Chart.yaml
+            echo "bumped_version=true" >> $GITHUB_OUTPUT
+          fi
+        working-directory: 'charts/hoprd-crds/'
+
+      - name: Commit and push
+        if: ${{ steps.bumping_version.outputs.bumped_version }}
+        uses: stefanzweifel/git-auto-commit-action@v6
+        with:
+          commit_message: "Bump Helm chart version to ${{ steps.bumping_version.outputs.bumped_version }}"
+          repository: .
+          commit_user_name: HOPR CI robot
+          commit_user_email: noreply@hoprnet.org
+          commit_author: HOPR CI robot <noreply@hoprnet.org>
+          skip_fetch: false
+          skip_checkout: false
+          create_branch: false
+
+  lint:
+    name: Lint
+    runs-on: self-hosted-hoprnet-small
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: latest
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Lint
+        run: helm lint -f ./values-staging.yaml .
+        working-directory: 'charts/hoprd-crds/'
+
+  package:
+    name: Package Helm Chart
+    runs-on: self-hosted-hoprnet-small
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: latest
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Get Helm chart version
+        id: get_version
+        run: |
+          HELM_CHART_VERSION=$(grep '^version:' Chart.yaml | sed 's/.*: //')
+          echo "HELM_CHART_VERSION=${HELM_CHART_VERSION}" >> $GITHUB_OUTPUT
+        working-directory: 'charts/hoprd-crds/'
+
+      - name: Helm Package
+        run: helm package . --version ${{ steps.get_version.outputs.HELM_CHART_VERSION }}
+        working-directory: 'charts/hoprd-crds/'
+
+  generate-readme:
+    name: Generate Readme
+    runs-on: self-hosted-hoprnet-small
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup NodeJs
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install readme-generator-for-helm
+        run: npm install -g @bitnami/readme-generator-for-helm@2.5.0
+
+      - name: Execute readme-generator-for-helm
+        id: generator
+        run: |
+          readme-generator --values "charts/hoprd-crds/values.yaml" --readme "charts/hoprd-crds/README.md" --schema "/tmp/schema.json"
+          if git status -s | grep charts; then
+            echo "readme_updated=true" >>  $GITHUB_OUTPUT
+          fi
+
+      - name: Commit and push
+        if: ${{ steps.generator.outputs.readme_updated }}
+        uses: stefanzweifel/git-auto-commit-action@v6
+        with:
+          commit_message: Update parameters README.md
+          repository: .
+          commit_user_name: HOPR CI robot
+          commit_user_email: noreply@hoprnet.org
+          commit_author: HOPR CI robot <noreply@hoprnet.org>
