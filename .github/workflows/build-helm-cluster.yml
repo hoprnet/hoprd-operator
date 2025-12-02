@@ -13,7 +13,7 @@ on:
     paths:
       - "charts/cluster-hoprd/**"
 concurrency:
-  group: ${{ github.head_ref }}-cluster
+  group: ${{ github.head_ref }}-cluster-build
   cancel-in-progress: true
 jobs:
   bump_version:

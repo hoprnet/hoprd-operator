@@ -9,7 +9,7 @@ on:
     paths:
       - "charts/hoprd-operator/**"
 concurrency:
-  group: ${{ github.head_ref }}-operator
+  group: ${{ github.head_ref }}-operator-publish
   cancel-in-progress: false
 jobs:
   publish:
