@@ -1,5 +1,5 @@
 use k8s_openapi::NamespaceResourceScope;
-use tracing::{debug};
+use tracing::{debug, error};
 use std::{collections::BTreeMap, sync::Arc};
 use tokio::sync::RwLock;
 
@@ -41,9 +41,13 @@ impl ContextData {
         }
     }
 
-    pub async fn sync_identities(context_data: Arc<ContextData>) {
+    pub async fn sync_identities(context_data: Arc<ContextData>) -> Result<(), String> {
         let api_identities: Api<IdentityHoprd> = Api::all(context_data.client.clone());
-        let identities = api_identities.list(&ListParams::default()).await.unwrap().items.clone();
+        let identities = api_identities.list(&ListParams::default()).await
+            .map_err(|e| {
+                error!("Could not fetch IdentityHoprd: {}", e);
+                "Could not fetch IdentityHoprd".to_string()
+            })?.items.clone();
         let api_hoprd = Api::<Hoprd>::all(context_data.client.clone());
         let all_hoprds: Vec<String> = api_hoprd
             .list(&ListParams::default())
@@ -66,6 +70,7 @@ impl ContextData {
                 }
             }
         }
+        Ok(())
     }
 
     pub async fn send_event<T: Resource<Scope = NamespaceResourceScope, DynamicType = ()>, K: ResourceEvent>(&self, resource: &T, event: K, attribute: Option<String>) {

@@ -19,5 +19,5 @@ persistence:
   size: 4Gi
   storage_class_name: standard-rwo
 webhook:
-  crt_file: /test-data/tls.crt
-  key_file: /test-data/tls.key
+  crt_file: test-data/tls.crt
+  key_file: test-data/tls.key

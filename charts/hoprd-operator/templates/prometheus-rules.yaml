@@ -5,7 +5,7 @@ metadata:
     prometheus-operator-validated: "true"
   labels:
     prometheus_rule: "true"
-  name: {{ include "hoprd-operator.fullname" . }}-node-rules
+  name: "{{ include "hoprd-operator.fullname" . }}-node-rules"
 spec:
   groups:
   - name: hoprd-nodes

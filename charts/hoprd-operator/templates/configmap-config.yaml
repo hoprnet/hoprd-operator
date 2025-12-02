@@ -12,20 +12,18 @@ data:
       name: {{ include "hoprd-operator.fullname" . | quote }}
       namespace: {{ .Release.Namespace | quote }}
     ingress:
-      ingress_class_name: "{{- .Values.hoprdOperator.ingress.ingressClassName }}"
-      dns_domain: "{{- .Values.hoprdOperator.ingress.dnsDomain }}"
+      ingress_class_name: {{ .Values.hoprdOperator.ingress.ingressClassName | quote }}
+      dns_domain: {{ .Values.hoprdOperator.ingress.dnsDomain | quote }}
       loadbalancer_ip: {{ required "The hoprdOperator.ingress.loadBalancerIP value is required!" .Values.hoprdOperator.ingress.loadBalancerIP }}
-      namespace: "{{- .Values.hoprdOperator.ingress.namespace }}"
+      namespace: {{ .Values.hoprdOperator.ingress.namespace | quote }}
       port_min: {{ .Values.hoprdOperator.ingress.ports.min }}
       port_max: {{ .Values.hoprdOperator.ingress.ports.max }}
-      deployment_name: "{{- .Values.hoprdOperator.ingress.deploymentName }}"
+      deployment_name: {{ .Values.hoprdOperator.ingress.deploymentName | quote }}
       annotations: {{- .Values.hoprdOperator.ingress.annotations | toYaml | nindent 8 }}
     hopli_image: {{ printf "%s/%s:%s" .Values.hoprdOperator.hopli.registry .Values.hoprdOperator.hopli.repository .Values.hoprdOperator.hopli.tag | quote }}
     persistence:
-      size: "{{- .Values.hoprdOperator.persistence.size }}"
-      storage_class_name:  "{{- .Values.hoprdOperator.persistence.storageClassName }}"
+      size: {{ .Values.hoprdOperator.persistence.size | quote }}
+      storage_class_name:  {{ .Values.hoprdOperator.persistence.storageClassName | quote }}
     webhook:
       crt_file: /tls/tls.crt
       key_file: /tls/tls.key
-
-    

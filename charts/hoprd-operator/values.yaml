@@ -40,8 +40,7 @@ hoprdOperator:
       ##
       tag: stable
 
-      ## @param hoprdOperator.adminUI.image.pullPolicy Pull policy to AdminUI deployment as deinfed in 
-      ## ref: http://kubernetes.io/docs/user-guide/images/#pre-pulling-images
+      ## @param hoprdOperator.adminUI.image.pullPolicy Pull policy to AdminUI deployment as defined in 
       ##
       pullPolicy: Always
 
@@ -180,7 +179,7 @@ hoprdOperator:
     ##
     tag: ""
 
-    ## @param hoprdOperator.image.pullPolicy Pull policy to operator deployment as deinfed in 
+    ## @param hoprdOperator.image.pullPolicy Pull policy to operator deployment as defined in 
     ## ref: http://kubernetes.io/docs/user-guide/images/#pre-pulling-images
     ##
     pullPolicy: Always

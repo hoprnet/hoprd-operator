@@ -1,8 +1,7 @@
 # Login into GCP Artifact Registry for Helm charts
 login:
   #!/usr/bin/env bash
-  token=$(gcloud auth print-access-token)
-  helm registry login -u oauth2accesstoken --password "$token" https://europe-west3-docker.pkg.dev
+  gcloud auth print-access-token | helm registry login -u oauth2accesstoken --password-stdin https://europe-west3-docker.pkg.dev
 
 # Start a debugging session by opening a port-forward to the hoprd-operator pod
 debug:

@@ -119,7 +119,7 @@ spec:
               - version
               - identityPoolName
               - identityName
-              - portsAllocation
+              - service
               type: object
             status:
               description: The status object of Hoprd node
@@ -129,7 +129,7 @@ spec:
                   description: Name of the HoprdNode
                   type: string
                 observedGeneration:
-                  description: The current applied metadata.generation specificaction
+                  description: The current applied metadata.generation specification
                   type: number
                 phase:
                   description: Phase of the last applied change

@@ -81,7 +81,7 @@ spec:
                   description: Name of the HoprdNode
                   type: string
                 observedGeneration:
-                  description: The current applied metadata.generation specificaction
+                  description: The current applied metadata.generation specification
                   type: number
                 phase:
                   description: Phase of the last applied change

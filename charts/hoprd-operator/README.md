@@ -37,7 +37,7 @@ Chart version `Chart.yaml` should be increased according to [semver](http://semv
 | `hoprdOperator.adminUI.image.registry`           | Docker registry to AdminUI deployment                                                                 | `europe-west3-docker.pkg.dev`              |
 | `hoprdOperator.adminUI.image.repository`         | Docker image repository to AdminUI deployment                                                         | `hoprassociation/docker-images/hopr-admin` |
 | `hoprdOperator.adminUI.image.tag`                | Docker image tag to AdminUI deployment                                                                | `stable`                                   |
-| `hoprdOperator.adminUI.image.pullPolicy`         | Pull policy to AdminUI deployment as deinfed in                                                       | `Always`                                   |
+| `hoprdOperator.adminUI.image.pullPolicy`         | Pull policy to AdminUI deployment as defined in                                                       | `Always`                                   |
 | `hoprdOperator.adminUI.service.type`             | service type                                                                                          | `ClusterIP`                                |
 | `hoprdOperator.adminUI.service.ports.http`       | service HTTP port number                                                                              | `8080`                                     |
 | `hoprdOperator.adminUI.service.ports.name`       | service HTTP port name                                                                                | `http`                                     |
@@ -68,7 +68,7 @@ Chart version `Chart.yaml` should be increased according to [semver](http://semv
 | `hoprdOperator.image.registry`                          | Docker registry to operator deployment                      | `europe-west3-docker.pkg.dev`                  |
 | `hoprdOperator.image.repository`                        | Docker image repository to operator deployment              | `hoprassociation/docker-images/hoprd-operator` |
 | `hoprdOperator.image.tag`                               | Docker image tag to operator deployment                     | `""`                                           |
-| `hoprdOperator.image.pullPolicy`                        | Pull policy to operator deployment as deinfed in            | `Always`                                       |
+| `hoprdOperator.image.pullPolicy`                        | Pull policy to operator deployment as defined in            | `Always`                                       |
 | `hoprdOperator.ingress.ingressClassName`                | Name of the ingress class name to be used by Hoprd nodes    | `nginx`                                        |
 | `hoprdOperator.ingress.dnsDomain`                       | Name of the DNS suffix domain to be added to Hoprd nodes    | `""`                                           |
 | `hoprdOperator.ingress.namespace`                       | Namespace of the running ingress controller                 | `""`                                           |

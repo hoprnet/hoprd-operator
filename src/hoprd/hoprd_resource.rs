@@ -400,7 +400,7 @@ impl Hoprd {
         match &self.status {
             Some(_) => {
                 let api: Api<IdentityHoprd> = Api::namespaced(client.clone(), &self.namespace().unwrap());
-                Ok(api.get_opt(&self.name_any()).await?)
+                Ok(api.get_opt(&self.spec.identity_name).await?)
             }
             None => {
                 warn!("HoprdNode {} has empty status", &self.name_any());
@@ -408,6 +408,7 @@ impl Hoprd {
             }
         }
     }
+
     // Wait for the Hoprd deployment to be created
     pub async fn wait_deployment(&self, client: Client) -> Result<(), Error> {
         if self.spec.enabled.unwrap_or(true) {

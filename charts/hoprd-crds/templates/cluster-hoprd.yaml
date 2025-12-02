@@ -126,7 +126,7 @@ spec:
                 - replicas
                 - config
                 - version
-                - portsAllocation
+                - service
               type: object
             status:
               description: The status object of ClusterHord node
@@ -136,7 +136,7 @@ spec:
                   description: Number of nodes running
                   type: number
                 observedGeneration:
-                  description: The current applied metadata.generation specificaction
+                  description: The current applied metadata.generation specification
                   type: number
                 phase:
                   description: Phase of the last applied change

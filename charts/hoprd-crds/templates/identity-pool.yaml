@@ -50,7 +50,7 @@ spec:
         type: date
       schema:
         openAPIV3Schema:
-          description: Schema definition for Identity Hoprd
+          description: Schema definition for Identity Pool
           properties:
             spec:
               properties:
@@ -84,7 +84,7 @@ spec:
                   description: Amount of locked identities
                   type: number
                 observedGeneration:
-                  description: The current applied metadata.generation specificaction
+                  description: The current applied metadata.generation specification
                   type: number
                 phase:
                   description: Phase of the last applied change
@@ -133,7 +133,7 @@ spec:
         type: date
       schema:
         openAPIV3Schema:
-          description: Schema definition for Identity Hoprd
+          description: Schema definition for Identity Pool
           properties:
             spec:
               properties:

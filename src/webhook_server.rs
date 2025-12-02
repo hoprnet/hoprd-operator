@@ -1,6 +1,6 @@
+use anyhow::Error;
 use axum::{Json, Router, response::IntoResponse, routing::post};
 use axum_server::{tls_rustls::{RustlsConfig, bind_rustls}};
-use chrono::Utc;
 use rustls::{ServerConfig, pki_types::{CertificateDer, PrivateKeyDer}};
 use rustls_pemfile::{certs, pkcs8_private_keys};
 use std::{env, io::BufReader, net::SocketAddr};
@@ -49,12 +49,11 @@ struct StatusResult {
     message: Option<String>,
 }
 
-pub async fn wait_for_webhook_ready() -> Result<(), String> {
+async fn wait_for_webhook_ready() -> Result<(), String> {
     let addr = "127.0.0.1:8443";  // use localhost, not 0.0.0.0
-    info!("Waiting for webhook to be ready at {}", addr);
+    info!("Waiting for webhook to be ready");
     for _ in 0..50 {
         if TcpStream::connect(addr).await.is_ok() {
-            info!("Webhook is ready at {}", addr);
             return Ok(());
         }
         sleep(Duration::from_millis(100)).await;
@@ -63,12 +62,15 @@ pub async fn wait_for_webhook_ready() -> Result<(), String> {
     Err(format!("Webhook did not start on {}", addr))
 }
 
-fn load_rustls_config(cert_path: &str, key_path: &str) -> anyhow::Result<ServerConfig> {
+fn load_rustls_config(cert_path: &str, key_path: &str) -> Result<ServerConfig, Error> {
     // Install the ring crypto provider globally
     default_provider().install_default().expect("Install ring provider");
 
     // Load certificate chain
-    let dir = env::current_dir().as_ref().unwrap().to_str().unwrap().to_owned();
+    let dir = env::current_dir()?
+        .to_str()
+        .ok_or_else(|| anyhow::anyhow!("Invalid UTF-8 in current directory path"))?
+        .to_owned();
     let cert_path = format!("{}/{}", dir.clone(), cert_path);
     let cert_file = std::fs::File::open(&cert_path).expect(format!("Could not open cert file: {}", cert_path).as_str());
     let mut cert_reader = BufReader::new(cert_file);
@@ -85,7 +87,7 @@ fn load_rustls_config(cert_path: &str, key_path: &str) -> anyhow::Result<ServerC
     let mut keys_raw = pkcs8_private_keys(&mut key_reader)
         .collect::<Result<Vec<_>, _>>()?;
     if keys_raw.is_empty() {
-        anyhow::bail!("No private keys found in {}", key_path);
+        return Err(anyhow::anyhow!("No private keys found in {}", key_path));
     }
     let key = PrivateKeyDer::Pkcs8(keys_raw.remove(0).into());
 
@@ -107,12 +109,25 @@ pub async fn run_webhook_server(webhook_config:WebhookConfig) {
     info!("Starting webhook server with TLS");
     let server_config: ServerConfig = load_rustls_config(webhook_config.crt_file.as_str(), webhook_config.key_file.as_str()).expect("Invalid TLS");
     let tls_config = RustlsConfig::from_config(server_config.into());
-    bind_rustls(addr, tls_config)
-        .serve(app.into_make_service())
-        .await
-        .unwrap();
+    // Spawn the server in a background task
+    let server_handle = tokio::spawn(async move {
+        bind_rustls(addr, tls_config)
+            .serve(app.into_make_service())
+            .await
+    });
 
-    info!("hoprd-operator conversion webhook listening on {}", addr);
+    // Wait for the server to be ready
+    match wait_for_webhook_ready().await {
+        Ok(_) => info!("Webhook server is ready and listening on {}", addr),
+        Err(e) => error!("Failed to start webhook server: {}", e),
+    }
+    
+    // Wait for the server to complete (or error)
+    match server_handle.await {
+        Ok(Ok(())) => info!("Webhook server stopped gracefully"),
+        Ok(Err(e)) => error!("Webhook server stopped with error: {}", e),
+        Err(e) => error!("Webhook server task panicked: {}", e),
+    }
 }
 
 async fn add_observed_generation(resource: &mut Value) -> Result<(), String> {
@@ -175,7 +190,7 @@ async fn convert_cluster_hoprd_v2_to_v3(resource: &mut Value) -> Result<(), Stri
 
     let spec = resource
         .get_mut("spec")
-        .ok_or("Missing 'spec' field in IdentityHoprd v3 object")?;
+        .ok_or("Missing 'spec' field in ClusterHoprd v3 object")?;
 
     let spec_obj = spec
         .as_object_mut()
@@ -210,7 +225,7 @@ async fn convert_cluster_hoprd_v3_to_v2(resource: &mut Value) -> Result<(), Stri
 
     let spec = resource
         .get_mut("spec")
-        .ok_or("Missing 'spec' field in IdentityHoprd v3 object")?;
+        .ok_or("Missing 'spec' field in ClusterHoprd v3 object")?;
 
     let spec_obj = spec
         .as_object_mut()
@@ -243,7 +258,7 @@ async fn convert_hoprd_v2_to_v3(resource: &mut Value) -> Result<(), String> {
 
     let spec = resource
         .get_mut("spec")
-        .ok_or("Missing 'spec' field in IdentityHoprd v3 object")?;
+        .ok_or("Missing 'spec' field in Hoprd v3 object")?;
     let spec_obj = spec
         .as_object_mut()
         .ok_or("Spec is not a JSON object")?;
@@ -274,7 +289,7 @@ async fn convert_hoprd_v3_to_v2(resource: &mut Value) -> Result<(), String> {
 
     let spec = resource
         .get_mut("spec")
-        .ok_or("Missing 'spec' field in IdentityHoprd v3 object")?;
+        .ok_or("Missing 'spec' field in Hoprd v3 object")?;
     let spec_obj = spec
         .as_object_mut()
         .ok_or("Spec is not a JSON object")?;
