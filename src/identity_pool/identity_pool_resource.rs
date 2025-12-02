@@ -47,6 +47,7 @@ pub struct IdentityPoolFunding {
 #[serde(rename_all = "camelCase")]
 pub struct IdentityPoolStatus {
     // pub update_timestamp: String,
+    pub update_timestamp_new: String,
     pub phase: IdentityPoolPhaseEnum,
     pub size: i32,
     pub locked: i32,
@@ -57,6 +58,7 @@ impl Default for IdentityPoolStatus {
     fn default() -> Self {
         Self {
             // update_timestamp: Utc::now().to_rfc3339(),
+            update_timestamp_new: Utc::now().to_rfc3339(),
             phase: IdentityPoolPhaseEnum::Initialized,
             size: 0,
             locked: 0,
@@ -266,6 +268,7 @@ impl IdentityPool {
             Ok(())
         } else {
             // identity_pool_status.update_timestamp = Utc::now().to_rfc3339();
+            identity_pool_status.update_timestamp_new = Utc::now().to_rfc3339();
             identity_pool_status.observed_generation = self.metadata.generation.unwrap_or(0);
             identity_pool_status.phase = phase;
             if phase.eq(&IdentityPoolPhaseEnum::IdentityCreated) {
