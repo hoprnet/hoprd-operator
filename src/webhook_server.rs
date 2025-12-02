@@ -357,7 +357,7 @@ async fn convert_identity_pool_v2_to_v3(resource: &mut Value) -> Result<(), Stri
     trace!("Convert identityPool: v1alpha2 -> v1alpha3");
     add_observed_generation(resource).await?;
     add_new_updated_timestamp(resource).await?;
-    debug!("Converted identityPool v2 to v3: {:?}", resource);
+    trace!("Converted identityPool v2 to v3: {:?}", resource);
     Ok(())
 }
 
@@ -365,6 +365,7 @@ async fn convert_identity_pool_v3_to_v2(resource: &mut Value) -> Result<(), Stri
     trace!("Convert identityPool: v1alpha3 -> v1alpha2");
     add_status_checksum(resource).await?;
     add_old_updated_timestamp(resource).await?;
+    trace!("Converted identityPool v3 to v2: {:?}", resource);
     Ok(())
 }
 
