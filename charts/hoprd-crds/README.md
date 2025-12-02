@@ -23,7 +23,7 @@ helm delete hoprd-crd
 ## Certificate
 
 
-```
+```shell
 SERVICE=hoprd-operator-webhook
 NAMESPACE=hoprd-operator
 openssl req -x509 -nodes -days 3650 \

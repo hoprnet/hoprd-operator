@@ -77,7 +77,7 @@ spec:
               - secretName
               type: object
             status:
-              description: The status object of IdentityHoprd node
+              description: The status object of IdentityPool node
               nullable: true
               properties:
                 locked:
@@ -160,7 +160,7 @@ spec:
               - secretName
               type: object
             status:
-              description: The status object of IdentityHoprd node
+              description: The status object of IdentityPool node
               nullable: true
               properties:
                 checksum:
