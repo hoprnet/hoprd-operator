@@ -49,6 +49,7 @@ docs:
   #npm install -g @bitnami/readme-generator-for-helm@2.7.2
   readme-generator --values ./charts/hoprd-operator/values.yaml --readme ./charts/hoprd-operator/README.md --schema "/tmp/schema.json"
   readme-generator --values ./charts/cluster-hoprd/values.yaml --readme ./charts/cluster-hoprd/README.md --schema "/tmp/schema.json"
+  readme-generator --values ./charts/hoprd-crds/values.yaml --readme ./charts/hoprd-crds/README.md --schema "/tmp/schema.json"
 
 # Build the Rust project
 build:

@@ -20,7 +20,7 @@ helm delete hoprd-crd
 ```
 
 
-# Certificate
+## Certificate
 
 
 ```
@@ -33,3 +33,13 @@ openssl req -x509 -nodes -days 3650 \
   -subj "/CN=${SERVICE}.${NAMESPACE}.svc" \
   -addext "subjectAltName = DNS:${SERVICE}.${NAMESPACE}.svc"
 ```
+
+## Parameters
+
+### Webhook parameters
+
+| Name                                 | Description                            | Value  |
+| ------------------------------------ | -------------------------------------- | ------ |
+| `hoprdOperator.webhook.service.name` | Name of the webhook service            | `""`   |
+| `hoprdOperator.webhook.service.port` | Port of the webhook service            | `8443` |
+| `hoprdOperator.webhook.tls.crt`      | TLS certificate for the webhook server | `""`   |

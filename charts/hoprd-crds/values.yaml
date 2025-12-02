@@ -1,4 +1,5 @@
 hoprdOperator:
+  ## @section Webhook parameters
   webhook:
     service:
       ## @param hoprdOperator.webhook.service.name Name of the webhook service
