@@ -126,7 +126,7 @@ async fn add_observed_generation(resource: &mut Value) -> Result<(), String> {
     //debug!("Current status object before update: {:?}", status_obj);
     status_obj.insert("observedGeneration".to_owned(), observed_generation);
     status_obj.remove("checksum");
-    debug!("Updated status object after insert: {:?}", status_obj);
+    //debug!("Updated status object after insert: {:?}", status_obj);
     Ok(())
 }
 
@@ -354,7 +354,7 @@ async fn convert_identity_hoprd_v3_to_v2(resource: &mut Value) -> Result<(), Str
 }
 
 async fn convert_identity_pool_v2_to_v3(resource: &mut Value) -> Result<(), String> {
-    debug!("Convert identityPool: v1alpha2 -> v1alpha3");
+    //debug!("Convert identityPool: v1alpha2 -> v1alpha3");
     add_observed_generation(resource).await?;
     add_new_updated_timestamp(resource).await?;
     debug!("Converted identityPool v2 to v3: {:?}", resource);
@@ -362,7 +362,7 @@ async fn convert_identity_pool_v2_to_v3(resource: &mut Value) -> Result<(), Stri
 }
 
 async fn convert_identity_pool_v3_to_v2(resource: &mut Value) -> Result<(), String> {
-    debug!("Convert identityPool: v1alpha3 -> v1alpha2");
+    //debug!("Convert identityPool: v1alpha3 -> v1alpha2");
     add_status_checksum(resource).await?;
     add_old_updated_timestamp(resource).await?;
     Ok(())
@@ -429,7 +429,7 @@ async fn convert(Json(request): Json<ConversionRequest>) -> impl IntoResponse {
         resource["apiVersion"] = serde_json::Value::String(request.request.desired_apiversion.clone());
         response_inner.converted_objects.push(resource);
     }
-    debug!("Conversion completed successfully with {:?}", response_inner.converted_objects);
+    //debug!("Conversion completed successfully with {:?}", response_inner.converted_objects);
     Json(ConversionResponse {
         api_version: "apiextensions.k8s.io/v1".to_string(),
         kind: "ConversionReview".to_string(),
