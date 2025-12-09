@@ -96,10 +96,14 @@ rules:
 - apiGroups:
   - hoprnet.org
   resources:
-  - hoprds
   - identitypools
+  - identitypools/status
   - identityhoprds
+  - identityhoprds/status
   - clusterhoprds
+  - clusterhoprds/status
+  - hoprds
+  - hoprds/status
   verbs:
   - get
   - list
