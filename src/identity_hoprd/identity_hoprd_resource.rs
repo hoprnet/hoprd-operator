@@ -256,7 +256,7 @@ impl IdentityHoprd {
             };
             let patch = Patch::Merge(json!({ "status": status }));
 
-            match api.patch(&identity_hoprd_name, &PatchParams::default(), &patch).await {
+            match api.patch_status(&identity_hoprd_name, &PatchParams::default(), &patch).await {
                 Ok(_identity) => Ok(()),
                 Err(error) => {
                     error!("Could not update status on {identity_hoprd_name}: {:?}", error);

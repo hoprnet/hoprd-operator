@@ -1,5 +1,5 @@
 ---
-apiVersion: hoprnet.org/v1alpha2
+apiVersion: hoprnet.org/v1alpha3
 kind: ClusterHoprd
 metadata:
   name: {{ include "cluster-hoprd.name" . }}
@@ -15,9 +15,10 @@ spec:
   deployment: {{ .Values.clusterHoprd.nodes.deployment | toYaml | nindent 4 }}
   {{- end }}
   profilingEnabled: {{ .Values.clusterHoprd.profiling.enabled | default false }}
-  portsAllocation: {{ .Values.clusterHoprd.nodes.service.portsAllocation }}
-  service: {{ .Values.clusterHoprd.nodes.service | toYaml | nindent 4 }}
+  service:
+    type: {{ .Values.clusterHoprd.nodes.service.type }}
+    portsAllocation: {{ .Values.clusterHoprd.nodes.service.portsAllocation }}
   config: {{ .Values.clusterHoprd.nodes.config | toYaml | nindent 4 }}
   {{ if .Values.clusterHoprd.logs.upload.enabled }}
   sourceNodeLogs: {{ .Values.clusterHoprd.logs.upload.sourceNode }}
-  {{- end -}}
+  {{- end }}

@@ -4,7 +4,7 @@ use k8s_openapi::{
 };
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use tracing::debug;
+use tracing::trace;
 use std::collections::BTreeMap;
 
 use crate::model::Error;
@@ -124,10 +124,10 @@ impl HoprdDeploymentSpec {
         let default_deployment_spec = HoprdDeploymentSpec::default();
         let hoprd_deployment_spec = hoprd_deployment_spec.unwrap_or(default_deployment_spec.clone());
         let default_environment_variables: Vec<CustomEnvVar> = serde_yml::from_str(default_deployment_spec.env.as_ref().unwrap()).unwrap();
-        debug!("Default environment variables: {:?}", default_environment_variables);
+        trace!("Default environment variables: {:?}", default_environment_variables);
         // Get custom env vars
         let custom_environment_variables_string = hoprd_deployment_spec.env.as_ref().unwrap_or(default_deployment_spec.env.as_ref().unwrap());
-        debug!("Custom environment variables string: {}", custom_environment_variables_string);
+        trace!("Custom environment variables string: {}", custom_environment_variables_string);
         let custom_environment_variables: Vec<CustomEnvVar> = serde_yml::from_str(custom_environment_variables_string)?;
 
         // Merge default and custom env vars, giving precedence to custom ones in case of name conflicts

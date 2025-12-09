@@ -2,7 +2,7 @@
 {{- $releaseName := include "cluster-hoprd.name" . -}}
 {{- range $key, $value := .Values.clusterHoprd.identities }}
 ---
-apiVersion: hoprnet.org/v1alpha2
+apiVersion: hoprnet.org/v1alpha3
 kind: IdentityHoprd
 metadata:
   name: {{ $key }}

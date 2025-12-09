@@ -297,7 +297,7 @@ impl ClusterHoprd {
             }
         };
         let patch = Patch::Merge(json!({"status": cluster_hoprd_status }));
-        match api.patch(&cluster_hoprd_name, &PatchParams::default(), &patch).await {
+        match api.patch_status(&cluster_hoprd_name, &PatchParams::default(), &patch).await {
             Ok(_cluster_hopr) => Ok(debug!("ClusterHoprd {cluster_hoprd_name} current status {:?}", cluster_hoprd_status)),
             Err(error) => Ok(error!("Could not update phase {} on cluster {cluster_hoprd_name}: {:?}", cluster_hoprd_status.phase, error)),
         }

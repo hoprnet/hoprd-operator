@@ -27,6 +27,8 @@ spec:
     - name: v1alpha3
       served: true
       storage: true
+      subresources:
+        status: {}
       additionalPrinterColumns:
       - description: Hoprd network name
         jsonPath: .spec.network

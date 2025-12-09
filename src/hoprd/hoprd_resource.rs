@@ -347,7 +347,7 @@ impl Hoprd {
         status.phase = phase;
         status.observed_generation = self.metadata.generation.unwrap_or(0);
         let patch = Patch::Merge(json!({ "status": status }));
-        match api.patch(&hoprd_name, &PatchParams::default(), &patch).await {
+        match api.patch_status(&hoprd_name, &PatchParams::default(), &patch).await {
             Ok(_) => Ok(()),
             Err(error) => Ok(error!("Could not update status on node {hoprd_name}: {:?}", error)),
         }
@@ -372,7 +372,7 @@ impl Hoprd {
                 "annotations": annotations
             }
         }));
-        match api.patch(&self.name_any(), &PatchParams::default(), &patch).await {
+        match api.patch_status(&self.name_any(), &PatchParams::default(), &patch).await {
             Ok(_cluster_hopr) => Ok(()),
             Err(error) => Ok(error!("Could not update last configuration annotation on Hoprd {}: {:?}", self.name_any(), error)),
         }

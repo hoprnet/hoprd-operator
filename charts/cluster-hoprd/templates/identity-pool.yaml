@@ -1,5 +1,5 @@
 ---
-apiVersion: hoprnet.org/v1alpha2
+apiVersion: hoprnet.org/v1alpha3
 kind: IdentityPool
 metadata:
   name: {{ include "cluster-hoprd.name" . }}

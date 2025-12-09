@@ -298,7 +298,7 @@ impl IdentityPool {
             let patch = Patch::Merge(json!({
                     "status": identity_pool_status
             }));
-            match api.patch(&identity_hoprd_name, &PatchParams::default(), &patch).await {
+            match api.patch_status(&identity_hoprd_name, &PatchParams::default(), &patch).await {
                 Ok(_identity) => {
                     self.status = Some(identity_pool_status.clone());
                     Ok(debug!("IdentityPool current status: {:?}", identity_pool_status))
