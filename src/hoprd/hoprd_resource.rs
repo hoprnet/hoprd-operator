@@ -330,7 +330,7 @@ impl Hoprd {
         } else {
             match (&previous_hoprd.service.ports_allocation, &self.spec.service.ports_allocation) {
                 (prev, curr) if prev != curr => {
-                    error!("Hoprd configuration is invalid, 'ports_allocation' field cannot be changed on {}.", self.name_any());
+                    error!("Hoprd configuration is invalid, 'ports_allocation' field cannot be changed on {}. Previous: {} vs Current: {}", self.name_any(), previous_hoprd.service.ports_allocation, self.spec.service.ports_allocation);
                     true
                 }
                 _ => false,

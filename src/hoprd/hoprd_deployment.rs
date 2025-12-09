@@ -165,6 +165,7 @@ pub fn init_container(hoprd_spec: &HoprdSpec,
         Some(vec![format!(
             "set -x\n\
             set -e\n\
+            if [ -n \"$HOPRD_LOGS_SNAPSHOT_URL\" ] && ! ls /app/hoprd-db/db/hopr_logs.db* 1> /dev/null 2>&1; then\n\
             if ! ls /app/hoprd-db/db/hopr_logs.db* 1> /dev/null 2>&1; then\n\
             apk add --no-cache curl tar xz;\n\
             mkdir -p /app/hoprd-db/db;\n\
