@@ -147,8 +147,10 @@ impl IdentityHoprd {
     /// Handle the modification of IdentityHoprd resource
     pub async fn modify(&self, context_data: Arc<ContextData>) -> Result<Action, Error> {
         let identity_name: String = self.name_any();
-        let status = self.status.clone()
-            .ok_or(Error::HoprdStatusError(format!("IdentityHoprd {identity_name} has no status")))?;
+        let status = match self.status.as_ref() {
+            Some(status) => status,
+            None => return Ok(Action::requeue(Duration::from_secs(constants::RECONCILE_SHORT_FREQUENCY))),
+        };
         if status.phase.eq(&IdentityHoprdPhaseEnum::Ready) || status.phase.eq(&IdentityHoprdPhaseEnum::InUse) {
             if self.annotations().contains_key(constants::ANNOTATION_LAST_CONFIGURATION) {
                 let previous_config_text: String = self.annotations().get_key_value(constants::ANNOTATION_LAST_CONFIGURATION).unwrap().1.parse().unwrap();
