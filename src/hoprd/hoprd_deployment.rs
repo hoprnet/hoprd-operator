@@ -394,7 +394,8 @@ pub async fn job_delete_database(context_data: Arc<ContextData>, deployment_name
     let api: Api<Job> = Api::namespaced(context_data.client.clone(), namespace);
     let rng = rand::rng();
     let suffix: String = rng.sample_iter(&Alphanumeric).take(10).map(char::from).collect();
-    let command = "rm -rf /app/hoprd-db/*".to_string(); // index_db/
+    // TODO: Remove only indexes when migration to v4 is finished. The new path will be: /app/hoprd-db/index_db/*
+    let command = "rm -rf /app/hoprd-db/*".to_string();
 
     let job_name = format!("{}-delete-db-{}", deployment_name, suffix.to_lowercase());
     let job = Job {

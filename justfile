@@ -1,4 +1,11 @@
-# Login into GCP Artifact Registry for Helm charts
+
+# Default Command
+
+# Show available commands
+default:
+    @just --list
+
+# Login into GCP Artifact Registry
 login:
   #!/usr/bin/env bash
   gcloud auth print-access-token | helm registry login -u oauth2accesstoken --password-stdin https://europe-west3-docker.pkg.dev

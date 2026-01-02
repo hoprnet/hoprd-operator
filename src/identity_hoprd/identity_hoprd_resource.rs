@@ -147,7 +147,9 @@ impl IdentityHoprd {
     /// Handle the modification of IdentityHoprd resource
     pub async fn modify(&self, context_data: Arc<ContextData>) -> Result<Action, Error> {
         let identity_name: String = self.name_any();
-        if self.status.is_some() && self.status.as_ref().unwrap().phase.eq(&IdentityHoprdPhaseEnum::Ready) {
+        let status = self.status.clone()
+            .ok_or(Error::HoprdStatusError(format!("IdentityHoprd {identity_name} has no status")))?;
+        if status.phase.eq(&IdentityHoprdPhaseEnum::Ready) || status.phase.eq(&IdentityHoprdPhaseEnum::InUse) {
             if self.annotations().contains_key(constants::ANNOTATION_LAST_CONFIGURATION) {
                 let previous_config_text: String = self.annotations().get_key_value(constants::ANNOTATION_LAST_CONFIGURATION).unwrap().1.parse().unwrap();
                 match serde_json::from_str::<IdentityHoprd>(&previous_config_text) {
@@ -173,7 +175,7 @@ impl IdentityHoprd {
                     "Could not modify IdentityHoprd {identity_name} because cannot recover last configuration"
                 )))
             }
-        } else if self.status.is_some() && self.status.as_ref().unwrap().phase.eq(&IdentityHoprdPhaseEnum::Failed) {
+        } else if status.phase.eq(&IdentityHoprdPhaseEnum::Failed) {
             // Assumes that the next modification of the resource is to recover to a good state
             context_data.send_event(self, IdentityHoprdEventEnum::Ready, None).await;
             self.update_phase(context_data.client.clone(), IdentityHoprdPhaseEnum::Ready, None).await?;
