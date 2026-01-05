@@ -166,7 +166,6 @@ pub fn init_container(hoprd_spec: &HoprdSpec,
             "set -x\n\
             set -e\n\
             if [ -n \"$HOPRD_LOGS_SNAPSHOT_URL\" ] && ! ls /app/hoprd-db/db/hopr_logs.db* 1> /dev/null 2>&1; then\n\
-            if ! ls /app/hoprd-db/db/hopr_logs.db* 1> /dev/null 2>&1; then\n\
             apk add --no-cache curl tar xz;\n\
             mkdir -p /app/hoprd-db/db;\n\
             curl -sf --retry 3 \"$HOPRD_LOGS_SNAPSHOT_URL\" -o /app/hoprd-db/db/snapshot.tar.xz;\n\
@@ -395,7 +394,8 @@ pub async fn job_delete_database(context_data: Arc<ContextData>, deployment_name
     let api: Api<Job> = Api::namespaced(context_data.client.clone(), namespace);
     let rng = rand::rng();
     let suffix: String = rng.sample_iter(&Alphanumeric).take(10).map(char::from).collect();
-    let command = "rm -rf /app/hoprd-db/db/hopr_index.db* /app/hoprd-db/db/hopr_logs.db*".to_string();
+    // TODO: Remove only indexes when migration to v4 is finished. The new path will be: /app/hoprd-db/index_db/*
+    let command = "rm -rf /app/hoprd-db/*".to_string();
 
     let job_name = format!("{}-delete-db-{}", deployment_name, suffix.to_lowercase());
     let job = Job {

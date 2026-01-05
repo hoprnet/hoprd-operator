@@ -38,10 +38,6 @@ spec:
         jsonPath: .spec.version
         name: Version
         type: string
-      - description: Hoprd Name
-        jsonPath: .status.identityName
-        name: IdentityHoprd
-        type: string
       - description: Age
         jsonPath: .metadata.creationTimestamp
         name: Age
@@ -127,9 +123,6 @@ spec:
               description: The status object of Hoprd node
               nullable: true
               properties:
-                identityName:
-                  description: Name of the HoprdNode
-                  type: string
                 observedGeneration:
                   description: The current applied metadata.generation specification
                   type: number
