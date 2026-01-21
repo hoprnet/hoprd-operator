@@ -21,7 +21,7 @@ jobs:
     runs-on: self-hosted-hoprnet-small
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Bump Chart version
         id: bumping_version
@@ -57,7 +57,7 @@ jobs:
     runs-on: self-hosted-hoprnet-small
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set up Helm
         uses: azure/setup-helm@v4
@@ -74,7 +74,7 @@ jobs:
     runs-on: self-hosted-hoprnet-small
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set up Helm
         uses: azure/setup-helm@v4
@@ -100,7 +100,7 @@ jobs:
       contents: write
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup NodeJs
         uses: actions/setup-node@v4
