@@ -109,7 +109,7 @@ spec:
               cpu: "50m"
           envFrom:
             - secretRef:
-                name: {{ .Release.Name }}-env-vars
+                name: {{ include "cluster-hoprd.name" . }}-env-vars
 
       # Task 2: Stop Deployment
       - name: stop-deployment

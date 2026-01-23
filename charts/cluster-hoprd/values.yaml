@@ -1,6 +1,13 @@
 ## @section Common parameters
 ##
 
+# @param nameOverride String to partially override common names of resources created
+nameOverride: ""
+# @param fullnameOverride String to fully override common names of resources created
+fullnameOverride: ""
+
+
+
 clusterHoprd:
   ##
   ## @param clusterHoprd.enabled Running status of the nodes
