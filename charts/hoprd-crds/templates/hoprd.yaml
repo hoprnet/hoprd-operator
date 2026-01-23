@@ -76,6 +76,9 @@ spec:
                       description: The definition of the startup probe to be used by the node deployment
                       type: string
                   type: object
+                dnsName:
+                  description: The DNS name to be used by the hoprd node
+                  type: string
                 enabled:
                   description: Flag indicating if the node should be started or stopped
                   type: boolean
