@@ -49,6 +49,7 @@ pub struct HoprdSpec {
     pub deployment: Option<HoprdDeploymentSpec>,
     pub profiling_enabled: Option<bool>,
     pub source_node_logs: Option<bool>,
+    pub dns_name: Option<String>,
 }
 
 /// The status object of `Hoprd`
@@ -126,6 +127,7 @@ impl Hoprd {
                 &service_type,
                 &hoprd_name,
                 &hoprd_namespace,
+                &self.spec.dns_name.clone().unwrap_or(context_data.config.ingress.dns_domain.to_owned()),
                 session_ports_allocation,
                 &context_data.config.ingress,
                 owner_reference.to_owned(),

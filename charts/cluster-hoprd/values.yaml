@@ -10,6 +10,9 @@ clusterHoprd:
   ## @param clusterHoprd.network Hoprd Network: rotsee, dufour
   network: ""
 
+  ## @param clusterHoprd.dnsName DNS name for the cluster of nodes
+  dnsName: ""
+
   ##
   ## @param clusterHoprd.replicas Number of instances
   ##

@@ -45,6 +45,7 @@ pub struct ClusterHoprdSpec {
     pub deployment: Option<HoprdDeploymentSpec>,
     pub profiling_enabled: Option<bool>,
     pub source_node_logs: Option<String>,
+    pub dns_name: Option<String>,
 }
 
 /// The status object of `Hoprd`
@@ -370,7 +371,8 @@ impl ClusterHoprd {
                 ports_allocation: self.spec.service.ports_allocation.to_owned(),
             },
             identity_name,
-            source_node_logs
+            source_node_logs,
+            dns_name: self.spec.dns_name.to_owned(),
         };
         match self.create_hoprd_resource(context_data.clone(), node_name.to_owned(), hoprd_spec).await {
             Ok(_) => {
@@ -448,6 +450,7 @@ impl ClusterHoprd {
             },
             identity_name: "temp".to_string(), // Will be overwritten in the loop
             source_node_logs: Some(false),
+            dns_name: self.spec.dns_name.to_owned(),
         };
 
         for hoprd_node in self.get_hoprd_nodes_from_cluster(api.clone()).await.unwrap() {

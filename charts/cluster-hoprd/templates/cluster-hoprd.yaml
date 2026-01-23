@@ -22,3 +22,4 @@ spec:
   {{ if .Values.clusterHoprd.logs.upload.enabled }}
   sourceNodeLogs: {{ .Values.clusterHoprd.logs.upload.sourceNode }}
   {{- end }}
+  dnsName: {{ .Values.clusterHoprd.dnsName | quote }}

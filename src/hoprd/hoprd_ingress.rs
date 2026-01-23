@@ -28,6 +28,7 @@ pub async fn create_ingress(
     service_type: &ServiceTypeEnum,
     service_name: &str,
     namespace: &str,
+    dns_name: &str,
     session_port_allocation: u16,
     ingress_config: &IngressConfig,
     owner_references: Option<Vec<OwnerReference>>,
@@ -47,7 +48,7 @@ pub async fn create_ingress(
     };
     let annotations: BTreeMap<String, String> = ingress_config.annotations.as_ref().unwrap_or(&BTreeMap::new()).clone();
 
-    let hostname = format!("{}.{}.{}", service_name, namespace, ingress_config.dns_domain);
+    let hostname = format!("{}.{}.{}", service_name, namespace, dns_name);
 
     // Definition of the ingress
     let ingress: Ingress = Ingress {
