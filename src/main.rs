@@ -82,7 +82,8 @@ async fn start_controllers(operator_config: operator_config::OperatorConfig) {
     ring::default_provider().install_default().expect("failed to install rustls ring CryptoProvider");
     let client: Client = Client::try_default().await.expect("Failed to create kube Client");
     let context_data: Arc<ContextData> = Arc::new(ContextData::new(client.clone(), operator_config).await);
-    ContextData::sync_identities(context_data.clone()).await.expect("Failed to sync identities");
+    context_data.sync_identities().await.expect("Failed to sync identities");
+    context_data.sync_identity_pools().await.expect("Failed to sync identity pools");
 
     // ⭐ 5. Initiatilize Kubernetes controllers
     info!("Starting Controllers...");

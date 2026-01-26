@@ -1,13 +1,14 @@
 use k8s_openapi::NamespaceResourceScope;
+use serde_json::json;
 use tracing::{debug, error};
 use std::{collections::BTreeMap, sync::Arc};
 use tokio::sync::RwLock;
 
 use kube::{
-    Api, Client, Resource, ResourceExt, api::{ListParams}, runtime::events::{Recorder, Reporter}
+    Api, Client, Resource, ResourceExt, api::{ListParams, Patch, PatchParams}, runtime::events::{Recorder, Reporter}
 };
 
-use crate::{ events::ResourceEvent, hoprd::hoprd_resource::Hoprd, identity_hoprd::identity_hoprd_resource::IdentityHoprd, identity_pool::identity_pool_resource::IdentityPool,
+use crate::{ events::ResourceEvent, hoprd::hoprd_resource::Hoprd, identity_hoprd::identity_hoprd_resource::IdentityHoprd, identity_pool::identity_pool_resource::{IdentityPool, IdentityPoolPhaseEnum},
     operator_config::OperatorConfig,
 };
 
@@ -41,33 +42,87 @@ impl ContextData {
         }
     }
 
-    pub async fn sync_identities(context_data: Arc<ContextData>) -> Result<(), String> {
-        let api_identities: Api<IdentityHoprd> = Api::all(context_data.client.clone());
+    pub async fn sync_identity_pools(&self) -> Result<(), String> {
+        let api_identity_pools: Api<IdentityPool> = Api::all(self.client.clone());
+        let identity_pools = api_identity_pools.list(&ListParams::default()).await
+            .map_err(|e| {
+                error!("Could not fetch IdentityPools: {}", e);
+                "Could not fetch IdentityPools".to_string()
+            })?
+            .items;
+        let api_identities: Api<IdentityHoprd> = Api::all(self.client.clone());
         let identities = api_identities.list(&ListParams::default()).await
             .map_err(|e| {
                 error!("Could not fetch IdentityHoprd: {}", e);
                 "Could not fetch IdentityHoprd".to_string()
-            })?.items.clone();
-        let api_hoprd = Api::<Hoprd>::all(context_data.client.clone());
+            })?
+            .items;
+
+        let mut state = self.state.write().await;
+        state.identity_pool.clear();
+        for identity_pool in identity_pools {
+            let pool_identities = identities
+                .iter()
+                .filter(|identity| identity.spec.identity_pool_name == identity_pool.name_any() && identity.metadata.namespace.as_ref().unwrap() == identity_pool.metadata.namespace.as_ref().unwrap())
+                .cloned()
+                .collect::<Vec<IdentityHoprd>>();
+            let locked_pool_identities = pool_identities
+                .iter()
+                .filter(|identity| identity.status.is_some() && identity.status.as_ref().unwrap().hoprd_node_name.is_some())
+                .cloned()
+                .collect::<Vec<IdentityHoprd>>();
+            if let Some(identity_pool_status) = identity_pool.status.as_ref() {
+                if (identity_pool_status.size != pool_identities.len() as i32) || (identity_pool_status.locked != locked_pool_identities.len() as i32) {
+                    let mut new_status = identity_pool_status.clone();
+                    new_status.size = pool_identities.len() as i32;
+                    new_status.locked = locked_pool_identities.len() as i32;
+                    new_status.phase = IdentityPoolPhaseEnum::Ready;
+                    let identity_pool_name = identity_pool.name_any();
+                    let patch = Patch::Merge(json!({"status": new_status}));
+                    let api: Api<IdentityPool> = Api::namespaced(self.client.clone(), &identity_pool.metadata.namespace.as_ref().unwrap());
+                    match api.patch_status(&identity_pool_name, &PatchParams::default(), &patch).await {
+                        Ok(_identity) => {
+                            debug!("Fixed IdentityPool status {}/{}: {:?}", identity_pool.metadata.namespace.as_ref().unwrap(), identity_pool_name, new_status);
+                        }
+                        Err(error) => {
+                            error!("Could not update status on {}/{}: {:?}", identity_pool.metadata.namespace.as_ref().unwrap(), identity_pool_name, error);
+                        },
+                    }
+                }
+            }
+            state.add_identity_pool(identity_pool);
+        }
+        Ok(())
+    }
+
+    pub async fn sync_identities(&self) -> Result<(), String> {
+        let api_identities: Api<IdentityHoprd> = Api::all(self.client.clone());
+        let locked_identities = api_identities.list(&ListParams::default()).await
+            .map_err(|e| {
+                error!("Could not fetch IdentityHoprd: {}", e);
+                "Could not fetch IdentityHoprd".to_string()
+            })?
+            .iter()
+            .filter(|identity| identity.status.is_some() && identity.status.as_ref().unwrap().hoprd_node_name.is_some())
+            .cloned()
+            .collect::<Vec<IdentityHoprd>>();
+        let api_hoprd = Api::<Hoprd>::all(self.client.clone());
         let all_hoprds: Vec<String> = api_hoprd
             .list(&ListParams::default())
             .await
             .unwrap()
             .items
-            .clone()
             .iter()
             .map(|hoprd| format!("{}-{}", hoprd.metadata.namespace.as_ref().unwrap(), hoprd.metadata.name.as_ref().unwrap()))
             .collect();
         // Unlock identities that no longer have a corresponding hoprd
-        for identity_hoprd in identities {
-            if let Some(status) = identity_hoprd.to_owned().status {
-                if let Some(hoprd_node_name) = status.hoprd_node_name {
-                    let identity_full_name = format!("{}-{}", identity_hoprd.to_owned().metadata.namespace.unwrap(), hoprd_node_name);
-                    if !all_hoprds.contains(&identity_full_name) {
-                        // Remove hoprd relationship
-                        identity_hoprd.unlock(context_data.clone()).await.expect("Could not synchronize identity");
-                    }
-                }
+        for identity_hoprd in locked_identities {
+            let status = identity_hoprd.status.as_ref().unwrap();
+            let hoprd_node_name = status.hoprd_node_name.as_ref().unwrap();
+            let identity_full_name = format!("{}-{}", identity_hoprd.to_owned().metadata.namespace.unwrap(), hoprd_node_name);
+            if !all_hoprds.contains(&identity_full_name) {
+                // Remove hoprd relationship
+                identity_hoprd.unlock(Arc::new(self.clone())).await.expect("Could not synchronize identity");
             }
         }
         Ok(())
