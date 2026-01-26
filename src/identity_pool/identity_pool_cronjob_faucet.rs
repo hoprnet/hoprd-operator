@@ -74,7 +74,7 @@ async fn get_job_template(context_data: Arc<ContextData>, identity_pool: &Identi
         ..VolumeMount::default()
     }];
     let kubectl_args = Some(vec![format!(
-        "kubectl get IdentityHoprd -o jsonpath='{{.items[?(.spec.identityPoolName == \"{}\")].spec.nativeAddress}}' | tr ' ' ',' > /data/addresses.txt",
+        "kubectl get IdentityHoprd -o jsonpath='{{.items[?(.spec.identityPoolName == \"{}\")].spec.nodeAddress}}' | tr ' ' ',' > /data/addresses.txt",
         identity_pool.name_any()
     )]);
 
