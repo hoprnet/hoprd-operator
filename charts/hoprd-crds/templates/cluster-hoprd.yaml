@@ -115,7 +115,7 @@ spec:
                     if not specified. Warning: Large numbers may impact kubernetes cluster
                     performance.'
                       maximum: 200
-                      minimum: 1
+                      minimum: 0
                       type: number
                   required:
                     - type
