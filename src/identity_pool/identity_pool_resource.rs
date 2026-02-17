@@ -335,19 +335,22 @@ impl IdentityPool {
                 Ok(None)
             }
             Some(identity) => {
-                let default_status = IdentityHoprdStatus::default();
-                let status = identity.status.as_ref().unwrap_or(&default_status);
-                if status.phase.eq(&IdentityHoprdPhaseEnum::Ready) {
-                    Ok(Some(identity))
-                } else if status.phase.eq(&IdentityHoprdPhaseEnum::InUse) && status.hoprd_node_name.as_deref() == Some(identity_name.as_str()) {
-                    Ok(Some(identity))
+                if let Some(status) = identity.status.as_ref() {
+                    if status.phase.eq(&IdentityHoprdPhaseEnum::Ready) {
+                        Ok(Some(identity))
+                    } else if status.phase.eq(&IdentityHoprdPhaseEnum::InUse) && status.hoprd_node_name.as_deref() == Some(identity_name.as_str()) {
+                        Ok(Some(identity))
+                    } else {
+                        warn!(
+                            "Identity {} is in phase {} and it's apparently being used by {}",
+                            identity_name,
+                            status.phase,
+                            status.hoprd_node_name.as_ref().unwrap_or(&"unknown".to_owned())
+                        );
+                        Ok(None)
+                    }
                 } else {
-                    warn!(
-                        "Identity {} is in phase {} and it's apparently being used by {}",
-                        identity_name,
-                        status.phase,
-                        status.hoprd_node_name.as_ref().unwrap_or(&"unknown".to_owned())
-                    );
+                    warn!("Identity {} has no status", identity_name);
                     Ok(None)
                 }
             }

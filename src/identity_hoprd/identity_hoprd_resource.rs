@@ -264,8 +264,7 @@ impl IdentityHoprd {
                 Ok(_identity) => Ok(()),
                 Err(error) => {
                     error!("Could not update status on {identity_hoprd_name}: {:?}", error);
-                    Ok(())
-                    //Err(Error::HoprdStatusError(format!("Failed to update status for '{identity_hoprd_name}': {error}")))
+                    Err(Error::HoprdStatusError(format!("Failed to update status for '{identity_hoprd_name}': {error}")))
                 }
             }
         }

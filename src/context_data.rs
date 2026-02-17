@@ -92,6 +92,7 @@ impl ContextData {
             }
             state.add_identity_pool(identity_pool);
         }
+        debug!("Synchronized IdentityPools in ContextData state");
         Ok(())
     }
 
@@ -125,6 +126,7 @@ impl ContextData {
                 identity_hoprd.unlock(Arc::new(self.clone())).await.expect("Could not synchronize identity");
             }
         }
+        debug!("Synchronized Identities in ContextData state");
         Ok(())
     }
 
