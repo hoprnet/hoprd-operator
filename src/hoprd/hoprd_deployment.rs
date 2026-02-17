@@ -122,7 +122,13 @@ pub async fn build_deployment_spec(
 
 pub async fn modify_deployment(context_data: Arc<ContextData>, deployment_name: &str, namespace: &str, hoprd_spec: &HoprdSpec, identity_hoprd: &IdentityHoprd) -> Result<(), Error> {
     let api: Api<Deployment> = Api::namespaced(context_data.client.clone(), namespace);
-    let deployment = api.get(deployment_name).await.unwrap();
+    let deployment = match api.get_opt(deployment_name).await? {
+        Some(deployment) => deployment,
+        None => {
+            error!("Deployment {deployment_name} not found in namespace {namespace}");
+            return Err(Error::HoprdStatusError(format!("Deployment '{deployment_name}' not found in namespace '{namespace}'")));
+        }
+    };
     let pod_spec = deployment.spec.clone().unwrap().template.spec.unwrap();
     let hoprd_container = pod_spec.containers.iter().find(|&container| container.name == "hoprd").unwrap();
     let hoprd_host_env_var = hoprd_container.env.as_ref().unwrap().iter().find(|&env_var| env_var.name.eq(&constants::HOPRD_HOST.to_owned())).unwrap();
