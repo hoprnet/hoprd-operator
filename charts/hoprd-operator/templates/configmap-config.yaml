@@ -21,6 +21,7 @@ data:
       deployment_name: {{ .Values.hoprdOperator.ingress.deploymentName | quote }}
       annotations: {{- .Values.hoprdOperator.ingress.annotations | toYaml | nindent 8 }}
     hopli_image: {{ printf "%s/%s:%s" .Values.hoprdOperator.hopli.registry .Values.hoprdOperator.hopli.repository .Values.hoprdOperator.hopli.tag | quote }}
+    hopli_rpc_provider_url: {{ .Values.hoprdOperator.hopli.rpcProviderUrl | quote }}
     persistence:
       size: {{ .Values.hoprdOperator.persistence.size | quote }}
       storage_class_name:  {{ .Values.hoprdOperator.persistence.storageClassName | quote }}

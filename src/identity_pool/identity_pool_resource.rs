@@ -1,5 +1,5 @@
 use crate::events::IdentityPoolEventEnum;
-use crate::identity_hoprd::identity_hoprd_resource::{IdentityHoprd, IdentityHoprdPhaseEnum, IdentityHoprdStatus};
+use crate::identity_hoprd::identity_hoprd_resource::{IdentityHoprd, IdentityHoprdPhaseEnum};
 use crate::model::Error;
 use crate::{constants, context_data::ContextData};
 use crate::{
@@ -190,7 +190,7 @@ impl IdentityPool {
                     if api.get_opt(&cron_job_name).await?.is_none() {
                         identity_pool_cronjob_faucet::create_cron_job(context_data.clone(), self).await.expect("Could not create Cronjob");
                     } else {
-                        identity_pool_cronjob_faucet::modify_cron_job(context_data.client.clone(), self)
+                        identity_pool_cronjob_faucet::modify_cron_job(context_data.clone(), self)
                             .await
                             .expect("Could not modify Cronjob");
                     }

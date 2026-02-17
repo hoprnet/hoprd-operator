@@ -113,6 +113,8 @@ hoprdOperator:
     ##
     tag: latest
 
+    rpcProviderUrl: ""
+
   fastSync:
     ## @param hoprdOperator.fastSync.enabled Enable Fast Sync
     ## Required: true

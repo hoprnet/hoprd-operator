@@ -6,6 +6,7 @@ pub struct OperatorConfig {
     pub instance: OperatorInstance,
     pub ingress: IngressConfig,
     pub hopli_image: String,
+    pub hopli_rpc_provider_url: String,
     pub persistence: PersistenceConfig,
     pub webhook: WebhookConfig,
 }
