@@ -289,6 +289,10 @@ impl ClusterHoprd {
             cluster_hoprd_status.current_nodes += 1;
         } else if phase.eq(&ClusterHoprdPhaseEnum::NodeDeleted) {
             cluster_hoprd_status.current_nodes -= 1;
+            if cluster_hoprd_status.current_nodes < 0 {
+                warn!("ClusterHoprd {cluster_hoprd_name} current_nodes went below 0, clamping to 0");
+                cluster_hoprd_status.current_nodes = 0;
+            }
         };
         if phase.eq(&ClusterHoprdPhaseEnum::NodeCreated) || phase.eq(&ClusterHoprdPhaseEnum::NodeDeleted) {
             if cluster_hoprd_status.current_nodes == cluster_hoprd.spec.replicas {

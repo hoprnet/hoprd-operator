@@ -276,8 +276,10 @@ impl Hoprd {
         context_data.send_event(self, HoprdEventEnum::Deleted, None).await;
         if let Some(cluster) = self.notify_deletion_to_cluster(context_data.clone()).await? {
             resource_generics::delete_finalizer(client.clone(), self).await?;
-            context_data.send_event(&cluster, ClusterHoprdEventEnum::NodeDeleted, None).await;
-            cluster.update_status(context_data.clone(), ClusterHoprdPhaseEnum::NodeDeleted).await?;
+            // Do NOT call cluster.update_status(NodeDeleted) here.
+            // The ClusterHoprd's delete_node() already handles the current_nodes decrement.
+            // Calling it from both places causes a double-decrement race condition that
+            // drives current_nodes negative and triggers spurious node creation.
         } else {
             resource_generics::delete_finalizer(client.clone(), self).await?;
         }
