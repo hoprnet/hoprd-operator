@@ -404,9 +404,9 @@ impl ClusterHoprd {
             api.delete(&node_name, &DeleteParams::default()).await?;
             await_condition(api.clone(), &node_name, conditions::is_deleted(&uid)).await.unwrap();
             info!("Node {} deleted from cluster {}", node_name, cluster_name.to_owned());
-        };
-        context_data.send_event(self, ClusterHoprdEventEnum::NodeDeleted, Some(node_name)).await;
-        self.update_status(context_data.clone(), ClusterHoprdPhaseEnum::NodeDeleted).await?;
+        } else {
+            warn!("Node {} not found in cluster {}, it might have already been deleted or cluster has incorrect 'current_nodes' value", node_name, cluster_name.to_owned());
+        }
         Ok(())
     }
 
