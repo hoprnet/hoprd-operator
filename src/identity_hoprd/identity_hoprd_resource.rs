@@ -3,9 +3,13 @@ use crate::identity_pool::identity_pool_resource::{IdentityPool, IdentityPoolPha
 use crate::model::Error;
 use crate::{constants, context_data::ContextData};
 use crate::{identity_hoprd::identity_hoprd_persistence, resource_generics};
+use k8s_openapi::api::core::v1::PersistentVolumeClaim;
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::OwnerReference;
+use kube::api::DeleteParams;
 use kube::core::ObjectMeta;
 use kube::Resource;
+use kube::runtime::conditions;
+use kube::runtime::wait::await_condition;
 use kube::{
     api::{Api, Patch, PatchParams, ResourceExt},
     client::Client,
@@ -18,7 +22,7 @@ use serde_json::json;
 use std::fmt::{Display, Formatter};
 use std::sync::Arc;
 use std::time::Duration;
-use tracing::{error, info, warn};
+use tracing::{debug, error, info, warn};
 
 /// Struct corresponding to the Specification (`spec`) part of the `Hoprd` resource, directly
 /// reflects context of the `hoprds.hoprnet.org.yaml` file to be found in this repository.
@@ -97,10 +101,9 @@ impl IdentityHoprd {
         let identity_namespace: String = self.namespace().unwrap();
         let identity_name: String = self.name_any();
         let identity_pool_name: String = self.spec.identity_pool_name.to_owned();
-        if !self.check_identity_pool(client.clone()).await? {
-            context_data.send_event(self, IdentityHoprdEventEnum::Failed, None).await;
-            return Ok(Action::requeue(Duration::from_secs(constants::RECONCILE_LONG_FREQUENCY)));
-        }
+        self.check_identity_pool(context_data.clone()).await?;
+        self.check_pvc(context_data.clone()).await?;
+
         info!("Starting to create identity {identity_name} in namespace {identity_namespace}");
         resource_generics::add_finalizer(client.clone(), self).await;
         self.add_owner_reference(client.clone()).await?;
@@ -157,21 +160,24 @@ impl IdentityHoprd {
                 match serde_json::from_str::<IdentityHoprd>(&previous_config_text) {
                     Ok(previous_cluster_hoprd) => {
                         if self.changed_inmutable_fields(&previous_cluster_hoprd.spec) {
-                            context_data.send_event(self, IdentityHoprdEventEnum::Failed, None).await;
+                            context_data.send_event(self, IdentityHoprdEventEnum::Failed, Some("found changes in immutable fields".to_string())).await;
                             self.update_phase(context_data.client.clone(), IdentityHoprdPhaseEnum::Failed, None).await?;
-                        } else {
+                            Err(Error::HoprdConfigError(format!("IdentityHoprd {} in namespace {} has been modified with changes in immutable fields", self.name_any(), self.namespace().unwrap())))
+                        } else if self.spec != previous_cluster_hoprd.spec {
                             info!("IdentityHoprd {} in namespace {} has been successfully modified", self.name_any(), self.namespace().unwrap());
+                            Ok(Action::requeue(Duration::from_secs(constants::RECONCILE_SHORT_FREQUENCY)))
+                        } else {
+                            Ok(Action::await_change())
                         }
-                        Ok(Action::requeue(Duration::from_secs(constants::RECONCILE_SHORT_FREQUENCY)))
                     }
                     Err(_err) => {
-                        context_data.send_event(self, IdentityHoprdEventEnum::Failed, None).await;
+                        context_data.send_event(self, IdentityHoprdEventEnum::Failed, Some("cannot parse last configuration".to_string())).await;
                         self.update_phase(context_data.client.clone(), IdentityHoprdPhaseEnum::Failed, None).await?;
                         Err(Error::HoprdConfigError(format!("Could not parse the last applied configuration of IdentityHoprd {identity_name}")))
                     }
                 }
             } else {
-                context_data.send_event(self, IdentityHoprdEventEnum::Failed, None).await;
+                context_data.send_event(self, IdentityHoprdEventEnum::Failed, Some("cannot recover last configuration".to_string())).await;
                 self.update_phase(context_data.client.clone(), IdentityHoprdPhaseEnum::Failed, None).await?;
                 Err(Error::HoprdConfigError(format!(
                     "Could not modify IdentityHoprd {identity_name} because cannot recover last configuration"
@@ -199,7 +205,17 @@ impl IdentityHoprd {
                 context_data.send_event(self, IdentityHoprdEventEnum::Deleting, None).await;
                 self.update_phase(context_data.client.clone(), IdentityHoprdPhaseEnum::Deleting, None).await?;
                 info!("Starting to delete identity {identity_name} from namespace {identity_namespace}");
-
+                { // Delete PVC
+                    let pvc_api: Api<PersistentVolumeClaim> = Api::namespaced(client.clone(), &self.namespace().unwrap());
+                    if let Some(pvc) = pvc_api.get_opt(&identity_name).await? {
+                        let uid = pvc.metadata.uid.clone().unwrap();
+                        pvc_api.delete(&identity_name, &DeleteParams::default()).await?;
+                        debug!("Waiting for PVC {} to be deleted", &identity_name);
+                        await_condition(pvc_api.clone(), &identity_name, conditions::is_deleted(&uid))
+                            .await
+                            .map_err(|e| Error::IdentityHoprdPVCError(format!("Failed to wait for PVC deletion: {e}")))?;
+                    }
+                }
                 {
                     let mut context_state = context_data.state.write().await;
                     let identity_pool_option = context_state.get_identity_pool(&self.namespace().unwrap(), &self.spec.identity_pool_name);
@@ -322,29 +338,49 @@ impl IdentityHoprd {
         Ok(())
     }
 
-    async fn check_identity_pool(&self, client: Client) -> Result<bool, Error> {
-        let api: Api<IdentityPool> = Api::namespaced(client, &self.namespace().unwrap());
+    async fn check_identity_pool(&self, context_data: Arc<ContextData>) -> Result<(), Error> {
+        let identity_namespace = self.namespace().unwrap();
+        let api: Api<IdentityPool> = Api::namespaced(context_data.client.clone(), &identity_namespace);
         if let Some(identity_pool) = api.get_opt(&self.spec.identity_pool_name).await? {
             if identity_pool.status.is_some() && identity_pool.status.as_ref().unwrap().phase.eq(&IdentityPoolPhaseEnum::Ready) {
-                Ok(true)
+                Ok(())
             } else {
                 warn!(
                     "IdentityHoprd {} has an IdentityPool {} in namespace {} with status {:?}",
                     self.name_any(),
                     self.spec.identity_pool_name,
-                    self.namespace().unwrap(),
+                    identity_namespace,
                     identity_pool.status.as_ref().unwrap_or(&IdentityPoolStatus::default())
                 );
-                Ok(false)
+                return Err(Error::IdentityHoprdPoolError(format!("IdentityHoprd {} has an IdentityPool {} in namespace {} with status {:?}", self.name_any(), self.spec.identity_pool_name, identity_namespace, identity_pool.status.as_ref().unwrap_or(&IdentityPoolStatus::default()))));
             }
         } else {
             warn!(
                 "IdentityHoprd {} cannot find IdentityPool {} in namespace {}",
                 self.name_any(),
                 self.spec.identity_pool_name,
-                self.namespace().unwrap()
+                identity_namespace
             );
-            Ok(false)
+            context_data.send_event(self, IdentityHoprdEventEnum::Failed, Some("identity pool not found".to_string())).await;
+            return Err(Error::IdentityHoprdPoolError(format!("IdentityHoprd {} cannot find IdentityPool {} in namespace {}", self.name_any(), self.spec.identity_pool_name, identity_namespace)));
         }
     }
+
+    async fn check_pvc(&self, context_data: Arc<ContextData>) -> Result<(), Error> {
+        let pvc_api: Api<PersistentVolumeClaim> = Api::namespaced(context_data.client.clone(), &self.namespace().unwrap());
+        if let Some(pvc) = pvc_api.get_opt(&self.name_any()).await? {
+            if pvc.metadata.deletion_timestamp.is_some() {
+                // PVC is terminating, wait and retry
+                context_data.send_event(self, IdentityHoprdEventEnum::Failed, Some("previous pvc is still in terminating state".to_string())).await;
+                return Err(Error::IdentityHoprdPVCError(format!("PVC {} is terminating, wait and retry", self.name_any())));
+            } else {
+                // PVC exists and is not terminating (should not happen)
+            context_data.send_event(self, IdentityHoprdEventEnum::Failed, Some("unlinked pvc already exists with this name".to_string())).await;
+            return Err(Error::IdentityHoprdPVCError(format!("PVC {} already exists", self.name_any())));
+            }
+        } else {
+            Ok(())
+        }
+    }
+
 }

@@ -11,9 +11,11 @@ pub enum Error {
     #[error("Invalid Hoprd CRD: {0}")]
     UserInputError(String),
 
-    /// The secret is in an Unknown status
-    #[error("Invalid Hoprd Secret status: {0}")]
-    IdentityStatusError(String),
+    #[error("IdentityHoprdPool error: {0}")]
+    IdentityHoprdPoolError(String),
+
+    #[error("IdentityHoprdPVC error: {0}")]
+    IdentityHoprdPVCError(String),
 
     /// The hoprd is in an Unknown status
     #[error("Invalid Hoprd status: {0}")]

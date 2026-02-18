@@ -198,7 +198,7 @@ impl ResourceEvent for IdentityHoprdEventEnum {
             IdentityHoprdEventEnum::Failed => Event {
                 type_: EventType::Warning,
                 reason: "Failed".to_string(),
-                note: Some("Failed to bootstrap identity".to_owned()),
+                note: Some(format!("Failed to bootstrap identity {}", parsed_attribute)),
                 action: "Identity bootstrapping failed".to_string(),
                 secondary: None,
             },
