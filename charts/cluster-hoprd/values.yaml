@@ -61,7 +61,13 @@ clusterHoprd:
     ##
     ## @param clusterHoprd.nodes.deployment Deployment spec
     ##
-    deployment: {}
+    deployment:
+      env: ""
+      extraContainers: ""
+      livenessProbe: ""
+      readinessProbe: ""
+      resources: ""
+      startupProbe: ""
 
     service:
       ##

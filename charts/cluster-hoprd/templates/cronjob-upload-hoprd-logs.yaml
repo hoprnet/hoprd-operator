@@ -78,7 +78,7 @@ spec:
 
       # Task 1: Check for corrupted logs and resync if needed
       - name: check-corrupted-logs
-        serviceAccountName: upload-hoprd-logs-sa
+        serviceAccountName: {{ include "cluster-hoprd.name" . }}-upload-hoprd-logs-sa
         container:
           image: alpine/k8s:1.33.4
           command: ["/bin/bash", "-c"]
@@ -113,7 +113,7 @@ spec:
 
       # Task 2: Stop Deployment
       - name: stop-deployment
-        serviceAccountName: upload-hoprd-logs-sa
+        serviceAccountName: {{ include "cluster-hoprd.name" . }}-upload-hoprd-logs-sa
         container:
           image: alpine/k8s:1.33.4
           command: ["/bin/bash", "-c"]
@@ -131,7 +131,7 @@ spec:
 
       # Task 3: Backup logs
       - name: backup-logs
-        serviceAccountName: upload-hoprd-logs-sa
+        serviceAccountName: {{ include "cluster-hoprd.name" . }}-upload-hoprd-logs-sa
         container:
           image: gcr.io/google.com/cloudsdktool/google-cloud-cli:stable
           command: ["/bin/bash", "-c"]
@@ -194,7 +194,7 @@ spec:
                   path: privateKey
       # Task 4: Start Deployment
       - name: start-deployment
-        serviceAccountName: upload-hoprd-logs-sa
+        serviceAccountName: {{ include "cluster-hoprd.name" . }}-upload-hoprd-logs-sa
         container:
           image: alpine/k8s:1.33.4
           command: ["/bin/bash", "-c"]
