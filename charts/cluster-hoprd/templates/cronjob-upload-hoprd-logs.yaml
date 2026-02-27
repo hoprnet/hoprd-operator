@@ -64,6 +64,12 @@ spec:
   serviceAccountName: argo-workflow
   workflowSpec:
     entrypoint: main
+    retryStrategy:
+      limit: "2"
+      retryPolicy: "Always"
+      backoff:
+        duration: "20m"
+        factor: "1"
     templates:
       - name: main
         steps:
