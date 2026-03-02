@@ -11,8 +11,30 @@ spec:
   replicas: {{ .Values.clusterHoprd.replicas }}
   version: {{ .Values.clusterHoprd.version | quote }}
   enabled: {{ .Values.clusterHoprd.enabled | default true }}
-  {{- if .Values.clusterHoprd.nodes.deployment }}
-  deployment: {{ .Values.clusterHoprd.nodes.deployment | toYaml | nindent 4 }}
+  deployment:
+  {{- if .Values.clusterHoprd.nodes.deployment.env }}
+    env: |
+{{ .Values.clusterHoprd.nodes.deployment.env | indent 6 }}
+  {{- end }}
+  {{- if .Values.clusterHoprd.nodes.deployment.extraContainers }}
+    extraContainers: |
+{{ .Values.clusterHoprd.nodes.deployment.extraContainers | indent 6 }}
+  {{- end }}
+  {{- if .Values.clusterHoprd.nodes.deployment.livenessProbe }}
+    livenessProbe: |
+{{ .Values.clusterHoprd.nodes.deployment.livenessProbe | indent 6 }}
+  {{- end }}
+  {{- if .Values.clusterHoprd.nodes.deployment.readinessProbe }}
+    readinessProbe: |
+{{ .Values.clusterHoprd.nodes.deployment.readinessProbe | indent 6 }}
+  {{- end }}
+  {{- if .Values.clusterHoprd.nodes.deployment.resources }}
+    resources: |
+{{ .Values.clusterHoprd.nodes.deployment.resources | indent 6 }}
+  {{- end }}
+  {{- if .Values.clusterHoprd.nodes.deployment.startupProbe }}
+    startupProbe: |
+{{ .Values.clusterHoprd.nodes.deployment.startupProbe | indent 6 }}
   {{- end }}
   profilingEnabled: {{ .Values.clusterHoprd.profiling.enabled | default false }}
   service:
