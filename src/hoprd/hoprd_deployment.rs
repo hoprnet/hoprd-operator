@@ -592,6 +592,11 @@ fn build_env_vars(identity_hoprd: &IdentityHoprd, hoprd_host: &String, hoprd_spe
             ..EnvVar::default()
     });
     env_vars.push(EnvVar {
+            name: constants::OTEL_SERVICE_NAME.to_owned(),
+            value: Some(identity_hoprd.metadata.name.clone().unwrap_or_default()),
+            ..EnvVar::default()
+    });
+    env_vars.push(EnvVar {
             name: constants::HOPRD_SAFE_ADDRESS.to_owned(),
             value: Some(identity_hoprd.spec.safe_address.to_owned()),
             ..EnvVar::default()
