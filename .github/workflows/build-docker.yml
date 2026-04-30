@@ -15,7 +15,7 @@ concurrency:
 jobs:
   bump_version:
     name: Bump version
-    runs-on: self-hosted-hoprnet-small
+    runs-on: depot-ubuntu-24.04
     permissions:
       contents: write
     steps:
@@ -66,23 +66,21 @@ jobs:
   build:
     name: Build docker
     needs: bump_version
-    runs-on: self-hosted-hoprnet-small
+    runs-on: depot-ubuntu-24.04
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Setup GCP
         id: gcp
-        uses: hoprnet/hopr-workflows/actions/setup-gcp@12c56020e16036982e6cc529848edeedfc705865 # master
+        uses: hoprnet/hopr-workflows/actions/setup-gcp@setup-gcp-v3
         with:
-          google-credentials: ${{ secrets.GOOGLE_HOPRASSOCIATION_CREDENTIALS_REGISTRY }}
-          login-artifact-registry: 'true'
-          install-sdk: 'false'
+          google_credentials: ${{ secrets.GOOGLE_HOPRASSOCIATION_CREDENTIALS_REGISTRY }}
+          login_artifact_registry: 'true'
+          install_sdk: 'false'
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-        with:
-          driver: kubernetes
 
       - name: Build container image
         uses: docker/build-push-action@v5

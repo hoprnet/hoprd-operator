@@ -18,7 +18,7 @@ concurrency:
 jobs:
   bump_version:
     name: Bump version
-    runs-on: self-hosted-hoprnet-small
+    runs-on: depot-ubuntu-24.04
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -54,7 +54,7 @@ jobs:
 
   lint:
     name: Lint
-    runs-on: self-hosted-hoprnet-small
+    runs-on: depot-ubuntu-24.04
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -71,7 +71,7 @@ jobs:
 
   package:
     name: Package Helm Chart
-    runs-on: self-hosted-hoprnet-small
+    runs-on: depot-ubuntu-24.04
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -95,7 +95,7 @@ jobs:
 
   generate-readme:
     name: Generate Readme
-    runs-on: self-hosted-hoprnet-small
+    runs-on: depot-ubuntu-24.04
     permissions:
       contents: write
     steps:

@@ -14,7 +14,7 @@ concurrency:
 jobs:
   publish:
     name: Publish
-    runs-on: self-hosted-hoprnet-small
+    runs-on: depot-ubuntu-24.04
 
     steps:
       - name: Checkout
@@ -22,15 +22,13 @@ jobs:
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-        with:
-          driver: kubernetes
 
       - name: Setup GCP
         id: gcp
-        uses: hoprnet/hopr-workflows/actions/setup-gcp@12c56020e16036982e6cc529848edeedfc705865 # master
+        uses: hoprnet/hopr-workflows/actions/setup-gcp@setup-gcp-v3
         with:
-          google-credentials: ${{ secrets.GOOGLE_HOPRASSOCIATION_CREDENTIALS_REGISTRY }}
-          login-artifact-registry: 'true'
+          google_credentials: ${{ secrets.GOOGLE_HOPRASSOCIATION_CREDENTIALS_REGISTRY }}
+          login_artifact_registry: 'true'
 
       - name: Get package version
         id: version
