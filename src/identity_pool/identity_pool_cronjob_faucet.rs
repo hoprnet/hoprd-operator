@@ -80,9 +80,10 @@ async fn get_job_template(context_data: Arc<ContextData>, identity_pool: &Identi
     )]);
 
     JobSpec {
+        ttl_seconds_after_finished: Some(600), // 10 minutes
         parallelism: Some(1),
         completions: Some(1),
-        backoff_limit: Some(1),
+        backoff_limit: Some(2),
         active_deadline_seconds: Some(constants::OPERATOR_JOB_TIMEOUT.try_into().unwrap()),
         template: PodTemplateSpec {
             metadata: Some(ObjectMeta::default()),
