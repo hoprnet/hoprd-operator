@@ -18,7 +18,7 @@ use crate::{constants, servicemonitor::ServiceMonitor};
 /// Creates a new serviceMonitor to enable the monitoring with Prometheus of the hoprd node,
 pub async fn create_service_monitor(context_data: Arc<ContextData>, name: &str, namespace: &str, owner_references: Option<Vec<OwnerReference>>) -> Result<ServiceMonitor, Error> {
     let mut labels: BTreeMap<String, String> = BTreeMap::new();
-    labels.insert(constants::LABEL_KUBERNETES_NAME.to_owned(), context_data.config.instance.name.to_owned());
+    labels.insert(constants::LABEL_KUBERNETES_NAME.to_owned(), name.to_owned());
     labels.insert(constants::LABEL_KUBERNETES_IDENTITY_POOL.to_owned(), name.to_owned());
 
     let api: Api<ServiceMonitor> = Api::namespaced(context_data.client.clone(), namespace);

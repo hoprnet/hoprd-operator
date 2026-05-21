@@ -412,7 +412,7 @@ impl ClusterHoprd {
 
     /// Creates a hoprd resource
     async fn create_hoprd_resource(&self, context_data: Arc<ContextData>, name: String, hoprd_spec: HoprdSpec) -> Result<Hoprd, Error> {
-        let mut labels: BTreeMap<String, String> = utils::common_lables(context_data.config.instance.name.to_owned(), Some(name.to_owned()), Some("node".to_owned()));
+        let mut labels: BTreeMap<String, String> = utils::common_lables(hoprd_spec.identity_pool_name.to_owned(), Some(name.to_owned()), Some("node".to_owned()));
         labels.insert(constants::LABEL_NODE_CLUSTER.to_owned(), self.name_any());
         let api: Api<Hoprd> = Api::namespaced(context_data.client.clone(), &self.namespace().unwrap());
         let owner_references: Option<Vec<OwnerReference>> = Some(vec![self.controller_owner_ref(&()).unwrap()]);

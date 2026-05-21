@@ -43,7 +43,7 @@ pub async fn create_deployment(context_data: Arc<ContextData>, hoprd: &Hoprd, id
     let owner_references: Option<Vec<OwnerReference>> = Some(vec![hoprd.controller_owner_ref(&()).unwrap()]);
     let identity_pool: IdentityPool = identity_hoprd.get_identity_pool(context_data.client.clone()).await.unwrap();
 
-    let mut labels: BTreeMap<String, String> = utils::common_lables(context_data.config.instance.name.to_owned(), Some(name.to_owned()), Some("node".to_owned()));
+    let mut labels: BTreeMap<String, String> = utils::common_lables(identity_pool.name_any(), Some(name.to_owned()), Some("node".to_owned()));
     labels.insert(constants::LABEL_NODE_NETWORK.to_owned(), identity_pool.spec.network.clone());
     labels.insert(constants::LABEL_KUBERNETES_IDENTITY_POOL.to_owned(), identity_pool.name_any());
     labels.insert(constants::LABEL_NODE_ADDRESS.to_owned(), identity_hoprd.spec.node_address.to_owned());

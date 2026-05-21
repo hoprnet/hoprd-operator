@@ -24,7 +24,7 @@ pub async fn create_cron_job(context_data: Arc<ContextData>, identity_pool: &Ide
     let cron_job_name: String = format!("auto-funding-{}", identity_pool_name);
     info!("Creating CronJob {cron_job_name} for identity pool {identity_pool_name} in namespace {namespace}");
     let owner_references: Option<Vec<OwnerReference>> = Some(vec![identity_pool.controller_owner_ref(&()).unwrap()]);
-    let labels: BTreeMap<String, String> = utils::common_lables(context_data.config.instance.name.to_owned(), Some(identity_pool_name.to_owned()), Some("auto-funding".to_owned()));
+    let labels: BTreeMap<String, String> = utils::common_lables(identity_pool_name.to_owned(), None, Some("auto-funding".to_owned()));
 
     let cron_job: CronJob = CronJob {
         metadata: ObjectMeta {

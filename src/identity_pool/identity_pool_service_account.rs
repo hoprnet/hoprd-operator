@@ -29,7 +29,7 @@ pub async fn delete_rbac(client: Client, namespace: &str, name: &str) -> Result<
 
 /// Creates a new service Account for the IdentityPool
 async fn create_service_account(context_data: Arc<ContextData>, namespace: &String, name: &String, owner_references: Option<Vec<OwnerReference>>) -> Result<ServiceAccount, Error> {
-    let labels = utils::common_lables(context_data.config.instance.name.to_owned(), Some(name.to_owned()), None);
+    let labels = utils::common_lables(name.to_owned(), None, None);
     let api: Api<ServiceAccount> = Api::namespaced(context_data.client.clone(), namespace);
     let service_account: ServiceAccount = ServiceAccount {
         metadata: ObjectMeta {
@@ -51,7 +51,7 @@ async fn create_service_account(context_data: Arc<ContextData>, namespace: &Stri
 }
 
 async fn create_role(context_data: Arc<ContextData>, namespace: &String, name: &String, owner_references: Option<Vec<OwnerReference>>) -> Result<Role, Error> {
-    let labels = utils::common_lables(context_data.config.instance.name.to_owned(), Some(name.to_owned()), None);
+    let labels = utils::common_lables(name.to_owned(), None, None);
     let api: Api<Role> = Api::namespaced(context_data.client.clone(), namespace);
     let role: Role = Role {
         metadata: ObjectMeta {
@@ -78,7 +78,7 @@ async fn create_role(context_data: Arc<ContextData>, namespace: &String, name: &
 }
 
 async fn create_role_binding(context_data: Arc<ContextData>, namespace: &String, name: &String, owner_references: Option<Vec<OwnerReference>>) -> Result<RoleBinding, Error> {
-    let labels = utils::common_lables(context_data.config.instance.name.to_owned(), Some(name.to_owned()), None);
+    let labels = utils::common_lables(name.to_owned(),None, None);
     let api: Api<RoleBinding> = Api::namespaced(context_data.client.clone(), namespace);
     let role_binding: RoleBinding = RoleBinding {
         metadata: ObjectMeta {

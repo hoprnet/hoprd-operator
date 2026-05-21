@@ -122,10 +122,12 @@ impl Hoprd {
             resource_generics::add_finalizer(client.clone(), self).await;
             let service_type = self.spec.service.r#type.clone();
             let session_ports_allocation = self.spec.service.ports_allocation;
+            let identity_pool_name = self.spec.identity_pool_name.to_owned();
             let starting_port = hoprd_ingress::create_ingress(
                 context_data.clone(),
                 &service_type,
                 &hoprd_name,
+                &identity_pool_name.to_owned(),
                 &hoprd_namespace,
                 &self.spec.dns_name.clone().unwrap_or(context_data.config.ingress.dns_domain.to_owned()),
                 session_ports_allocation,

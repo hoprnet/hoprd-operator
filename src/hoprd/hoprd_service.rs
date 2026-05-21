@@ -65,7 +65,7 @@ pub async fn create_service(
     last_port: u16,
     owner_references: Option<Vec<OwnerReference>>,
 ) -> Result<String, HoprdError> {
-    let mut labels: BTreeMap<String, String> = utils::common_lables(context_data.config.instance.name.to_owned(), Some(name.to_owned()), None);
+    let mut labels: BTreeMap<String, String> = utils::common_lables(identity_pool_name.to_owned(), Some(name.to_owned()), None);
     labels.insert(constants::LABEL_KUBERNETES_IDENTITY_POOL.to_owned(), identity_pool_name.to_owned());
 
     if service_type.eq(&ServiceTypeEnum::ClusterIP) {

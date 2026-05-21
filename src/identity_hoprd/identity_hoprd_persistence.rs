@@ -15,8 +15,9 @@ pub async fn create_pvc(context: Arc<ContextData>, identity_hoprd: &IdentityHopr
     let client = context.client.clone();
     let namespace: String = identity_hoprd.namespace().unwrap();
     let name: String = identity_hoprd.name_any();
+    let identity_pool_name: String = identity_hoprd.spec.identity_pool_name.to_owned();
     let owner_references: Option<Vec<OwnerReference>> = Some(vec![identity_hoprd.controller_owner_ref(&()).unwrap()]);
-    let labels: Option<BTreeMap<String, String>> = Some(utils::common_lables(context.config.instance.name.to_owned(), Some(name.to_owned()), None));
+    let labels: Option<BTreeMap<String, String>> = Some(utils::common_lables(identity_pool_name, Some(name.to_owned()), None));
     let mut resource: BTreeMap<String, Quantity> = BTreeMap::new();
     resource.insert("storage".to_string(), Quantity(context.config.persistence.size.to_owned()));
 

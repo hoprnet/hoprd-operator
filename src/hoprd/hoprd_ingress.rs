@@ -27,13 +27,14 @@ pub async fn create_ingress(
     context_data: Arc<ContextData>,
     service_type: &ServiceTypeEnum,
     service_name: &str,
+    identity_pool_name: &str,
     namespace: &str,
     dns_name: &str,
     session_port_allocation: u16,
     ingress_config: &IngressConfig,
     owner_references: Option<Vec<OwnerReference>>,
 ) -> Result<u16, Error> {
-    let labels: Option<BTreeMap<String, String>> = Some(utils::common_lables(context_data.config.instance.name.to_owned(), Some(service_name.to_owned()), None));
+    let labels: Option<BTreeMap<String, String>> = Some(utils::common_lables(identity_pool_name.to_owned(), Some(service_name.to_owned()), None));
     let stating_port = if service_type.eq(&ServiceTypeEnum::ClusterIP) {
         hoprd_ingress::open_port(context_data.client.clone(), &namespace, &service_name, session_port_allocation, &context_data.config.ingress)
             .await
