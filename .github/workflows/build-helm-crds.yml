@@ -41,7 +41,7 @@ jobs:
 
       - name: Commit and push
         if: ${{ steps.bumping_version.outputs.bumped_version }}
-        uses: stefanzweifel/git-auto-commit-action@v6
+        uses: stefanzweifel/git-auto-commit-action@v7
         with:
           commit_message: "Bump Helm chart version to ${{ steps.bumping_version.outputs.bumped_version }}"
           repository: .
@@ -120,7 +120,7 @@ jobs:
 
       - name: Commit and push
         if: ${{ steps.generator.outputs.readme_updated }}
-        uses: stefanzweifel/git-auto-commit-action@v6
+        uses: stefanzweifel/git-auto-commit-action@v7
         with:
           commit_message: Update parameters README.md
           repository: .
