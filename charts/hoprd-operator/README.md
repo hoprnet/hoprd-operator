@@ -2,7 +2,7 @@
 
 # Hopr Operator Chart
 
-This chart packages all the kubernetes resources needed to install Hopr opreator on Kubernetes
+This helm-chart packages all the kubernetes resources needed to install Hopr opreator on Kubernetes
 
 ## Installing
 
