@@ -21,6 +21,8 @@ spec:
 apiVersion: iam.gcp.crossplane.io/v1alpha1
 kind: ServiceAccountKey
 metadata:
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
   name: "{{ $fullName }}-gcp-sa-key-{{ $namespace }}"
 spec:
   deletionPolicy: Delete
@@ -47,7 +49,7 @@ spec:
     policy:
       bindings:
       - members:
-        - "serviceAccount:{{ include "hoprd-operator.fullname" . }}-sa@{{ required "Error: You must specify a value for operator.fastSync.crossplane.gcpProjectId" .Values.hoprdOperator.fastSync.crossplane.gcpProjectId }}.iam.gserviceaccount.com"
+        - 'serviceAccount:{{ .Values.hoprdOperator.fastSync.crossplane.gcpProjectId }}.svc.id.goog[{{ .Release.Namespace }}/{{ include "hoprd-operator.fullname" . }}]'
         role: roles/iam.workloadIdentityUser
     serviceAccount: projects/{{ .Values.hoprdOperator.fastSync.crossplane.gcpProjectId }}/serviceAccounts/{{ include "hoprd-operator.fullname" . }}-sa@{{ .Values.hoprdOperator.fastSync.crossplane.gcpProjectId }}.iam.gserviceaccount.com
   providerConfigRef:
