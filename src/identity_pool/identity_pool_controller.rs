@@ -6,7 +6,7 @@ use kube::{
         controller::{Action, Controller},
         watcher::Config,
     },
-    Resource, Result,
+    Resource, ResourceExt, Result,
 };
 use std::sync::Arc;
 use tokio::time::Duration;
@@ -31,6 +31,8 @@ enum IdentityPoolAction {
     Modify,
     /// Delete the IdentityPool resource
     Delete,
+    /// The owned `ServiceMonitor` is missing (e.g. manually deleted) and needs to be recreated
+    RecreateServiceMonitor,
     /// This `IdentityPool` resource is in desired state and requires no actions to be taken
     NoOp,
 }
@@ -41,21 +43,25 @@ enum IdentityPoolAction {
 ///
 /// # Arguments
 /// - `identity_hoprd`: A reference to `IdentityPool` being reconciled to decide next action upon.
-fn determine_action(identity_pool: &IdentityPool) -> IdentityPoolAction {
-    return if identity_pool.meta().deletion_timestamp.is_some() {
-        IdentityPoolAction::Delete
+/// - `context`: Context Data used to query the current state of owned resources like the `ServiceMonitor`.
+async fn determine_action(identity_pool: &IdentityPool, context: &Arc<ContextData>) -> Result<IdentityPoolAction, Error> {
+    if identity_pool.meta().deletion_timestamp.is_some() {
+        return Ok(IdentityPoolAction::Delete);
     } else if identity_pool.meta().finalizers.as_ref().map_or(true, |finalizers| finalizers.is_empty()) {
-        IdentityPoolAction::Create
+        return Ok(IdentityPoolAction::Create);
     } else if identity_pool.status.as_ref().unwrap().phase.eq(&IdentityPoolPhaseEnum::OutOfSync) {
-        IdentityPoolAction::Sync
+        return Ok(IdentityPoolAction::Sync);
+    }
+    let service_monitor_api: Api<ServiceMonitor> = Api::namespaced(context.client.clone(), &identity_pool.namespace().unwrap());
+    if service_monitor_api.get_opt(&identity_pool.name_any()).await?.is_none() {
+        return Ok(IdentityPoolAction::RecreateServiceMonitor);
+    }
+    let current_generation = identity_pool.meta().generation.unwrap_or(0);
+    let observed_generation = identity_pool.status.as_ref().map_or(0, |status| status.observed_generation);
+    if observed_generation < current_generation {
+        Ok(IdentityPoolAction::Modify)
     } else {
-        let current_generation = identity_pool.meta().generation.unwrap_or(0);
-        let observed_generation = identity_pool.status.as_ref().map_or(0, |status| status.observed_generation);
-        if observed_generation < current_generation {
-            IdentityPoolAction::Modify
-        } else {
-            IdentityPoolAction::NoOp
-        }
+        Ok(IdentityPoolAction::NoOp)
     }
 }
 
@@ -63,11 +69,12 @@ async fn reconciler(identity_pool: Arc<IdentityPool>, context: Arc<ContextData>)
     let mut identity_pool_cloned = identity_pool.clone();
     let identity_pool_mutable: &mut IdentityPool = Arc::<IdentityPool>::make_mut(&mut identity_pool_cloned);
     // Performs action as decided by the `determine_action` function.
-    match determine_action(identity_pool_mutable) {
+    match determine_action(identity_pool_mutable, &context).await? {
         IdentityPoolAction::Create => identity_pool_mutable.create(context.clone()).await,
         IdentityPoolAction::Modify => identity_pool_mutable.modify(context.clone()).await,
         IdentityPoolAction::Sync => identity_pool_mutable.sync(context.clone()).await,
         IdentityPoolAction::Delete => identity_pool_mutable.delete(context.clone()).await,
+        IdentityPoolAction::RecreateServiceMonitor => identity_pool_mutable.recreate_service_monitor(context.clone()).await,
         // The resource is already in desired state, do nothing and re-check after 10 seconds
         IdentityPoolAction::NoOp => Ok(Action::requeue(Duration::from_secs(constants::RECONCILE_SHORT_FREQUENCY))),
     }

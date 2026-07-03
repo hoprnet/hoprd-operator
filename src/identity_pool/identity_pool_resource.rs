@@ -240,6 +240,18 @@ impl IdentityPool {
         Ok(Action::requeue(Duration::from_secs(constants::RECONCILE_LONG_FREQUENCY)))
     }
 
+    /// Recreates the `ServiceMonitor` owned by this `IdentityPool` when it has been manually deleted
+    /// without deleting the `IdentityPool` itself, keeping it in sync with the expected configuration.
+    pub async fn recreate_service_monitor(&mut self, context_data: Arc<ContextData>) -> Result<Action, Error> {
+        let identity_pool_namespace: String = self.namespace().unwrap();
+        let identity_pool_name: String = self.name_any();
+        let owner_references: Option<Vec<OwnerReference>> = Some(vec![self.controller_owner_ref(&()).unwrap()]);
+        warn!("ServiceMonitor of IdentityPool {identity_pool_name} in namespace {identity_pool_namespace} was not found, recreating it");
+        identity_pool_service_monitor::create_service_monitor(context_data.clone(), &identity_pool_name, &identity_pool_namespace, owner_references).await?;
+        info!("ServiceMonitor of IdentityPool {identity_pool_name} in namespace {identity_pool_namespace} successfully recreated");
+        Ok(Action::requeue(Duration::from_secs(constants::RECONCILE_SHORT_FREQUENCY)))
+    }
+
     fn changed_inmutable_fields(&self, previous_identity: &IdentityPoolSpec) -> bool {
         if !self.spec.network.eq(&previous_identity.network) {
             error!("Configuration is invalid, 'network' field cannot be changed on {}.", self.name_any());

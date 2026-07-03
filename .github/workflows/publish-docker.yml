@@ -32,7 +32,7 @@ jobs:
         with:
           login_artifact_registry: 'true'
 
-      - name: Get package version
+      - name: Get version
         id: version
         run: |
           docker_tag=$(grep -A 1 "hoprd_operator" Cargo.lock | grep version | sed 's/.* "//' | sed 's/"//' | tr -d '\n')

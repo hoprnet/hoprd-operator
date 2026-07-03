@@ -81,11 +81,11 @@ pub async fn create_service_monitor(context_data: Arc<ContextData>, name: &str, 
     api.create(&PostParams::default(), &service_monitor).await
 }
 
-fn create_relabel_rule(source_suffix: &str, target_name: &str) -> ServiceMonitorEndpointsRelabelings {
+fn create_relabel_rule(source_name: &str, target_name: &str) -> ServiceMonitorEndpointsRelabelings {
     ServiceMonitorEndpointsRelabelings {
         action: Some(ServiceMonitorEndpointsRelabelingsAction::Replace),
-        source_labels: Some(vec![format!("__meta_kubernetes_pod_label_hoprds_hoprnet_org_{}", source_suffix)]),
-        target_label: Some(format!("hoprd_{}", target_name)),
+        source_labels: Some(vec![source_name.to_owned()]),
+        target_label: Some(target_name.to_owned()),
         modulus: None,
         regex: None,
         replacement: None,
@@ -95,10 +95,13 @@ fn create_relabel_rule(source_suffix: &str, target_name: &str) -> ServiceMonitor
 
 fn build_metric_relabel() -> Vec<ServiceMonitorEndpointsRelabelings> {
     vec![
-        create_relabel_rule("network", "network"),
-        create_relabel_rule("safeAddress", "safe_address"),
-        create_relabel_rule("nodeAddress", "node_address"),
-        create_relabel_rule("cluster", "cluster"),
+        create_relabel_rule("__meta_kubernetes_pod_label_hoprds_hoprnet_org_network", "hoprd_network"),
+        create_relabel_rule("__meta_kubernetes_pod_label_hoprds_hoprnet_org_safeAddress", "hoprd_safe_address"),
+        create_relabel_rule("__meta_kubernetes_pod_label_hoprds_hoprnet_org_nodeAddress", "hoprd_node_address"),
+        create_relabel_rule("__meta_kubernetes_pod_label_hoprds_hoprnet_org_cluster", "hoprd_cluster"),
+        create_relabel_rule("__meta_kubernetes_pod_label_app_kubernetes_io_name", "app_kubernetes_io_name"),
+        create_relabel_rule("__meta_kubernetes_pod_label_app_kubernetes_io_instance", "app_kubernetes_io_instance"),
+        create_relabel_rule("__meta_kubernetes_pod_label_app_kubernetes_io_component", "app_kubernetes_io_component"),
     ]
 }
 
