@@ -20,9 +20,18 @@ jobs:
       id-token: write
 
     steps:
+      - name: Generate short-lived github token from GitHub App Hoprnet
+        id: bot-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: Iv23liV1vEl5aA1L93To
+          private-key: ${{ secrets.GH_APP_HOPRNET_BOT_PRIVATE_KEY }}
       - name: Checkout
         uses: actions/checkout@v4
-
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+          token: ${{ steps.bot-token.outputs.token }}
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -35,10 +44,21 @@ jobs:
       - name: Get version
         id: version
         run: |
-          docker_tag=$(grep -A 1 "hoprd_operator" Cargo.lock | grep version | sed 's/.* "//' | sed 's/"//' | tr -d '\n')
+          docker_tag=$(grep -m1 '^version = ' Cargo.toml | sed 's/.* "//' | sed 's/"//' | tr -d '\n')
           echo "DOCKER_TAG=${docker_tag}" >> $GITHUB_OUTPUT
 
+      - name: Skip if version already exists
+        id: skip_if_exists
+        run: |
+          if git rev-parse "refs/tags/${{ steps.version.outputs.DOCKER_TAG }}" >/dev/null 2>&1; then
+            echo "Version ${{ steps.version.outputs.DOCKER_TAG }} already exists. Skipping build."
+            echo "SKIP_BUILD=true" >> $GITHUB_OUTPUT
+          else
+            echo "SKIP_BUILD=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Build container image
+        if: steps.skip_if_exists.outputs.SKIP_BUILD == 'false'
         uses: docker/build-push-action@v5
         with:
           push: true
@@ -47,8 +67,9 @@ jobs:
             europe-west3-docker.pkg.dev/hoprassociation/docker-images/hoprd-operator:latest
 
       - name: Tag Docker version
+        if: steps.skip_if_exists.outputs.SKIP_BUILD == 'false'
         run: |
             git config user.email "noreply@hoprnet.org"
             git config user.name "HOPR CI robot"
-            git tag ${{ steps.version.outputs.DOCKER_TAG }}
+            git tag -a ${{ steps.version.outputs.DOCKER_TAG }} -m "Release ${{ steps.version.outputs.DOCKER_TAG }}"
             git push origin ${{ steps.version.outputs.DOCKER_TAG }}
