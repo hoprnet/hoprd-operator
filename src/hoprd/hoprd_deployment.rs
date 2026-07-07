@@ -188,7 +188,7 @@ pub async fn modify_deployment(
         "metadata": metadata,
         "spec": spec_value
     }));
-    api.patch(deployment_name, &PatchParams::default(), patch).await.unwrap();
+    api.patch(deployment_name, &PatchParams::default(), patch).await?;
     Ok(())
 }
 
