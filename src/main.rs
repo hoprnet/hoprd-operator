@@ -81,16 +81,17 @@ async fn start_controllers(operator_config: operator_config::OperatorConfig) {
     info!("Initializing Context Data...");
     ring::default_provider().install_default().expect("failed to install rustls ring CryptoProvider");
     let client: Client = Client::try_default().await.expect("Failed to create kube Client");
-    let context_data: Arc<ContextData> = Arc::new(ContextData::new(client.clone(), operator_config).await);
+    let (context_data, deployment_writer, service_monitor_writer) = ContextData::new(client.clone(), operator_config).await;
+    let context_data: Arc<ContextData> = Arc::new(context_data);
     context_data.sync_identities().await.expect("Failed to sync identities");
     context_data.sync_identity_pools().await.expect("Failed to sync identity pools");
 
     // ⭐ 5. Initiatilize Kubernetes controllers
     info!("Starting Controllers...");
     bootstrap_operator::start(client.clone(), context_data.clone()).await;
-    let controller_identity_pool = identity_pool::identity_pool_controller::run(client.clone(), context_data.clone()).fuse();
+    let controller_identity_pool = identity_pool::identity_pool_controller::run(client.clone(), context_data.clone(), service_monitor_writer).fuse();
     let controller_identity_hoprd = identity_hoprd::identity_hoprd_controller::run(client.clone(), context_data.clone()).fuse();
-    let controller_hoprd = hoprd::hoprd_controller::run(client.clone(), context_data.clone()).fuse();
+    let controller_hoprd = hoprd::hoprd_controller::run(client.clone(), context_data.clone(), deployment_writer).fuse();
     let controller_cluster = cluster::cluster_controller::run(client.clone(), context_data.clone()).fuse();
 
     pin_mut!(controller_identity_pool, controller_identity_hoprd, controller_hoprd, controller_cluster);

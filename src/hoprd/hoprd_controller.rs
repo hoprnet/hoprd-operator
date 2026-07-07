@@ -10,7 +10,9 @@ use kube::{
     client::Client,
     runtime::{
         controller::{Action, Controller},
-        watcher::Config,
+        reflector::{store::Writer, ObjectRef},
+        watcher::{self, Config},
+        WatchStreamExt,
     },
     Resource, ResourceExt, Result,
 };
@@ -59,9 +61,14 @@ async fn determine_action(hoprd: &Hoprd, context: &Arc<ContextData>) -> Result<H
     }
     let phase = hoprd.status.as_ref().unwrap().phase;
     if phase == HoprdPhaseEnum::Running || phase == HoprdPhaseEnum::Stopped {
-        let deployment_api: Api<Deployment> = Api::namespaced(context.client.clone(), &hoprd.namespace().unwrap());
-        if deployment_api.get_opt(&hoprd.name_any()).await?.is_none() {
-            return Ok(HoprdAction::RecreateDeployment);
+        // Check the in-memory cache first to avoid querying the API server on every reconciliation
+        let deployment_ref = ObjectRef::new(&hoprd.name_any()).within(&hoprd.namespace().unwrap());
+        if context.deployment_store.get(&deployment_ref).is_none() {
+            // Confirm against the API server, as the cache may not be populated yet after the operator startup
+            let deployment_api: Api<Deployment> = Api::namespaced(context.client.clone(), &hoprd.namespace().unwrap());
+            if deployment_api.get_opt(&hoprd.name_any()).await?.is_none() {
+                return Ok(HoprdAction::RecreateDeployment);
+            }
         }
     }
     let current_generation = hoprd.meta().generation.unwrap_or(0);
@@ -100,7 +107,7 @@ pub fn on_error(hoprd: Arc<Hoprd>, error: &Error, _context: Arc<ContextData>) ->
 }
 
 /// Initialize the controller
-pub async fn run(client: Client, context_data: Arc<ContextData>) {
+pub async fn run(client: Client, context_data: Arc<ContextData>, deployment_writer: Writer<Deployment>) {
     let owned_api: Api<Hoprd> = Api::<Hoprd>::all(client.clone());
     let job = Api::<Job>::all(client.clone());
     let deployment = Api::<Deployment>::all(client.clone());
@@ -108,6 +115,21 @@ pub async fn run(client: Client, context_data: Arc<ContextData>) {
     let service = Api::<Service>::all(client.clone());
     let service_monitor = Api::<ServiceMonitor>::all(client.clone());
     let ingress = Api::<Ingress>::all(client.clone());
+
+    // Keep the in-memory cache of hoprd node deployments up to date, so that the reconciliation
+    // loop can check for their existence without querying the API server
+    let deployment_reflector = watcher::watcher(deployment.clone(), Config::default().labels(&format!("{}=node", constants::LABEL_KUBERNETES_COMPONENT)))
+        .default_backoff()
+        .reflect(deployment_writer)
+        .applied_objects();
+    tokio::spawn(async move {
+        futures::pin_mut!(deployment_reflector);
+        while let Some(event) = deployment_reflector.next().await {
+            if let Err(watcher_error) = event {
+                error!("[Hoprd] Deployment reflector error: {:?}", watcher_error);
+            }
+        }
+    });
 
     Controller::new(owned_api, Config::default())
         .owns(job, Config::default())

@@ -4,7 +4,9 @@ use kube::{
     client::Client,
     runtime::{
         controller::{Action, Controller},
-        watcher::Config,
+        reflector::{store::Writer, ObjectRef},
+        watcher::{self, Config},
+        WatchStreamExt,
     },
     Resource, ResourceExt, Result,
 };
@@ -52,9 +54,14 @@ async fn determine_action(identity_pool: &IdentityPool, context: &Arc<ContextDat
     } else if identity_pool.status.as_ref().unwrap().phase.eq(&IdentityPoolPhaseEnum::OutOfSync) {
         return Ok(IdentityPoolAction::Sync);
     }
-    let service_monitor_api: Api<ServiceMonitor> = Api::namespaced(context.client.clone(), &identity_pool.namespace().unwrap());
-    if service_monitor_api.get_opt(&identity_pool.name_any()).await?.is_none() {
-        return Ok(IdentityPoolAction::RecreateServiceMonitor);
+    // Check the in-memory cache first to avoid querying the API server on every reconciliation
+    let service_monitor_ref = ObjectRef::new(&identity_pool.name_any()).within(&identity_pool.namespace().unwrap());
+    if context.service_monitor_store.get(&service_monitor_ref).is_none() {
+        // Confirm against the API server, as the cache may not be populated yet after the operator startup
+        let service_monitor_api: Api<ServiceMonitor> = Api::namespaced(context.client.clone(), &identity_pool.namespace().unwrap());
+        if service_monitor_api.get_opt(&identity_pool.name_any()).await?.is_none() {
+            return Ok(IdentityPoolAction::RecreateServiceMonitor);
+        }
     }
     let current_generation = identity_pool.meta().generation.unwrap_or(0);
     let observed_generation = identity_pool.status.as_ref().map_or(0, |status| status.observed_generation);
@@ -94,10 +101,25 @@ pub fn on_error(identity_hoprd: Arc<IdentityPool>, error: &Error, _context: Arc<
 }
 
 /// Initialize the controller
-pub async fn run(client: Client, context_data: Arc<ContextData>) {
+pub async fn run(client: Client, context_data: Arc<ContextData>, service_monitor_writer: Writer<ServiceMonitor>) {
     let owned_api: Api<IdentityPool> = Api::<IdentityPool>::all(client.clone());
     let service_monitor = Api::<ServiceMonitor>::all(client.clone());
     let identity_hoprd = Api::<IdentityHoprd>::all(client.clone());
+
+    // Keep the in-memory cache of identity pool service monitors up to date, so that the
+    // reconciliation loop can check for their existence without querying the API server
+    let service_monitor_reflector = watcher::watcher(service_monitor.clone(), Config::default().labels(constants::LABEL_KUBERNETES_IDENTITY_POOL))
+        .default_backoff()
+        .reflect(service_monitor_writer)
+        .applied_objects();
+    tokio::spawn(async move {
+        futures::pin_mut!(service_monitor_reflector);
+        while let Some(event) = service_monitor_reflector.next().await {
+            if let Err(watcher_error) = event {
+                error!("[IdentityPool] ServiceMonitor reflector error: {:?}", watcher_error);
+            }
+        }
+    });
 
     Controller::new(owned_api, Config::default())
         .owns(service_monitor, Config::default())
