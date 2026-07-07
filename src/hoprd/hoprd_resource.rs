@@ -7,10 +7,11 @@ use crate::resource_generics;
 use crate::{
     constants,
     context_data::ContextData,
-    hoprd::{hoprd_deployment, hoprd_deployment_spec::HoprdDeploymentSpec, hoprd_ingress, hoprd_service, hoprd_service::HoprdServiceSpec},
+    hoprd::{hoprd_deployment, hoprd_deployment_spec::HoprdDeploymentSpec, hoprd_ingress, hoprd_service, hoprd_service::HoprdServiceSpec, hoprd_service::ServiceTypeEnum},
 };
 use futures::{StreamExt, TryStreamExt};
 use k8s_openapi::api::apps::v1::Deployment;
+use k8s_openapi::api::core::v1::Service;
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::OwnerReference;
 use kube::api::WatchParams;
 use kube::core::object::HasSpec;
@@ -247,6 +248,58 @@ impl Hoprd {
             }
             Err(_) => Ok(warn!("Error waiting for deployment of {hoprd_name} to become ready")),
         }
+    }
+
+    // Recreates the deployment when it has been manually deleted
+    pub async fn recreate_deployment(&mut self, context_data: Arc<ContextData>) -> Result<Action, Error> {
+        let client: Client = context_data.client.clone();
+        let hoprd_namespace: String = self.namespace().unwrap();
+        let hoprd_name: String = self.name_any();
+        warn!("Deployment of Hoprd node {hoprd_name} in namespace {hoprd_namespace} was not found, recreating it");
+        if let Some(identity) = self.get_identity(client.clone()).await? {
+            let (hoprd_host, starting_port) = self.get_service_allocation(context_data.clone()).await?;
+            let last_port: u16 = starting_port + self.spec.service.ports_allocation;
+            hoprd_deployment::create_deployment(context_data.clone(), self, &identity, &hoprd_host, starting_port, last_port).await?;
+            self.wait_deployment(client.clone()).await?;
+            info!("Deployment of Hoprd node {hoprd_name} in namespace {hoprd_namespace} successfully recreated");
+            Ok(Action::requeue(Duration::from_secs(constants::RECONCILE_SHORT_FREQUENCY)))
+        } else {
+            error!("Hoprd node {hoprd_name} in namespace {hoprd_namespace} does not have a linked identity, cannot recreate its deployment");
+            context_data.send_event(self, HoprdEventEnum::Failed, None).await;
+            self.update_status(client.clone(), HoprdPhaseEnum::Failed).await?;
+            Ok(Action::requeue(Duration::from_secs(constants::RECONCILE_LONG_FREQUENCY)))
+        }
+    }
+
+    // Recovers the hoprd host and p2p starting port from the existing service
+    async fn get_service_allocation(&self, context_data: Arc<ContextData>) -> Result<(String, u16), Error> {
+        let api: Api<Service> = Api::namespaced(context_data.client.clone(), &self.namespace().unwrap());
+        let service_name = if self.spec.service.r#type.eq(&ServiceTypeEnum::ClusterIP) {
+            self.name_any()
+        } else {
+            format!("{}-p2p-tcp", self.name_any())
+        };
+        let service = api.get(&service_name).await?;
+        let hoprd_host = if self.spec.service.r#type.eq(&ServiceTypeEnum::ClusterIP) {
+            context_data.config.ingress.loadbalancer_ip.to_string()
+        } else {
+            service
+                .status
+                .as_ref()
+                .and_then(|status| status.load_balancer.as_ref())
+                .and_then(|load_balancer| load_balancer.ingress.as_ref())
+                .and_then(|ingress| ingress.first())
+                .and_then(|first_ingress| first_ingress.ip.clone())
+                .ok_or_else(|| Error::HoprdStatusError(format!("Could not get the load balancer IP from service {service_name}")))?
+        };
+        let starting_port = service
+            .spec
+            .as_ref()
+            .and_then(|spec| spec.ports.as_ref())
+            .and_then(|ports| ports.iter().find(|port| port.name.as_deref() == Some("p2p-tcp")))
+            .map(|port| port.port as u16)
+            .ok_or_else(|| Error::HoprdStatusError(format!("Could not find the p2p-tcp port in service {service_name}")))?;
+        Ok((hoprd_host, starting_port))
     }
 
     // Deletes all the related resources

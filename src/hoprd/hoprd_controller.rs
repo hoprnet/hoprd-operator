@@ -12,7 +12,7 @@ use kube::{
         controller::{Action, Controller},
         watcher::Config,
     },
-    Resource, Result,
+    Resource, ResourceExt, Result,
 };
 use std::sync::Arc;
 use tokio::time::Duration;
@@ -34,6 +34,8 @@ enum HoprdAction {
     Modify,
     /// Delete all subresources created in the `Create` phase
     Delete,
+    /// The owned `Deployment` is missing (e.g. manually deleted) and needs to be recreated
+    RecreateDeployment,
     /// This `Hoprd` resource is in desired state and requires no actions to be taken
     NoOp,
 }
@@ -44,23 +46,30 @@ enum HoprdAction {
 ///
 /// # Arguments
 /// - `hoprd`: A reference to `Hoprd` being reconciled to decide next action upon.
-fn determine_action(hoprd: &Hoprd) -> HoprdAction {
-    return if hoprd.meta().deletion_timestamp.is_some() && hoprd.status.is_some() && hoprd.status.as_ref().unwrap().phase.ne(&HoprdPhaseEnum::Deleting) {
-        HoprdAction::Delete
+/// - `context`: Context Data used to query the current state of owned resources like the `Deployment`.
+async fn determine_action(hoprd: &Hoprd, context: &Arc<ContextData>) -> Result<HoprdAction, Error> {
+    if hoprd.meta().deletion_timestamp.is_some() && hoprd.status.is_some() && hoprd.status.as_ref().unwrap().phase.ne(&HoprdPhaseEnum::Deleting) {
+        return Ok(HoprdAction::Delete);
     } else if hoprd.meta().finalizers.as_ref().map_or(true, |finalizers| finalizers.is_empty()) {
-        HoprdAction::Create
+        return Ok(HoprdAction::Create);
     } else if hoprd.status.as_ref().unwrap().phase == HoprdPhaseEnum::Failed {
-        HoprdAction::Modify
+        return Ok(HoprdAction::Modify);
     } else if hoprd.status.as_ref().unwrap().phase == HoprdPhaseEnum::Deleting {
-        HoprdAction::NoOp
-    } else {
-        let current_generation = hoprd.meta().generation.unwrap_or(0);
-        let observed_generation = hoprd.status.as_ref().map_or(0, |status| status.observed_generation);
-        if observed_generation < current_generation {
-            HoprdAction::Modify
-        } else {
-            HoprdAction::NoOp
+        return Ok(HoprdAction::NoOp);
+    }
+    let phase = hoprd.status.as_ref().unwrap().phase;
+    if phase == HoprdPhaseEnum::Running || phase == HoprdPhaseEnum::Stopped {
+        let deployment_api: Api<Deployment> = Api::namespaced(context.client.clone(), &hoprd.namespace().unwrap());
+        if deployment_api.get_opt(&hoprd.name_any()).await?.is_none() {
+            return Ok(HoprdAction::RecreateDeployment);
         }
+    }
+    let current_generation = hoprd.meta().generation.unwrap_or(0);
+    let observed_generation = hoprd.status.as_ref().map_or(0, |status| status.observed_generation);
+    if observed_generation < current_generation {
+        Ok(HoprdAction::Modify)
+    } else {
+        Ok(HoprdAction::NoOp)
     }
 }
 
@@ -68,10 +77,11 @@ async fn reconciler(hoprd: Arc<Hoprd>, context: Arc<ContextData>) -> Result<Acti
     let mut hoprd_cloned = hoprd.clone();
     let hoprd_mutable: &mut Hoprd = Arc::<Hoprd>::make_mut(&mut hoprd_cloned);
     // Performs action as decided by the `determine_action` function.
-    match determine_action(hoprd_mutable) {
+    match determine_action(hoprd_mutable, &context).await? {
         HoprdAction::Create => hoprd_mutable.create(context.clone()).await,
         HoprdAction::Modify => hoprd_mutable.modify(context.clone()).await,
         HoprdAction::Delete => hoprd_mutable.delete(context.clone()).await,
+        HoprdAction::RecreateDeployment => hoprd_mutable.recreate_deployment(context.clone()).await,
         HoprdAction::NoOp => Ok(Action::requeue(Duration::from_secs(constants::RECONCILE_SHORT_FREQUENCY))),
     }
 }

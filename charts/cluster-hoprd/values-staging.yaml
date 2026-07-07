@@ -21,6 +21,9 @@ clusterHoprd:
     identityPassword: SuperSecret
     hoprdApiToken: TokenToken
     deployment:
+      annotations:
+        keel.sh/policy: force
+        keel.sh/match-tag: "true"
       resources: |
         limits:
           cpu: 1500m
