@@ -57,12 +57,22 @@ spec:
                 deployment:
                   description: Deployment configuration
                   properties:
+                    annotations:
+                      additionalProperties:
+                        type: string
+                      description: Custom annotations to be added to the node deployment and its pods
+                      type: object
                     env:
                       description: The definition for environment variables to be used by the node deployment
                       type: string
                     extraContainers:
                       description: The definition of extra containers to be added to the node deployment
                       type: string
+                    labels:
+                      additionalProperties:
+                        type: string
+                      description: Custom labels to be added to the node deployment and its pods
+                      type: object
                     livenessProbe:
                       description: The definition of the liveness probe to be used by the node deployment
                       type: string

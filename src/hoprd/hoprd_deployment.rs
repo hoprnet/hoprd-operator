@@ -56,12 +56,20 @@ pub async fn create_deployment(context_data: Arc<ContextData>, hoprd: &Hoprd, id
         labels.insert(constants::LABEL_NODE_CLUSTER.to_owned(), cluster_hoprd);
     }
 
+    // Add the user defined labels and annotations to the deployment metadata, keeping them out of the selector labels
+    let custom_labels = HoprdDeploymentSpec::get_labels(hoprd.spec.deployment.clone());
+    let custom_annotations = HoprdDeploymentSpec::get_annotations(hoprd.spec.deployment.clone());
+    let mut deployment_labels = labels.clone();
+    deployment_labels.extend(custom_labels);
+    let deployment_annotations = if custom_annotations.is_empty() { None } else { Some(custom_annotations) };
+
     // Definition of the deployment. Alternatively, a YAML representation could be used as well.
     let deployment: Deployment = Deployment {
         metadata: ObjectMeta {
             name: Some(name.to_owned()),
             namespace: Some(namespace.to_owned()),
-            labels: Some(labels.clone()),
+            labels: Some(deployment_labels),
+            annotations: deployment_annotations,
             owner_references,
             ..ObjectMeta::default()
         },
@@ -93,6 +101,12 @@ pub async fn build_deployment_spec(
         containers.push(profiling_container());
     }
 
+    // Add the user defined labels and annotations to the pod template, keeping them out of the selector labels
+    let mut pod_labels = labels.clone();
+    pod_labels.extend(HoprdDeploymentSpec::get_labels(hoprd_spec.deployment.clone()));
+    let custom_annotations = HoprdDeploymentSpec::get_annotations(hoprd_spec.deployment.clone());
+    let pod_annotations = if custom_annotations.is_empty() { None } else { Some(custom_annotations) };
+
     Ok(DeploymentSpec {
         replicas: Some(replicas),
         strategy: Some(DeploymentStrategy {
@@ -112,7 +126,8 @@ pub async fn build_deployment_spec(
                 ..PodSpec::default()
             }),
             metadata: Some(ObjectMeta {
-                labels: Some(labels),
+                labels: Some(pod_labels),
+                annotations: pod_annotations,
                 ..ObjectMeta::default()
             }),
         },
@@ -138,8 +153,18 @@ pub async fn modify_deployment(context_data: Arc<ContextData>, deployment_name: 
     let ports_allocation = hoprd_spec.service.ports_allocation.clone();
     let last_port = starting_port + ports_allocation;
     let identity_pool: IdentityPool = identity_hoprd.get_identity_pool(context_data.client.clone()).await.unwrap();
-    let spec = build_deployment_spec(deployment.labels().to_owned(), hoprd_spec, identity_pool, identity_hoprd, &hoprd_host, starting_port, last_port).await?;
-    let patch = &Patch::Merge(json!({ "spec": spec }));
+    // Use the selector labels so that user defined labels on the deployment metadata do not leak into the immutable selector
+    let selector_labels = deployment.spec.clone().unwrap().selector.match_labels.unwrap_or(deployment.labels().to_owned());
+    let spec = build_deployment_spec(selector_labels, hoprd_spec, identity_pool, identity_hoprd, &hoprd_host, starting_port, last_port).await?;
+    let custom_labels = HoprdDeploymentSpec::get_labels(hoprd_spec.deployment.clone());
+    let custom_annotations = HoprdDeploymentSpec::get_annotations(hoprd_spec.deployment.clone());
+    let patch = &Patch::Merge(json!({
+        "metadata": {
+            "labels": custom_labels,
+            "annotations": custom_annotations
+        },
+        "spec": spec
+    }));
     api.patch(deployment_name, &PatchParams::default(), patch).await.unwrap();
     Ok(())
 }
