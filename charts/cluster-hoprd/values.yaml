@@ -58,17 +58,38 @@ clusterHoprd:
     ##
     hoprdApiToken: ""
 
-    ##
-    ## @param clusterHoprd.nodes.deployment Deployment spec
-    ##
     deployment:
+
+      ## @param clusterHoprd.nodes.deployment.annotations Annotations to be added to Hoprd nodes deployment
+      ##
       annotations: {}
+
+      ## @param clusterHoprd.nodes.deployment.env Environment variables to be added to Hoprd nodes deployment
+      ##
       env: ""
+
+      ## @param clusterHoprd.nodes.deployment.extraContainers Extra containers to be added to Hoprd nodes deployment
+      ##
       extraContainers: ""
+
+      ## @param clusterHoprd.nodes.deployment.labels Labels to be added to Hoprd nodes deployment
+      ##
       labels: {}
+
+      ## @param clusterHoprd.nodes.deployment.livenessProbe Liveness probe to be added to Hoprd nodes deployment
+      ##
       livenessProbe: ""
+
+      ## @param clusterHoprd.nodes.deployment.readinessProbe Readiness probe to be added to Hoprd nodes deployment
+      ##
       readinessProbe: ""
+
+      ## @param clusterHoprd.nodes.deployment.resources Resources to be added to Hoprd nodes deployment
+      ##
       resources: ""
+
+      ## @param clusterHoprd.nodes.deployment.startupProbe Startup probe to be added to Hoprd nodes deployment
+      ##
       startupProbe: ""
 
     service:

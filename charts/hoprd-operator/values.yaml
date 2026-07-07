@@ -113,6 +113,8 @@ hoprdOperator:
     ##
     tag: latest
 
+    ## @param hoprdOperator.hopli.rpcProviderUrl RPC provider URL to be used by hopli binary
+    ##
     rpcProviderUrl: ""
 
   fastSync:
