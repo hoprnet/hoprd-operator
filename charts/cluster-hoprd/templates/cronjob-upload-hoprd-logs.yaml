@@ -67,12 +67,6 @@ spec:
   serviceAccountName: argo-workflow
   workflowSpec:
     entrypoint: main
-    retryStrategy:
-      limit: "2"
-      retryPolicy: "Always"
-      backoff:
-        duration: "20m"
-        factor: "1"
     templates:
       - name: main
         steps:
@@ -88,6 +82,13 @@ spec:
       # Task 1: Check for corrupted logs and resync if needed
       - name: check-corrupted-logs
         serviceAccountName: {{ include "cluster-hoprd.name" . }}-upload-hoprd-logs-sa
+        retryStrategy:
+          limit: "2"
+          # Exit code 2 is a deliberate abort (channels still corrupted after resync): never retry it
+          expression: "asInt(lastRetry.exitCode) != 2"
+          backoff:
+            duration: "20m"
+            factor: "1"
         container:
           image: alpine/k8s:1.33.4
           command: ["/bin/bash", "-c"]
@@ -106,7 +107,7 @@ spec:
                 corrupted_channels=$(curl -s -X 'GET' 'http://{{ .Values.clusterHoprd.logs.upload.sourceNode }}-p2p-tcp:3001/api/v4/channels/corrupted' -H 'accept: application/json' -H "X-Auth-Token: $HOPRD_API_TOKEN")
                 if [[ $(jq -r '.channelIds | length' <<<"$corrupted_channels") -gt 0 ]]; then
                   echo "Channels are still corrupted after resync, aborting log backup. You might consider changing the RPC provider"
-                  exit 1
+                  exit 2
                 fi
               else
                 echo "No corrupted channels found, proceeding with log upload"
@@ -141,6 +142,12 @@ spec:
       # Task 3: Backup logs
       - name: backup-logs
         serviceAccountName: {{ include "cluster-hoprd.name" . }}-upload-hoprd-logs-sa
+        retryStrategy:
+          limit: "2"
+          # Short backoff: the node deployment is stopped while this step runs
+          backoff:
+            duration: "1m"
+            factor: "1"
         container:
           image: gcr.io/google.com/cloudsdktool/google-cloud-cli:stable
           command: ["/bin/bash", "-c"]
@@ -204,6 +211,11 @@ spec:
       # Task 4: Start Deployment
       - name: start-deployment
         serviceAccountName: {{ include "cluster-hoprd.name" . }}-upload-hoprd-logs-sa
+        retryStrategy:
+          limit: "2"
+          backoff:
+            duration: "1m"
+            factor: "1"
         container:
           image: alpine/k8s:1.33.4
           command: ["/bin/bash", "-c"]
