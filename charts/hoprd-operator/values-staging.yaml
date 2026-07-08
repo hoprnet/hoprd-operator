@@ -45,3 +45,5 @@ hoprdOperator:
     namespace: ingress-nginx
     loadBalancerIP: 34.159.20.69
     deploymentName: ingress-nginx-controller
+  webhook:
+    enabled: false

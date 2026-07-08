@@ -12,6 +12,12 @@ spec:
   version: {{ .Values.clusterHoprd.version | quote }}
   enabled: {{ .Values.clusterHoprd.enabled | default true }}
   deployment:
+  {{- if .Values.clusterHoprd.nodes.deployment.annotations }}
+    annotations: {{- .Values.clusterHoprd.nodes.deployment.annotations | toYaml | nindent 6 }}
+  {{- end }}
+  {{- if .Values.clusterHoprd.nodes.deployment.labels }}
+    labels: {{- .Values.clusterHoprd.nodes.deployment.labels | toYaml | nindent 6 }}
+  {{- end }}
   {{- if .Values.clusterHoprd.nodes.deployment.env }}
     env: |
 {{ .Values.clusterHoprd.nodes.deployment.env | indent 6 }}

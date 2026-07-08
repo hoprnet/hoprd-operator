@@ -56,6 +56,7 @@ Chart version `Chart.yaml` should be increased according to [semver](http://semv
 | `hoprdOperator.hopli.registry`                          | Docker registry to hopli image                              | `europe-west3-docker.pkg.dev`                  |
 | `hoprdOperator.hopli.repository`                        | Docker image to hopli binary                                | `hoprassociation/docker-images/hopli`          |
 | `hoprdOperator.hopli.tag`                               | Docker image tag to hopli image                             | `latest`                                       |
+| `hoprdOperator.hopli.rpcProviderUrl`                    | RPC provider URL to be used by hopli binary                 | `""`                                           |
 | `hoprdOperator.fastSync.enabled`                        | Enable Fast Sync                                            | `false`                                        |
 | `hoprdOperator.fastSync.bucketName`                     | Name of the bucket to store the logs                        | `""`                                           |
 | `hoprdOperator.fastSync.namespaces`                     | Allowed namespaces for uploading logs                       | `[]`                                           |

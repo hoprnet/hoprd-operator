@@ -26,7 +26,7 @@ use kube::api::{DeleteParams, ObjectMeta, Patch, PatchParams, PostParams, WatchE
 use kube::runtime::wait::{await_condition, conditions};
 use kube::{Api, Client, Resource, ResourceExt};
 use rand::Rng;
-use serde_json::json;
+use serde_json::{json, Value};
 use std::collections::BTreeMap;
 use std::sync::Arc;
 use tracing::{error, info};
@@ -56,12 +56,22 @@ pub async fn create_deployment(context_data: Arc<ContextData>, hoprd: &Hoprd, id
         labels.insert(constants::LABEL_NODE_CLUSTER.to_owned(), cluster_hoprd);
     }
 
+    // Add the user defined labels and annotations to the deployment metadata, keeping them out of the
+    // selector labels. Managed labels win on key collisions so that user labels cannot desync the
+    // deployment metadata from the immutable selector
+    let custom_labels = HoprdDeploymentSpec::get_labels(hoprd.spec.deployment.clone());
+    let custom_annotations = HoprdDeploymentSpec::get_annotations(hoprd.spec.deployment.clone());
+    let mut deployment_labels = labels.clone();
+    deployment_labels.extend(custom_labels.into_iter().filter(|(key, _)| !labels.contains_key(key)));
+    let deployment_annotations = if custom_annotations.is_empty() { None } else { Some(custom_annotations) };
+
     // Definition of the deployment. Alternatively, a YAML representation could be used as well.
     let deployment: Deployment = Deployment {
         metadata: ObjectMeta {
             name: Some(name.to_owned()),
             namespace: Some(namespace.to_owned()),
-            labels: Some(labels.clone()),
+            labels: Some(deployment_labels),
+            annotations: deployment_annotations,
             owner_references,
             ..ObjectMeta::default()
         },
@@ -93,6 +103,14 @@ pub async fn build_deployment_spec(
         containers.push(profiling_container());
     }
 
+    // Add the user defined labels and annotations to the pod template, keeping them out of the
+    // selector labels. Managed labels win on key collisions so that the pod template always keeps
+    // matching the immutable selector
+    let mut pod_labels = labels.clone();
+    pod_labels.extend(HoprdDeploymentSpec::get_labels(hoprd_spec.deployment.clone()).into_iter().filter(|(key, _)| !labels.contains_key(key)));
+    let custom_annotations = HoprdDeploymentSpec::get_annotations(hoprd_spec.deployment.clone());
+    let pod_annotations = if custom_annotations.is_empty() { None } else { Some(custom_annotations) };
+
     Ok(DeploymentSpec {
         replicas: Some(replicas),
         strategy: Some(DeploymentStrategy {
@@ -112,7 +130,8 @@ pub async fn build_deployment_spec(
                 ..PodSpec::default()
             }),
             metadata: Some(ObjectMeta {
-                labels: Some(labels),
+                labels: Some(pod_labels),
+                annotations: pod_annotations,
                 ..ObjectMeta::default()
             }),
         },
@@ -120,7 +139,14 @@ pub async fn build_deployment_spec(
     })
 }
 
-pub async fn modify_deployment(context_data: Arc<ContextData>, deployment_name: &str, namespace: &str, hoprd_spec: &HoprdSpec, identity_hoprd: &IdentityHoprd) -> Result<(), Error> {
+pub async fn modify_deployment(
+    context_data: Arc<ContextData>,
+    deployment_name: &str,
+    namespace: &str,
+    hoprd_spec: &HoprdSpec,
+    previous_deployment_spec: Option<HoprdDeploymentSpec>,
+    identity_hoprd: &IdentityHoprd,
+) -> Result<(), Error> {
     let api: Api<Deployment> = Api::namespaced(context_data.client.clone(), namespace);
     let deployment = match api.get_opt(deployment_name).await? {
         Some(deployment) => deployment,
@@ -138,10 +164,45 @@ pub async fn modify_deployment(context_data: Arc<ContextData>, deployment_name: 
     let ports_allocation = hoprd_spec.service.ports_allocation.clone();
     let last_port = starting_port + ports_allocation;
     let identity_pool: IdentityPool = identity_hoprd.get_identity_pool(context_data.client.clone()).await.unwrap();
-    let spec = build_deployment_spec(deployment.labels().to_owned(), hoprd_spec, identity_pool, identity_hoprd, &hoprd_host, starting_port, last_port).await?;
-    let patch = &Patch::Merge(json!({ "spec": spec }));
-    api.patch(deployment_name, &PatchParams::default(), patch).await.unwrap();
+    // Use the selector labels so that user defined labels on the deployment metadata do not leak into the immutable selector
+    let selector_labels = deployment.spec.clone().unwrap().selector.match_labels.unwrap_or(deployment.labels().to_owned());
+    let spec = build_deployment_spec(selector_labels.clone(), hoprd_spec, identity_pool, identity_hoprd, &hoprd_host, starting_port, last_port).await?;
+    let custom_labels = HoprdDeploymentSpec::get_labels(hoprd_spec.deployment.clone());
+    let custom_annotations = HoprdDeploymentSpec::get_annotations(hoprd_spec.deployment.clone());
+    let previous_labels = HoprdDeploymentSpec::get_labels(previous_deployment_spec.clone());
+    let previous_annotations = HoprdDeploymentSpec::get_annotations(previous_deployment_spec);
+    // User labels and annotations removed from the spec must be patched as null so the JSON merge patch clears them
+    let removed_labels: Vec<String> = previous_labels.keys().filter(|key| !custom_labels.contains_key(*key) && !selector_labels.contains_key(*key)).cloned().collect();
+    let removed_annotations: Vec<String> = previous_annotations.keys().filter(|key| !custom_annotations.contains_key(*key)).cloned().collect();
+    let mut spec_value = serde_json::to_value(&spec).unwrap();
+    if let Some(template_metadata) = spec_value.pointer_mut("/template/metadata").and_then(|metadata| metadata.as_object_mut()) {
+        mark_keys_as_removed(template_metadata, "labels", &removed_labels);
+        mark_keys_as_removed(template_metadata, "annotations", &removed_annotations);
+    }
+    let mut metadata = serde_json::Map::new();
+    metadata.insert("labels".to_owned(), serde_json::to_value(&custom_labels).unwrap());
+    metadata.insert("annotations".to_owned(), serde_json::to_value(&custom_annotations).unwrap());
+    mark_keys_as_removed(&mut metadata, "labels", &removed_labels);
+    mark_keys_as_removed(&mut metadata, "annotations", &removed_annotations);
+    let patch = &Patch::Merge(json!({
+        "metadata": metadata,
+        "spec": spec_value
+    }));
+    api.patch(deployment_name, &PatchParams::default(), patch).await?;
     Ok(())
+}
+
+/// Sets the given keys to null in a map field of a JSON merge patch so they get removed from the resource
+fn mark_keys_as_removed(metadata: &mut serde_json::Map<String, Value>, field: &str, removed_keys: &[String]) {
+    if removed_keys.is_empty() {
+        return;
+    }
+    let field_value = metadata.entry(field.to_owned()).or_insert_with(|| json!({}));
+    if let Some(field_object) = field_value.as_object_mut() {
+        for key in removed_keys {
+            field_object.insert(key.to_owned(), Value::Null);
+        }
+    }
 }
 
 pub fn extra_containers(hoprd_deployment_spec: Option<HoprdDeploymentSpec>) -> Vec<Container> {

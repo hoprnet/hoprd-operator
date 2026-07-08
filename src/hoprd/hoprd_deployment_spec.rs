@@ -72,6 +72,8 @@ pub struct HoprdDeploymentSpec {
     pub liveness_probe: Option<String>,
     pub readiness_probe: Option<String>,
     pub extra_containers: Option<String>,
+    pub labels: Option<BTreeMap<String, String>>,
+    pub annotations: Option<BTreeMap<String, String>>,
 }
 
 impl Default for HoprdDeploymentSpec {
@@ -106,11 +108,21 @@ impl Default for HoprdDeploymentSpec {
             readiness_probe: default_probe_string.clone(),
             env: default_env_string,
             extra_containers: None,
+            labels: None,
+            annotations: None,
         }
     }
 }
 
 impl HoprdDeploymentSpec {
+    pub fn get_labels(hoprd_deployment_spec: Option<HoprdDeploymentSpec>) -> BTreeMap<String, String> {
+        hoprd_deployment_spec.and_then(|spec| spec.labels).unwrap_or_default()
+    }
+
+    pub fn get_annotations(hoprd_deployment_spec: Option<HoprdDeploymentSpec>) -> BTreeMap<String, String> {
+        hoprd_deployment_spec.and_then(|spec| spec.annotations).unwrap_or_default()
+    }
+
     pub fn get_resource_requirements(hoprd_deployment_spec: Option<HoprdDeploymentSpec>) -> ResourceRequirements {
         let default_deployment_spec = HoprdDeploymentSpec::default();
         let hoprd_deployment_spec = hoprd_deployment_spec.unwrap_or(default_deployment_spec.clone());
