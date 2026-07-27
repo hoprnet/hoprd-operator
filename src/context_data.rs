@@ -1,4 +1,5 @@
 use k8s_openapi::api::apps::v1::Deployment;
+use k8s_openapi::api::batch::v1::CronJob;
 use k8s_openapi::NamespaceResourceScope;
 use serde_json::json;
 use tracing::{debug, error};
@@ -27,13 +28,16 @@ pub struct ContextData {
 
     /// In memory cache of the identity pool service monitors, kept up to date by a reflector driven by the IdentityPool controller
     pub service_monitor_store: Store<ServiceMonitor>,
+
+    /// In memory cache of the identity pool auto-funding CronJobs, kept up to date by a reflector driven by the IdentityPool controller
+    pub cron_job_faucet_store: Store<CronJob>,
 }
 
 /// State wrapper around the controller outputs for the web server
 impl ContextData {
-    // Create a Controller Context that can update State. Returns the writer ends of the deployment
-    // and service monitor caches, which must be driven by watchers to keep the stores up to date.
-    pub async fn new(client: Client, config: OperatorConfig) -> (Self, Writer<Deployment>, Writer<ServiceMonitor>) {
+    // Create a Controller Context that can update State. Returns the writer ends of the deployment,
+    // service monitor and cron job faucet caches, which must be driven by watchers to keep the stores up to date.
+    pub async fn new(client: Client, config: OperatorConfig) -> (Self, Writer<Deployment>, Writer<ServiceMonitor>, Writer<CronJob>) {
         let api = Api::<IdentityPool>::all(client.clone());
         let pools: Vec<IdentityPool> = match api.list(&ListParams::default()).await {
             Ok(list) => list.items.clone(),
@@ -45,14 +49,16 @@ impl ContextData {
 
         let (deployment_store, deployment_writer) = reflector::store();
         let (service_monitor_store, service_monitor_writer) = reflector::store();
+        let (cron_job_faucet_store, cron_job_faucet_writer) = reflector::store();
         let context_data = ContextData {
             client,
             state: Arc::new(RwLock::new(State::new(pools))),
             config,
             deployment_store,
             service_monitor_store,
+            cron_job_faucet_store,
         };
-        (context_data, deployment_writer, service_monitor_writer)
+        (context_data, deployment_writer, service_monitor_writer, cron_job_faucet_writer)
     }
 
     pub async fn sync_identity_pools(&self) -> Result<(), String> {
