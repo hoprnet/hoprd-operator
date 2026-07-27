@@ -252,6 +252,17 @@ impl IdentityPool {
         Ok(Action::requeue(Duration::from_secs(constants::RECONCILE_SHORT_FREQUENCY)))
     }
 
+    /// Recreates the auto-funding `CronJob` owned by this `IdentityPool` when it has been manually deleted
+    /// without deleting the `IdentityPool` itself, keeping it in sync with the expected configuration.
+    pub async fn recreate_cron_job_faucet(&mut self, context_data: Arc<ContextData>) -> Result<Action, Error> {
+        let identity_pool_namespace: String = self.namespace().unwrap();
+        let identity_pool_name: String = self.name_any();
+        warn!("Cronjob faucet of IdentityPool {identity_pool_name} in namespace {identity_pool_namespace} was not found, recreating it");
+        identity_pool_cronjob_faucet::create_cron_job(context_data.clone(), self).await?;
+        info!("Cronjob faucet of IdentityPool {identity_pool_name} in namespace {identity_pool_namespace} successfully recreated");
+        Ok(Action::requeue(Duration::from_secs(constants::RECONCILE_SHORT_FREQUENCY)))
+    }
+
     fn changed_inmutable_fields(&self, previous_identity: &IdentityPoolSpec) -> bool {
         if !self.spec.network.eq(&previous_identity.network) {
             error!("Configuration is invalid, 'network' field cannot be changed on {}.", self.name_any());
