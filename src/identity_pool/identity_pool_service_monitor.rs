@@ -95,7 +95,7 @@ fn create_relabel_rule(source_name: &str, target_name: &str) -> ServiceMonitorEn
 
 fn build_metric_relabel() -> Vec<ServiceMonitorEndpointsRelabelings> {
     vec![
-        create_relabel_rule("__meta_kubernetes_pod_label_hoprds_hoprnet_org_network", "hoprd_network"),
+        create_relabel_rule("__meta_kubernetes_pod_label_hoprds_hoprnet_org_network", "network"),
         create_relabel_rule("__meta_kubernetes_pod_label_hoprds_hoprnet_org_safeAddress", "hoprd_safe_address"),
         create_relabel_rule("__meta_kubernetes_pod_label_hoprds_hoprnet_org_nodeAddress", "hoprd_node_address"),
         create_relabel_rule("__meta_kubernetes_pod_label_hoprds_hoprnet_org_cluster", "hoprd_cluster"),
