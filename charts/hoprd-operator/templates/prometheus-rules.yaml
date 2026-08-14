@@ -16,16 +16,16 @@ spec:
         summary: Hoprd node rebooted due to out of memory or panic.
       expr: |-
         # When the pod is running correctly and the hoprdnode reboots internally without affecting the pod
-        # kube_pod_start_time has no app_kubernetes_io_name/hoprd_network/hoprd_cluster labels, so they are
+        # kube_pod_start_time has no app_kubernetes_io_name/network/hoprd_cluster labels, so they are
         # pulled in from hopr_start_time via group_left, matching only on the labels both metrics share (namespace, pod)
-        sum by (namespace, app_kubernetes_io_name, hoprd_network, hoprd_cluster) (
+        sum by (namespace, app_kubernetes_io_name, network, hoprd_cluster) (
           abs(
             sum by (namespace, pod) (kube_pod_start_time)
-              - on (namespace, pod) group_left (app_kubernetes_io_name, hoprd_network, hoprd_cluster)
-            sum by (namespace, pod, app_kubernetes_io_name, hoprd_network, hoprd_cluster) (hopr_start_time)
+              - on (namespace, pod) group_left (app_kubernetes_io_name, network, hoprd_cluster)
+            sum by (namespace, pod, app_kubernetes_io_name, network, hoprd_cluster) (hopr_start_time)
           ) > 120
-          AND on (namespace, pod, app_kubernetes_io_name, hoprd_network, hoprd_cluster)
-          avg by (namespace, pod, app_kubernetes_io_name, hoprd_network, hoprd_cluster) (time() - hopr_start_time < 120)
+          AND on (namespace, pod, app_kubernetes_io_name, network, hoprd_cluster)
+          avg by (namespace, pod, app_kubernetes_io_name, network, hoprd_cluster) (time() - hopr_start_time < 120)
         )
       for: 1m
       labels:
@@ -36,7 +36,7 @@ spec:
         summary: Hoprd node restarted.
       expr: |-
         # When the node is running for more than 15 minutes and the health status is not green in the last 5 minutes
-        sum by (namespace, app_kubernetes_io_name,hoprd_network,hoprd_cluster) (hopr_network_health{namespace!~"team-node|ambassadors"} < 4 and (time() - hopr_start_time{namespace!~"team-node|ambassadors"}) > 900)
+        sum by (namespace, app_kubernetes_io_name, network, hoprd_cluster) (hopr_network_health{namespace!~"team-node|ambassadors"} < 4 and (time() - hopr_start_time{namespace!~"team-node|ambassadors"}) > 900)
       for: 5m
       labels:
         severity: critical
