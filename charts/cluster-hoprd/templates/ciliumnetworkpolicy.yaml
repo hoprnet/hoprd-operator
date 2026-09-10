@@ -1,0 +1,39 @@
+{{- if .Values.clusterHoprd.networkPolicy.enabled -}}
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: {{ include "cluster-hoprd.name" . }}-allow-icmp
+  annotations:
+    argocd.argoproj.io/sync-wave: "4"
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/component: node
+      hoprds.hoprnet.org/cluster: {{ include "cluster-hoprd.name" . }}
+  ingress:
+    - fromEntities:
+        - all
+      icmps:
+        - fields:
+            - type: 8
+              family: IPv4
+            - type: 0
+              family: IPv4
+            - type: 128
+              family: IPv6
+            - type: 129
+              family: IPv6
+  egress:
+    - toEntities:
+        - all
+      icmps:
+        - fields:
+            - type: 8
+              family: IPv4
+            - type: 0
+              family: IPv4
+            - type: 128
+              family: IPv6
+            - type: 129
+              family: IPv6
+{{- end }}
