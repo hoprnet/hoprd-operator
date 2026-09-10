@@ -42,11 +42,7 @@ pub async fn create_ingress(
     } else {
         9091
     };
-    let backend_service_name = if service_type.eq(&ServiceTypeEnum::ClusterIP) {
-        service_name.to_owned()
-    } else {
-        format!("{}-tcp", service_name)
-    };
+    let backend_service_name = format!("{}-api", service_name);
     let annotations: BTreeMap<String, String> = ingress_config.annotations.as_ref().unwrap_or(&BTreeMap::new()).clone();
 
     let hostname = format!("{}.{}.{}", service_name, namespace, dns_name);

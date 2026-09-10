@@ -68,8 +68,11 @@ pub async fn create_service(
     let mut labels: BTreeMap<String, String> = utils::common_lables(identity_pool_name.to_owned(), Some(name.to_owned()), None);
     labels.insert(constants::LABEL_KUBERNETES_IDENTITY_POOL.to_owned(), identity_pool_name.to_owned());
 
-    create_metrics_service(context_data.clone(), name, namespace, labels.clone(), owner_references.clone()).await?;
+    create_single_port_cluster_ip_service(context_data.clone(), &format!("{}-metrics", name), namespace, "metrics", 8080, labels.clone(), owner_references.clone()).await?;
     info!("Metrics Service {} created successfully", name.to_owned());
+
+    create_single_port_cluster_ip_service(context_data.clone(), &format!("{}-api", name), namespace, "api", 3001, labels.clone(), owner_references.clone()).await?;
+    info!("Api Service {} created successfully", name.to_owned());
 
     if service_type.eq(&ServiceTypeEnum::ClusterIP) {
         create_cluster_ip_service(context_data.clone(), name, namespace, labels, owner_references, starting_port, last_port).await?;
@@ -82,18 +85,20 @@ pub async fn create_service(
     }
 }
 
-/// Creates a ClusterIP-only Service exposing the metrics port, kept separate from the p2p
-/// Service(s) so metrics is never reachable through the node's external LoadBalancer IP.
-async fn create_metrics_service(
+/// Creates a ClusterIP-only Service exposing a single named container port, kept separate from
+/// the p2p Service(s) so it is never reachable through the node's external LoadBalancer IP.
+async fn create_single_port_cluster_ip_service(
     context_data: Arc<ContextData>,
-    name: &str,
+    service_name: &str,
     namespace: &str,
+    port_name: &str,
+    port: i32,
     labels: BTreeMap<String, String>,
     owner_references: Option<Vec<OwnerReference>>,
 ) -> Result<(), HoprdError> {
     let service: Service = Service {
         metadata: ObjectMeta {
-            name: Some(format!("{}-metrics", name.to_owned())),
+            name: Some(service_name.to_owned()),
             namespace: Some(namespace.to_owned()),
             labels: Some(labels.clone()),
             owner_references,
@@ -103,10 +108,10 @@ async fn create_metrics_service(
             selector: Some(labels),
             type_: Some("ClusterIP".to_owned()),
             ports: Some(vec![ServicePort {
-                name: Some("metrics".to_owned()),
-                port: 8080,
+                name: Some(port_name.to_owned()),
+                port,
                 protocol: Some("TCP".to_owned()),
-                target_port: Some(IntOrString::String("metrics".to_owned())),
+                target_port: Some(IntOrString::String(port_name.to_owned())),
                 ..ServicePort::default()
             }]),
             ..ServiceSpec::default()
@@ -245,16 +250,6 @@ fn build_ports(starting_port: u16, last_port: u16, port_name: Option<&str>) -> V
         vec!["TCP".to_owned(), "UDP".to_owned()]
     };
 
-    if protocols.contains(&"TCP".to_string()) {
-        ports.push(ServicePort {
-            name: Some("api".to_owned()),
-            port: 3001,
-            protocol: Some("TCP".to_owned()),
-            target_port: Some(IntOrString::String("api".to_owned())),
-            ..ServicePort::default()
-        });
-    }
-
     for protocol in protocols {
         ports.push(ServicePort {
             name: Some(format!("p2p-{}", protocol.to_lowercase())),
@@ -285,45 +280,26 @@ fn build_ports(starting_port: u16, last_port: u16, port_name: Option<&str>) -> V
 ///
 pub async fn delete_service(client: Client, name: &str, namespace: &str, service_type: &ServiceTypeEnum) -> Result<(), HoprdError> {
     let api: Api<Service> = Api::namespaced(client, namespace);
-    if let Some(service) = api.get_opt(name).await? {
-        let uid = service.metadata.uid.unwrap();
-        api.delete(name, &DeleteParams::default()).await?;
-        await_condition(api.clone(), name, conditions::is_deleted(&uid)).await.unwrap();
-        info!("Service {name} successfully deleted")
-    } else {
-        info!("Service {name} in namespace {namespace} about to delete not found")
-    }
-
-    let metrics_service_name = format!("{}-metrics", name.to_owned());
-    if let Some(service) = api.get_opt(&metrics_service_name).await? {
-        let uid = service.metadata.uid.unwrap();
-        api.clone().delete(&metrics_service_name, &DeleteParams::default()).await?;
-        await_condition(api.clone(), &metrics_service_name, conditions::is_deleted(&uid)).await.unwrap();
-        info!("Metrics Service {metrics_service_name} successfully deleted")
-    } else {
-        info!("Metrics Service {metrics_service_name} in namespace {namespace} about to delete not found")
-    }
+    delete_named_service(&api, name, namespace).await?;
+    delete_named_service(&api, &format!("{}-metrics", name), namespace).await?;
+    delete_named_service(&api, &format!("{}-api", name), namespace).await?;
 
     if service_type.eq(&ServiceTypeEnum::LoadBalancer) {
-        let service_tcp_name = format!("{}-tcp", name.to_owned());
-        if let Some(service) = api.get_opt(&service_tcp_name).await? {
-            let uid = service.metadata.uid.unwrap();
-            api.clone().delete(&service_tcp_name, &DeleteParams::default()).await?;
-            await_condition(api.clone(), &service_tcp_name, conditions::is_deleted(&uid)).await.unwrap();
-            info!("TCP Service {service_tcp_name} successfully deleted")
-        } else {
-            info!("TCP Service {service_tcp_name} in namespace {namespace} about to delete not found")
-        }
-        let service_udp_name = format!("{}-udp", name.to_owned());
-        if let Some(service) = api.get_opt(&service_udp_name).await? {
-            let uid = service.metadata.uid.unwrap();
-            api.clone().delete(&service_udp_name, &DeleteParams::default()).await?;
-            await_condition(api.clone(), &service_udp_name, conditions::is_deleted(&uid)).await.unwrap();
-            info!("UDP Service {service_udp_name} successfully deleted")
-        } else {
-            info!("UDP Service {service_udp_name} in namespace {namespace} about to delete not found")
-        }
+        delete_named_service(&api, &format!("{}-tcp", name), namespace).await?;
+        delete_named_service(&api, &format!("{}-udp", name), namespace).await?;
     }
 
+    Ok(())
+}
+
+async fn delete_named_service(api: &Api<Service>, service_name: &str, namespace: &str) -> Result<(), HoprdError> {
+    if let Some(service) = api.get_opt(service_name).await? {
+        let uid = service.metadata.uid.unwrap();
+        api.delete(service_name, &DeleteParams::default()).await?;
+        await_condition(api.clone(), service_name, conditions::is_deleted(&uid)).await.unwrap();
+        info!("Service {service_name} successfully deleted")
+    } else {
+        info!("Service {service_name} in namespace {namespace} about to delete not found")
+    }
     Ok(())
 }
