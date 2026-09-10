@@ -1,0 +1,86 @@
+{{- if .Values.clusterHoprd.networkPolicy.enabled -}}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "cluster-hoprd.name" . }}-allow-ingress
+  annotations:
+    argocd.argoproj.io/sync-wave: "4"
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/component: node
+      hoprds.hoprnet.org/cluster: {{ include "cluster-hoprd.name" . }}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Values.clusterHoprd.networkPolicy.ingressPrometheus.namespace }}
+          podSelector:
+            matchLabels:
+              {{- .Values.clusterHoprd.networkPolicy.ingressPrometheus.podSelector | toYaml | nindent 14 }}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.clusterHoprd.networkPolicy.ingressPrometheus.port }}
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Values.clusterHoprd.networkPolicy.ingressNginx.namespace }}
+      ports:
+        - protocol: TCP
+          port: 3001
+    - from:
+        - namespaceSelector: {}
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/component: node
+              hoprds.hoprnet.org/network: {{ .Values.clusterHoprd.network }}
+      ports:
+        - protocol: TCP
+          port: 9090
+          endPort: {{ add 9089 .Values.clusterHoprd.nodes.service.portsAllocation }}
+        - protocol: UDP
+          port: 9090
+          endPort: {{ add 9089 .Values.clusterHoprd.nodes.service.portsAllocation }}
+    {{- if eq .Values.clusterHoprd.nodes.service.type "LoadBalancer" }}
+    - from:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+      ports:
+        - protocol: TCP
+          port: 9090
+          endPort: {{ add 9089 .Values.clusterHoprd.nodes.service.portsAllocation }}
+        - protocol: UDP
+          port: 9090
+          endPort: {{ add 9089 .Values.clusterHoprd.nodes.service.portsAllocation }}
+    {{- end }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "cluster-hoprd.name" . }}-allow-egress
+  annotations:
+    argocd.argoproj.io/sync-wave: "4"
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/component: node
+      hoprds.hoprnet.org/cluster: {{ include "cluster-hoprd.name" . }}
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector: {}
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/component: node
+              hoprds.hoprnet.org/network: {{ .Values.clusterHoprd.network }}
+      ports:
+        - protocol: TCP
+          port: 9090
+          endPort: {{ add 9089 .Values.clusterHoprd.nodes.service.portsAllocation }}
+        - protocol: UDP
+          port: 9090
+          endPort: {{ add 9089 .Values.clusterHoprd.nodes.service.portsAllocation }}
+{{- end }}
