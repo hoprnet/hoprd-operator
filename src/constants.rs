@@ -19,7 +19,6 @@ pub const ANNOTATION_IDENTITY_POOL_DELETION_ACCOUNTED: &str = "hoprds.hoprnet.or
 pub const LABEL_KUBERNETES_NAME: &str = "app.kubernetes.io/name";
 pub const LABEL_KUBERNETES_INSTANCE: &str = "app.kubernetes.io/instance";
 pub const LABEL_KUBERNETES_COMPONENT: &str = "app.kubernetes.io/component";
-pub const LABEL_PROMETHEUS_SCRAPE_PORT: &str = "network-policy.hoprnet.org/prometheus-scrape-port";
 
 pub const LABEL_KUBERNETES_IDENTITY_POOL: &str = "hoprds.hoprnet.org/identitypool";
 pub const LABEL_NODE_ADDRESS: &str = "hoprds.hoprnet.org/nodeAddress";

@@ -63,7 +63,6 @@ pub async fn create_deployment(context_data: Arc<ContextData>, hoprd: &Hoprd, id
     let custom_annotations = HoprdDeploymentSpec::get_annotations(hoprd.spec.deployment.clone());
     let mut deployment_labels = labels.clone();
     deployment_labels.extend(custom_labels.into_iter().filter(|(key, _)| !labels.contains_key(key)));
-    deployment_labels.append(&mut BTreeMap::from([(constants::LABEL_PROMETHEUS_SCRAPE_PORT.to_owned(), "8080".to_owned())]));
     let deployment_annotations = if custom_annotations.is_empty() { None } else { Some(custom_annotations) };
 
     // Definition of the deployment. Alternatively, a YAML representation could be used as well.
