@@ -45,6 +45,19 @@ pub async fn create_ingress(
     let backend_service_name = format!("{}-api", service_name);
     let annotations: BTreeMap<String, String> = ingress_config.annotations.as_ref().unwrap_or(&BTreeMap::new()).clone();
 
+    // Try to strip the longest DNS-derived prefix from the service name to keep hostnames short.
+    // Example: dns=piz-palu.dev.hoprnet.link, service=piz-palu-dev-node-1 -> node-1
+    let dns_labels: Vec<&str> = dns_name.split('.').collect();
+    let mut shortened_service_name = service_name.to_owned();
+    for i in (1..=dns_labels.len()).rev() { // Iterate over the DNS labels in reverse order to find the longest matching prefix
+        let candidate_prefix = dns_labels[..i].join("-"); // Join the first i DNS labels with a dash to form the candidate prefix
+        let prefix_with_dash = format!("{}-", candidate_prefix);
+        if shortened_service_name.starts_with(&prefix_with_dash) {
+            shortened_service_name = shortened_service_name[prefix_with_dash.len()..].to_owned();
+            break;
+        }
+    }
+    let service_name = shortened_service_name;
     let hostname = format!("{}.{}.{}", service_name, namespace, dns_name);
 
     // Definition of the ingress

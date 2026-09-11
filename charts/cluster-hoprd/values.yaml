@@ -185,21 +185,16 @@ clusterHoprd:
     ##
     enabled: true
 
-    ingressPrometheus:
-      ## @param clusterHoprd.networkPolicy.ingressPrometheus.namespace Namespace Prometheus runs in
-      ##
-      namespace: "monitoring"
-
-      ## @param clusterHoprd.networkPolicy.ingressPrometheus.podSelector [object] Pod label selector identifying the Prometheus pod within that namespace
-      ##
-      podSelector:
-        app.kubernetes.io/name: prometheus
-
-      ## @param clusterHoprd.networkPolicy.ingressPrometheus.port Metrics port to allow
-      ##
-      port: 8080
-
     ingressNginx:
       ## @param clusterHoprd.networkPolicy.ingressNginx.namespace Namespace the ingress controller runs in
       ##
       namespace: "ingress-nginx"
+
+    egressBlokli:
+      ## @param clusterHoprd.networkPolicy.egressBlokli.namespace Namespace Blokli runs in
+      ##
+      namespace: "blokli"
+
+      ## @param clusterHoprd.networkPolicy.egressBlokli.port Blokli GraphQL API port
+      ##
+      port: 8080
