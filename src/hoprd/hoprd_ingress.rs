@@ -57,8 +57,8 @@ pub async fn create_ingress(
             break;
         }
     }
-    let service_name = shortened_service_name;
-    let hostname = format!("{}.{}.{}", service_name, namespace, dns_name);
+
+    let hostname = format!("{}.{}.{}", shortened_service_name, namespace, dns_name);
 
     // Definition of the ingress
     let ingress: Ingress = Ingress {
