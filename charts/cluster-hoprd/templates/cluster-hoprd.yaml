@@ -15,8 +15,15 @@ spec:
   {{- if .Values.clusterHoprd.nodes.deployment.annotations }}
     annotations: {{- .Values.clusterHoprd.nodes.deployment.annotations | toYaml | nindent 6 }}
   {{- end }}
-  {{- if .Values.clusterHoprd.nodes.deployment.labels }}
-    labels: {{- .Values.clusterHoprd.nodes.deployment.labels | toYaml | nindent 6 }}
+  {{- if or .Values.clusterHoprd.networkPolicy.enabled .Values.clusterHoprd.nodes.deployment.labels }}
+    labels:
+    {{- if .Values.clusterHoprd.networkPolicy.enabled }}
+      # Matches the hardcoded metrics container port in hoprd_deployment.rs's metrics_container()
+      network-policy.hoprnet.org/prometheus-scrape-port: "8080"
+    {{- end }}
+    {{- with .Values.clusterHoprd.nodes.deployment.labels }}
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
   {{- end }}
   {{- if .Values.clusterHoprd.nodes.deployment.env }}
     env: |

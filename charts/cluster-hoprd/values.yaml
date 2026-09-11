@@ -179,3 +179,22 @@ clusterHoprd:
 
       ## @param clusterHoprd.logs.upload.logsFileName Name of the logs file to upload. It should be extension like .tar.xz
       logsFileName: ""
+
+  networkPolicy:
+    ## @param clusterHoprd.networkPolicy.enabled Create all NetworkPolicy resources for the node (Prometheus scrape, ingress controller, p2p ingress/egress - both internet and other Hoprd nodes in this cluster). Single switch for everything below; set to false to opt this release out of NetworkPolicy management entirely
+    ##
+    enabled: true
+
+    ingressNginx:
+      ## @param clusterHoprd.networkPolicy.ingressNginx.namespace Namespace the ingress controller runs in
+      ##
+      namespace: "ingress-nginx"
+
+    egressBlokli:
+      ## @param clusterHoprd.networkPolicy.egressBlokli.namespace Namespace Blokli runs in
+      ##
+      namespace: "blokli"
+
+      ## @param clusterHoprd.networkPolicy.egressBlokli.port Blokli GraphQL API port
+      ##
+      port: 8080

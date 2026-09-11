@@ -95,6 +95,23 @@ impl Default for IdentityHoprd {
 }
 
 impl IdentityHoprd {
+    async fn mark_deletion_accounted(&self, client: Client) -> Result<(), Error> {
+        let identity_name = self.name_any();
+        let identity_namespace = self.namespace().unwrap();
+        let api: Api<IdentityHoprd> = Api::namespaced(client, &identity_namespace);
+        let patch = Patch::Merge(json!({
+            "metadata": {
+                "annotations": {
+                    constants::ANNOTATION_IDENTITY_POOL_DELETION_ACCOUNTED: "true"
+                }
+            }
+        }));
+        api.patch(&identity_name, &PatchParams::default(), &patch)
+            .await
+            .map(|_| ())
+            .map_err(|error| Error::HoprdStatusError(format!("Could not mark deletion accounting on '{identity_name}': {error}")))
+    }
+
     /// Handle the creation of IdentityHoprd resource
     pub async fn create(&self, context_data: Arc<ContextData>) -> Result<Action, Error> {
         let client: Client = context_data.client.clone();
@@ -217,15 +234,26 @@ impl IdentityHoprd {
                     }
                 }
                 {
-                    let mut context_state = context_data.state.write().await;
-                    let identity_pool_option = context_state.get_identity_pool(&self.namespace().unwrap(), &self.spec.identity_pool_name);
-                    if identity_pool_option.is_some() {
-                        let mut identity_pool_arc = identity_pool_option.unwrap();
-                        let identity_pool: &mut IdentityPool = Arc::<IdentityPool>::make_mut(&mut identity_pool_arc);
-                        identity_pool.update_status(context_data.client.clone(), IdentityPoolPhaseEnum::IdentityDeleted).await?;
-                        context_state.update_identity_pool(identity_pool.to_owned());
+                    let deletion_already_accounted = self
+                        .annotations()
+                        .get(constants::ANNOTATION_IDENTITY_POOL_DELETION_ACCOUNTED)
+                        .map(|value| value == "true")
+                        .unwrap_or(false);
+
+                    if deletion_already_accounted {
+                        debug!("Identity {identity_name} deletion was already accounted in its pool status, skipping duplicate decrement");
                     } else {
-                        warn!("Identity pool {} not exists in namespace {}", &self.spec.identity_pool_name, &self.namespace().unwrap());
+                        let mut context_state = context_data.state.write().await;
+                        let identity_pool_option = context_state.get_identity_pool(&self.namespace().unwrap(), &self.spec.identity_pool_name);
+                        if identity_pool_option.is_some() {
+                            let mut identity_pool_arc = identity_pool_option.unwrap();
+                            let identity_pool: &mut IdentityPool = Arc::<IdentityPool>::make_mut(&mut identity_pool_arc);
+                            identity_pool.update_status(context_data.client.clone(), IdentityPoolPhaseEnum::IdentityDeleted).await?;
+                            context_state.update_identity_pool(identity_pool.to_owned());
+                            self.mark_deletion_accounted(client.clone()).await?;
+                        } else {
+                            warn!("Identity pool {} not exists in namespace {}", &self.spec.identity_pool_name, &self.namespace().unwrap());
+                        }
                     }
                 }
                 context_data

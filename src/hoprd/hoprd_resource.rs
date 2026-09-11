@@ -278,7 +278,7 @@ impl Hoprd {
         let service_name = if self.spec.service.r#type.eq(&ServiceTypeEnum::ClusterIP) {
             self.name_any()
         } else {
-            format!("{}-p2p-tcp", self.name_any())
+            format!("{}-tcp", self.name_any())
         };
         let service = api.get(&service_name).await?;
         let hoprd_host = if self.spec.service.r#type.eq(&ServiceTypeEnum::ClusterIP) {
