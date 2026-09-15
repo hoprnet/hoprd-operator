@@ -250,3 +250,14 @@ hoprdOperator:
       ## @param hoprdOperator.webhook.tls.key TLS private key for the webhook server
       ##
       key: ""
+
+  networkPolicy:
+    ## @param hoprdOperator.networkPolicy.enabled Whether to create a NetworkPolicy allowing
+    ## ingress to the webhook server from konnectivity-agent (private cluster - the apiserver
+    ## reaches webhooks by proxying through it rather than a direct apiserver IP)
+    ##
+    enabled: true
+    ingressKonnectivityAgent:
+      namespace: kube-system
+      podSelector:
+        k8s-app: konnectivity-agent
