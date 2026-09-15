@@ -1,6 +1,10 @@
 {{- $release := .Release -}}
 {{- $releaseName := include "cluster-hoprd.name" . -}}
-{{- range $key, $value := .Values.clusterHoprd.identities }}
+{{- $identities := .Values.clusterHoprd.identities -}}
+{{- $keys := keys $identities | sortAlpha -}}
+{{- $count := min (len $keys) (int .Values.clusterHoprd.replicas) -}}
+{{- range $key := slice $keys 0 $count }}
+{{- $value := index $identities $key }}
 ---
 apiVersion: hoprnet.org/v1alpha3
 kind: IdentityHoprd

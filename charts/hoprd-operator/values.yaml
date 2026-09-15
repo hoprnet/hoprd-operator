@@ -164,11 +164,18 @@ hoprdOperator:
   ## @param hoprdOperator.extraEnvVars Array of extra environment variables
   ##
   extraEnvVars: []
-  # extraEnvVars: 
+  # extraEnvVars:
   #   - name: RUST_BACKTRACE
   #     value: full
   #   - name: RUST_LOG
   #     value: "hoprd_operator=INFO"
+
+  ## @param hoprdOperator.extraLabels Extra labels added to the controller Deployment's own metadata
+  ## (not the pod template) - e.g. for NetworkPolicy generator selectors.
+  ##
+  extraLabels: {}
+  # extraLabels:
+  #   network-policy.hoprnet.org/allow-kube-apiserver: "enabled"
 
   image:
     ## @param hoprdOperator.image.registry Docker registry to operator deployment

@@ -215,7 +215,7 @@ impl IdentityPool {
         let identity_pool_namespace = self.namespace().unwrap();
         let identity_pool_name = self.name_any();
         let status = self.status.as_ref().unwrap();
-        if status.locked == 0 && status.size == 0 {
+        if status.locked == 0 && status.size <= 0 {
             let client: Client = context_data.client.clone();
             self.update_status(context_data.client.clone(), IdentityPoolPhaseEnum::Deleting).await?;
             context_data.send_event(self, IdentityPoolEventEnum::Deleting, None).await;

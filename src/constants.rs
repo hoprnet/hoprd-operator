@@ -13,6 +13,7 @@ pub const IDENTITY_POOL_WALLET_PRIVATE_KEY_REF_KEY: &str = "PRIVATE_KEY";
 // Annotations
 pub const ANNOTATION_LAST_CONFIGURATION: &str = "kubectl.kubernetes.io/last-applied-configuration";
 pub const ANNOTATION_EXTERNAL_DNS_HOSTNAME: &str = "external-dns.alpha.kubernetes.io/hostname";
+pub const ANNOTATION_IDENTITY_POOL_DELETION_ACCOUNTED: &str = "hoprds.hoprnet.org/identity-pool-deletion-accounted";
 
 // Labels
 pub const LABEL_KUBERNETES_NAME: &str = "app.kubernetes.io/name";
