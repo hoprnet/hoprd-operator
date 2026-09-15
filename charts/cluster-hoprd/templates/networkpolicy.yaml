@@ -34,6 +34,10 @@ spec:
           port: 9090
           endPort: {{ add 9089 .Values.clusterHoprd.nodes.service.portsAllocation }}
     {{- if eq .Values.clusterHoprd.nodes.service.type "LoadBalancer" }}
+    # ICMP "port unreachable" replies from unreachable p2p peers get dropped here (no ICMP
+    # value in NetworkPolicy - only fix is removing ports: below, which opens all ports from
+    # 0.0.0.0/0). Left as-is: the peer is unreachable either way, this is expected p2p churn,
+    # and the port-exposure cost isn't worth it for at-best marginally faster peer timeout.
     - from:
         - ipBlock:
             cidr: 0.0.0.0/0
