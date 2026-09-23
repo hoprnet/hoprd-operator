@@ -185,6 +185,10 @@ clusterHoprd:
     ##
     enabled: true
 
+    ## @param clusterHoprd.networkPolicy.extraScrapePorts Additional ports (e.g. a sidecar's own metrics endpoint, added via nodes.deployment.extraContainers) to allow Prometheus to scrape, alongside the operator's own fixed metrics port. Joined dash-separated into network-policy.hoprnet.org/prometheus-scrape-port, which supports multiple ports this way - do not use commas, Kubernetes rejects those as invalid label values.
+    ##
+    extraScrapePorts: []
+
     ingressNginx:
       ## @param clusterHoprd.networkPolicy.ingressNginx.namespace Namespace the ingress controller runs in
       ##

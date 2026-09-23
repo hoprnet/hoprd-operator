@@ -18,8 +18,12 @@ spec:
   {{- if or .Values.clusterHoprd.networkPolicy.enabled .Values.clusterHoprd.nodes.deployment.labels }}
     labels:
     {{- if .Values.clusterHoprd.networkPolicy.enabled }}
-      # Matches the hardcoded metrics container port in hoprd_deployment.rs's metrics_container()
-      network-policy.hoprnet.org/prometheus-scrape-port: "8080"
+      # 8080 matches the hardcoded metrics container port in hoprd_deployment.rs's
+      # metrics_container() - do not change without changing that too. Additional
+      # scraped ports (e.g. a sidecar added via nodes.deployment.extraContainers) go in
+      # networkPolicy.extraScrapePorts instead; generate-allow-prometheus-scrape-networkpolicy
+      # supports multiple dash-separated ports in this one label.
+      network-policy.hoprnet.org/prometheus-scrape-port: {{ prepend .Values.clusterHoprd.networkPolicy.extraScrapePorts 8080 | join "-" | quote }}
     {{- end }}
     {{- with .Values.clusterHoprd.nodes.deployment.labels }}
       {{- toYaml . | nindent 6 }}
