@@ -27,7 +27,7 @@ async-recursion = "1.0.5"
 openssl-sys = "*"
 json-patch = "4.1.0" # Needs to be upgraded every time the dependency 'kube' is upgraded
 chrono = "0.4.31"
-tracing = "0.1.43"
+tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.22", default-features = true, features = ["env-filter", "json"]}
 base64 = "0.22.1"
 axum = { version = "0.8.7", features = ["json"] }
