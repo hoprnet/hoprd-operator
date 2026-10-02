@@ -157,20 +157,28 @@ pub async fn open_port(client: Client, service_namespace: &str, service_name: &s
     let patch = Patch::Merge(json!({
        "data": new_ports.clone()
     }));
-    match api.patch("ingress-nginx-tcp", &pp, &patch.clone()).await {
-        Ok(_) => {}
-        Err(error) => {
-            error!("Could not open Nginx tcp port: {:?}", error);
-            return Err(HoprError::HoprdConfigError("Could not open Nginx tcp port".to_string()));
-        }
-    };
-    match api.patch("ingress-nginx-udp", &pp, &patch.clone()).await {
-        Ok(_) => {}
-        Err(error) => {
-            error!("Could not open Nginx udp port: {:?}", error);
-            return Err(HoprError::HoprdConfigError("Could not open Nginx udp port".to_string()));
-        }
-    };
+    if api.get_opt("ingress-nginx-tcp").await?.is_some() {
+        match api.patch("ingress-nginx-tcp", &pp, &patch.clone()).await {
+            Ok(_) => {}
+            Err(error) => {
+                error!("Could not open Nginx tcp port: {:?}", error);
+                return Err(HoprError::HoprdConfigError("Could not open Nginx tcp port".to_string()));
+            }
+        };
+    } else {
+        debug!("ConfigMap ingress-nginx-tcp not found, skipping Nginx tcp port opening");
+    }
+    if api.get_opt("ingress-nginx-udp").await?.is_some() {
+        match api.patch("ingress-nginx-udp", &pp, &patch.clone()).await {
+            Ok(_) => {}
+            Err(error) => {
+                error!("Could not open Nginx udp port: {:?}", error);
+                return Err(HoprError::HoprdConfigError("Could not open Nginx udp port".to_string()));
+            }
+        };
+    } else {
+        debug!("ConfigMap ingress-nginx-udp not found, skipping Nginx udp port opening");
+    }
     info!("{session_port_allocation} nginx ports starting from {starting_port} opened for Hoprd node {service_name}");
     Ok(starting_port)
 }
@@ -189,7 +197,8 @@ async fn get_available_ports(client: Client, session_port_allocation: u16, ingre
         ports.sort();
         return Ok(find_next_port(ports, session_port_allocation, ingress_config.port_min));
     } else {
-        Err(HoprError::HoprdConfigError("Could not get new free port".to_string()))
+        debug!("ConfigMap ingress-nginx-tcp not found, using port_min as next free port");
+        Ok(ingress_config.port_min)
     }
 }
 
