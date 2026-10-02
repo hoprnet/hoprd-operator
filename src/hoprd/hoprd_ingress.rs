@@ -225,7 +225,18 @@ pub async fn close_port(client: Client, service_namespace: &str, service_name: &
     let pp = &PatchParams::default();
 
     // TCP
-    let tcp_config_map = api.get("ingress-nginx-tcp").await.unwrap();
+    let tcp_config_map = match api.get_opt("ingress-nginx-tcp").await {
+        Ok(Some(config_map)) => Some(config_map),
+        Ok(None) => {
+            debug!("ConfigMap ingress-nginx-tcp not found, nothing to close");
+            None
+        }
+        Err(error) => {
+            error!("Could not get ConfigMap ingress-nginx-tcp: {:?}", error);
+            return Err(HoprError::HoprdConfigError("Could not get Nginx tcp ConfigMap".to_string()));
+        }
+    };
+    if let Some(tcp_config_map) = tcp_config_map {
     let new_data = tcp_config_map
         .to_owned()
         .data
@@ -245,9 +256,21 @@ pub async fn close_port(client: Client, service_namespace: &str, service_name: &
             return Err(HoprError::HoprdConfigError("Could not close Nginx tcp-port".to_string()));
         }
     };
+    }
 
     // UDP
-    let udp_config_map = api.get("ingress-nginx-udp").await.unwrap();
+    let udp_config_map = match api.get_opt("ingress-nginx-udp").await {
+        Ok(Some(config_map)) => Some(config_map),
+        Ok(None) => {
+            debug!("ConfigMap ingress-nginx-udp not found, nothing to close");
+            None
+        }
+        Err(error) => {
+            error!("Could not get ConfigMap ingress-nginx-udp: {:?}", error);
+            return Err(HoprError::HoprdConfigError("Could not get Nginx udp ConfigMap".to_string()));
+        }
+    };
+    if let Some(udp_config_map) = udp_config_map {
     let new_data = udp_config_map
         .to_owned()
         .data
@@ -268,6 +291,7 @@ pub async fn close_port(client: Client, service_namespace: &str, service_name: &
             return Err(HoprError::HoprdConfigError("Could not close Nginx udp-port".to_string()));
         }
     };
+    }
     info!("Nginx p2p port for Hoprd node {service_name} have been closed");
     Ok(())
 }
