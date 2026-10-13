@@ -41,7 +41,7 @@ pub async fn create_deployment(context_data: Arc<ContextData>, hoprd: &Hoprd, id
     let namespace: String = hoprd.namespace().unwrap();
     let name: String = hoprd.name_any();
     let owner_references: Option<Vec<OwnerReference>> = Some(vec![hoprd.controller_owner_ref(&()).unwrap()]);
-    let identity_pool: IdentityPool = identity_hoprd.get_identity_pool(context_data.client.clone()).await.unwrap();
+    let identity_pool: IdentityPool = identity_hoprd.get_identity_pool(context_data.client.clone()).await?;
 
     let mut labels: BTreeMap<String, String> = utils::common_lables(identity_pool.name_any(), Some(name.to_owned()), Some("node".to_owned()));
     labels.insert(constants::LABEL_NODE_NETWORK.to_owned(), identity_pool.spec.network.clone());
@@ -163,7 +163,7 @@ pub async fn modify_deployment(
     let starting_port = hoprd_host_port.split(':').collect::<Vec<&str>>().get(1).unwrap().to_string().parse::<u16>().unwrap();
     let ports_allocation = hoprd_spec.service.ports_allocation.clone();
     let last_port = starting_port + ports_allocation;
-    let identity_pool: IdentityPool = identity_hoprd.get_identity_pool(context_data.client.clone()).await.unwrap();
+    let identity_pool: IdentityPool = identity_hoprd.get_identity_pool(context_data.client.clone()).await?;
     // Use the selector labels so that user defined labels on the deployment metadata do not leak into the immutable selector
     let selector_labels = deployment.spec.clone().unwrap().selector.match_labels.unwrap_or(deployment.labels().to_owned());
     let spec = build_deployment_spec(selector_labels.clone(), hoprd_spec, identity_pool, identity_hoprd, &hoprd_host, starting_port, last_port).await?;

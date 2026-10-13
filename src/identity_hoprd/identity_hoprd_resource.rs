@@ -148,7 +148,7 @@ impl IdentityHoprd {
         }
         context_data
             .send_event(
-                &self.get_identity_pool(client.clone()).await.unwrap(),
+                &self.get_identity_pool(client.clone()).await?,
                 IdentityPoolEventEnum::IdentityCreated,
                 Some(identity_name.to_owned()),
             )
@@ -256,13 +256,12 @@ impl IdentityHoprd {
                         }
                     }
                 }
-                context_data
-                    .send_event(
-                        &self.get_identity_pool(client.clone()).await.unwrap(),
-                        IdentityPoolEventEnum::IdentityDeleted,
-                        Some(identity_name.to_owned()),
-                    )
-                    .await;
+                // The pool may be already gone, so a missing pool must not block the deletion of the identity
+                        if let Some(identity_pool) = self.get_identity_pool_opt(client.clone()).await? {
+                    context_data.send_event(&identity_pool, IdentityPoolEventEnum::IdentityDeleted, Some(identity_name.to_owned())).await;
+                } else {
+                    warn!("Identity pool {} not exists in namespace {}, skipping the IdentityDeleted event", &self.spec.identity_pool_name, identity_namespace);
+                }
                 // TODO Drain funds
                 resource_generics::delete_finalizer(client.clone(), self).await?;
                 info!("Identity {identity_name} in namespace {identity_namespace} has been successfully deleted");
@@ -316,7 +315,13 @@ impl IdentityHoprd {
 
     pub async fn get_identity_pool(&self, client: Client) -> Result<IdentityPool, Error> {
         let api: Api<IdentityPool> = Api::namespaced(client.clone(), &self.namespace().unwrap());
-        Ok(api.get(&self.spec.identity_pool_name).await.unwrap())
+        api.get(&self.spec.identity_pool_name).await.map_err(Error::from)
+    }
+
+    /// Gets the IdentityPool of this identity, returning `None` when it no longer exists (e.g. it has been already deleted)
+    pub async fn get_identity_pool_opt(&self, client: Client) -> Result<Option<IdentityPool>, Error> {
+        let api: Api<IdentityPool> = Api::namespaced(client.clone(), &self.namespace().unwrap());
+        Ok(api.get_opt(&self.spec.identity_pool_name).await?)
     }
 
     // Unlocks a given identity from a Hoprd node
@@ -325,21 +330,20 @@ impl IdentityHoprd {
             context_data.send_event(self, IdentityHoprdEventEnum::Ready, None).await;
             self.update_phase(context_data.client.clone(), IdentityHoprdPhaseEnum::Ready, None).await?;
 
-            // Update pool to decrease locks
+            // Update pool to decrease locks. The pool may be already gone when the whole cluster is being deleted
             {
                 let mut context_state = context_data.state.write().await;
-                let mut identity_pool_arc = context_state.get_identity_pool(&self.namespace().unwrap(), &self.spec.identity_pool_name).unwrap();
-                let identity_pool: &mut IdentityPool = Arc::<IdentityPool>::make_mut(&mut identity_pool_arc);
-                identity_pool.update_status(context_data.client.clone(), IdentityPoolPhaseEnum::Unlocked).await?;
-                context_state.update_identity_pool(identity_pool.to_owned());
+                if let Some(mut identity_pool_arc) = context_state.get_identity_pool(&self.namespace().unwrap(), &self.spec.identity_pool_name) {
+                    let identity_pool: &mut IdentityPool = Arc::<IdentityPool>::make_mut(&mut identity_pool_arc);
+                    identity_pool.update_status(context_data.client.clone(), IdentityPoolPhaseEnum::Unlocked).await?;
+                    context_state.update_identity_pool(identity_pool.to_owned());
+                } else {
+                    warn!("Identity pool {} not exists in namespace {}, skipping the unlock accounting", &self.spec.identity_pool_name, &self.namespace().unwrap());
+                }
             }
-            context_data
-                .send_event(
-                    &self.get_identity_pool(context_data.client.clone()).await.unwrap(),
-                    IdentityPoolEventEnum::Unlocked,
-                    Some(self.name_any()),
-                )
-                .await;
+            if let Some(identity_pool) = self.get_identity_pool_opt(context_data.client.clone()).await? {
+                context_data.send_event(&identity_pool, IdentityPoolEventEnum::Unlocked, Some(self.name_any())).await;
+            }
             Ok(())
         } else {
             Ok(warn!("The identity cannot be unlock because it is in status {:?}", &self.status))
@@ -347,7 +351,7 @@ impl IdentityHoprd {
     }
 
     pub async fn add_owner_reference(&self, client: Client) -> Result<(), Error> {
-        let identity_pool = self.get_identity_pool(client.clone()).await.unwrap();
+        let identity_pool = self.get_identity_pool(client.clone()).await?;
         let identity_name = self.name_any();
         let identity_pool_owner_reference: Option<Vec<OwnerReference>> = Some(vec![identity_pool.controller_owner_ref(&()).unwrap()]);
         let api: Api<IdentityHoprd> = Api::namespaced(client.clone(), &identity_pool.namespace().unwrap());
