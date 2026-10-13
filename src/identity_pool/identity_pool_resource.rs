@@ -215,11 +215,12 @@ impl IdentityPool {
         let identity_pool_namespace = self.namespace().unwrap();
         let identity_pool_name = self.name_any();
         let status = self.status.as_ref().unwrap();
-        if status.locked == 0 && status.size <= 0 {
+        let remaining_identities = self.get_pool_identities(context_data.client.clone()).await.len();
+        if status.locked == 0 && status.size <= 0 && remaining_identities == 0 {
             let client: Client = context_data.client.clone();
             self.update_status(context_data.client.clone(), IdentityPoolPhaseEnum::Deleting).await?;
             context_data.send_event(self, IdentityPoolEventEnum::Deleting, None).await;
-            info!("Starting to delete identity {identity_pool_name} from namespace {identity_pool_namespace}");
+            info!("Starting to delete identity pool {identity_pool_name} from namespace {identity_pool_namespace}");
             identity_pool_service_monitor::delete_service_monitor(client.clone(), &identity_pool_name, &identity_pool_namespace).await?;
             identity_pool_service_account::delete_rbac(client.clone(), &identity_pool_namespace, &identity_pool_name).await?;
             if self.spec.funding.is_some() {
@@ -230,7 +231,7 @@ impl IdentityPool {
             info!("Identity {identity_pool_name} in namespace {identity_pool_namespace} has been successfully deleted");
             Ok(Action::await_change()) // Makes no sense to delete after a successful delete, as the resource is gone
         } else {
-            warn!("Cannot delete an identity pool with identities");
+            warn!("Cannot delete the identity pool {identity_pool_name} with {remaining_identities} identities still existing");
             Ok(Action::requeue(Duration::from_secs(constants::RECONCILE_LONG_FREQUENCY)))
         }
     }

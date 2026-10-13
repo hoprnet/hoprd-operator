@@ -50,7 +50,7 @@ enum HoprdAction {
 /// - `hoprd`: A reference to `Hoprd` being reconciled to decide next action upon.
 /// - `context`: Context Data used to query the current state of owned resources like the `Deployment`.
 async fn determine_action(hoprd: &Hoprd, context: &Arc<ContextData>) -> Result<HoprdAction, Error> {
-    if hoprd.meta().deletion_timestamp.is_some() && hoprd.status.is_some() && hoprd.status.as_ref().unwrap().phase.ne(&HoprdPhaseEnum::Deleting) {
+    if hoprd.meta().deletion_timestamp.is_some() && hoprd.status.is_some() {
         return Ok(HoprdAction::Delete);
     } else if hoprd.meta().finalizers.as_ref().map_or(true, |finalizers| finalizers.is_empty()) {
         return Ok(HoprdAction::Create);

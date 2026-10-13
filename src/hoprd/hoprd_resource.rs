@@ -319,12 +319,14 @@ impl Hoprd {
         let hoprd_namespace = self.namespace().unwrap();
         let client: Client = context_data.client.clone();
         let current_phase = self.status.to_owned().unwrap_or_default().phase;
+        // A previous attempt may have been interrupted (error or restart) leaving the phase in Deleting.
+        // All the steps below are idempotent, so the deletion is resumed instead of being skipped forever.
         if current_phase.eq(&HoprdPhaseEnum::Deleting) {
-            info!("HoprdNode {} is already being deleted", hoprd_name);
-            return Ok(Action::requeue(Duration::from_secs(constants::RECONCILE_LONG_FREQUENCY)));
+            info!("HoprdNode {} was already being deleted, resuming the deletion", hoprd_name);
+        } else {
+            self.update_status(client.clone(), HoprdPhaseEnum::Deleting).await?;
+            context_data.send_event(self, HoprdEventEnum::Deleting, None).await;
         }
-        self.update_status(client.clone(), HoprdPhaseEnum::Deleting).await?;
-        context_data.send_event(self, HoprdEventEnum::Deleting, None).await;
         info!("Starting to delete Hoprd node {hoprd_name} from namespace {hoprd_namespace}");
         // Deletes any subresources related to this `Hoprd` resources. If and only if all subresources
         // are deleted, the finalizer is removed and Kubernetes is free to remove the `Hoprd` resource.
