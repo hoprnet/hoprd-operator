@@ -27,28 +27,6 @@ Chart version `Chart.yaml` should be increased according to [semver](http://semv
 
 ## Parameters
 
-### Hopr AdminUI Parameters
-
-| Name                                             | Description                                                                                           | Value                                      |
-| ------------------------------------------------ | ----------------------------------------------------------------------------------------------------- | ------------------------------------------ |
-| `hoprdOperator.adminUI.enabled`                  | Whether to install Hopr Admin UI                                                                      | `true`                                     |
-| `hoprdOperator.adminUI.replicas`                 | Replicas for AdminUI deployment                                                                       | `1`                                        |
-| `hoprdOperator.adminUI.resources`                | Resource specification to AdminUI deployment                                                          | `{}`                                       |
-| `hoprdOperator.adminUI.image.registry`           | Docker registry to AdminUI deployment                                                                 | `europe-west3-docker.pkg.dev`              |
-| `hoprdOperator.adminUI.image.repository`         | Docker image repository to AdminUI deployment                                                         | `hoprassociation/docker-images/hopr-admin` |
-| `hoprdOperator.adminUI.image.tag`                | Docker image tag to AdminUI deployment                                                                | `stable`                                   |
-| `hoprdOperator.adminUI.image.pullPolicy`         | Pull policy to AdminUI deployment as defined in                                                       | `Always`                                   |
-| `hoprdOperator.adminUI.service.type`             | service type                                                                                          | `ClusterIP`                                |
-| `hoprdOperator.adminUI.service.ports.http`       | service HTTP port number                                                                              | `8080`                                     |
-| `hoprdOperator.adminUI.service.ports.name`       | service HTTP port name                                                                                | `http`                                     |
-| `hoprdOperator.adminUI.ingress.enabled`          | Enable ingress record generation                                                                      | `true`                                     |
-| `hoprdOperator.adminUI.ingress.pathType`         | Ingress path type                                                                                     | `ImplementationSpecific`                   |
-| `hoprdOperator.adminUI.ingress.ingressClassName` | IngressClass that will be be used to implement the Ingress                                            | `nginx`                                    |
-| `hoprdOperator.adminUI.ingress.hostname`         | Default host for the ingress record                                                                   | `admin.hoprd.cluster.local`                |
-| `hoprdOperator.adminUI.ingress.path`             | Default path for the ingress record                                                                   | `/`                                        |
-| `hoprdOperator.adminUI.ingress.annotations`      | Additional custom annotations for the ingress record                                                  | `{}`                                       |
-| `hoprdOperator.adminUI.ingress.extraPaths`       | An array with additional arbitrary paths that may need to be added to the ingress under the main host | `[]`                                       |
-
 ### Hopr Operator Parameters
 
 | Name                                                    | Description                                                 | Value                                          |
