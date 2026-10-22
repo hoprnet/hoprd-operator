@@ -161,6 +161,10 @@ hoprdOperator:
     ##
     enabled: true
     ingressKonnectivityAgent:
+      ## @param hoprdOperator.networkPolicy.ingressKonnectivityAgent.namespace Namespace where the konnectivity-agent runs
+      ##
       namespace: kube-system
       podSelector:
+        ## @param hoprdOperator.networkPolicy.ingressKonnectivityAgent.podSelector.k8s-app Label identifying the konnectivity-agent pods
+        ##
         k8s-app: konnectivity-agent
