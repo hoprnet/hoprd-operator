@@ -29,35 +29,39 @@ Chart version `Chart.yaml` should be increased according to [semver](http://semv
 
 ### Hopr Operator Parameters
 
-| Name                                                    | Description                                                 | Value                                          |
-| ------------------------------------------------------- | ----------------------------------------------------------- | ---------------------------------------------- |
-| `hoprdOperator.hopli.registry`                          | Docker registry to hopli image                              | `europe-west3-docker.pkg.dev`                  |
-| `hoprdOperator.hopli.repository`                        | Docker image to hopli binary                                | `hoprassociation/docker-images/hopli`          |
-| `hoprdOperator.hopli.tag`                               | Docker image tag to hopli image                             | `latest`                                       |
-| `hoprdOperator.hopli.rpcProviderUrl`                    | RPC provider URL to be used by hopli binary                 | `""`                                           |
-| `hoprdOperator.fastSync.enabled`                        | Enable Fast Sync                                            | `false`                                        |
-| `hoprdOperator.fastSync.bucketName`                     | Name of the bucket to store the logs                        | `""`                                           |
-| `hoprdOperator.fastSync.namespaces`                     | Allowed namespaces for uploading logs                       | `[]`                                           |
-| `hoprdOperator.fastSync.crossplane.provider.crossplane` | Crossplane provider name for Crossplane                     | `""`                                           |
-| `hoprdOperator.fastSync.crossplane.provider.upbound`    | Crossplane provider name for GCP                            | `""`                                           |
-| `hoprdOperator.fastSync.crossplane.gcpProjectId`        | GCP Project ID                                              | `""`                                           |
-| `hoprdOperator.defaultHoprdEnvVars`                     | Environment variables to be set in the Hoprd Nodes          | `{}`                                           |
-| `hoprdOperator.resources`                               | Resource specification to operator deployment               | `{}`                                           |
-| `hoprdOperator.extraEnvVars`                            | Array of extra environment variables                        | `[]`                                           |
-| `hoprdOperator.image.registry`                          | Docker registry to operator deployment                      | `europe-west3-docker.pkg.dev`                  |
-| `hoprdOperator.image.repository`                        | Docker image repository to operator deployment              | `hoprassociation/docker-images/hoprd-operator` |
-| `hoprdOperator.image.tag`                               | Docker image tag to operator deployment                     | `""`                                           |
-| `hoprdOperator.image.pullPolicy`                        | Pull policy to operator deployment as defined in            | `Always`                                       |
-| `hoprdOperator.ingress.ingressClassName`                | Name of the ingress class name to be used by Hoprd nodes    | `nginx`                                        |
-| `hoprdOperator.ingress.dnsDomain`                       | Name of the DNS suffix domain to be added to Hoprd nodes    | `""`                                           |
-| `hoprdOperator.ingress.namespace`                       | Namespace of the running ingress controller                 | `""`                                           |
-| `hoprdOperator.ingress.annotations`                     | Annotations to be added to ingress resources of Hoprd nodes | `{}`                                           |
-| `hoprdOperator.ingress.loadBalancerIP`                  | Public IP of the LoadBalancer Service for the Ingress       | `""`                                           |
-| `hoprdOperator.ingress.ports.min`                       | Starting port to open on Ingress controller                 | `9000`                                         |
-| `hoprdOperator.ingress.ports.max`                       | End port to open on Ingress controller                      | `10000`                                        |
-| `hoprdOperator.ingress.deploymentName`                  | Labels selector to choose the Nginx deployment and service  | `""`                                           |
-| `hoprdOperator.persistence.size`                        | Size of the persistence Volume                              | `500Mi`                                        |
-| `hoprdOperator.persistence.storageClassName`            | Name of the storage class                                   | `""`                                           |
-| `hoprdOperator.webhook.enabled`                         | Whether to enable the webhook server                        | `true`                                         |
-| `hoprdOperator.webhook.tls.crt`                         | TLS certificate for the webhook server                      | `""`                                           |
-| `hoprdOperator.webhook.tls.key`                         | TLS private key for the webhook server                      | `""`                                           |
+| Name                                                                       | Description                                                    | Value                                          |
+| -------------------------------------------------------------------------- | -------------------------------------------------------------- | ---------------------------------------------- |
+| `hoprdOperator.hopli.registry`                                             | Docker registry to hopli image                                 | `europe-west3-docker.pkg.dev`                  |
+| `hoprdOperator.hopli.repository`                                           | Docker image to hopli binary                                   | `hoprassociation/docker-images/hopli`          |
+| `hoprdOperator.hopli.tag`                                                  | Docker image tag to hopli image                                | `latest`                                       |
+| `hoprdOperator.hopli.rpcProviderUrl`                                       | RPC provider URL to be used by hopli binary                    | `""`                                           |
+| `hoprdOperator.fastSync.enabled`                                           | Enable Fast Sync                                               | `false`                                        |
+| `hoprdOperator.fastSync.bucketName`                                        | Name of the bucket to store the logs                           | `""`                                           |
+| `hoprdOperator.fastSync.namespaces`                                        | Allowed namespaces for uploading logs                          | `[]`                                           |
+| `hoprdOperator.fastSync.crossplane.provider.crossplane`                    | Crossplane provider name for Crossplane                        | `""`                                           |
+| `hoprdOperator.fastSync.crossplane.provider.upbound`                       | Crossplane provider name for GCP                               | `""`                                           |
+| `hoprdOperator.fastSync.crossplane.gcpProjectId`                           | GCP Project ID                                                 | `""`                                           |
+| `hoprdOperator.defaultHoprdEnvVars`                                        | Environment variables to be set in the Hoprd Nodes             | `{}`                                           |
+| `hoprdOperator.resources`                                                  | Resource specification to operator deployment                  | `{}`                                           |
+| `hoprdOperator.extraEnvVars`                                               | Array of extra environment variables                           | `[]`                                           |
+| `hoprdOperator.extraLabels`                                                | Extra labels added to the controller Deployment's own metadata | `{}`                                           |
+| `hoprdOperator.image.registry`                                             | Docker registry to operator deployment                         | `europe-west3-docker.pkg.dev`                  |
+| `hoprdOperator.image.repository`                                           | Docker image repository to operator deployment                 | `hoprassociation/docker-images/hoprd-operator` |
+| `hoprdOperator.image.tag`                                                  | Docker image tag to operator deployment                        | `""`                                           |
+| `hoprdOperator.image.pullPolicy`                                           | Pull policy to operator deployment as defined in               | `Always`                                       |
+| `hoprdOperator.ingress.ingressClassName`                                   | Name of the ingress class name to be used by Hoprd nodes       | `nginx`                                        |
+| `hoprdOperator.ingress.dnsDomain`                                          | Name of the DNS suffix domain to be added to Hoprd nodes       | `""`                                           |
+| `hoprdOperator.ingress.namespace`                                          | Namespace of the running ingress controller                    | `""`                                           |
+| `hoprdOperator.ingress.annotations`                                        | Annotations to be added to ingress resources of Hoprd nodes    | `{}`                                           |
+| `hoprdOperator.ingress.loadBalancerIP`                                     | Public IP of the LoadBalancer Service for the Ingress          | `""`                                           |
+| `hoprdOperator.ingress.ports.min`                                          | Starting port to open on Ingress controller                    | `9000`                                         |
+| `hoprdOperator.ingress.ports.max`                                          | End port to open on Ingress controller                         | `10000`                                        |
+| `hoprdOperator.ingress.deploymentName`                                     | Labels selector to choose the Nginx deployment and service     | `""`                                           |
+| `hoprdOperator.persistence.size`                                           | Size of the persistence Volume                                 | `500Mi`                                        |
+| `hoprdOperator.persistence.storageClassName`                               | Name of the storage class                                      | `""`                                           |
+| `hoprdOperator.webhook.enabled`                                            | Whether to enable the webhook server                           | `true`                                         |
+| `hoprdOperator.webhook.tls.crt`                                            | TLS certificate for the webhook server                         | `""`                                           |
+| `hoprdOperator.webhook.tls.key`                                            | TLS private key for the webhook server                         | `""`                                           |
+| `hoprdOperator.networkPolicy.enabled`                                      | Whether to create a NetworkPolicy allowing                     | `true`                                         |
+| `hoprdOperator.networkPolicy.ingressKonnectivityAgent.namespace`           | Namespace where the konnectivity-agent runs                    | `kube-system`                                  |
+| `hoprdOperator.networkPolicy.ingressKonnectivityAgent.podSelector.k8s-app` | Label identifying the konnectivity-agent pods                  | `konnectivity-agent`                           |
