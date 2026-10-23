@@ -27,7 +27,7 @@ jobs:
           client-id: Iv23liV1vEl5aA1L93To
           private-key: ${{ secrets.GH_APP_HOPRNET_BOT_PRIVATE_KEY }}
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
           fetch-tags: true
