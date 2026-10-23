@@ -7,7 +7,8 @@ LABEL name="hoprd metrics" \
 
 # musl toolchain for static binaries
 RUN apt update && \
-    apt install --no-install-recommends -y curl lighttpd && \
+    apt install --no-install-recommends -y curl lighttpd ca-certificates && \
+    apt install --only-upgrade -y ca-certificates && \
     apt-get autoremove -y && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*

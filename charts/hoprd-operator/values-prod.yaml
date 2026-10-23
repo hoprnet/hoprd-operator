@@ -32,15 +32,3 @@ operator:
     namespace: ingress-nginx
     loadBalancerIP: 35.242.216.67
     deploymentName: ingress-nginx-controller
-adminUI:
-  ingress:
-    ingressClassName: nginx
-    hostname: hoprd.prod.hoprnet.link
-    annotations:
-      nginx.ingress.kubernetes.io/server-snippets: |
-          more_set_headers "Content-Security-Policy: upgrade-insecure-requests";
-
-
-
-
-

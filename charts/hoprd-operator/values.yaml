@@ -1,102 +1,5 @@
 hoprdOperator:
 
-  ## @section Hopr AdminUI Parameters
-  ##
-
-  adminUI:
-
-    ## @param hoprdOperator.adminUI.enabled Whether to install Hopr Admin UI
-    ##
-    enabled: true
-
-    ## @param hoprdOperator.adminUI.replicas Replicas for AdminUI deployment
-    ##
-    replicas: 1
-
-    ## @param hoprdOperator.adminUI.resources Resource specification to AdminUI deployment
-    ##
-    resources: {}
-        # We usually recommend not to specify default resources and to leave this as a conscious
-        # choice for the user. This also increases chances charts run on environments with little
-        # resources, such as Minikube. If you do want to specify resources, uncomment the following
-        # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
-        # limits:
-        #   cpu: 100m
-        #   memory: 128Mi
-        # requests:
-        #   cpu: 100m
-        #   memory: 128Mi
-
-    image:
-      ## @param hoprdOperator.adminUI.image.registry Docker registry to AdminUI deployment
-      ##
-      registry: europe-west3-docker.pkg.dev
-
-      ## @param hoprdOperator.adminUI.image.repository Docker image repository to AdminUI deployment
-      ##
-      repository: hoprassociation/docker-images/hopr-admin
-
-      ## @param hoprdOperator.adminUI.image.tag Docker image tag to AdminUI deployment
-      ##
-      tag: stable
-
-      ## @param hoprdOperator.adminUI.image.pullPolicy Pull policy to AdminUI deployment as defined in 
-      ##
-      pullPolicy: Always
-
-    service:
-
-      ## @param hoprdOperator.adminUI.service.type service type
-      ##
-      type: ClusterIP
-      ports:
-
-        ## @param hoprdOperator.adminUI.service.ports.http service HTTP port number
-        ##  
-        http: 8080
-
-        ## @param hoprdOperator.adminUI.service.ports.name service HTTP port name
-        ##
-        name: http
-
-    ingress:
-
-      ## @param hoprdOperator.adminUI.ingress.enabled Enable ingress record generation
-      ##
-      enabled: true
-
-      ## @param hoprdOperator.adminUI.ingress.pathType Ingress path type
-      ##
-      pathType: ImplementationSpecific
-
-      ## @param hoprdOperator.adminUI.ingress.ingressClassName IngressClass that will be be used to implement the Ingress
-      ##
-      ingressClassName: "nginx"
-
-      ## @param hoprdOperator.adminUI.ingress.hostname Default host for the ingress record
-      ##
-      hostname: admin.hoprd.cluster.local
-
-      ## @param hoprdOperator.adminUI.ingress.path Default path for the ingress record
-      ##
-      path: /
-
-      ## @param hoprdOperator.adminUI.ingress.annotations [object] Additional custom annotations for the ingress record
-      ##
-      annotations: {}
-
-      ## @param hoprdOperator.adminUI.ingress.extraPaths [array] An array with additional arbitrary paths that may need to be added to the ingress under the main host
-      ## e.g:
-      ## extraPaths:
-      ## - path: /*
-      ##   backend:
-      ##     service:
-      ##       name: other-service
-      ##       port:
-      ##         name: service-port-name
-      ##
-      extraPaths: []
-
 ## @section Hopr Operator Parameters
 ##
 
@@ -258,6 +161,10 @@ hoprdOperator:
     ##
     enabled: true
     ingressKonnectivityAgent:
+      ## @param hoprdOperator.networkPolicy.ingressKonnectivityAgent.namespace Namespace where the konnectivity-agent runs
+      ##
       namespace: kube-system
       podSelector:
+        ## @param hoprdOperator.networkPolicy.ingressKonnectivityAgent.podSelector.k8s-app Label identifying the konnectivity-agent pods
+        ##
         k8s-app: konnectivity-agent

@@ -37,13 +37,3 @@ app.kubernetes.io/instance: {{ include "hoprd-operator.name" . }}
 
 {{- end }}
 
-{{/*
-Default labels
-*/}}
-{{- define "hoprd-adminui.labels" -}}
-helm.sh/chart: {{ include "hoprd-operator.chart" . }}
-app.kubernetes.io/component: admin
-app.kubernetes.io/managed-by: {{ .Release.Service }}
-app.kubernetes.io/name: {{ .Release.Name }}
-app.kubernetes.io/instance: {{ include "hoprd-operator.name" . }}
-{{- end }}
