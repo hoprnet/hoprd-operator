@@ -82,10 +82,10 @@ jobs:
           install_sdk: 'false'
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - name: Build container image
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v7
         with:
           push: true
           tags: europe-west3-docker.pkg.dev/hoprassociation/docker-images/hoprd-operator:latest
