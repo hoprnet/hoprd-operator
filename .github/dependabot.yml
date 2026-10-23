@@ -27,6 +27,12 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+    ignore:
+      # k8s-openapi 0.28 drops the v1_34 feature and is not compatible with
+      # kube 2.0.1. Re-enable this when kube is upgraded.
+      - dependency-name: "k8s-openapi"
+        update-types:
+          - "version-update:semver-minor"
     groups:
       cargo-patch:
         patterns:
