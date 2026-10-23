@@ -172,3 +172,4 @@ Build the hoprd-operator container using in the repo root:
 docker build -t europe-west3-docker.pkg.dev/hoprassociation/docker-images/hoprd-operator:latest .
 ```
 
+
