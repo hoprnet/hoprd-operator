@@ -27,13 +27,13 @@ jobs:
           client-id: Iv23liV1vEl5aA1L93To
           private-key: ${{ secrets.GH_APP_HOPRNET_BOT_PRIVATE_KEY }}
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
           fetch-tags: true
           token: ${{ steps.bot-token.outputs.token }}
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - name: Setup GCP
         id: gcp
@@ -59,7 +59,7 @@ jobs:
 
       - name: Build container image
         if: steps.skip_if_exists.outputs.SKIP_BUILD == 'false'
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v7
         with:
           push: true
           tags: |
