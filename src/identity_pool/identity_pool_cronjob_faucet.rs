@@ -42,7 +42,7 @@ pub async fn create_cron_job(context_data: Arc<ContextData>, identity_pool: &Ide
             schedule: identity_pool.spec.funding.to_owned().unwrap().schedule,
             job_template: JobTemplateSpec {
                 metadata: Some(ObjectMeta::default()),
-                spec: Some(get_job_template(context_data.clone(), identity_pool).await),
+                spec: Some(get_job_template(context_data.clone(), identity_pool).await?),
             },
             ..CronJobSpec::default()
         }),
@@ -64,7 +64,7 @@ async fn build_args_line(context_data: Arc<ContextData>, identity_pool: &Identit
     Some(vec![command_line])
 }
 
-async fn get_job_template(context_data: Arc<ContextData>, identity_pool: &IdentityPool) -> JobSpec {
+async fn get_job_template(context_data: Arc<ContextData>, identity_pool: &IdentityPool) -> Result<JobSpec, Error> {
     let volumes: Vec<Volume> = vec![Volume {
         name: "data".to_owned(),
         empty_dir: Some(EmptyDirVolumeSource::default()),
@@ -80,7 +80,7 @@ async fn get_job_template(context_data: Arc<ContextData>, identity_pool: &Identi
         identity_pool.name_any()
     )]);
 
-    JobSpec {
+    Ok(JobSpec {
         ttl_seconds_after_finished: Some(600), // 10 minutes
         parallelism: Some(1),
         completions: Some(1),
@@ -96,7 +96,7 @@ async fn get_job_template(context_data: Arc<ContextData>, identity_pool: &Identi
                     command: Some(vec!["/bin/bash".to_owned(), "-c".to_owned()]),
                     args: kubectl_args,
                     volume_mounts: Some(volume_mounts.to_owned()),
-                    resources: Some(HoprdDeploymentSpec::get_resource_requirements(None)),
+                    resources: Some(HoprdDeploymentSpec::get_resource_requirements(None)?),
                     ..Container::default()
                 }]),
                 containers: vec![Container {
@@ -107,7 +107,7 @@ async fn get_job_template(context_data: Arc<ContextData>, identity_pool: &Identi
                     args: build_args_line(context_data.clone(), identity_pool).await,
                     env: Some(get_env_var(identity_pool.spec.secret_name.to_owned()).await),
                     volume_mounts: Some(volume_mounts.to_owned()),
-                    resources: Some(HoprdDeploymentSpec::get_resource_requirements(None)),
+                    resources: Some(HoprdDeploymentSpec::get_resource_requirements(None)?),
                     ..Container::default()
                 }],
                 service_account: Some(identity_pool.name_any()),
@@ -117,7 +117,7 @@ async fn get_job_template(context_data: Arc<ContextData>, identity_pool: &Identi
             }),
         },
         ..JobSpec::default()
-    }
+    })
 }
 
 async fn get_env_var(secret_name: String) -> Vec<EnvVar> {

@@ -18,6 +18,7 @@ use crate::{
     context_data::ContextData,
     identity_hoprd::identity_hoprd_resource::IdentityHoprd,
     model::Error,
+    utils,
 };
 
 /// Action to be taken upon an `IdentityHoprd` resource during reconciliation
@@ -55,6 +56,10 @@ fn determine_action(identity_hoprd: &IdentityHoprd) -> IdentityHoprdAction {
 }
 
 async fn reconciler(identity_hoprd: Arc<IdentityHoprd>, context: Arc<ContextData>) -> Result<Action, Error> {
+    utils::catch_panics("IdentityHoprd", reconcile(identity_hoprd, context)).await
+}
+
+async fn reconcile(identity_hoprd: Arc<IdentityHoprd>, context: Arc<ContextData>) -> Result<Action, Error> {
     let mut identity_hoprd_cloned = identity_hoprd.clone();
     let identity_hoprd_mutable: &mut IdentityHoprd = Arc::<IdentityHoprd>::make_mut(&mut identity_hoprd_cloned);
     // Performs action as decided by the `determine_action` function.

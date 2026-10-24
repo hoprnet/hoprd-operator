@@ -309,20 +309,22 @@ impl ClusterHoprd {
     }
 
     // Finds the next free node in the cluster. We use this function, because a node might be missing in the middle of the list of nodes
-    async fn get_next_free_node(&self, client: Client) -> i32 {
+    async fn get_next_free_node(&self, client: Client) -> Result<i32, Error> {
         let api: Api<Hoprd> = Api::namespaced(client, &self.namespace().unwrap());
-        let current_nodes = self.get_hoprd_nodes_from_cluster(api).await.unwrap();
+        let current_nodes = self.get_hoprd_nodes_from_cluster(api).await?;
         debug!(
             "ClusterHoprd {} in namespace {} has currently {} nodes",
             self.name_any(),
             self.namespace().unwrap(),
             current_nodes.len()
         );
+        let node_prefix: String = format!("{}-", self.name_any());
         let mut current_node_numbers = current_nodes
             .iter()
-            .map(|n| {
-                // Casting the node numbers and removing 1 unit to align them with the index of the array, so the nodes numbering starts from value 0 instead of 1
-                n.name_any().replace(&format!("{}-", self.metadata.name.as_ref().unwrap()), "").parse::<i32>().unwrap() - 1
+            .filter_map(|n| {
+                // Casting the node numbers and removing 1 unit to align them with the index of the array, so the nodes numbering starts from value 0 instead of 1.
+                // Nodes whose name suffix is not a number cannot belong to the sequence, so they are ignored.
+                n.name_any().strip_prefix(&node_prefix).and_then(|suffix| suffix.parse::<i32>().ok()).map(|number| number - 1)
             })
             .collect::<Vec<i32>>();
         current_node_numbers.sort();
@@ -341,13 +343,13 @@ impl ClusterHoprd {
             })
             .unwrap_or(1);
         debug!("Next free node for ClusterHopr {} in namespace {} is {}", self.name_any(), self.namespace().unwrap(), next);
-        next
+        Ok(next)
     }
 
     /// Creates a set of hoprd resources with similar configuration
     async fn create_node(&self, context_data: Arc<ContextData>) -> Result<(), Error> {
         let cluster_name = self.metadata.name.as_ref().unwrap().to_owned();
-        let node_instance = self.get_next_free_node(context_data.client.clone()).await;
+        let node_instance = self.get_next_free_node(context_data.client.clone()).await?;
         let node_name = format!("{}-{}", cluster_name.to_owned(), node_instance).to_owned();
         context_data.send_event(self, ClusterHoprdEventEnum::CreatingNode, Some(node_name.to_owned())).await;
         let identity_name = format!("{}-{}", self.spec.identity_pool_name, node_instance);
