@@ -38,9 +38,9 @@ use tracing::{error, info};
 /// - `hoprd` - Details about the hoprd configuration node
 ///
 pub async fn create_deployment(context_data: Arc<ContextData>, hoprd: &Hoprd, identity_hoprd: &IdentityHoprd, hoprd_host: &str, starting_port: u16, last_port: u16) -> Result<Deployment, Error> {
-    let namespace: String = hoprd.namespace().unwrap();
+    let namespace: String = hoprd.namespace().ok_or_else(|| Error::UserInputError("The Hoprd resource has no namespace".to_owned()))?;
     let name: String = hoprd.name_any();
-    let owner_references: Option<Vec<OwnerReference>> = Some(vec![hoprd.controller_owner_ref(&()).unwrap()]);
+    let owner_references: Option<Vec<OwnerReference>> = Some(vec![hoprd.controller_owner_ref(&()).ok_or_else(|| Error::UserInputError("The Hoprd resource has no uid".to_owned()))?]);
     let identity_pool: IdentityPool = identity_hoprd.get_identity_pool(context_data.client.clone()).await?;
 
     let mut labels: BTreeMap<String, String> = utils::common_lables(identity_pool.name_any(), Some(name.to_owned()), Some("node".to_owned()));
@@ -96,7 +96,7 @@ pub async fn build_deployment_spec(
     last_port: u16
 ) -> Result<DeploymentSpec, Error> {
     let replicas: i32 = if hoprd_spec.enabled.unwrap_or(true) { 1 } else { 0 };
-    let mut containers: Vec<Container> = extra_containers(hoprd_spec.deployment.clone());
+    let mut containers: Vec<Container> = extra_containers(hoprd_spec.deployment.clone())?;
     containers.push(hoprd_container(hoprd_spec, &identity_pool, identity_hoprd, hoprd_host, starting_port, last_port)?);
     containers.push(metrics_container(&identity_pool));
     if hoprd_spec.profiling_enabled.unwrap_or(false) {
@@ -155,17 +155,18 @@ pub async fn modify_deployment(
             return Err(Error::HoprdStatusError(format!("Deployment '{deployment_name}' not found in namespace '{namespace}'")));
         }
     };
-    let pod_spec = deployment.spec.clone().unwrap().template.spec.unwrap();
-    let hoprd_container = pod_spec.containers.iter().find(|&container| container.name == "hoprd").unwrap();
-    let hoprd_host_env_var = hoprd_container.env.as_ref().unwrap().iter().find(|&env_var| env_var.name.eq(&constants::HOPRD_HOST.to_owned())).unwrap();
-    let hoprd_host_port = hoprd_host_env_var.value.as_ref().unwrap().to_owned();
-    let hoprd_host = *hoprd_host_port.split(':').collect::<Vec<&str>>().get(0).unwrap();
-    let starting_port = hoprd_host_port.split(':').collect::<Vec<&str>>().get(1).unwrap().to_string().parse::<u16>().unwrap();
+    let invalid_deployment = || Error::HoprdStatusError(format!("Deployment '{deployment_name}' in namespace '{namespace}' has an unexpected structure"));
+    let pod_spec = deployment.spec.clone().and_then(|spec| spec.template.spec).ok_or_else(invalid_deployment)?;
+    let hoprd_container = pod_spec.containers.iter().find(|&container| container.name == "hoprd").ok_or_else(invalid_deployment)?;
+    let hoprd_host_env_var = hoprd_container.env.as_ref().and_then(|env| env.iter().find(|&env_var| env_var.name.eq(&constants::HOPRD_HOST.to_owned()))).ok_or_else(invalid_deployment)?;
+    let hoprd_host_port = hoprd_host_env_var.value.as_ref().ok_or_else(invalid_deployment)?.to_owned();
+    let (hoprd_host, starting_port_string) = hoprd_host_port.split_once(':').ok_or_else(invalid_deployment)?;
+    let starting_port = starting_port_string.parse::<u16>().map_err(|_| invalid_deployment())?;
     let ports_allocation = hoprd_spec.service.ports_allocation.clone();
     let last_port = starting_port + ports_allocation;
     let identity_pool: IdentityPool = identity_hoprd.get_identity_pool(context_data.client.clone()).await?;
     // Use the selector labels so that user defined labels on the deployment metadata do not leak into the immutable selector
-    let selector_labels = deployment.spec.clone().unwrap().selector.match_labels.unwrap_or(deployment.labels().to_owned());
+    let selector_labels = deployment.spec.clone().ok_or_else(invalid_deployment)?.selector.match_labels.unwrap_or(deployment.labels().to_owned());
     let spec = build_deployment_spec(selector_labels.clone(), hoprd_spec, identity_pool, identity_hoprd, &hoprd_host, starting_port, last_port).await?;
     let custom_labels = HoprdDeploymentSpec::get_labels(hoprd_spec.deployment.clone());
     let custom_annotations = HoprdDeploymentSpec::get_annotations(hoprd_spec.deployment.clone());
@@ -174,7 +175,7 @@ pub async fn modify_deployment(
     // User labels and annotations removed from the spec must be patched as null so the JSON merge patch clears them
     let removed_labels: Vec<String> = previous_labels.keys().filter(|key| !custom_labels.contains_key(*key) && !selector_labels.contains_key(*key)).cloned().collect();
     let removed_annotations: Vec<String> = previous_annotations.keys().filter(|key| !custom_annotations.contains_key(*key)).cloned().collect();
-    let mut spec_value = serde_json::to_value(&spec).unwrap();
+    let mut spec_value = serde_json::to_value(&spec)?;
     if let Some(template_metadata) = spec_value.pointer_mut("/template/metadata").and_then(|metadata| metadata.as_object_mut()) {
         mark_keys_as_removed(template_metadata, "labels", &removed_labels);
         mark_keys_as_removed(template_metadata, "annotations", &removed_annotations);
@@ -205,14 +206,14 @@ fn mark_keys_as_removed(metadata: &mut serde_json::Map<String, Value>, field: &s
     }
 }
 
-pub fn extra_containers(hoprd_deployment_spec: Option<HoprdDeploymentSpec>) -> Vec<Container> {
+pub fn extra_containers(hoprd_deployment_spec: Option<HoprdDeploymentSpec>) -> Result<Vec<Container>, Error> {
     let default_deployment_spec = HoprdDeploymentSpec::default();
     let hoprd_deployment_spec = hoprd_deployment_spec.unwrap_or(default_deployment_spec.clone());
     if let Some(extra_containers_string) = hoprd_deployment_spec.extra_containers {
-        let extra_containers: Vec<Container> = serde_yml::from_str(&extra_containers_string).unwrap();
-        extra_containers
+        let extra_containers: Vec<Container> = serde_yml::from_str(&extra_containers_string)?;
+        Ok(extra_containers)
     } else {
-        vec![]
+        Ok(vec![])
     }
 }
 
@@ -287,10 +288,10 @@ pub fn hoprd_container(hoprd_spec: &HoprdSpec,
         &hoprd_spec.version.to_owned()
     );
 
-    let resources = Some(HoprdDeploymentSpec::get_resource_requirements(hoprd_spec.deployment.clone()));
-    let liveness_probe = HoprdDeploymentSpec::get_liveness_probe(hoprd_spec.deployment.clone());
-    let readiness_probe = HoprdDeploymentSpec::get_readiness_probe(hoprd_spec.deployment.clone(), hoprd_spec.source_node_logs.unwrap_or(false));
-    let startup_probe = HoprdDeploymentSpec::get_startup_probe(hoprd_spec.deployment.clone(), hoprd_spec.source_node_logs.unwrap_or(false));
+    let resources = Some(HoprdDeploymentSpec::get_resource_requirements(hoprd_spec.deployment.clone())?);
+    let liveness_probe = HoprdDeploymentSpec::get_liveness_probe(hoprd_spec.deployment.clone())?;
+    let readiness_probe = HoprdDeploymentSpec::get_readiness_probe(hoprd_spec.deployment.clone(), hoprd_spec.source_node_logs.unwrap_or(false))?;
+    let startup_probe = HoprdDeploymentSpec::get_startup_probe(hoprd_spec.deployment.clone(), hoprd_spec.source_node_logs.unwrap_or(false))?;
     let volume_mounts: Option<Vec<VolumeMount>> = build_volume_mounts();
     let hoprd_host_port = format!("{}:{}", hoprd_host, starting_port);
 

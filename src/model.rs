@@ -31,6 +31,12 @@ pub enum Error {
         serde_yml::Error,
     ),
 
+    #[error("JSON error: {0}")]
+    JsonError(
+        #[from]
+        serde_json::Error,
+    ),
+
     /// The hoprd configuration is invalid
     #[error("ClusterHoprd synch error: {0}")]
     ClusterHoprdSynchError(String),
@@ -46,4 +52,8 @@ pub enum Error {
     /// The Job execution did not complete successfully
     #[error("There is an issue with the identity: {0}")]
     IdentityIssue(String),
+
+    /// A reconciliation panicked and was recovered
+    #[error("Reconciler panic: {0}")]
+    ReconcilerPanic(String),
 }

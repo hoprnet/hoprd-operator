@@ -21,6 +21,7 @@ use crate::{
     identity_hoprd::identity_hoprd_resource::IdentityHoprd,
     identity_pool::identity_pool_resource::{IdentityPool, IdentityPoolPhaseEnum},
     model::Error,
+    utils,
     servicemonitor::ServiceMonitor,
 };
 
@@ -87,6 +88,10 @@ async fn determine_action(identity_pool: &IdentityPool, context: &Arc<ContextDat
 }
 
 async fn reconciler(identity_pool: Arc<IdentityPool>, context: Arc<ContextData>) -> Result<Action, Error> {
+    utils::catch_panics("IdentityPool", reconcile(identity_pool, context)).await
+}
+
+async fn reconcile(identity_pool: Arc<IdentityPool>, context: Arc<ContextData>) -> Result<Action, Error> {
     let mut identity_pool_cloned = identity_pool.clone();
     let identity_pool_mutable: &mut IdentityPool = Arc::<IdentityPool>::make_mut(&mut identity_pool_cloned);
     // Performs action as decided by the `determine_action` function.

@@ -123,12 +123,12 @@ impl HoprdDeploymentSpec {
         hoprd_deployment_spec.and_then(|spec| spec.annotations).unwrap_or_default()
     }
 
-    pub fn get_resource_requirements(hoprd_deployment_spec: Option<HoprdDeploymentSpec>) -> ResourceRequirements {
+    pub fn get_resource_requirements(hoprd_deployment_spec: Option<HoprdDeploymentSpec>) -> Result<ResourceRequirements, Error> {
         let default_deployment_spec = HoprdDeploymentSpec::default();
         let hoprd_deployment_spec = hoprd_deployment_spec.unwrap_or(default_deployment_spec.clone());
         let resource_requirements_string = hoprd_deployment_spec.resources.as_ref().unwrap_or(default_deployment_spec.resources.as_ref().unwrap());
-        let resource_requirements: ResourceRequirements = serde_yml::from_str(resource_requirements_string).unwrap();
-        resource_requirements
+        let resource_requirements: ResourceRequirements = serde_yml::from_str(resource_requirements_string)?;
+        Ok(resource_requirements)
     }
 
     pub fn get_environment_variables(hoprd_deployment_spec: Option<HoprdDeploymentSpec>) -> Result<Vec<EnvVar>, Error> {
@@ -164,44 +164,44 @@ impl HoprdDeploymentSpec {
         }
     }
 
-    pub fn get_liveness_probe(hoprd_deployment_spec_option: Option<HoprdDeploymentSpec>) -> Option<Probe> {
+    pub fn get_liveness_probe(hoprd_deployment_spec_option: Option<HoprdDeploymentSpec>) -> Result<Option<Probe>, Error> {
         let default_liveness_probe = HoprdDeploymentSpec::build_probe("/healthyz".to_owned(), Some(5), Some(1), Some(3));
         if let Some(hoprd_deployment_spec) = hoprd_deployment_spec_option {
             if let Some(liveness_probe_string) = hoprd_deployment_spec.liveness_probe {
-                Some(serde_yml::from_str(&liveness_probe_string).unwrap())
+                Ok(Some(serde_yml::from_str(&liveness_probe_string)?))
             } else {
-                Some(default_liveness_probe)
+                Ok(Some(default_liveness_probe))
             }
         } else {
-            Some(default_liveness_probe)
+            Ok(Some(default_liveness_probe))
         }
     }
 
-    pub fn get_startup_probe(hoprd_deployment_spec_option: Option<HoprdDeploymentSpec>, source_node_logs: bool) -> Option<Probe> {
+    pub fn get_startup_probe(hoprd_deployment_spec_option: Option<HoprdDeploymentSpec>, source_node_logs: bool) -> Result<Option<Probe>, Error> {
         let period_seconds = if source_node_logs { Some(60) } else { Some(15) };
         let default_startup_probe = HoprdDeploymentSpec::build_probe("/startedz".to_owned(), period_seconds, Some(1), Some(60));
         if let Some(hoprd_deployment_spec) = hoprd_deployment_spec_option {
             if let Some(startup_probe_string) = hoprd_deployment_spec.startup_probe {
-                Some(serde_yml::from_str(&startup_probe_string).unwrap())
+                Ok(Some(serde_yml::from_str(&startup_probe_string)?))
             } else {
-                Some(default_startup_probe)
+                Ok(Some(default_startup_probe))
             }
         } else {
-            Some(default_startup_probe)
+            Ok(Some(default_startup_probe))
         }
     }
 
-    pub fn get_readiness_probe(hoprd_deployment_spec_option: Option<HoprdDeploymentSpec>, source_node_logs: bool) -> Option<Probe> {
+    pub fn get_readiness_probe(hoprd_deployment_spec_option: Option<HoprdDeploymentSpec>, source_node_logs: bool) -> Result<Option<Probe>, Error> {
         let period_seconds = if source_node_logs { Some(60) } else { Some(15) };
         let default_readiness_probe = HoprdDeploymentSpec::build_probe("/readyz".to_owned(), period_seconds, Some(1), Some(60));
         if let Some(hoprd_deployment_spec) = hoprd_deployment_spec_option {
             if let Some(readiness_probe_string) = hoprd_deployment_spec.readiness_probe {
-                Some(serde_yml::from_str(&readiness_probe_string).unwrap())
+                Ok(Some(serde_yml::from_str(&readiness_probe_string)?))
             } else {
-                Some(default_readiness_probe)
+                Ok(Some(default_readiness_probe))
             }
         } else {
-            Some(default_readiness_probe)
+            Ok(Some(default_readiness_probe))
         }
     }
 }

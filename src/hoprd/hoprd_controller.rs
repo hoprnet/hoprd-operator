@@ -25,6 +25,7 @@ use crate::{
     context_data::ContextData,
     hoprd::hoprd_resource::{Hoprd, HoprdPhaseEnum},
     model::Error,
+    utils,
     servicemonitor::ServiceMonitor,
 };
 
@@ -54,25 +55,44 @@ async fn determine_action(hoprd: &Hoprd, context: &Arc<ContextData>) -> Result<H
         return Ok(HoprdAction::Delete);
     } else if hoprd.meta().finalizers.as_ref().map_or(true, |finalizers| finalizers.is_empty()) {
         return Ok(HoprdAction::Create);
-    } else if hoprd.status.as_ref().unwrap().phase == HoprdPhaseEnum::Failed {
+    }
+    // From here the resource has at least one finalizer, but it might not have a status yet: a finalizer
+    // added by a third party (or by a tenant) can exist before the operator has reported any status.
+    let status = match hoprd.status.as_ref() {
+        Some(status) => status,
+        // No status: the first condition of this function only returns `Delete` when the status exists,
+        // so a resource being deleted without status also reaches this point
+        None => {
+            if hoprd.meta().deletion_timestamp.is_some() {
+                // The operator never created any subresource for it (it has no status), so there is nothing
+                // to clean up. Running `Create` would be wrong, as it would start provisioning a node for
+                // a resource that is going away. The resource is released once the other finalizers are removed.
+                return Ok(HoprdAction::NoOp);
+            }
+            // Not being deleted: treat it as a resource that has not been initialized by the operator yet
+            return Ok(HoprdAction::Create);
+        }
+    };
+    let phase = status.phase;
+    if phase == HoprdPhaseEnum::Failed {
         return Ok(HoprdAction::Modify);
-    } else if hoprd.status.as_ref().unwrap().phase == HoprdPhaseEnum::Deleting {
+    } else if phase == HoprdPhaseEnum::Deleting {
         return Ok(HoprdAction::NoOp);
     }
-    let phase = hoprd.status.as_ref().unwrap().phase;
     if phase == HoprdPhaseEnum::Running || phase == HoprdPhaseEnum::Stopped {
+        let namespace = hoprd.namespace().ok_or_else(|| Error::UserInputError("The Hoprd resource has no namespace".to_owned()))?;
         // Check the in-memory cache first to avoid querying the API server on every reconciliation
-        let deployment_ref = ObjectRef::new(&hoprd.name_any()).within(&hoprd.namespace().unwrap());
+        let deployment_ref = ObjectRef::new(&hoprd.name_any()).within(&namespace);
         if context.deployment_store.get(&deployment_ref).is_none() {
             // Confirm against the API server, as the cache may not be populated yet after the operator startup
-            let deployment_api: Api<Deployment> = Api::namespaced(context.client.clone(), &hoprd.namespace().unwrap());
+            let deployment_api: Api<Deployment> = Api::namespaced(context.client.clone(), &namespace);
             if deployment_api.get_opt(&hoprd.name_any()).await?.is_none() {
                 return Ok(HoprdAction::RecreateDeployment);
             }
         }
     }
     let current_generation = hoprd.meta().generation.unwrap_or(0);
-    let observed_generation = hoprd.status.as_ref().map_or(0, |status| status.observed_generation);
+    let observed_generation = status.observed_generation;
     if observed_generation < current_generation {
         Ok(HoprdAction::Modify)
     } else {
@@ -81,6 +101,10 @@ async fn determine_action(hoprd: &Hoprd, context: &Arc<ContextData>) -> Result<H
 }
 
 async fn reconciler(hoprd: Arc<Hoprd>, context: Arc<ContextData>) -> Result<Action, Error> {
+    utils::catch_panics("Hoprd", reconcile(hoprd, context)).await
+}
+
+async fn reconcile(hoprd: Arc<Hoprd>, context: Arc<ContextData>) -> Result<Action, Error> {
     let mut hoprd_cloned = hoprd.clone();
     let hoprd_mutable: &mut Hoprd = Arc::<Hoprd>::make_mut(&mut hoprd_cloned);
     // Performs action as decided by the `determine_action` function.

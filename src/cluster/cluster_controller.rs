@@ -17,6 +17,7 @@ use crate::{
     context_data::ContextData,
     hoprd::hoprd_resource::Hoprd,
     model::Error,
+    utils,
 };
 
 /// Action to be taken upon an `ClusterHoprd` resource during reconciliation
@@ -60,6 +61,10 @@ fn determine_action(cluster_hoprd: &ClusterHoprd) -> ClusterHoprdAction {
 }
 
 async fn reconciler(cluster_hoprd: Arc<ClusterHoprd>, context: Arc<ContextData>) -> Result<Action, Error> {
+    utils::catch_panics("ClusterHoprd", reconcile(cluster_hoprd, context)).await
+}
+
+async fn reconcile(cluster_hoprd: Arc<ClusterHoprd>, context: Arc<ContextData>) -> Result<Action, Error> {
     // Performs action as decided by the `determine_action` function.
     match determine_action(&cluster_hoprd) {
         ClusterHoprdAction::Create => cluster_hoprd.create(context.clone()).await,

@@ -215,7 +215,7 @@ impl IdentityPool {
         let identity_pool_namespace = self.namespace().unwrap();
         let identity_pool_name = self.name_any();
         let status = self.status.as_ref().unwrap();
-        let remaining_identities = self.get_pool_identities(context_data.client.clone()).await.len();
+        let remaining_identities = self.get_pool_identities(context_data.client.clone()).await?.len();
         if status.locked == 0 && status.size <= 0 && remaining_identities == 0 {
             let client: Client = context_data.client.clone();
             self.update_status(context_data.client.clone(), IdentityPoolPhaseEnum::Deleting).await?;
@@ -332,27 +332,28 @@ impl IdentityPool {
         }
     }
 
-    pub async fn get_pool_identities(&self, client: Client) -> Vec<IdentityHoprd> {
+    pub async fn get_pool_identities(&self, client: Client) -> Result<Vec<IdentityHoprd>, Error> {
         let api: Api<IdentityHoprd> = Api::namespaced(client, &self.namespace().unwrap().to_owned());
-        let namespace_identities = api.list(&ListParams::default()).await.expect("Could not list namespace identities");
+        // A failure listing the identities is returned instead of being treated as an empty pool
+        let namespace_identities = api.list(&ListParams::default()).await?;
         let pool_identities: Vec<IdentityHoprd> = namespace_identities
             .iter()
             .filter(|&identity| {
                 if let Some(owner_references) = identity.metadata.owner_references.as_ref() {
-                    owner_references.first().unwrap().name.eq(&self.name_any())
+                    owner_references.first().is_some_and(|owner_reference| owner_reference.name.eq(&self.name_any()))
                 } else {
                     false
                 }
             })
             .cloned()
             .collect();
-        pool_identities
+        Ok(pool_identities)
     }
 
     /// Gets the first identity in ready status
     pub async fn get_ready_identity(&mut self, client: Client, identity_name: String) -> Result<Option<IdentityHoprd>, Error> {
-        let pool_identities: Vec<IdentityHoprd> = self.get_pool_identities(client).await;
-        let identity = pool_identities.iter().find(|&identity| identity.metadata.name.clone().unwrap().eq(&identity_name)).cloned();
+        let pool_identities: Vec<IdentityHoprd> = self.get_pool_identities(client).await?;
+        let identity = pool_identities.iter().find(|&identity| identity.name_any().eq(&identity_name)).cloned();
         match identity {
             None => {
                 warn!("Identity {} does not exist", identity_name);
