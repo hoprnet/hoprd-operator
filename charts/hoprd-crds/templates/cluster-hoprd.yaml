@@ -104,9 +104,6 @@ spec:
                 identityPoolName:
                   description: The name of the IdentityPool
                   type: string
-                profilingEnabled:
-                  description: Flag indicating whether to enable profiling sidecar container
-                  type: boolean
                 replicas:
                   description: Number of instances for this configuration
                   type: number
@@ -247,9 +244,6 @@ spec:
                   maximum: 200
                   minimum: 0
                   type: number
-                profilingEnabled:
-                  description: Flag indicating whether to enable profiling sidecar container
-                  type: boolean
                 replicas:
                   description: Number of instances for this configuration
                   type: number

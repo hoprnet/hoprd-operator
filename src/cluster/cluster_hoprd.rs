@@ -43,7 +43,6 @@ pub struct ClusterHoprdSpec {
     pub enabled: Option<bool>,
     pub service: HoprdServiceSpec,
     pub deployment: Option<HoprdDeploymentSpec>,
-    pub profiling_enabled: Option<bool>,
     pub source_node_logs: Option<String>,
     pub dns_name: Option<String>,
 }
@@ -369,7 +368,6 @@ impl ClusterHoprd {
             enabled: self.spec.enabled,
             version: self.spec.version.to_owned(),
             deployment: self.spec.deployment.to_owned(),
-            profiling_enabled: self.spec.profiling_enabled,
             identity_pool_name: self.spec.identity_pool_name.to_owned(),
             delete_database: Some(false),
             service: HoprdServiceSpec {
@@ -447,7 +445,6 @@ impl ClusterHoprd {
             enabled: self.spec.enabled,
             version: self.spec.version.to_owned(),
             deployment: self.spec.deployment.to_owned(),
-            profiling_enabled: self.spec.profiling_enabled,
             delete_database: Some(false),
             identity_pool_name: self.spec.identity_pool_name.to_owned(),
             service: HoprdServiceSpec {

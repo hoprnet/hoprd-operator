@@ -15,7 +15,7 @@ use crate::{
 use futures::StreamExt;
 use k8s_openapi::api::batch::v1::JobSpec;
 use k8s_openapi::api::core::v1::{
-    Capabilities, ConfigMapEnvSource, ConfigMapVolumeSource, Container, ContainerPort, EmptyDirVolumeSource, EnvFromSource, EnvVar, KeyToPath, PersistentVolumeClaimVolumeSource, PodSpec, PodTemplateSpec, Probe, SecretEnvSource, SecretVolumeSource, SecurityContext, TCPSocketAction, Volume, VolumeMount
+    ConfigMapEnvSource, Container, ContainerPort, EmptyDirVolumeSource, EnvFromSource, EnvVar, PersistentVolumeClaimVolumeSource, PodSpec, PodTemplateSpec, Probe, SecretEnvSource, TCPSocketAction, Volume, VolumeMount
 };
 use k8s_openapi::api::{
     apps::v1::{Deployment, DeploymentSpec, DeploymentStrategy},
@@ -99,9 +99,6 @@ pub async fn build_deployment_spec(
     let mut containers: Vec<Container> = extra_containers(hoprd_spec.deployment.clone())?;
     containers.push(hoprd_container(hoprd_spec, &identity_pool, identity_hoprd, hoprd_host, starting_port, last_port)?);
     containers.push(metrics_container(&identity_pool));
-    if hoprd_spec.profiling_enabled.unwrap_or(false) {
-        containers.push(profiling_container());
-    }
 
     // Add the user defined labels and annotations to the pod template, keeping them out of the
     // selector labels. Managed labels win on key collisions so that the pod template always keeps
@@ -123,10 +120,9 @@ pub async fn build_deployment_spec(
         },
         template: PodTemplateSpec {
             spec: Some(PodSpec {
-                share_process_namespace: Some(hoprd_spec.profiling_enabled.unwrap_or(false)),
                 init_containers: Some(vec![init_container(hoprd_spec, &identity_pool, identity_hoprd)]),
                 containers,
-                volumes: Some(build_volumes(&identity_hoprd.name_any(), labels.get(constants::LABEL_NODE_CLUSTER), &hoprd_spec).await),
+                volumes: Some(build_volumes(&identity_hoprd.name_any()).await),
                 ..PodSpec::default()
             }),
             metadata: Some(ObjectMeta {
@@ -372,51 +368,6 @@ pub fn metrics_container(identity_pool: &IdentityPool) -> Container {
     }
 }
 
-pub fn profiling_container() -> Container {
-    Container {
-        name: "hoprd-profiling".to_owned(),
-        image: Some("ubuntu:24.04".to_string()),
-        args: Some(vec![String::from("/scripts/profiling.sh")]),
-        security_context: Some(SecurityContext {
-            run_as_user: Some(0),
-            privileged: Some(true),
-            capabilities: Some(Capabilities {
-                add: Some(vec!["SYS_PTRACE".to_string(), "PERFMON".to_string(), "SYS_ADMIN".to_string()]),
-                ..Default::default()
-            }),
-            ..Default::default()
-        }),
-        volume_mounts: Some(vec![
-            VolumeMount {
-                name: "profiling-volume".to_string(),
-                mount_path: "/scripts".to_string(),
-                ..VolumeMount::default()
-            },
-            VolumeMount {
-                name: String::from("service-account-key"),
-                mount_path: String::from("/app/service-account/gcp-sa-key.json"),
-                sub_path: Some(String::from("privateKey")),
-                read_only: Some(true),
-                ..VolumeMount::default()
-            },
-            VolumeMount {
-                name: String::from("tmp-volume"),
-                mount_path: String::from("/tmp"),
-                ..VolumeMount::default()
-            },
-            VolumeMount {
-                name: "hoprd-db".to_string(),
-                mount_path: "/app/hoprd-db".to_string(),
-                ..Default::default()
-            }
-        ]),
-        command: Some(vec![String::from("/bin/bash"), String::from("-c")]),
-
-         ..Container::default()
-    }
-}
-
-
 /// Deletes an existing deployment.
 pub async fn delete_depoyment(client: Client, name: &str, namespace: &str) -> Result<(), Error> {
     let api: Api<Deployment> = Api::namespaced(client, namespace);
@@ -553,7 +504,7 @@ fn build_volume_mounts() -> Option<Vec<VolumeMount>> {
 ///
 /// # Arguments
 /// - `secret` - Secret struct used to build the volume for HOPRD_IDENTITY path
-async fn build_volumes(pvc_name: &String, cluster_hoprd: Option<&String>, hoprd_spec: &HoprdSpec) -> Vec<Volume> {
+async fn build_volumes(pvc_name: &String) -> Vec<Volume> {
     let mut volumes: Vec<Volume> =vec![];
     volumes.push(
     Volume {
@@ -574,33 +525,6 @@ async fn build_volumes(pvc_name: &String, cluster_hoprd: Option<&String>, hoprd_
         empty_dir: Some(EmptyDirVolumeSource::default()),
         ..Volume::default()
     });
-    if hoprd_spec.profiling_enabled.unwrap_or(false) {
-        volumes.push(Volume {
-            name: "service-account-key".to_owned(),
-            secret: Some(SecretVolumeSource {
-                secret_name: Some("google-service-account-key".to_owned()),
-                items: Some(vec![KeyToPath {
-                    key: "privateKey".to_owned(),
-                    path: "privateKey".to_owned(),
-                    ..KeyToPath::default()
-                }]),
-                ..SecretVolumeSource::default()
-            }),
-            ..Volume::default()
-        });
-        if cluster_hoprd.is_some() {
-            volumes.push(Volume {
-                name: "profiling-volume".to_owned(),
-                config_map: Some(
-                    ConfigMapVolumeSource {
-                        name: format!("{}-profiling", cluster_hoprd.unwrap().to_owned()),
-                        default_mode: Some(493), // Octal 755
-                        ..ConfigMapVolumeSource::default()
-                    }),
-                ..Volume::default()
-            });
-        }
-    }
     volumes
 }
 
@@ -673,24 +597,6 @@ fn build_env_vars(identity_hoprd: &IdentityHoprd, hoprd_host: &String, hoprd_spe
         value: Some("1".to_owned()),
         ..EnvVar::default()
     });
-
-    if hoprd_spec.profiling_enabled.unwrap_or(false) {
-        env_vars.push(EnvVar {
-            name: "MIMALLOC_CONF".to_owned(),
-            value: Some("prof:true,prof_active:true,prof_prefix=/tmp/profiling/memory/hoprd".to_owned()),
-            ..EnvVar::default()
-        });
-        env_vars.push(EnvVar {
-            name: "MIMALLOC_VERBOSE".to_owned(),
-            value: Some("1".to_owned()),
-            ..EnvVar::default()
-        });
-        env_vars.push(EnvVar {
-            name: "MIMALLOC_SHOW_STATS".to_owned(),
-            value: Some("1".to_owned()),
-            ..EnvVar::default()
-        });
-    }
 
     if session_port_range.is_some() {
         env_vars.push(EnvVar {

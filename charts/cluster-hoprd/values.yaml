@@ -117,38 +117,6 @@ clusterHoprd:
     envVars: {}
     # envVars:
     #   HOPRD_PROVIDER: https://gnosis.drpc.org
-  profiling:
-    ##
-    ## @param clusterHoprd.profiling.enabled Enable perf profiling container
-    ##
-    enabled: false
-
-    ##
-    ## @param clusterHoprd.profiling.bucketName GCS Bucket name to store profiling data
-    ##
-    bucketName: "hoprd-operator-staging"
-
-    cpu:
-
-      ##
-      ## @param clusterHoprd.profiling.cpu.sampleFrequency Frequency of samples per second
-      ##
-      sampleFrequency: 99
-
-      ## @param clusterHoprd.profiling.cpu.sampleDuration Duration of profiling in seconds
-      ##
-      sampleDuration: 60
-
-    memory:
-
-      ## @param clusterHoprd.profiling.memory.samples Number of memory samples to generate
-      ##
-      samples: 10
-
-      ##
-      ## @param clusterHoprd.profiling.memory.interval Interval in seconds between memory samples
-      interval: 15
-
   ##
   ## @param clusterHoprd.identities Map of identities to create
   ##
