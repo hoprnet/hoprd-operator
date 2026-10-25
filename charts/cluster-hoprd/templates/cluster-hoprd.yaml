@@ -53,7 +53,6 @@ spec:
     startupProbe: |
 {{ .Values.clusterHoprd.nodes.deployment.startupProbe | indent 6 }}
   {{- end }}
-  profilingEnabled: {{ .Values.clusterHoprd.profiling.enabled | default false }}
   service:
     type: {{ .Values.clusterHoprd.nodes.service.type }}
     portsAllocation: {{ .Values.clusterHoprd.nodes.service.portsAllocation }}

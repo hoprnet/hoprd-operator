@@ -98,9 +98,6 @@ spec:
                 identityPoolName:
                   description: The name of the IdentityPool
                   type: string
-                profilingEnabled:
-                  description: Flag indicating whether to enable profiling sidecar container
-                  type: boolean
                 service:
                   description: Service configuration
                   properties:
@@ -226,9 +223,6 @@ spec:
                   maximum: 200
                   minimum: 0
                   type: number
-                profilingEnabled:
-                  description: Flag indicating whether to enable profiling sidecar container
-                  type: boolean
                 service:
                   description: Service configuration
                   properties:
