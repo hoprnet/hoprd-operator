@@ -23,6 +23,7 @@ pub async fn create_cron_job(context_data: Arc<ContextData>, identity_pool: &Ide
     let namespace: String = identity_pool.metadata.namespace.as_ref().unwrap().to_owned();
     let cron_job_name: String = format!("auto-funding-{}", identity_pool_name);
     info!("Creating CronJob {cron_job_name} for identity pool {identity_pool_name} in namespace {namespace}");
+    validate_funding(identity_pool)?;
     let owner_references: Option<Vec<OwnerReference>> = Some(vec![identity_pool.controller_owner_ref(&()).unwrap()]);
     let mut labels: BTreeMap<String, String> = utils::common_lables(identity_pool_name.to_owned(), None, Some("auto-funding".to_owned()));
     labels.insert(constants::LABEL_KUBERNETES_IDENTITY_POOL.to_owned(), identity_pool_name.to_owned());
@@ -56,12 +57,39 @@ pub async fn create_cron_job(context_data: Arc<ContextData>, identity_pool: &Ide
     Ok(created_cron_job)
 }
 
-async fn build_args_line(context_data: Arc<ContextData>, identity_pool: &IdentityPool) -> Option<Vec<String>> {
-    let native_amount: String = identity_pool.spec.funding.clone().unwrap().native_amount.to_string();
-    let network: String = identity_pool.spec.network.to_owned();
-    let rpc_provider_url: String = context_data.config.hopli_rpc_provider_url.to_owned();
-    let command_line: String = format!("PATH=${{PATH}}:/app/hoprnet/.foundry/bin/ /bin/hopli faucet --provider-url {} --network {} --hopr-amount 0 --native-amount \"{}\" --address $(cat /data/addresses.txt)", rpc_provider_url, network, native_amount);
+/// Builds the command of the faucet container.
+///
+/// The IdentityPool values are not interpolated into the command: they are passed as environment variables
+/// (see `get_faucet_env_vars`) and referenced as quoted shell variables, so the strings written in the CR are
+/// never parsed as shell code (e.g. a `$(...)` in `nativeAmount` is not executed).
+async fn build_args_line() -> Option<Vec<String>> {
+    let command_line: String = "PATH=${PATH}:/app/hoprnet/.foundry/bin/ /bin/hopli faucet --provider-url \"$FAUCET_PROVIDER_URL\" --network \"$FAUCET_NETWORK\" --hopr-amount 0 --native-amount \"$FAUCET_NATIVE_AMOUNT\" --address \"$(cat /data/addresses.txt)\"".to_owned();
     Some(vec![command_line])
+}
+
+/// Rejects the funding values that cannot be a network name or a decimal amount.
+/// It is a second line of defense, as the values are already passed to the command as environment variables.
+fn validate_funding(identity_pool: &IdentityPool) -> Result<(), Error> {
+    let network = &identity_pool.spec.network;
+    if network.is_empty() || !network.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == '.') {
+        return Err(Error::UserInputError(format!("Invalid network '{}': only alphanumeric characters, '-', '_' and '.' are allowed", network)));
+    }
+    let native_amount = identity_pool.spec.funding.as_ref().map(|funding| funding.native_amount.to_string()).unwrap_or_default();
+    let is_decimal = !native_amount.is_empty() && native_amount.chars().all(|c| c.is_ascii_digit() || c == '.') && native_amount.chars().filter(|c| *c == '.').count() <= 1;
+    if !is_decimal {
+        return Err(Error::UserInputError(format!("Invalid nativeAmount '{}': it must be a decimal number", native_amount)));
+    }
+    Ok(())
+}
+
+/// Environment variables of the faucet command that depend on the IdentityPool values
+fn get_faucet_env_vars(context_data: &ContextData, identity_pool: &IdentityPool) -> Vec<EnvVar> {
+    let native_amount = identity_pool.spec.funding.as_ref().map(|funding| funding.native_amount.to_string()).unwrap_or_default();
+    vec![
+        EnvVar { name: "FAUCET_PROVIDER_URL".to_owned(), value: Some(context_data.config.hopli_rpc_provider_url.to_owned()), ..EnvVar::default() },
+        EnvVar { name: "FAUCET_NETWORK".to_owned(), value: Some(identity_pool.spec.network.to_owned()), ..EnvVar::default() },
+        EnvVar { name: "FAUCET_NATIVE_AMOUNT".to_owned(), value: Some(native_amount), ..EnvVar::default() },
+    ]
 }
 
 async fn get_job_template(context_data: Arc<ContextData>, identity_pool: &IdentityPool) -> Result<JobSpec, Error> {
@@ -104,8 +132,12 @@ async fn get_job_template(context_data: Arc<ContextData>, identity_pool: &Identi
                     image: Some(context_data.config.hopli_image.to_owned()),
                     image_pull_policy: Some("Always".to_owned()),
                     command: Some(vec!["/bin/bash".to_owned(), "-c".to_owned()]),
-                    args: build_args_line(context_data.clone(), identity_pool).await,
-                    env: Some(get_env_var(identity_pool.spec.secret_name.to_owned()).await),
+                    args: build_args_line().await,
+                    env: Some({
+                        let mut env_vars = get_env_var(identity_pool.spec.secret_name.to_owned()).await;
+                        env_vars.extend(get_faucet_env_vars(&context_data, identity_pool));
+                        env_vars
+                    }),
                     volume_mounts: Some(volume_mounts.to_owned()),
                     resources: Some(HoprdDeploymentSpec::get_resource_requirements(None)?),
                     ..Container::default()
@@ -152,6 +184,7 @@ async fn get_env_var(secret_name: String) -> Vec<EnvVar> {
 pub async fn modify_cron_job(context_data: Arc<ContextData>, identity_pool: &IdentityPool) -> Result<CronJob, Error> {
     let identity_pool_name = identity_pool.name_any();
     let namespace: String = identity_pool.metadata.namespace.as_ref().unwrap().to_owned();
+    validate_funding(identity_pool)?;
     info!("Modifying Cronjob {identity_pool_name} in namespace {namespace}");
     let cron_job_name: String = format!("auto-funding-{}", identity_pool_name);
     let api: Api<CronJob> = Api::namespaced(context_data.client.clone(), &namespace);
@@ -159,7 +192,12 @@ pub async fn modify_cron_job(context_data: Arc<ContextData>, identity_pool: &Ide
         let mut cron_job_spec = cron_job.spec.clone().unwrap();
         cron_job_spec.schedule = identity_pool.spec.funding.clone().unwrap().schedule;
         let container = cron_job_spec.job_template.spec.as_mut().unwrap().template.spec.as_mut().unwrap().containers.first_mut().unwrap();
-        container.args = build_args_line(context_data.clone(), identity_pool).await;
+        container.args = build_args_line().await;
+        container.env = Some({
+            let mut env_vars = get_env_var(identity_pool.spec.secret_name.to_owned()).await;
+            env_vars.extend(get_faucet_env_vars(&context_data, identity_pool));
+            env_vars
+        });
         let patch = &Patch::Merge(json!({ "spec": cron_job_spec }));
         let cron_job = api.patch(&cron_job_name, &PatchParams::default(), patch).await.expect("Could not modify cronjob");
         Ok(cron_job)
