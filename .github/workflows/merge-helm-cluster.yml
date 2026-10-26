@@ -1,15 +1,15 @@
 ---
 
-name: 'Publish Helm chart CRDs'
+name: 'Merge Helm chart Cluster'
 
 on:
   push:
     branches:
       - master
     paths:
-      - "charts/hoprd-crds/**"
+      - "charts/cluster-hoprd/**"
 concurrency:
-  group: ${{ github.head_ref }}-crds-publish
+  group: ${{ github.head_ref }}-cluster-publish
   cancel-in-progress: false
 jobs:
   publish:
@@ -35,7 +35,7 @@ jobs:
         run: |
           HELM_CHART_VERSION=$(grep '^version:' Chart.yaml | sed 's/.*: //')
           echo "HELM_CHART_VERSION=${HELM_CHART_VERSION}" >> $GITHUB_OUTPUT
-        working-directory: 'charts/hoprd-crds/'
+        working-directory: 'charts/cluster-hoprd/'
 
       - name: Setup GCP
         id: gcp
@@ -46,16 +46,16 @@ jobs:
       - name: Helm Package
         run: |
           helm package . --version ${{ steps.get_version.outputs.HELM_CHART_VERSION }}
-        working-directory: 'charts/hoprd-crds/'
+        working-directory: 'charts/cluster-hoprd/'
 
       - name: Helm Publish
         run: |
-          helm push hoprd-crds-${{ steps.get_version.outputs.HELM_CHART_VERSION }}.tgz oci://europe-west3-docker.pkg.dev/hoprassociation/helm-charts
-        working-directory: 'charts/hoprd-crds/'
+          helm push cluster-hoprd-${{ steps.get_version.outputs.HELM_CHART_VERSION }}.tgz oci://europe-west3-docker.pkg.dev/hoprassociation/helm-charts
+        working-directory: 'charts/cluster-hoprd/'
 
       - name: Tag Helm version
         run: |
             git config user.email "noreply@hoprnet.org"
             git config user.name "HOPR CI robot"
-            git tag helm-hoprd-crds-${{ steps.get_version.outputs.HELM_CHART_VERSION }}
-            git push origin helm-hoprd-crds-${{ steps.get_version.outputs.HELM_CHART_VERSION }}
+            git tag helm-cluster-hoprd-${{ steps.get_version.outputs.HELM_CHART_VERSION }}
+            git push origin helm-cluster-hoprd-${{ steps.get_version.outputs.HELM_CHART_VERSION }}

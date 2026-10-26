@@ -1,4 +1,5 @@
 use futures::StreamExt;
+use crate::utils::ResourceIdentity;
 use k8s_openapi::api::batch::v1::CronJob;
 use kube::{
     api::Api,
@@ -53,26 +54,26 @@ enum IdentityPoolAction {
 async fn determine_action(identity_pool: &IdentityPool, context: &Arc<ContextData>) -> Result<IdentityPoolAction, Error> {
     if identity_pool.meta().deletion_timestamp.is_some() {
         return Ok(IdentityPoolAction::Delete);
-    } else if identity_pool.meta().finalizers.as_ref().map_or(true, |finalizers| finalizers.is_empty()) {
+    } else if identity_pool.meta().finalizers.as_ref().is_none_or(|finalizers| finalizers.is_empty()) {
         return Ok(IdentityPoolAction::Create);
-    } else if identity_pool.status.as_ref().unwrap().phase.eq(&IdentityPoolPhaseEnum::OutOfSync) {
+    } else if identity_pool.status.as_ref().is_some_and(|status| status.phase.eq(&IdentityPoolPhaseEnum::OutOfSync)) {
         return Ok(IdentityPoolAction::Sync);
     }
     // Check the in-memory cache first to avoid querying the API server on every reconciliation
-    let service_monitor_ref = ObjectRef::new(&identity_pool.name_any()).within(&identity_pool.namespace().unwrap());
+    let service_monitor_ref = ObjectRef::new(&identity_pool.name_any()).within(&identity_pool.require_namespace()?);
     if context.service_monitor_store.get(&service_monitor_ref).is_none() {
         // Confirm against the API server, as the cache may not be populated yet after the operator startup
-        let service_monitor_api: Api<ServiceMonitor> = Api::namespaced(context.client.clone(), &identity_pool.namespace().unwrap());
+        let service_monitor_api: Api<ServiceMonitor> = Api::namespaced(context.client.clone(), &identity_pool.require_namespace()?);
         if service_monitor_api.get_opt(&identity_pool.name_any()).await?.is_none() {
             return Ok(IdentityPoolAction::RecreateServiceMonitor);
         }
     }
     if identity_pool.spec.funding.is_some() {
         let cron_job_name = format!("auto-funding-{}", identity_pool.name_any());
-        let cron_job_ref = ObjectRef::new(&cron_job_name).within(&identity_pool.namespace().unwrap());
+        let cron_job_ref = ObjectRef::new(&cron_job_name).within(&identity_pool.require_namespace()?);
         if context.cron_job_faucet_store.get(&cron_job_ref).is_none() {
             // Confirm against the API server, as the cache may not be populated yet after the operator startup
-            let cron_job_api: Api<CronJob> = Api::namespaced(context.client.clone(), &identity_pool.namespace().unwrap());
+            let cron_job_api: Api<CronJob> = Api::namespaced(context.client.clone(), &identity_pool.require_namespace()?);
             if cron_job_api.get_opt(&cron_job_name).await?.is_none() {
                 return Ok(IdentityPoolAction::RecreateCronJobFaucet);
             }
@@ -105,19 +106,6 @@ async fn reconcile(identity_pool: Arc<IdentityPool>, context: Arc<ContextData>) 
         // The resource is already in desired state, do nothing and re-check after 10 seconds
         IdentityPoolAction::NoOp => Ok(Action::requeue(Duration::from_secs(constants::RECONCILE_SHORT_FREQUENCY))),
     }
-}
-
-/// Actions to be taken when a reconciliation fails - for whatever reason.
-/// Prints out the error to `stderr` and requeues the resource for another reconciliation after
-/// five seconds.
-///
-/// # Arguments
-/// - `identity_hoprd`: The erroneous resource.
-/// - `error`: A reference to the `kube::Error` that occurred during reconciliation.
-/// - `_context`: Unused argument. Context Data "injected" automatically by kube-rs.
-pub fn on_error(identity_hoprd: Arc<IdentityPool>, error: &Error, _context: Arc<ContextData>) -> Action {
-    error!("[IdentityPool] Reconciliation error:\n{:?}.\n{:?}", error, identity_hoprd);
-    Action::requeue(Duration::from_secs(constants::RECONCILE_SHORT_FREQUENCY))
 }
 
 /// Initialize the controller
@@ -162,18 +150,7 @@ pub async fn run(client: Client, context_data: Arc<ContextData>, service_monitor
         .owns(identity_hoprd, Config::default())
         .owns(cron_job_faucet, Config::default())
         .shutdown_on_signal()
-        .run(reconciler, on_error, context_data)
-        .for_each(|reconciliation_result| async move {
-            match reconciliation_result {
-                Ok(_) => {}
-                Err(reconciliation_err) => {
-                    let err_string = reconciliation_err.to_string();
-                    if !err_string.contains("that was not found in local store") && !err_string.contains("event queue error") {
-                        // https://github.com/kube-rs/kube/issues/712
-                        error!("[IdentityPool] Reconciliation error: {:?}", reconciliation_err)
-                    }
-                }
-            }
-        })
+        .run(reconciler, utils::on_error, context_data)
+        .for_each(|reconciliation_result| async move { utils::log_reconciliation_result("IdentityPool", reconciliation_result) })
         .await;
 }

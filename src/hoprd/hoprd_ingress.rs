@@ -8,10 +8,9 @@ use k8s_openapi::{
     apimachinery::pkg::apis::meta::v1::OwnerReference
 };
 use kube::{
-    api::{DeleteParams, Patch, PatchParams, PostParams},
+    api::{Patch, PatchParams, PostParams},
     core::ObjectMeta,
-    runtime::wait::{await_condition, conditions},
-    Api, Client, Error,
+    Api, Client,
 };
 use serde_json::{Value, json};
 use std::{collections::BTreeMap, sync::Arc};
@@ -23,6 +22,7 @@ use crate::{hoprd::hoprd_ingress, model::Error as HoprError};
 use super::hoprd_service::ServiceTypeEnum;
 
 /// Creates a new Ingress for accessing the hoprd node,
+#[allow(clippy::too_many_arguments)]
 pub async fn create_ingress(
     context_data: Arc<ContextData>,
     service_type: &ServiceTypeEnum,
@@ -33,12 +33,11 @@ pub async fn create_ingress(
     session_port_allocation: u16,
     ingress_config: &IngressConfig,
     owner_references: Option<Vec<OwnerReference>>,
-) -> Result<u16, Error> {
+) -> Result<u16, HoprError> {
     let labels: Option<BTreeMap<String, String>> = Some(utils::common_lables(identity_pool_name.to_owned(), Some(service_name.to_owned()), None));
     let stating_port = if service_type.eq(&ServiceTypeEnum::ClusterIP) {
-        hoprd_ingress::open_port(context_data.client.clone(), &namespace, &service_name, session_port_allocation, &context_data.config.ingress)
-            .await
-            .unwrap()
+        hoprd_ingress::open_port(context_data.client.clone(), namespace, service_name, session_port_allocation, &context_data.config.ingress)
+            .await?
     } else {
         9091
     };
@@ -114,29 +113,21 @@ pub async fn create_ingress(
 /// - `name` - Name of the service to delete
 /// - `namespace` - Namespace the existing service resides in
 ///
-pub async fn delete_ingress(context_data: Arc<ContextData>, name: &str, namespace: &str, service_type: &ServiceTypeEnum) -> Result<(), Error> {
+pub async fn delete_ingress(context_data: Arc<ContextData>, name: &str, namespace: &str, service_type: &ServiceTypeEnum) -> Result<(), HoprError> {
     if service_type.eq(&ServiceTypeEnum::ClusterIP) {
-        hoprd_ingress::close_port(context_data.client.clone(), &namespace, &name, &context_data.config.ingress).await.unwrap();
+        hoprd_ingress::close_port(context_data.client.clone(), namespace, name, &context_data.config.ingress).await?;
     }
     let api: Api<Ingress> = Api::namespaced(context_data.client.clone(), namespace);
-    if let Some(ingress) = api.get_opt(name).await? {
-        let uid = ingress.metadata.uid.unwrap();
-        api.delete(name, &DeleteParams::default()).await?;
-        await_condition(api, name, conditions::is_deleted(&uid)).await.unwrap();
-        Ok(info!("Ingress {name} successfully deleted"))
-    } else {
-        Ok(info!("Ingress {name} in namespace {namespace} about to delete not found"))
-    }
+    crate::utils::delete_and_wait(api, name).await?;
+    Ok(())
 }
 
 /// Creates a new Ingress for accessing the hoprd node,
 ///
 pub async fn open_port(client: Client, service_namespace: &str, service_name: &str, session_port_allocation: u16, ingress_config: &IngressConfig) -> Result<u16, HoprError> {
-    let namespace = ingress_config.namespace.as_ref().unwrap();
+    let namespace = ingress_config.namespace()?;
     let api: Api<ConfigMap> = Api::namespaced(client.clone(), namespace);
     let starting_port: u16 = get_available_ports(client.clone(), session_port_allocation, ingress_config).await?;
-    let pp = PatchParams::default();
-
     // Create a BTreeMap to hold the new data entries
     let mut new_ports = BTreeMap::new();
     if starting_port + session_port_allocation > ingress_config.port_max {
@@ -157,34 +148,60 @@ pub async fn open_port(client: Client, service_namespace: &str, service_name: &s
     let patch = Patch::Merge(json!({
        "data": new_ports.clone()
     }));
-    if api.get_opt("ingress-nginx-tcp").await?.is_some() {
-        match api.patch("ingress-nginx-tcp", &pp, &patch.clone()).await {
-            Ok(_) => {}
-            Err(error) => {
-                error!("Could not open Nginx tcp port: {:?}", error);
-                return Err(HoprError::HoprdConfigError("Could not open Nginx tcp port".to_string()));
-            }
-        };
-    } else {
-        debug!("ConfigMap ingress-nginx-tcp not found, skipping Nginx tcp port opening");
-    }
-    if api.get_opt("ingress-nginx-udp").await?.is_some() {
-        match api.patch("ingress-nginx-udp", &pp, &patch.clone()).await {
-            Ok(_) => {}
-            Err(error) => {
-                error!("Could not open Nginx udp port: {:?}", error);
-                return Err(HoprError::HoprdConfigError("Could not open Nginx udp port".to_string()));
-            }
-        };
-    } else {
-        debug!("ConfigMap ingress-nginx-udp not found, skipping Nginx udp port opening");
-    }
+    open_in_config_map(&api, "tcp", &patch).await?;
+    open_in_config_map(&api, "udp", &patch).await?;
     info!("{session_port_allocation} nginx ports starting from {starting_port} opened for Hoprd node {service_name}");
     Ok(starting_port)
 }
 
+/// Adds the port entries to the `ingress-nginx-<protocol>` ConfigMap, if it exists
+async fn open_in_config_map(api: &Api<ConfigMap>, protocol: &str, patch: &Patch<Value>) -> Result<(), HoprError> {
+    let config_map_name = format!("ingress-nginx-{protocol}");
+    if api.get_opt(&config_map_name).await?.is_some() {
+        if let Err(error) = api.patch(&config_map_name, &PatchParams::default(), patch).await {
+            error!("Could not open Nginx {protocol} port: {:?}", error);
+            return Err(HoprError::HoprdConfigError(format!("Could not open Nginx {protocol} port")));
+        }
+    } else {
+        debug!("ConfigMap {config_map_name} not found, skipping Nginx {protocol} port opening");
+    }
+    Ok(())
+}
+
+/// Removes the entries of the service from the `ingress-nginx-<protocol>` ConfigMap, if it exists
+async fn close_in_config_map(api: &Api<ConfigMap>, protocol: &str, service_fqn: &str) -> Result<(), HoprError> {
+    let config_map_name = format!("ingress-nginx-{protocol}");
+    let config_map = match api.get_opt(&config_map_name).await {
+        Ok(Some(config_map)) => config_map,
+        Ok(None) => {
+            debug!("ConfigMap {config_map_name} not found, nothing to close");
+            return Ok(());
+        }
+        Err(error) => {
+            error!("Could not get ConfigMap {config_map_name}: {:?}", error);
+            return Err(HoprError::HoprdConfigError(format!("Could not get Nginx {protocol} ConfigMap")));
+        }
+    };
+    let new_data = config_map
+        .data
+        .unwrap_or_default()
+        .into_iter()
+        .filter(|entry| !entry.1.contains(service_fqn))
+        .collect::<BTreeMap<String, String>>();
+    let json_patch = json_patch::Patch(vec![PatchOperation::Replace(ReplaceOperation {
+        path: PointerBuf::parse("/data".to_owned()).map_err(|e| HoprError::HoprdConfigError(format!("Invalid JSON pointer: {e}")))?,
+        value: json!(new_data),
+    })]);
+    let patch: Patch<&Value> = Patch::Json::<&Value>(json_patch);
+    if let Err(error) = api.patch(&config_map_name, &PatchParams::default(), &patch).await {
+        error!("Could not close Nginx {protocol}-port: {:?}", error);
+        return Err(HoprError::HoprdConfigError(format!("Could not close Nginx {protocol}-port")));
+    }
+    Ok(())
+}
+
 async fn get_available_ports(client: Client, session_port_allocation: u16, ingress_config: &IngressConfig) -> Result<u16, HoprError> {
-    let api: Api<ConfigMap> = Api::namespaced(client, ingress_config.namespace.as_ref().unwrap());
+    let api: Api<ConfigMap> = Api::namespaced(client, ingress_config.namespace()?);
     if let Some(config_map) = api.get_opt("ingress-nginx-tcp").await? {
         let data = config_map.data.unwrap_or_default();
         let mut ports: Vec<u16> = data
@@ -195,7 +212,7 @@ async fn get_available_ports(client: Client, session_port_allocation: u16, ingre
             .clone()
             .collect::<Vec<_>>();
         ports.sort();
-        return Ok(find_next_port(ports, session_port_allocation, ingress_config.port_min));
+        Ok(find_next_port(ports, session_port_allocation, ingress_config.port_min))
     } else {
         debug!("ConfigMap ingress-nginx-tcp not found, using port_min as next free port");
         Ok(ingress_config.port_min)
@@ -209,98 +226,29 @@ fn find_next_port(ports: Vec<u16>, session_port_allocation: u16, min_port: u16) 
     }
 
     // If the first port used is greater than the min_port plus session_port_allocation, fill the gap
-    if (ports[0] - min_port) >= session_port_allocation {
-        if ports[0] > min_port { // Ensure there is a gap in case the session_port_allocation is 0
+    if (ports[0] - min_port) >= session_port_allocation
+        && ports[0] > min_port { // Ensure there is a gap in case the session_port_allocation is 0
             return ports[0] - session_port_allocation;
         }
-    }
 
     // Find a gap in the ports vector where the values between two consecutive ports are greater than the session_port_allocation
     for i in 1..ports.len() {
-        if ports[i] - ports[i - 1] - 1 >= session_port_allocation && session_port_allocation > 0 {
+        if ports[i] - ports[i - 1] > session_port_allocation && session_port_allocation > 0 {
             return ports[i - 1] + 1;
         }
     }
     // If no gap is found, return the last port + 1
-    return ports[ports.len() - 1] + 1;
+    ports[ports.len() - 1] + 1
 }
 
 /// Creates a new Ingress for accessing the hoprd node,
 ///
 pub async fn close_port(client: Client, service_namespace: &str, service_name: &str, ingress_config: &IngressConfig) -> Result<(), HoprError> {
-    let namespace = ingress_config.namespace.as_ref().unwrap();
+    let namespace = ingress_config.namespace()?;
     let api: Api<ConfigMap> = Api::namespaced(client.clone(), namespace);
     let service_fqn = format!("{}/{}", service_namespace, service_name);
-    let pp = &PatchParams::default();
-
-    // TCP
-    let tcp_config_map = match api.get_opt("ingress-nginx-tcp").await {
-        Ok(Some(config_map)) => Some(config_map),
-        Ok(None) => {
-            debug!("ConfigMap ingress-nginx-tcp not found, nothing to close");
-            None
-        }
-        Err(error) => {
-            error!("Could not get ConfigMap ingress-nginx-tcp: {:?}", error);
-            return Err(HoprError::HoprdConfigError("Could not get Nginx tcp ConfigMap".to_string()));
-        }
-    };
-    if let Some(tcp_config_map) = tcp_config_map {
-    let new_data = tcp_config_map
-        .to_owned()
-        .data
-        .unwrap_or(BTreeMap::new())
-        .into_iter()
-        .filter(|entry| !entry.1.contains(&service_fqn))
-        .collect::<BTreeMap<String, String>>();
-    let json_patch = json_patch::Patch(vec![PatchOperation::Replace(ReplaceOperation {
-        path: PointerBuf::parse("/data".to_owned()).unwrap(),
-        value: json!(new_data),
-    })]);
-    let patch: Patch<&Value> = Patch::Json::<&Value>(json_patch);
-    match api.patch(&tcp_config_map.metadata.name.unwrap(), pp, &patch).await {
-        Ok(_) => {}
-        Err(error) => {
-            error!("Could not close Nginx tcp-port: {:?}", error);
-            return Err(HoprError::HoprdConfigError("Could not close Nginx tcp-port".to_string()));
-        }
-    };
-    }
-
-    // UDP
-    let udp_config_map = match api.get_opt("ingress-nginx-udp").await {
-        Ok(Some(config_map)) => Some(config_map),
-        Ok(None) => {
-            debug!("ConfigMap ingress-nginx-udp not found, nothing to close");
-            None
-        }
-        Err(error) => {
-            error!("Could not get ConfigMap ingress-nginx-udp: {:?}", error);
-            return Err(HoprError::HoprdConfigError("Could not get Nginx udp ConfigMap".to_string()));
-        }
-    };
-    if let Some(udp_config_map) = udp_config_map {
-    let new_data = udp_config_map
-        .to_owned()
-        .data
-        .unwrap_or(BTreeMap::new())
-        .into_iter()
-        .filter(|entry| !entry.1.contains(&service_fqn))
-        .collect::<BTreeMap<String, String>>();
-
-    let json_patch = json_patch::Patch(vec![PatchOperation::Replace(ReplaceOperation {
-        path: PointerBuf::parse("/data".to_owned()).unwrap(),
-        value: json!(new_data),
-    })]);
-    let patch: Patch<&Value> = Patch::Json::<&Value>(json_patch);
-    match api.patch(&udp_config_map.metadata.name.unwrap(), pp, &patch).await {
-        Ok(_) => {}
-        Err(error) => {
-            error!("Could not close Nginx udp-port: {:?}", error);
-            return Err(HoprError::HoprdConfigError("Could not close Nginx udp-port".to_string()));
-        }
-    };
-    }
+    close_in_config_map(&api, "tcp", &service_fqn).await?;
+    close_in_config_map(&api, "udp", &service_fqn).await?;
     info!("Nginx p2p port for Hoprd node {service_name} have been closed");
     Ok(())
 }

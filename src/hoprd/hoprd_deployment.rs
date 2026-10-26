@@ -22,8 +22,7 @@ use k8s_openapi::api::{
     batch::v1::{Job, JobStatus},
 };
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::{LabelSelector, OwnerReference};
-use kube::api::{DeleteParams, ObjectMeta, Patch, PatchParams, PostParams, WatchEvent, WatchParams};
-use kube::runtime::wait::{await_condition, conditions};
+use kube::api::{ObjectMeta, Patch, PatchParams, PostParams, WatchEvent, WatchParams};
 use kube::{Api, Client, Resource, ResourceExt};
 use rand::RngExt;
 use serde_json::{json, Value};
@@ -51,9 +50,8 @@ pub async fn create_deployment(context_data: Arc<ContextData>, hoprd: &Hoprd, id
     labels.insert(constants::LABEL_NODE_MODULE_ADDRESS.to_owned(), identity_hoprd.spec.module_address.to_owned());
 
     // Propagating ClusterHopd instance
-    if hoprd.labels().contains_key(constants::LABEL_NODE_CLUSTER) {
-        let cluster_hoprd: String = hoprd.labels().get_key_value(constants::LABEL_NODE_CLUSTER).unwrap().1.parse().unwrap();
-        labels.insert(constants::LABEL_NODE_CLUSTER.to_owned(), cluster_hoprd);
+    if let Some(cluster_hoprd) = hoprd.labels().get(constants::LABEL_NODE_CLUSTER) {
+        labels.insert(constants::LABEL_NODE_CLUSTER.to_owned(), cluster_hoprd.to_owned());
     }
 
     // Add the user defined labels and annotations to the deployment metadata, keeping them out of the
@@ -75,7 +73,7 @@ pub async fn create_deployment(context_data: Arc<ContextData>, hoprd: &Hoprd, id
             owner_references,
             ..ObjectMeta::default()
         },
-        spec: Some(build_deployment_spec(labels, &hoprd.spec, identity_pool, identity_hoprd, &hoprd_host, starting_port, last_port).await?),
+        spec: Some(build_deployment_spec(labels, &hoprd.spec, identity_pool, identity_hoprd, hoprd_host, starting_port, last_port).await?),
         ..Deployment::default()
     };
 
@@ -158,12 +156,12 @@ pub async fn modify_deployment(
     let hoprd_host_port = hoprd_host_env_var.value.as_ref().ok_or_else(invalid_deployment)?.to_owned();
     let (hoprd_host, starting_port_string) = hoprd_host_port.split_once(':').ok_or_else(invalid_deployment)?;
     let starting_port = starting_port_string.parse::<u16>().map_err(|_| invalid_deployment())?;
-    let ports_allocation = hoprd_spec.service.ports_allocation.clone();
+    let ports_allocation = hoprd_spec.service.ports_allocation;
     let last_port = starting_port + ports_allocation;
     let identity_pool: IdentityPool = identity_hoprd.get_identity_pool(context_data.client.clone()).await?;
     // Use the selector labels so that user defined labels on the deployment metadata do not leak into the immutable selector
     let selector_labels = deployment.spec.clone().ok_or_else(invalid_deployment)?.selector.match_labels.unwrap_or(deployment.labels().to_owned());
-    let spec = build_deployment_spec(selector_labels.clone(), hoprd_spec, identity_pool, identity_hoprd, &hoprd_host, starting_port, last_port).await?;
+    let spec = build_deployment_spec(selector_labels.clone(), hoprd_spec, identity_pool, identity_hoprd, hoprd_host, starting_port, last_port).await?;
     let custom_labels = HoprdDeploymentSpec::get_labels(hoprd_spec.deployment.clone());
     let custom_annotations = HoprdDeploymentSpec::get_annotations(hoprd_spec.deployment.clone());
     let previous_labels = HoprdDeploymentSpec::get_labels(previous_deployment_spec.clone());
@@ -177,8 +175,8 @@ pub async fn modify_deployment(
         mark_keys_as_removed(template_metadata, "annotations", &removed_annotations);
     }
     let mut metadata = serde_json::Map::new();
-    metadata.insert("labels".to_owned(), serde_json::to_value(&custom_labels).unwrap());
-    metadata.insert("annotations".to_owned(), serde_json::to_value(&custom_annotations).unwrap());
+    metadata.insert("labels".to_owned(), serde_json::to_value(&custom_labels)?);
+    metadata.insert("annotations".to_owned(), serde_json::to_value(&custom_annotations)?);
     mark_keys_as_removed(&mut metadata, "labels", &removed_labels);
     mark_keys_as_removed(&mut metadata, "annotations", &removed_annotations);
     let patch = &Patch::Merge(json!({
@@ -219,14 +217,14 @@ pub fn init_container(hoprd_spec: &HoprdSpec,
     let encoded_configuration = general_purpose::STANDARD.encode(&hoprd_spec.config);
     let volume_mounts: Option<Vec<VolumeMount>> = build_volume_mounts();
     let args = if hoprd_spec.source_node_logs.unwrap_or(false) {
-        Some(vec![format!(
+        Some(vec![String::from(
             "set -x\n\
             set -e\n\
             echo $HOPRD_IDENTITY_FILE | base64 -d > /app/hoprd-identity/.hopr-id\n\
             echo $HOPRD_CONFIGURATION | base64 -d > /app/hoprd-identity/config.yaml"
         )])
     } else {
-        Some(vec![format!(
+        Some(vec![String::from(
             "set -x\n\
             set -e\n\
             if [ -n \"$HOPRD_LOGS_SNAPSHOT_URL\" ] && ! ls /app/hoprd-db/db/hopr_logs.db* 1> /dev/null 2>&1; then\n\
@@ -281,7 +279,7 @@ pub fn hoprd_container(hoprd_spec: &HoprdSpec,
         "{}/{}:{}",
         constants::HOPR_DOCKER_REGISTRY.to_owned(),
         constants::HOPR_DOCKER_IMAGE_NAME.to_owned(),
-        &hoprd_spec.version.to_owned()
+        hoprd_spec.version.to_owned()
     );
 
     let resources = Some(HoprdDeploymentSpec::get_resource_requirements(hoprd_spec.deployment.clone())?);
@@ -369,28 +367,22 @@ pub fn metrics_container(identity_pool: &IdentityPool) -> Container {
 }
 
 /// Deletes an existing deployment.
-pub async fn delete_depoyment(client: Client, name: &str, namespace: &str) -> Result<(), Error> {
+pub async fn delete_deployment(client: Client, name: &str, namespace: &str) -> Result<(), Error> {
     let api: Api<Deployment> = Api::namespaced(client, namespace);
-    if let Some(deployment) = api.get_opt(name).await? {
-        let uid = deployment.metadata.uid.unwrap();
-        api.delete(name, &DeleteParams::default()).await?;
-        await_condition(api, name, conditions::is_deleted(&uid)).await.unwrap();
-        Ok(info!("Deployment {name} successfully deleted"))
-    } else {
-        Ok(info!("Deployment {name} in namespace {namespace} about to delete not found"))
-    }
+    crate::utils::delete_and_wait(api, name).await?;
+    Ok(())
 }
 
 pub async fn delete_database(context_data: Arc<ContextData>, deployment_name: &str, namespace: &str) -> Result<(), Error> {
     let api: Api<Deployment> = Api::namespaced(context_data.client.clone(), namespace);
-    let deployment = api.get(deployment_name).await.unwrap();
-    let spec = deployment.spec.as_ref().unwrap();
-    let volumes = spec.template.spec.clone().unwrap().volumes.unwrap().clone();
-    let volume: &Volume = volumes.iter().find(|&volume| volume.name.eq("hoprd-db")).unwrap();
-    let pvc_name = volume.persistent_volume_claim.as_ref().unwrap().claim_name.clone();
+    let deployment = api.get(deployment_name).await?;
+    let invalid_deployment = || Error::HoprdStatusError(format!("Deployment '{deployment_name}' in namespace '{namespace}' has no hoprd-db volume"));
+    let volumes = deployment.spec.as_ref().and_then(|spec| spec.template.spec.as_ref()).and_then(|pod_spec| pod_spec.volumes.as_ref()).ok_or_else(invalid_deployment)?;
+    let volume: &Volume = volumes.iter().find(|&volume| volume.name.eq("hoprd-db")).ok_or_else(invalid_deployment)?;
+    let pvc_name = volume.persistent_volume_claim.as_ref().ok_or_else(invalid_deployment)?.claim_name.clone();
     info!("Scaling down deployment {} in namespace {}", deployment_name, namespace);
     let patch = Patch::Merge(json!({ "spec": { "replicas": 0 } }));
-    match api.patch(&deployment_name, &PatchParams::default(), &patch).await {
+    match api.patch(deployment_name, &PatchParams::default(), &patch).await {
         Ok(_) => {}
         Err(error) => error!("Could not scale down deployment {deployment_name}: {:?}", error),
     };
@@ -402,7 +394,7 @@ pub async fn delete_database(context_data: Arc<ContextData>, deployment_name: &s
     }
     info!("Scaling up deployment {} in namespace {}", deployment_name, namespace);
     let patch = Patch::Merge(json!({ "spec": { "replicas": 1 } }));
-    match api.patch(&deployment_name, &PatchParams::default(), &patch).await {
+    match api.patch(deployment_name, &PatchParams::default(), &patch).await {
         Ok(_) => {}
         Err(error) => error!("Could not scale up deployment {deployment_name}: {:?}", error),
     };
@@ -505,27 +497,26 @@ fn build_volume_mounts() -> Option<Vec<VolumeMount>> {
 /// # Arguments
 /// - `secret` - Secret struct used to build the volume for HOPRD_IDENTITY path
 async fn build_volumes(pvc_name: &String) -> Vec<Volume> {
-    let mut volumes: Vec<Volume> =vec![];
-    volumes.push(
-    Volume {
-        name: "hoprd-identity".to_owned(),
-        empty_dir: Some(EmptyDirVolumeSource::default()),
-        ..Volume::default()
-    });
-    volumes.push(Volume {
-        name: "hoprd-db".to_owned(),
-        persistent_volume_claim: Some(PersistentVolumeClaimVolumeSource {
-            claim_name: pvc_name.to_owned(),
-            read_only: Some(false),
-        }),
-        ..Volume::default()
-    });
-    volumes.push(Volume {
-        name: "tmp-volume".to_owned(),
-        empty_dir: Some(EmptyDirVolumeSource::default()),
-        ..Volume::default()
-    });
-    volumes
+    vec![
+        Volume {
+            name: "hoprd-identity".to_owned(),
+            empty_dir: Some(EmptyDirVolumeSource::default()),
+            ..Volume::default()
+        },
+        Volume {
+            name: "hoprd-db".to_owned(),
+            persistent_volume_claim: Some(PersistentVolumeClaimVolumeSource {
+                claim_name: pvc_name.to_owned(),
+                read_only: Some(false),
+            }),
+            ..Volume::default()
+        },
+        Volume {
+            name: "tmp-volume".to_owned(),
+            empty_dir: Some(EmptyDirVolumeSource::default()),
+            ..Volume::default()
+        },
+    ]
 }
 
 /// Build struct ContainerPort
@@ -606,4 +597,40 @@ fn build_env_vars(identity_hoprd: &IdentityHoprd, hoprd_host: &String, hoprd_spe
         });
     }
     Ok(env_vars)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::identity_hoprd::identity_hoprd_resource::IdentityHoprdSpec;
+    use crate::identity_pool::identity_pool_resource::IdentityPoolSpec;
+
+    fn init_script(source_node_logs: bool) -> String {
+        let spec = HoprdSpec { source_node_logs: Some(source_node_logs), ..HoprdSpec::default() };
+        let identity_pool = IdentityPool::new("pool", IdentityPoolSpec::default());
+        let identity = IdentityHoprd::new("identity", IdentityHoprdSpec::default());
+        let args = init_container(&spec, &identity_pool, &identity).args.expect("the init container has args");
+        assert_eq!(args.len(), 1);
+        args[0].clone()
+    }
+
+    // The script is rendered as a multi-line string in the Deployment manifest, so its exact lines are part of the contract
+    #[test]
+    fn init_script_of_the_node_collecting_logs_only_writes_the_identity_and_config() {
+        assert_eq!(
+            init_script(true),
+            "set -x\nset -e\necho $HOPRD_IDENTITY_FILE | base64 -d > /app/hoprd-identity/.hopr-id\necho $HOPRD_CONFIGURATION | base64 -d > /app/hoprd-identity/config.yaml"
+        );
+    }
+
+    #[test]
+    fn init_script_of_the_other_nodes_restores_the_logs_snapshot_first() {
+        let script = init_script(false);
+        let lines: Vec<&str> = script.lines().collect();
+        assert_eq!(&lines[..2], ["set -x", "set -e"]);
+        assert!(lines[2].starts_with("if [ -n \"$HOPRD_LOGS_SNAPSHOT_URL\" ]"));
+        assert_eq!(lines[lines.len() - 3], "fi;");
+        assert!(lines[lines.len() - 1].ends_with("/app/hoprd-identity/config.yaml"));
+        assert!(!script.contains("  "), "the line continuations must not leak indentation into the script");
+    }
 }

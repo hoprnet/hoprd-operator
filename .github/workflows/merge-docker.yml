@@ -1,6 +1,6 @@
 ---
 
-name: 'Publish Docker Image'
+name: 'Merge Docker Image'
 
 on:
   push:

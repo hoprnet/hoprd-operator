@@ -11,7 +11,6 @@ use kube::{
 };
 use std::sync::Arc;
 use tokio::time::Duration;
-use tracing::error;
 
 use crate::{
     constants::{self},
@@ -40,9 +39,9 @@ enum IdentityHoprdAction {
 /// # Arguments
 /// - `identity_hoprd`: A reference to `IdentityHoprd` being reconciled to decide next action upon.
 fn determine_action(identity_hoprd: &IdentityHoprd) -> IdentityHoprdAction {
-    return if identity_hoprd.meta().deletion_timestamp.is_some() {
+    if identity_hoprd.meta().deletion_timestamp.is_some() {
         IdentityHoprdAction::Delete
-    } else if identity_hoprd.meta().finalizers.as_ref().map_or(true, |finalizers| finalizers.is_empty()) {
+    } else if identity_hoprd.meta().finalizers.as_ref().is_none_or(|finalizers| finalizers.is_empty()) {
         IdentityHoprdAction::Create
     } else {
         let current_generation = identity_hoprd.meta().generation.unwrap_or(0);
@@ -52,7 +51,7 @@ fn determine_action(identity_hoprd: &IdentityHoprd) -> IdentityHoprdAction {
         } else {
             IdentityHoprdAction::NoOp
         }
-    };
+    }
 }
 
 async fn reconciler(identity_hoprd: Arc<IdentityHoprd>, context: Arc<ContextData>) -> Result<Action, Error> {
@@ -72,19 +71,6 @@ async fn reconcile(identity_hoprd: Arc<IdentityHoprd>, context: Arc<ContextData>
     }
 }
 
-/// Actions to be taken when a reconciliation fails - for whatever reason.
-/// Prints out the error to `stderr` and requeues the resource for another reconciliation after
-/// five seconds.
-///
-/// # Arguments
-/// - `identity_hoprd`: The erroneous resource.
-/// - `error`: A reference to the `kube::Error` that occurred during reconciliation.
-/// - `_context`: Unused argument. Context Data "injected" automatically by kube-rs.
-pub fn on_error(identity_hoprd: Arc<IdentityHoprd>, error: &Error, _context: Arc<ContextData>) -> Action {
-    error!("[IdentityHoprd] Reconciliation error:\n{:?}.\n{:?}", error, identity_hoprd);
-    Action::requeue(Duration::from_secs(constants::RECONCILE_SHORT_FREQUENCY))
-}
-
 /// Initialize the controller
 pub async fn run(client: Client, context_data: Arc<ContextData>) {
     let owned_api: Api<IdentityHoprd> = Api::<IdentityHoprd>::all(client.clone());
@@ -93,18 +79,52 @@ pub async fn run(client: Client, context_data: Arc<ContextData>) {
     Controller::new(owned_api, Config::default())
         .owns(pvc, Config::default())
         .shutdown_on_signal()
-        .run(reconciler, on_error, context_data)
-        .for_each(|reconciliation_result| async move {
-            match reconciliation_result {
-                Ok(_) => {}
-                Err(reconciliation_err) => {
-                    let err_string = reconciliation_err.to_string();
-                    if !err_string.contains("that was not found in local store") && !err_string.contains("event queue error") {
-                        // https://github.com/kube-rs/kube/issues/712
-                        error!("[IdentityHoprd] Reconciliation error: {:?}", reconciliation_err)
-                    }
-                }
-            }
-        })
+        .run(reconciler, utils::on_error, context_data)
+        .for_each(|reconciliation_result| async move { utils::log_reconciliation_result("IdentityHoprd", reconciliation_result) })
         .await;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    fn identity(finalizers: bool, deleting: bool, generation: i64, observed_generation: Option<i64>) -> IdentityHoprd {
+        let mut metadata = json!({ "name": "identity", "namespace": "ns", "generation": generation });
+        if finalizers {
+            metadata["finalizers"] = json!(["hoprnet.org/finalizer"]);
+        }
+        if deleting {
+            metadata["deletionTimestamp"] = json!("2024-01-01T00:00:00Z");
+        }
+        let mut resource = json!({
+            "apiVersion": "hoprnet.org/v1alpha3",
+            "kind": "IdentityHoprd",
+            "metadata": metadata,
+            "spec": { "identityPoolName": "pool", "identityFile": "", "nodeAddress": "", "safeAddress": "", "moduleAddress": "" },
+        });
+        if let Some(observed_generation) = observed_generation {
+            resource["status"] = json!({ "phase": "Ready", "observedGeneration": observed_generation });
+        }
+        serde_json::from_value(resource).expect("valid IdentityHoprd")
+    }
+
+    #[test]
+    fn deletion_wins_over_everything_else() {
+        assert!(matches!(determine_action(&identity(true, true, 1, Some(1))), IdentityHoprdAction::Delete));
+        assert!(matches!(determine_action(&identity(false, true, 1, None)), IdentityHoprdAction::Delete));
+    }
+
+    #[test]
+    fn a_resource_without_finalizer_is_created() {
+        assert!(matches!(determine_action(&identity(false, false, 1, None)), IdentityHoprdAction::Create));
+    }
+
+    #[test]
+    fn generation_decides_between_modify_and_noop() {
+        assert!(matches!(determine_action(&identity(true, false, 2, Some(1))), IdentityHoprdAction::Modify));
+        assert!(matches!(determine_action(&identity(true, false, 2, Some(2))), IdentityHoprdAction::NoOp));
+        // Without status the observed generation is 0, so the resource is reconciled
+        assert!(matches!(determine_action(&identity(true, false, 1, None)), IdentityHoprdAction::Modify));
+    }
 }

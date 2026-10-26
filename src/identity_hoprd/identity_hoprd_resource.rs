@@ -1,15 +1,13 @@
 use crate::events::{IdentityHoprdEventEnum, IdentityPoolEventEnum};
+use crate::utils::{OptionExt, ResourceIdentity};
 use crate::identity_pool::identity_pool_resource::{IdentityPool, IdentityPoolPhaseEnum, IdentityPoolStatus};
 use crate::model::Error;
 use crate::{constants, context_data::ContextData};
 use crate::{identity_hoprd::identity_hoprd_persistence, resource_generics};
 use k8s_openapi::api::core::v1::PersistentVolumeClaim;
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::OwnerReference;
-use kube::api::DeleteParams;
 use kube::core::ObjectMeta;
 use kube::Resource;
-use kube::runtime::conditions;
-use kube::runtime::wait::await_condition;
 use kube::{
     api::{Api, Patch, PatchParams, ResourceExt},
     client::Client,
@@ -97,7 +95,7 @@ impl Default for IdentityHoprd {
 impl IdentityHoprd {
     async fn mark_deletion_accounted(&self, client: Client) -> Result<(), Error> {
         let identity_name = self.name_any();
-        let identity_namespace = self.namespace().unwrap();
+        let identity_namespace = self.require_namespace()?;
         let api: Api<IdentityHoprd> = Api::namespaced(client, &identity_namespace);
         let patch = Patch::Merge(json!({
             "metadata": {
@@ -115,7 +113,7 @@ impl IdentityHoprd {
     /// Handle the creation of IdentityHoprd resource
     pub async fn create(&self, context_data: Arc<ContextData>) -> Result<Action, Error> {
         let client: Client = context_data.client.clone();
-        let identity_namespace: String = self.namespace().unwrap();
+        let identity_namespace: String = self.require_namespace()?;
         let identity_name: String = self.name_any();
         let identity_pool_name: String = self.spec.identity_pool_name.to_owned();
         self.check_identity_pool(context_data.clone()).await?;
@@ -134,18 +132,7 @@ impl IdentityHoprd {
         // - ModuleAddress is correct
 
         // Update pool to decrease identities
-        let mut updated = false;
-        {
-            let mut context_state = context_data.state.write().await;
-            let identity_pool_option = context_state.get_identity_pool(&self.namespace().unwrap(), &identity_pool_name);
-            if identity_pool_option.is_some() {
-                let mut identity_pool_arc = identity_pool_option.unwrap();
-                let identity_pool: &mut IdentityPool = Arc::<IdentityPool>::make_mut(&mut identity_pool_arc);
-                identity_pool.update_status(context_data.client.clone(), IdentityPoolPhaseEnum::IdentityCreated).await?;
-                context_state.update_identity_pool(identity_pool.to_owned());
-                updated = true;
-            }
-        }
+        let updated = context_data.update_pool_status(&self.require_namespace()?, &identity_pool_name, IdentityPoolPhaseEnum::IdentityCreated).await?;
         context_data
             .send_event(
                 &self.get_identity_pool(client.clone()).await?,
@@ -159,7 +146,7 @@ impl IdentityHoprd {
             self.update_phase(client.clone(), IdentityHoprdPhaseEnum::Ready, None).await?;
             info!("IdentityHoprd {identity_name} in namespace {identity_namespace} successfully created");
         } else {
-            error!("Identity pool {} not exists in namespace {}", identity_pool_name, &self.namespace().unwrap());
+            error!("Identity pool {} not exists in namespace {}", identity_pool_name, &self.require_namespace()?);
         }
         Ok(Action::requeue(Duration::from_secs(constants::RECONCILE_SHORT_FREQUENCY)))
     }
@@ -173,15 +160,15 @@ impl IdentityHoprd {
         };
         if status.phase.eq(&IdentityHoprdPhaseEnum::Ready) || status.phase.eq(&IdentityHoprdPhaseEnum::InUse) {
             if self.annotations().contains_key(constants::ANNOTATION_LAST_CONFIGURATION) {
-                let previous_config_text: String = self.annotations().get_key_value(constants::ANNOTATION_LAST_CONFIGURATION).unwrap().1.parse().unwrap();
+                let previous_config_text: String = self.annotations().get(constants::ANNOTATION_LAST_CONFIGURATION).cloned().or_missing(constants::ANNOTATION_LAST_CONFIGURATION)?;
                 match serde_json::from_str::<IdentityHoprd>(&previous_config_text) {
                     Ok(previous_cluster_hoprd) => {
                         if self.changed_inmutable_fields(&previous_cluster_hoprd.spec) {
                             context_data.send_event(self, IdentityHoprdEventEnum::Failed, Some("found changes in immutable fields".to_string())).await;
                             self.update_phase(context_data.client.clone(), IdentityHoprdPhaseEnum::Failed, None).await?;
-                            Err(Error::HoprdConfigError(format!("IdentityHoprd {} in namespace {} has been modified with changes in immutable fields", self.name_any(), self.namespace().unwrap())))
+                            Err(Error::HoprdConfigError(format!("IdentityHoprd {} in namespace {} has been modified with changes in immutable fields", self.name_any(), self.require_namespace()?)))
                         } else if self.spec != previous_cluster_hoprd.spec {
-                            info!("IdentityHoprd {} in namespace {} has been successfully modified", self.name_any(), self.namespace().unwrap());
+                            info!("IdentityHoprd {} in namespace {} has been successfully modified", self.name_any(), self.require_namespace()?);
                             Ok(Action::requeue(Duration::from_secs(constants::RECONCILE_SHORT_FREQUENCY)))
                         } else {
                             Ok(Action::await_change())
@@ -207,7 +194,7 @@ impl IdentityHoprd {
             warn!("Detected a change in IdentityHoprd {identity_name}. Automatically recovering to a Ready phase");
             Ok(Action::requeue(Duration::from_secs(constants::RECONCILE_SHORT_FREQUENCY)))
         } else {
-            error!("The IdentityHoprd {} in namespace {} cannot be modified", self.name_any(), self.namespace().unwrap());
+            error!("The IdentityHoprd {} in namespace {} cannot be modified", self.name_any(), self.require_namespace()?);
             Ok(Action::requeue(Duration::from_secs(constants::RECONCILE_SHORT_FREQUENCY)))
         }
     }
@@ -215,7 +202,7 @@ impl IdentityHoprd {
     // Handle the deletion of IdentityHoprd resource
     pub async fn delete(&self, context_data: Arc<ContextData>) -> Result<Action, Error> {
         let identity_name = self.name_any();
-        let identity_namespace = self.namespace().unwrap();
+        let identity_namespace = self.require_namespace()?;
         let client: Client = context_data.client.clone();
         if let Some(status) = self.status.as_ref() {
             if !status.phase.eq(&IdentityHoprdPhaseEnum::InUse) {
@@ -223,15 +210,10 @@ impl IdentityHoprd {
                 self.update_phase(context_data.client.clone(), IdentityHoprdPhaseEnum::Deleting, None).await?;
                 info!("Starting to delete identity {identity_name} from namespace {identity_namespace}");
                 { // Delete PVC
-                    let pvc_api: Api<PersistentVolumeClaim> = Api::namespaced(client.clone(), &self.namespace().unwrap());
-                    if let Some(pvc) = pvc_api.get_opt(&identity_name).await? {
-                        let uid = pvc.metadata.uid.clone().unwrap();
-                        pvc_api.delete(&identity_name, &DeleteParams::default()).await?;
-                        debug!("Waiting for PVC {} to be deleted", &identity_name);
-                        await_condition(pvc_api.clone(), &identity_name, conditions::is_deleted(&uid))
-                            .await
-                            .map_err(|e| Error::IdentityHoprdPVCError(format!("Failed to wait for PVC deletion: {e}")))?;
-                    }
+                    let pvc_api: Api<PersistentVolumeClaim> = Api::namespaced(client.clone(), &self.require_namespace()?);
+                    crate::utils::delete_and_wait(pvc_api, &identity_name)
+                        .await
+                        .map_err(|e| Error::IdentityHoprdPVCError(format!("Failed to delete PVC {identity_name}: {e}")))?;
                 }
                 {
                     let deletion_already_accounted = self
@@ -243,16 +225,10 @@ impl IdentityHoprd {
                     if deletion_already_accounted {
                         debug!("Identity {identity_name} deletion was already accounted in its pool status, skipping duplicate decrement");
                     } else {
-                        let mut context_state = context_data.state.write().await;
-                        let identity_pool_option = context_state.get_identity_pool(&self.namespace().unwrap(), &self.spec.identity_pool_name);
-                        if identity_pool_option.is_some() {
-                            let mut identity_pool_arc = identity_pool_option.unwrap();
-                            let identity_pool: &mut IdentityPool = Arc::<IdentityPool>::make_mut(&mut identity_pool_arc);
-                            identity_pool.update_status(context_data.client.clone(), IdentityPoolPhaseEnum::IdentityDeleted).await?;
-                            context_state.update_identity_pool(identity_pool.to_owned());
+                        if context_data.update_pool_status(&self.require_namespace()?, &self.spec.identity_pool_name, IdentityPoolPhaseEnum::IdentityDeleted).await? {
                             self.mark_deletion_accounted(client.clone()).await?;
                         } else {
-                            warn!("Identity pool {} not exists in namespace {}", &self.spec.identity_pool_name, &self.namespace().unwrap());
+                            warn!("Identity pool {} not exists in namespace {}", &self.spec.identity_pool_name, &self.require_namespace()?);
                         }
                     }
                 }
@@ -289,8 +265,8 @@ impl IdentityHoprd {
 
     /// Updates the status of IdentityHoprd
     pub async fn update_phase(&self, client: Client, phase: IdentityHoprdPhaseEnum, hoprd_name: Option<String>) -> Result<(), Error> {
-        let identity_hoprd_name = self.metadata.name.as_ref().unwrap().to_owned();
-        let hoprd_namespace = self.metadata.namespace.as_ref().unwrap().to_owned();
+        let identity_hoprd_name = self.require_name()?;
+        let hoprd_namespace = self.require_namespace()?;
 
         let api: Api<IdentityHoprd> = Api::namespaced(client.clone(), &hoprd_namespace.to_owned());
         if phase.eq(&IdentityHoprdPhaseEnum::Deleting) {
@@ -301,60 +277,47 @@ impl IdentityHoprd {
                 observed_generation: self.metadata.generation.unwrap_or(0),
                 hoprd_node_name: hoprd_name,
             };
-            let patch = Patch::Merge(json!({ "status": status }));
-
-            match api.patch_status(&identity_hoprd_name, &PatchParams::default(), &patch).await {
-                Ok(_identity) => Ok(()),
-                Err(error) => {
-                    error!("Could not update status on {identity_hoprd_name}: {:?}", error);
-                    Err(Error::HoprdStatusError(format!("Failed to update status for '{identity_hoprd_name}': {error}")))
-                }
-            }
+            crate::utils::patch_status(&api, &identity_hoprd_name, &status).await?;
+            Ok(())
         }
     }
 
     pub async fn get_identity_pool(&self, client: Client) -> Result<IdentityPool, Error> {
-        let api: Api<IdentityPool> = Api::namespaced(client.clone(), &self.namespace().unwrap());
+        let api: Api<IdentityPool> = Api::namespaced(client.clone(), &self.require_namespace()?);
         api.get(&self.spec.identity_pool_name).await.map_err(Error::from)
     }
 
     /// Gets the IdentityPool of this identity, returning `None` when it no longer exists (e.g. it has been already deleted)
     pub async fn get_identity_pool_opt(&self, client: Client) -> Result<Option<IdentityPool>, Error> {
-        let api: Api<IdentityPool> = Api::namespaced(client.clone(), &self.namespace().unwrap());
+        let api: Api<IdentityPool> = Api::namespaced(client.clone(), &self.require_namespace()?);
         Ok(api.get_opt(&self.spec.identity_pool_name).await?)
     }
 
     // Unlocks a given identity from a Hoprd node
     pub async fn unlock(&self, context_data: Arc<ContextData>) -> Result<(), Error> {
-        if self.status.as_ref().unwrap().phase.eq(&IdentityHoprdPhaseEnum::InUse) {
+        if self.status.as_ref().is_some_and(|status| status.phase.eq(&IdentityHoprdPhaseEnum::InUse)) {
             context_data.send_event(self, IdentityHoprdEventEnum::Ready, None).await;
             self.update_phase(context_data.client.clone(), IdentityHoprdPhaseEnum::Ready, None).await?;
 
             // Update pool to decrease locks. The pool may be already gone when the whole cluster is being deleted
-            {
-                let mut context_state = context_data.state.write().await;
-                if let Some(mut identity_pool_arc) = context_state.get_identity_pool(&self.namespace().unwrap(), &self.spec.identity_pool_name) {
-                    let identity_pool: &mut IdentityPool = Arc::<IdentityPool>::make_mut(&mut identity_pool_arc);
-                    identity_pool.update_status(context_data.client.clone(), IdentityPoolPhaseEnum::Unlocked).await?;
-                    context_state.update_identity_pool(identity_pool.to_owned());
-                } else {
-                    warn!("Identity pool {} not exists in namespace {}, skipping the unlock accounting", &self.spec.identity_pool_name, &self.namespace().unwrap());
-                }
+            if !context_data.update_pool_status(&self.require_namespace()?, &self.spec.identity_pool_name, IdentityPoolPhaseEnum::Unlocked).await? {
+                warn!("Identity pool {} not exists in namespace {}, skipping the unlock accounting", &self.spec.identity_pool_name, &self.require_namespace()?);
             }
             if let Some(identity_pool) = self.get_identity_pool_opt(context_data.client.clone()).await? {
                 context_data.send_event(&identity_pool, IdentityPoolEventEnum::Unlocked, Some(self.name_any())).await;
             }
             Ok(())
         } else {
-            Ok(warn!("The identity cannot be unlock because it is in status {:?}", &self.status))
+            warn!("The identity cannot be unlock because it is in status {:?}", &self.status);
+            Ok(())
         }
     }
 
     pub async fn add_owner_reference(&self, client: Client) -> Result<(), Error> {
         let identity_pool = self.get_identity_pool(client.clone()).await?;
         let identity_name = self.name_any();
-        let identity_pool_owner_reference: Option<Vec<OwnerReference>> = Some(vec![identity_pool.controller_owner_ref(&()).unwrap()]);
-        let api: Api<IdentityHoprd> = Api::namespaced(client.clone(), &identity_pool.namespace().unwrap());
+        let identity_pool_owner_reference: Option<Vec<OwnerReference>> = Some(vec![identity_pool.controller_owner_ref(&()).or_missing("controller owner reference")?]);
+        let api: Api<IdentityHoprd> = Api::namespaced(client.clone(), &identity_pool.require_namespace()?);
         let patch = Patch::Merge(json!({
                     "metadata": {
                         "ownerReferences": identity_pool_owner_reference
@@ -371,10 +334,10 @@ impl IdentityHoprd {
     }
 
     async fn check_identity_pool(&self, context_data: Arc<ContextData>) -> Result<(), Error> {
-        let identity_namespace = self.namespace().unwrap();
+        let identity_namespace = self.require_namespace()?;
         let api: Api<IdentityPool> = Api::namespaced(context_data.client.clone(), &identity_namespace);
         if let Some(identity_pool) = api.get_opt(&self.spec.identity_pool_name).await? {
-            if identity_pool.status.is_some() && identity_pool.status.as_ref().unwrap().phase.eq(&IdentityPoolPhaseEnum::Ready) {
+            if identity_pool.status.as_ref().is_some_and(|status| status.phase.eq(&IdentityPoolPhaseEnum::Ready)) {
                 Ok(())
             } else {
                 warn!(
@@ -384,7 +347,7 @@ impl IdentityHoprd {
                     identity_namespace,
                     identity_pool.status.as_ref().unwrap_or(&IdentityPoolStatus::default())
                 );
-                return Err(Error::IdentityHoprdPoolError(format!("IdentityHoprd {} has an IdentityPool {} in namespace {} with status {:?}", self.name_any(), self.spec.identity_pool_name, identity_namespace, identity_pool.status.as_ref().unwrap_or(&IdentityPoolStatus::default()))));
+                Err(Error::IdentityHoprdPoolError(format!("IdentityHoprd {} has an IdentityPool {} in namespace {} with status {:?}", self.name_any(), self.spec.identity_pool_name, identity_namespace, identity_pool.status.as_ref().unwrap_or(&IdentityPoolStatus::default()))))
             }
         } else {
             warn!(
@@ -394,25 +357,49 @@ impl IdentityHoprd {
                 identity_namespace
             );
             context_data.send_event(self, IdentityHoprdEventEnum::Failed, Some("identity pool not found".to_string())).await;
-            return Err(Error::IdentityHoprdPoolError(format!("IdentityHoprd {} cannot find IdentityPool {} in namespace {}", self.name_any(), self.spec.identity_pool_name, identity_namespace)));
+            Err(Error::IdentityHoprdPoolError(format!("IdentityHoprd {} cannot find IdentityPool {} in namespace {}", self.name_any(), self.spec.identity_pool_name, identity_namespace)))
         }
     }
 
     async fn check_pvc(&self, context_data: Arc<ContextData>) -> Result<(), Error> {
-        let pvc_api: Api<PersistentVolumeClaim> = Api::namespaced(context_data.client.clone(), &self.namespace().unwrap());
+        let pvc_api: Api<PersistentVolumeClaim> = Api::namespaced(context_data.client.clone(), &self.require_namespace()?);
         if let Some(pvc) = pvc_api.get_opt(&self.name_any()).await? {
             if pvc.metadata.deletion_timestamp.is_some() {
                 // PVC is terminating, wait and retry
                 context_data.send_event(self, IdentityHoprdEventEnum::Failed, Some("previous pvc is still in terminating state".to_string())).await;
-                return Err(Error::IdentityHoprdPVCError(format!("PVC {} is terminating, wait and retry", self.name_any())));
+                Err(Error::IdentityHoprdPVCError(format!("PVC {} is terminating, wait and retry", self.name_any())))
             } else {
                 // PVC exists and is not terminating (should not happen)
             context_data.send_event(self, IdentityHoprdEventEnum::Failed, Some("unlinked pvc already exists with this name".to_string())).await;
-            return Err(Error::IdentityHoprdPVCError(format!("PVC {} already exists", self.name_any())));
+            Err(Error::IdentityHoprdPVCError(format!("PVC {} already exists", self.name_any())))
             }
         } else {
             Ok(())
         }
     }
 
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn identity(pool: &str) -> IdentityHoprd {
+        IdentityHoprd::new("identity", IdentityHoprdSpec { identity_pool_name: pool.to_owned(), ..IdentityHoprdSpec::default() })
+    }
+
+    #[test]
+    fn identity_pool_is_immutable() {
+        let current = identity("pool");
+        assert!(!current.changed_inmutable_fields(&identity("pool").spec));
+        assert!(current.changed_inmutable_fields(&identity("other").spec));
+    }
+
+    #[test]
+    fn other_fields_can_change() {
+        let current = identity("pool");
+        let mut previous = identity("pool").spec;
+        previous.node_address = "0xabc".to_owned();
+        assert!(!current.changed_inmutable_fields(&previous));
+    }
 }

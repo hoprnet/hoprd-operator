@@ -1,7 +1,7 @@
 use anyhow::Error;
 use axum::{Json, Router, response::IntoResponse, routing::post};
 use axum_server::{tls_rustls::{RustlsConfig, bind_rustls}};
-use rustls::{ServerConfig, pki_types::{CertificateDer, PrivateKeyDer}};
+use rustls::{ServerConfig, pki_types::PrivateKeyDer};
 use rustls_pemfile::{certs, pkcs8_private_keys};
 use std::{env, io::BufReader, net::SocketAddr};
 use std::collections::hash_map::DefaultHasher;
@@ -64,7 +64,8 @@ async fn wait_for_webhook_ready() -> Result<(), String> {
 
 fn load_rustls_config(cert_path: &str, key_path: &str) -> Result<ServerConfig, Error> {
     // Install the ring crypto provider globally
-    default_provider().install_default().expect("Install ring provider");
+    // Fails only if a provider is already installed, which is harmless
+    let _ = default_provider().install_default();
 
     // Load certificate chain
     let dir = env::current_dir()?
@@ -72,24 +73,22 @@ fn load_rustls_config(cert_path: &str, key_path: &str) -> Result<ServerConfig, E
         .ok_or_else(|| anyhow::anyhow!("Invalid UTF-8 in current directory path"))?
         .to_owned();
     let cert_path = format!("{}/{}", dir.clone(), cert_path);
-    let cert_file = std::fs::File::open(&cert_path).expect(format!("Could not open cert file: {}", cert_path).as_str());
+    let cert_file = std::fs::File::open(&cert_path).map_err(|e| anyhow::anyhow!("Could not open cert file {}: {}", cert_path, e))?;
     let mut cert_reader = BufReader::new(cert_file);
     let cert_chain = certs(&mut cert_reader)
         .collect::<Result<Vec<_>, _>>()?
-        .into_iter()
-        .map(CertificateDer::from)
-        .collect::<Vec<_>>();
+        .into_iter().collect::<Vec<_>>();
 
     // Load private key
     let key_path = format!("{}/{}", dir.clone(), key_path);
-    let key_file = std::fs::File::open(&key_path).expect(format!("Could not open key file: {}", key_path).as_str());
+    let key_file = std::fs::File::open(&key_path).map_err(|e| anyhow::anyhow!("Could not open key file {}: {}", key_path, e))?;
     let mut key_reader = BufReader::new(key_file);
     let mut keys_raw = pkcs8_private_keys(&mut key_reader)
         .collect::<Result<Vec<_>, _>>()?;
     if keys_raw.is_empty() {
         return Err(anyhow::anyhow!("No private keys found in {}", key_path));
     }
-    let key = PrivateKeyDer::Pkcs8(keys_raw.remove(0).into());
+    let key = PrivateKeyDer::Pkcs8(keys_raw.remove(0));
 
     // Build server config (no client auth)
     let mut cfg = ServerConfig::builder()
@@ -101,13 +100,13 @@ fn load_rustls_config(cert_path: &str, key_path: &str) -> Result<ServerConfig, E
     Ok(cfg)
 }
 
-pub async fn run_webhook_server(webhook_config:WebhookConfig) {
+pub async fn run_webhook_server(webhook_config:WebhookConfig) -> Result<(), Error> {
     // Define Axum app with routes
     let app = Router::new().route("/convert", post(convert));
     let addr = SocketAddr::from(([0, 0, 0, 0], 8443));
 
     info!("Starting webhook server with TLS");
-    let server_config: ServerConfig = load_rustls_config(webhook_config.crt_file.as_str(), webhook_config.key_file.as_str()).expect("Invalid TLS");
+    let server_config: ServerConfig = load_rustls_config(webhook_config.crt_file.as_str(), webhook_config.key_file.as_str())?;
     let tls_config = RustlsConfig::from_config(server_config.into());
     // Spawn the server in a background task
     let server_handle = tokio::spawn(async move {
@@ -128,6 +127,7 @@ pub async fn run_webhook_server(webhook_config:WebhookConfig) {
         Ok(Err(e)) => error!("Webhook server stopped with error: {}", e),
         Err(e) => error!("Webhook server task panicked: {}", e),
     }
+    Ok(())
 }
 
 async fn add_observed_generation(resource: &mut Value) -> Result<(), String> {
@@ -451,4 +451,103 @@ async fn convert(Json(request): Json<ConversionRequest>) -> impl IntoResponse {
         kind: "ConversionReview".to_string(),
         response: response_inner,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[tokio::test]
+    async fn hoprd_v2_to_v3_moves_ports_allocation_into_the_service() {
+        let mut resource = json!({
+            "kind": "Hoprd",
+            "spec": { "portsAllocation": 7, "supportedRelease": "kaunas", "service": { "type": "ClusterIP" } },
+            "status": { "checksum": "abc" },
+            "metadata": { "generation": 3 },
+        });
+        convert_v2_to_v3(&mut resource).await.expect("conversion succeeds");
+        assert_eq!(resource["spec"]["service"]["portsAllocation"], json!(7));
+        assert!(resource["spec"].get("portsAllocation").is_none());
+        assert!(resource["spec"].get("supportedRelease").is_none());
+        assert_eq!(resource["status"]["observedGeneration"], json!(3));
+        assert!(resource["status"].get("checksum").is_none());
+    }
+
+    #[tokio::test]
+    async fn hoprd_v2_to_v3_uses_a_default_when_ports_allocation_is_missing() {
+        let mut resource = json!({ "kind": "Hoprd", "spec": { "service": {} }, "status": {} });
+        convert_v2_to_v3(&mut resource).await.expect("conversion succeeds");
+        assert_eq!(resource["spec"]["service"]["portsAllocation"], json!(10));
+        // Without generation the observed generation falls back to 0
+        assert_eq!(resource["status"]["observedGeneration"], json!(0));
+    }
+
+    #[tokio::test]
+    async fn hoprd_v3_to_v2_moves_ports_allocation_to_the_spec() {
+        let mut resource = json!({
+            "kind": "Hoprd",
+            "spec": { "service": { "portsAllocation": 5 } },
+            "status": { "observedGeneration": 1 },
+        });
+        convert_v3_to_v2(&mut resource).await.expect("conversion succeeds");
+        assert_eq!(resource["spec"]["portsAllocation"], json!(5));
+        assert_eq!(resource["spec"]["supportedRelease"], json!("kaunas"));
+        assert!(resource["spec"]["service"].get("portsAllocation").is_none());
+        assert!(resource["status"].get("observedGeneration").is_none());
+        assert!(resource["status"]["checksum"].is_string());
+    }
+
+    #[tokio::test]
+    async fn cluster_hoprd_round_trip_keeps_the_ports_allocation() {
+        let mut resource = json!({
+            "kind": "ClusterHoprd",
+            "spec": { "portsAllocation": 4, "supportedRelease": "kaunas", "forceIdentityName": true, "service": {} },
+            "status": {},
+        });
+        convert_v2_to_v3(&mut resource).await.expect("v2 to v3");
+        assert!(resource["spec"].get("forceIdentityName").is_none());
+        assert_eq!(resource["spec"]["service"]["portsAllocation"], json!(4));
+        convert_v3_to_v2(&mut resource).await.expect("v3 to v2");
+        assert_eq!(resource["spec"]["portsAllocation"], json!(4));
+        assert_eq!(resource["spec"]["forceIdentityName"], json!(true));
+    }
+
+    #[tokio::test]
+    async fn identity_hoprd_renames_the_address_field() {
+        let mut resource = json!({ "kind": "IdentityHoprd", "spec": { "nativeAddress": "0x1", "peerId": "p" }, "status": {} });
+        convert_v2_to_v3(&mut resource).await.expect("v2 to v3");
+        assert_eq!(resource["spec"]["nodeAddress"], json!("0x1"));
+        assert!(resource["spec"].get("nativeAddress").is_none());
+        assert!(resource["spec"].get("peerId").is_none());
+        convert_v3_to_v2(&mut resource).await.expect("v3 to v2");
+        assert_eq!(resource["spec"]["nativeAddress"], json!("0x1"));
+        assert_eq!(resource["spec"]["peerId"], json!("unknown"));
+    }
+
+    #[tokio::test]
+    async fn identity_hoprd_uses_placeholders_when_the_address_is_missing() {
+        let mut resource = json!({ "kind": "IdentityHoprd", "spec": {}, "status": {} });
+        convert_v2_to_v3(&mut resource).await.expect("v2 to v3");
+        assert_eq!(resource["spec"]["nodeAddress"], json!("lost"));
+    }
+
+    #[tokio::test]
+    async fn identity_pool_only_touches_the_status() {
+        let mut resource = json!({ "kind": "IdentityPool", "spec": { "network": "rotsee" }, "status": {}, "metadata": { "generation": 2 } });
+        convert_v2_to_v3(&mut resource).await.expect("v2 to v3");
+        assert_eq!(resource["status"]["observedGeneration"], json!(2));
+        assert_eq!(resource["spec"]["network"], json!("rotsee"));
+    }
+
+    #[tokio::test]
+    async fn malformed_resources_are_errors_not_panics() {
+        assert!(convert_v2_to_v3(&mut json!({})).await.is_err());
+        assert!(convert_v2_to_v3(&mut json!({ "kind": "Unknown" })).await.is_err());
+        assert!(convert_v3_to_v2(&mut json!({ "kind": "Unknown" })).await.is_err());
+        assert!(convert_v2_to_v3(&mut json!({ "kind": "Hoprd" })).await.is_err(), "missing spec");
+        assert!(convert_v2_to_v3(&mut json!({ "kind": "Hoprd", "spec": {} })).await.is_err(), "missing status");
+        assert!(convert_v2_to_v3(&mut json!({ "kind": "Hoprd", "spec": 1, "status": {} })).await.is_err(), "spec is not an object");
+        assert!(convert_v3_to_v2(&mut json!({ "kind": "IdentityPool", "spec": {}, "status": 1 })).await.is_err(), "status is not an object");
+    }
 }

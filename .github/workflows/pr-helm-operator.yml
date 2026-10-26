@@ -1,6 +1,6 @@
 ---
 
-name: 'Package Helm chart Cluster'
+name: 'PR Helm chart Operator'
 
 on:
   pull_request:
@@ -11,9 +11,9 @@ on:
     branches:
       - master
     paths:
-      - "charts/cluster-hoprd/**"
+      - "charts/hoprd-operator/**"
 concurrency:
-  group: ${{ github.head_ref }}-cluster-build
+  group: ${{ github.head_ref }}-operator-build
   cancel-in-progress: true
 jobs:
   bump_version:
@@ -27,17 +27,17 @@ jobs:
         id: bumping_version
         run: |
           helm_chart_version=$(grep '^version:' Chart.yaml | sed 's/.*: //')
-          git_tag=$(git tag -l helm-cluster-hoprd-${helm_chart_version})
-          echo "Workspace version is helm-cluster-hoprd-${helm_chart_version} while tagged is ${git_tag}"
-          if [ "${git_tag}" = "helm-cluster-hoprd-${helm_chart_version}" ]; then
+          git_tag=$(git tag -l helm-hoprd-operator-${helm_chart_version})
+          echo "Workspace version is helm-hoprd-operator-${helm_chart_version} while tagged is ${git_tag}"
+          if [ "${git_tag}" = "helm-hoprd-operator-${helm_chart_version}" ]; then
             patch_number=$(echo $helm_chart_version | sed 's/.*\.//')
             release_number=$(echo $helm_chart_version | sed "s/\.${patch_number}//")
             bump_version=${release_number}.$((patch_number + 1))
-            echo "The helm chart version ${git_tag} already exists, bumping to version helm-cluster-hoprd-${bump_version}";
+            echo "The helm chart version ${git_tag} already exists, bumping to version helm-hoprd-operator-${bump_version}";
             sed -i "s/^version: ${helm_chart_version}/version: ${bump_version}/" Chart.yaml
             echo "bumped_version=true" >> $GITHUB_OUTPUT
           fi
-        working-directory: 'charts/cluster-hoprd/'
+        working-directory: 'charts/hoprd-operator/'
 
       - name: Commit and push
         if: ${{ steps.bumping_version.outputs.bumped_version }}
@@ -67,7 +67,7 @@ jobs:
 
       - name: Lint
         run: helm lint -f ./values-staging.yaml .
-        working-directory: 'charts/cluster-hoprd/'
+        working-directory: 'charts/hoprd-operator/'
 
   package:
     name: Package Helm Chart
@@ -87,11 +87,11 @@ jobs:
         run: |
           HELM_CHART_VERSION=$(grep '^version:' Chart.yaml | sed 's/.*: //')
           echo "HELM_CHART_VERSION=${HELM_CHART_VERSION}" >> $GITHUB_OUTPUT
-        working-directory: 'charts/cluster-hoprd/'
+        working-directory: 'charts/hoprd-operator/'
 
       - name: Helm Package
         run: helm package . --version ${{ steps.get_version.outputs.HELM_CHART_VERSION }}
-        working-directory: 'charts/cluster-hoprd/'
+        working-directory: 'charts/hoprd-operator/'
 
   trivy:
     name: Helm Security Analysis
@@ -121,11 +121,11 @@ jobs:
           scan-type: 'config'
           hide-progress: false
           format: 'table'
-          scan-ref: 'charts/cluster-hoprd/'
+          scan-ref: 'charts/hoprd-operator/'
           exit-code: '1'
           ignore-unfixed: true
-          # severity: 'MEDIUM,HIGH,CRITICAL'
-          # trivyignores: '.trivyignore'
+          severity: 'MEDIUM,HIGH,CRITICAL'
+          # trivyignores: 'charts/.trivyignore'
 
   generate-readme:
     name: Generate Readme
@@ -147,7 +147,7 @@ jobs:
       - name: Execute readme-generator-for-helm
         id: generator
         run: |
-          readme-generator --values "charts/cluster-hoprd/values.yaml" --readme "charts/cluster-hoprd/README.md" --schema "/tmp/schema.json"
+          readme-generator --values "charts/hoprd-operator/values.yaml" --readme "charts/hoprd-operator/README.md" --schema "/tmp/schema.json"
           if git status -s | grep charts; then
             echo "readme_updated=true" >>  $GITHUB_OUTPUT
           fi

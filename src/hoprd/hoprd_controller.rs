@@ -53,7 +53,7 @@ enum HoprdAction {
 async fn determine_action(hoprd: &Hoprd, context: &Arc<ContextData>) -> Result<HoprdAction, Error> {
     if hoprd.meta().deletion_timestamp.is_some() && hoprd.status.is_some() {
         return Ok(HoprdAction::Delete);
-    } else if hoprd.meta().finalizers.as_ref().map_or(true, |finalizers| finalizers.is_empty()) {
+    } else if hoprd.meta().finalizers.as_ref().is_none_or(|finalizers| finalizers.is_empty()) {
         return Ok(HoprdAction::Create);
     }
     // From here the resource has at least one finalizer, but it might not have a status yet: a finalizer
@@ -117,19 +117,6 @@ async fn reconcile(hoprd: Arc<Hoprd>, context: Arc<ContextData>) -> Result<Actio
     }
 }
 
-/// Actions to be taken when a reconciliation fails - for whatever reason.
-/// Prints out the error to `stderr` and requeues the resource for another reconciliation after
-/// five seconds.
-///
-/// # Arguments
-/// - `hoprd`: The erroneous resource.
-/// - `error`: A reference to the `kube::Error` that occurred during reconciliation.
-/// - `_context`: Unused argument. Context Data "injected" automatically by kube-rs.
-pub fn on_error(hoprd: Arc<Hoprd>, error: &Error, _context: Arc<ContextData>) -> Action {
-    error!("[Hoprd] Reconciliation error:\n{:?}.\n{:?}", error, hoprd);
-    Action::requeue(Duration::from_secs(constants::RECONCILE_SHORT_FREQUENCY))
-}
-
 /// Initialize the controller
 pub async fn run(client: Client, context_data: Arc<ContextData>, deployment_writer: Writer<Deployment>) {
     let owned_api: Api<Hoprd> = Api::<Hoprd>::all(client.clone());
@@ -163,18 +150,7 @@ pub async fn run(client: Client, context_data: Arc<ContextData>, deployment_writ
         .owns(service_monitor, Config::default())
         .owns(ingress, Config::default())
         .shutdown_on_signal()
-        .run(reconciler, on_error, context_data)
-        .for_each(|reconciliation_result| async move {
-            match reconciliation_result {
-                Ok(_) => {}
-                Err(reconciliation_err) => {
-                    let err_string = reconciliation_err.to_string();
-                    if !err_string.contains("that was not found in local store") && !err_string.contains("event queue error") {
-                        // https://github.com/kube-rs/kube/issues/712
-                        error!("[Hoprd] Reconciliation error: {:?}", reconciliation_err)
-                    }
-                }
-            }
-        })
+        .run(reconciler, utils::on_error, context_data)
+        .for_each(|reconciliation_result| async move { utils::log_reconciliation_result("Hoprd", reconciliation_result) })
         .await;
 }
