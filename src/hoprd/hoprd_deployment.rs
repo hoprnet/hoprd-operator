@@ -25,7 +25,7 @@ use k8s_openapi::apimachinery::pkg::apis::meta::v1::{LabelSelector, OwnerReferen
 use kube::api::{DeleteParams, ObjectMeta, Patch, PatchParams, PostParams, WatchEvent, WatchParams};
 use kube::runtime::wait::{await_condition, conditions};
 use kube::{Api, Client, Resource, ResourceExt};
-use rand::Rng;
+use rand::RngExt;
 use serde_json::{json, Value};
 use std::collections::BTreeMap;
 use std::sync::Arc;

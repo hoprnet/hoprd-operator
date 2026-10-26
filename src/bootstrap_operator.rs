@@ -1,6 +1,6 @@
 use crate::model::Error as HoprError;
 use json_patch::{PatchOperation, ReplaceOperation};
-use jsonptr::PointerBuf;
+use json_patch::jsonptr::PointerBuf;
 use k8s_openapi::{
     api::{apps::v1::Deployment, core::v1::ContainerPort}
 };

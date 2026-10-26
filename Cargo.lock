@@ -322,7 +322,6 @@ dependencies = [
  "iana-time-zone",
  "js-sys",
  "num-traits",
- "serde",
  "wasm-bindgen",
  "windows-link 0.2.1",
 ]
@@ -860,8 +859,7 @@ dependencies = [
  "chrono",
  "futures",
  "json-patch",
- "jsonptr 0.8.2",
- "k8s-openapi 0.26.1",
+ "k8s-openapi",
  "kube",
  "openssl-sys",
  "rand",
@@ -1171,7 +1169,7 @@ version = "4.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7421438de105a0827e44fadd05377727847d717c80ce29a229f85fd04c427b72"
 dependencies = [
- "jsonptr 0.7.1",
+ "jsonptr",
  "serde",
  "serde_json",
  "thiserror",
@@ -1201,28 +1199,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "jsonptr"
-version = "0.8.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "72c22d99362c7aac7d77efab6b49c2181674b165d7e6e7c755b3432ded64bf51"
-dependencies = [
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "k8s-openapi"
-version = "0.26.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "06d9e5e61dd037cdc51da0d7e2b2be10f497478ea7e120d85dad632adb99882b"
-dependencies = [
- "base64 0.22.1",
- "chrono",
- "serde",
- "serde_json",
-]
-
-[[package]]
 name = "k8s-openapi"
 version = "0.28.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1240,7 +1216,7 @@ version = "4.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "208d7fe1380066abb194812a8a8e303cb896a33bb3d7b3177b71bd03ff39bf18"
 dependencies = [
- "k8s-openapi 0.28.0",
+ "k8s-openapi",
  "kube-client",
  "kube-core",
  "kube-derive",
@@ -1266,7 +1242,7 @@ dependencies = [
  "hyper-util",
  "jiff",
  "jsonpath-rust",
- "k8s-openapi 0.28.0",
+ "k8s-openapi",
  "kube-core",
  "pem",
  "rustls",
@@ -1294,7 +1270,7 @@ dependencies = [
  "http",
  "jiff",
  "json-patch",
- "k8s-openapi 0.28.0",
+ "k8s-openapi",
  "schemars",
  "serde",
  "serde-value",
@@ -1331,7 +1307,7 @@ dependencies = [
  "hashbrown",
  "hostname",
  "json-patch",
- "k8s-openapi 0.28.0",
+ "k8s-openapi",
  "kube-client",
  "parking_lot",
  "pin-project",
