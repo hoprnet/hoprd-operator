@@ -359,7 +359,7 @@ impl Hoprd {
             let identity_pool_option = context_state.get_identity_pool(&self.require_namespace()?, &identity_pool_name);
             if let Some(mut identity_pool_arc) = identity_pool_option {
                 let identity_pool: &mut IdentityPool = Arc::<IdentityPool>::make_mut(&mut identity_pool_arc);
-                if let Some(identity) = identity_pool.get_ready_identity(context_data.client.clone(), identity_name).await? {
+                if let Some(identity) = identity_pool.get_ready_identity(context_data.client.clone(), identity_name, &self.name_any()).await? {
                     let already_locked = identity.status.as_ref().is_some_and(|status| status.phase == IdentityHoprdPhaseEnum::InUse);
                     if !already_locked { // If the identity is already locked, it means that the Hoprd node that was using it is in a failed state and we are trying to recover it, so we don't need to update the status of the identity and the identity pool
                         identity.update_phase(context_data.client.clone(), IdentityHoprdPhaseEnum::InUse, hoprd_name.clone()).await?;
