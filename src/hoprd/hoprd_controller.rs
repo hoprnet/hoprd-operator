@@ -53,7 +53,7 @@ enum HoprdAction {
 async fn determine_action(hoprd: &Hoprd, context: &Arc<ContextData>) -> Result<HoprdAction, Error> {
     if hoprd.meta().deletion_timestamp.is_some() && hoprd.status.is_some() {
         return Ok(HoprdAction::Delete);
-    } else if hoprd.meta().finalizers.as_ref().map_or(true, |finalizers| finalizers.is_empty()) {
+    } else if hoprd.meta().finalizers.as_ref().is_none_or(|finalizers| finalizers.is_empty()) {
         return Ok(HoprdAction::Create);
     }
     // From here the resource has at least one finalizer, but it might not have a status yet: a finalizer

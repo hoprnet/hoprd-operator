@@ -1,7 +1,7 @@
 use anyhow::Error;
 use axum::{Json, Router, response::IntoResponse, routing::post};
 use axum_server::{tls_rustls::{RustlsConfig, bind_rustls}};
-use rustls::{ServerConfig, pki_types::{CertificateDer, PrivateKeyDer}};
+use rustls::{ServerConfig, pki_types::PrivateKeyDer};
 use rustls_pemfile::{certs, pkcs8_private_keys};
 use std::{env, io::BufReader, net::SocketAddr};
 use std::collections::hash_map::DefaultHasher;
@@ -77,9 +77,7 @@ fn load_rustls_config(cert_path: &str, key_path: &str) -> Result<ServerConfig, E
     let mut cert_reader = BufReader::new(cert_file);
     let cert_chain = certs(&mut cert_reader)
         .collect::<Result<Vec<_>, _>>()?
-        .into_iter()
-        .map(CertificateDer::from)
-        .collect::<Vec<_>>();
+        .into_iter().collect::<Vec<_>>();
 
     // Load private key
     let key_path = format!("{}/{}", dir.clone(), key_path);
@@ -90,7 +88,7 @@ fn load_rustls_config(cert_path: &str, key_path: &str) -> Result<ServerConfig, E
     if keys_raw.is_empty() {
         return Err(anyhow::anyhow!("No private keys found in {}", key_path));
     }
-    let key = PrivateKeyDer::Pkcs8(keys_raw.remove(0).into());
+    let key = PrivateKeyDer::Pkcs8(keys_raw.remove(0));
 
     // Build server config (no client auth)
     let mut cfg = ServerConfig::builder()

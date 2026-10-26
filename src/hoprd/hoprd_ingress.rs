@@ -22,6 +22,7 @@ use crate::{hoprd::hoprd_ingress, model::Error as HoprError};
 use super::hoprd_service::ServiceTypeEnum;
 
 /// Creates a new Ingress for accessing the hoprd node,
+#[allow(clippy::too_many_arguments)]
 pub async fn create_ingress(
     context_data: Arc<ContextData>,
     service_type: &ServiceTypeEnum,
@@ -35,7 +36,7 @@ pub async fn create_ingress(
 ) -> Result<u16, HoprError> {
     let labels: Option<BTreeMap<String, String>> = Some(utils::common_lables(identity_pool_name.to_owned(), Some(service_name.to_owned()), None));
     let stating_port = if service_type.eq(&ServiceTypeEnum::ClusterIP) {
-        hoprd_ingress::open_port(context_data.client.clone(), &namespace, &service_name, session_port_allocation, &context_data.config.ingress)
+        hoprd_ingress::open_port(context_data.client.clone(), namespace, service_name, session_port_allocation, &context_data.config.ingress)
             .await?
     } else {
         9091
@@ -114,7 +115,7 @@ pub async fn create_ingress(
 ///
 pub async fn delete_ingress(context_data: Arc<ContextData>, name: &str, namespace: &str, service_type: &ServiceTypeEnum) -> Result<(), HoprError> {
     if service_type.eq(&ServiceTypeEnum::ClusterIP) {
-        hoprd_ingress::close_port(context_data.client.clone(), &namespace, &name, &context_data.config.ingress).await?;
+        hoprd_ingress::close_port(context_data.client.clone(), namespace, name, &context_data.config.ingress).await?;
     }
     let api: Api<Ingress> = Api::namespaced(context_data.client.clone(), namespace);
     crate::utils::delete_and_wait(api, name).await?;
@@ -211,7 +212,7 @@ async fn get_available_ports(client: Client, session_port_allocation: u16, ingre
             .clone()
             .collect::<Vec<_>>();
         ports.sort();
-        return Ok(find_next_port(ports, session_port_allocation, ingress_config.port_min));
+        Ok(find_next_port(ports, session_port_allocation, ingress_config.port_min))
     } else {
         debug!("ConfigMap ingress-nginx-tcp not found, using port_min as next free port");
         Ok(ingress_config.port_min)
@@ -225,20 +226,19 @@ fn find_next_port(ports: Vec<u16>, session_port_allocation: u16, min_port: u16) 
     }
 
     // If the first port used is greater than the min_port plus session_port_allocation, fill the gap
-    if (ports[0] - min_port) >= session_port_allocation {
-        if ports[0] > min_port { // Ensure there is a gap in case the session_port_allocation is 0
+    if (ports[0] - min_port) >= session_port_allocation
+        && ports[0] > min_port { // Ensure there is a gap in case the session_port_allocation is 0
             return ports[0] - session_port_allocation;
         }
-    }
 
     // Find a gap in the ports vector where the values between two consecutive ports are greater than the session_port_allocation
     for i in 1..ports.len() {
-        if ports[i] - ports[i - 1] - 1 >= session_port_allocation && session_port_allocation > 0 {
+        if ports[i] - ports[i - 1] > session_port_allocation && session_port_allocation > 0 {
             return ports[i - 1] + 1;
         }
     }
     // If no gap is found, return the last port + 1
-    return ports[ports.len() - 1] + 1;
+    ports[ports.len() - 1] + 1
 }
 
 /// Creates a new Ingress for accessing the hoprd node,

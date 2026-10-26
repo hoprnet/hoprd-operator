@@ -53,6 +53,7 @@ impl Display for ServiceTypeEnum {
 }
 
 /// Creates a new service for accessing the hoprd node,
+#[allow(clippy::too_many_arguments)]
 pub async fn create_service(
     context_data: Arc<ContextData>,
     name: &str,
@@ -123,6 +124,7 @@ async fn create_single_port_cluster_ip_service(
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn create_load_balancer_service(
     context_data: Arc<ContextData>,
     name: &str,
@@ -175,7 +177,7 @@ async fn create_load_balancer_service(
             .clone()
             .and_then(|s| s.load_balancer)
             .and_then(|lb| lb.ingress.clone())
-            .and_then(|ingress| ingress.get(0).cloned())
+            .and_then(|ingress| ingress.first().cloned())
             .and_then(|first_ingress| first_ingress.ip.clone());
     }
 

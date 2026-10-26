@@ -58,7 +58,7 @@ impl CustomEnvVar {
         if let Some(ref value_from) = self.value_from {
             env_var.value_from = Some(value_from.to_env_var_source());
         }
-        return env_var;
+        env_var
     }
 }
 

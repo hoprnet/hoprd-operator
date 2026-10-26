@@ -352,9 +352,8 @@ impl IdentityPool {
             }
             Some(identity) => {
                 if let Some(status) = identity.status.as_ref() {
-                    if status.phase.eq(&IdentityHoprdPhaseEnum::Ready) {
-                        Ok(Some(identity))
-                    } else if status.phase.eq(&IdentityHoprdPhaseEnum::InUse) && status.hoprd_node_name.as_deref() == Some(identity_name.as_str()) {
+                    // A ready identity, or one in use by this very node (recovering a failed node), can be locked
+                    if status.phase.eq(&IdentityHoprdPhaseEnum::Ready) || (status.phase.eq(&IdentityHoprdPhaseEnum::InUse) && status.hoprd_node_name.as_deref() == Some(identity_name.as_str())) {
                         Ok(Some(identity))
                     } else {
                         warn!(

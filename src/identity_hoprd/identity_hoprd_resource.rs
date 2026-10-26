@@ -308,7 +308,8 @@ impl IdentityHoprd {
             }
             Ok(())
         } else {
-            Ok(warn!("The identity cannot be unlock because it is in status {:?}", &self.status))
+            warn!("The identity cannot be unlock because it is in status {:?}", &self.status);
+            Ok(())
         }
     }
 
@@ -346,7 +347,7 @@ impl IdentityHoprd {
                     identity_namespace,
                     identity_pool.status.as_ref().unwrap_or(&IdentityPoolStatus::default())
                 );
-                return Err(Error::IdentityHoprdPoolError(format!("IdentityHoprd {} has an IdentityPool {} in namespace {} with status {:?}", self.name_any(), self.spec.identity_pool_name, identity_namespace, identity_pool.status.as_ref().unwrap_or(&IdentityPoolStatus::default()))));
+                Err(Error::IdentityHoprdPoolError(format!("IdentityHoprd {} has an IdentityPool {} in namespace {} with status {:?}", self.name_any(), self.spec.identity_pool_name, identity_namespace, identity_pool.status.as_ref().unwrap_or(&IdentityPoolStatus::default()))))
             }
         } else {
             warn!(
@@ -356,7 +357,7 @@ impl IdentityHoprd {
                 identity_namespace
             );
             context_data.send_event(self, IdentityHoprdEventEnum::Failed, Some("identity pool not found".to_string())).await;
-            return Err(Error::IdentityHoprdPoolError(format!("IdentityHoprd {} cannot find IdentityPool {} in namespace {}", self.name_any(), self.spec.identity_pool_name, identity_namespace)));
+            Err(Error::IdentityHoprdPoolError(format!("IdentityHoprd {} cannot find IdentityPool {} in namespace {}", self.name_any(), self.spec.identity_pool_name, identity_namespace)))
         }
     }
 
@@ -366,11 +367,11 @@ impl IdentityHoprd {
             if pvc.metadata.deletion_timestamp.is_some() {
                 // PVC is terminating, wait and retry
                 context_data.send_event(self, IdentityHoprdEventEnum::Failed, Some("previous pvc is still in terminating state".to_string())).await;
-                return Err(Error::IdentityHoprdPVCError(format!("PVC {} is terminating, wait and retry", self.name_any())));
+                Err(Error::IdentityHoprdPVCError(format!("PVC {} is terminating, wait and retry", self.name_any())))
             } else {
                 // PVC exists and is not terminating (should not happen)
             context_data.send_event(self, IdentityHoprdEventEnum::Failed, Some("unlinked pvc already exists with this name".to_string())).await;
-            return Err(Error::IdentityHoprdPVCError(format!("PVC {} already exists", self.name_any())));
+            Err(Error::IdentityHoprdPVCError(format!("PVC {} already exists", self.name_any())))
             }
         } else {
             Ok(())

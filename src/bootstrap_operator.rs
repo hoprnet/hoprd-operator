@@ -67,10 +67,10 @@ async fn open_nginx_deployment_ports(client: Client, ingress_config: &IngressCon
     })]);
     let patch: Patch<Value> = Patch::Json(json_patch);
 
-    match api_deployment.patch(&deployment_name, &PatchParams::default(), &patch).await {
-        Ok(_) => Ok(()),
-        Err(error) => Ok(error!("Could not open Nginx default ports on deployment: {:?}", error)),
-    }
+    api_deployment.patch(&deployment_name, &PatchParams::default(), &patch).await.inspect_err(|error| {
+        error!("Could not open Nginx default ports on deployment: {:?}", error);
+    })?;
+    Ok(())
 }
 
 /// Boot operator

@@ -40,9 +40,9 @@ enum ClusterHoprdAction {
 /// # Arguments
 /// - `cluster_hoprd`: A reference to `ClusterHoprd` being reconciled to decide next action upon.
 fn determine_action(cluster_hoprd: &ClusterHoprd) -> ClusterHoprdAction {
-    return if cluster_hoprd.meta().deletion_timestamp.is_some() && cluster_hoprd.status.as_ref().is_some_and(|status| status.phase.ne(&ClusterHoprdPhaseEnum::Deleting)) {
+    if cluster_hoprd.meta().deletion_timestamp.is_some() && cluster_hoprd.status.as_ref().is_some_and(|status| status.phase.ne(&ClusterHoprdPhaseEnum::Deleting)) {
         ClusterHoprdAction::Delete
-    } else if cluster_hoprd.meta().finalizers.as_ref().map_or(true, |finalizers| finalizers.is_empty()) {
+    } else if cluster_hoprd.meta().finalizers.as_ref().is_none_or(|finalizers| finalizers.is_empty()) {
         ClusterHoprdAction::Create
     } else if cluster_hoprd.status.is_none() {
         // A finalizer without status means the resource was not fully initialized: it is created again unless it is going away

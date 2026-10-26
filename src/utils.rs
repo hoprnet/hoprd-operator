@@ -163,14 +163,15 @@ mod tests {
     use kube::api::ObjectMeta;
 
     fn hoprd(name: Option<&str>, namespace: Option<&str>, uid: Option<&str>) -> Hoprd {
-        let mut hoprd = Hoprd::default();
-        hoprd.metadata = ObjectMeta {
-            name: name.map(str::to_owned),
-            namespace: namespace.map(str::to_owned),
-            uid: uid.map(str::to_owned),
-            ..ObjectMeta::default()
-        };
-        hoprd
+        Hoprd {
+            metadata: ObjectMeta {
+                name: name.map(str::to_owned),
+                namespace: namespace.map(str::to_owned),
+                uid: uid.map(str::to_owned),
+                ..ObjectMeta::default()
+            },
+            ..Hoprd::default()
+        }
     }
 
     #[test]

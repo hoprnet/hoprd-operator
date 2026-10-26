@@ -39,9 +39,9 @@ enum IdentityHoprdAction {
 /// # Arguments
 /// - `identity_hoprd`: A reference to `IdentityHoprd` being reconciled to decide next action upon.
 fn determine_action(identity_hoprd: &IdentityHoprd) -> IdentityHoprdAction {
-    return if identity_hoprd.meta().deletion_timestamp.is_some() {
+    if identity_hoprd.meta().deletion_timestamp.is_some() {
         IdentityHoprdAction::Delete
-    } else if identity_hoprd.meta().finalizers.as_ref().map_or(true, |finalizers| finalizers.is_empty()) {
+    } else if identity_hoprd.meta().finalizers.as_ref().is_none_or(|finalizers| finalizers.is_empty()) {
         IdentityHoprdAction::Create
     } else {
         let current_generation = identity_hoprd.meta().generation.unwrap_or(0);
@@ -51,7 +51,7 @@ fn determine_action(identity_hoprd: &IdentityHoprd) -> IdentityHoprdAction {
         } else {
             IdentityHoprdAction::NoOp
         }
-    };
+    }
 }
 
 async fn reconciler(identity_hoprd: Arc<IdentityHoprd>, context: Arc<ContextData>) -> Result<Action, Error> {

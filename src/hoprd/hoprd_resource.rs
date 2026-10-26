@@ -238,15 +238,13 @@ impl Hoprd {
                 Err(error) => error!("Could not update the deleteDatabaseField on {hoprd_name}: {:?}", error),
             };
         }
-        match self.wait_deployment(context_data.client.clone()).await {
-            Ok(()) => {
-                info!("Hoprd node {hoprd_name} in namespace {hoprd_namespace} has been successfully modified");
-                context_data.send_event(self, HoprdEventEnum::Modified, None).await;
-                self.set_running_status(context_data.clone()).await?;
-                Ok(())
-            }
-            Err(_) => Ok(warn!("Error waiting for deployment of {hoprd_name} to become ready")),
-        }
+        self.wait_deployment(context_data.client.clone()).await.inspect_err(|error| {
+            warn!("Error waiting for deployment of {hoprd_name} to become ready: {:?}", error);
+        })?;
+        info!("Hoprd node {hoprd_name} in namespace {hoprd_namespace} has been successfully modified");
+        context_data.send_event(self, HoprdEventEnum::Modified, None).await;
+        self.set_running_status(context_data.clone()).await?;
+        Ok(())
     }
 
     // Recreates the deployment when it has been manually deleted
@@ -435,10 +433,11 @@ impl Hoprd {
                 "annotations": annotations
             }
         }));
-        match api.patch_status(&self.name_any(), &PatchParams::default(), &patch).await {
-            Ok(_cluster_hopr) => Ok(()),
-            Err(error) => Ok(error!("Could not update last configuration annotation on Hoprd {}: {:?}", self.name_any(), error)),
-        }
+        // A failure is returned so the reconciliation is retried: a stale annotation would make the next modification be compared against an outdated configuration
+        api.patch_status(&self.name_any(), &PatchParams::default(), &patch).await.inspect_err(|error| {
+            error!("Could not update last configuration annotation on Hoprd {}: {:?}", self.name_any(), error);
+        })?;
+        Ok(())
     }
 
 

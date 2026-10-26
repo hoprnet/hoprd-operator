@@ -1,0 +1,86 @@
+---
+################################################################################
+# Pull request pipeline for hoprd-operator
+#
+# Lints and tests the operator and builds its Docker image through the shared
+# hopr-workflows, which run the Nix outputs defined in flake.nix.
+################################################################################
+name: 'PR Docker'
+on:
+  pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - ready_for_review
+    paths-ignore:
+      - "charts/**/*"
+permissions:
+  contents: read
+  id-token: write # zizmor: ignore[excessive-permissions]
+concurrency:
+  group: ${{ github.event.pull_request.head.ref || github.ref_name }}-pr-docker
+  cancel-in-progress: true
+env:
+  CARGO_TERM_COLOR: always
+jobs:
+  # ── Lint ────────────────────────────────────────────────────────────────────
+  # Clippy runs with -Dwarnings, and the crate denies unwrap, expect and panic outside tests (see src/main.rs)
+  checks:
+    name: Check
+    uses: hoprnet/hopr-workflows/.github/workflows/checks.yaml@3ee95c480962bb3c1fc0061887da9ba735f537c7 # workflow-checks-v2.1.1
+    with:
+      source_branch: ${{ github.event.pull_request.head.ref || github.ref }}
+      cachix_cache_name: hoprd-operator
+      format: false
+      pre_commit: false
+      lint: true
+      audit: false
+      deps: false
+      lint_command: "nix build -L .#hoprd-operator-clippy"
+      runner_small: depot-ubuntu-24.04-2
+      runner_large: depot-ubuntu-24.04-4
+    secrets:
+      cachix_auth_token: ${{ secrets.CACHIX_AUTH_TOKEN }}
+  # ── Unit tests ──────────────────────────────────────────────────────────────
+  tests:
+    name: Test
+    uses: hoprnet/hopr-workflows/.github/workflows/tests.yaml@2f28adfb7c34a9f18087d8646e190b6aafcd4b52 # workflow-tests-v6.1.2
+    with:
+      source_branch: ${{ github.event.pull_request.head.ref || github.ref }}
+      cachix_cache_name: hoprd-operator
+      enable_unit_tests: true
+      enable_unit_coverage: false
+      unit_test_command: "nix build -L .#hoprd-operator-test"
+      runner_unit: depot-ubuntu-24.04-4
+      test_timeout: 30
+    secrets:
+      cachix_auth_token: ${{ secrets.CACHIX_AUTH_TOKEN }}
+  # ── Build: Docker ───────────────────────────────────────────────────────────
+  build-docker:
+    name: Docker
+    uses: hoprnet/hopr-workflows/.github/workflows/build-docker.yaml@25898d13dab1b3fbf4c33c394e7c581578a2b0d7 # build-docker-v3.2.0
+    needs:
+      - checks
+      - tests
+    permissions:
+      contents: read
+      pull-requests: write
+      id-token: write
+    with:
+      source_branch: ${{ github.event.pull_request.head.ref || github.ref }}
+      version_type: commit
+      build_matrix: >-
+        [
+          {
+            "runner": "depot-ubuntu-24.04-4",
+            "architecture": "x86_64-linux",
+            "build_command": "nix build -L .#docker-hoprd-operator-x86_64-linux"
+          }
+        ]
+      cachix_cache_name: hoprd-operator
+      build_file: Cargo.toml
+      docker_image_name: hoprd-operator
+      docker_image_format: skopeo
+    secrets:
+      cachix_auth_token: ${{ secrets.CACHIX_AUTH_TOKEN }}

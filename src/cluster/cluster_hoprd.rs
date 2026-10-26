@@ -186,10 +186,11 @@ impl ClusterHoprd {
                 "annotations": annotations
             }
         }));
-        match api.patch(&self.name_any(), &PatchParams::default(), &patch).await {
-            Ok(_cluster_hopr) => Ok(()),
-            Err(error) => Ok(error!("Could not update last configuration annotation on ClusterHoprd {}: {:?}", self.name_any(), error)),
-        }
+        // A failure is returned so the reconciliation is retried: a stale annotation would make the next modification be compared against an outdated configuration
+        api.patch(&self.name_any(), &PatchParams::default(), &patch).await.inspect_err(|error| {
+            error!("Could not update last configuration annotation on ClusterHoprd {}: {:?}", self.name_any(), error);
+        })?;
+        Ok(())
     }
 
     // Handle rescaling

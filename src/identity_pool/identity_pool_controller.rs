@@ -54,7 +54,7 @@ enum IdentityPoolAction {
 async fn determine_action(identity_pool: &IdentityPool, context: &Arc<ContextData>) -> Result<IdentityPoolAction, Error> {
     if identity_pool.meta().deletion_timestamp.is_some() {
         return Ok(IdentityPoolAction::Delete);
-    } else if identity_pool.meta().finalizers.as_ref().map_or(true, |finalizers| finalizers.is_empty()) {
+    } else if identity_pool.meta().finalizers.as_ref().is_none_or(|finalizers| finalizers.is_empty()) {
         return Ok(IdentityPoolAction::Create);
     } else if identity_pool.status.as_ref().is_some_and(|status| status.phase.eq(&IdentityPoolPhaseEnum::OutOfSync)) {
         return Ok(IdentityPoolAction::Sync);
