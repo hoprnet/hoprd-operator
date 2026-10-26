@@ -7,6 +7,7 @@ pub struct OperatorConfig {
     pub ingress: IngressConfig,
     pub hopli_image: String,
     pub hopli_rpc_provider_url: String,
+    pub kubectl_image: String,
     pub persistence: PersistenceConfig,
     pub webhook: WebhookConfig,
 }
