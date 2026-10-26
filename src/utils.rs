@@ -41,8 +41,8 @@ pub trait ResourceIdentity: ResourceExt {
 impl<K: ResourceExt> ResourceIdentity for K {}
 
 /// Reference (`namespace/name`) used to identify a resource in the logs.
-/// The resources are never logged as a whole, as their spec can contain data that should not end up in the logs
-/// (e.g. the identity file of an `IdentityHoprd`).
+/// Reconciliation errors log the resource by this reference instead of as a whole, as its spec can contain data
+/// that should not end up in the logs (e.g. the identity file of an `IdentityHoprd`).
 fn resource_reference<K: ResourceExt>(resource: &K) -> String {
     format!("{}/{}", resource.namespace().unwrap_or_default(), resource.name_any())
 }
