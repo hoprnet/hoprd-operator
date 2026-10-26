@@ -30,8 +30,9 @@ pub struct IngressConfig {
 }
 
 impl IngressConfig {
-    /// Checks at boot the fields that the nginx integration cannot work without, so a misconfiguration stops the operator
-    /// at startup instead of failing every reconciliation later.
+    /// Checks at boot the fields that the nginx integration cannot work without, and that `port_min` is lower than
+    /// `port_max` for every ingress class, so a misconfiguration stops the operator at startup instead of failing every
+    /// reconciliation later.
     pub fn validate(&self) -> Result<(), String> {
         if self.ingress_class_name == "nginx" {
             if self.namespace.is_none() {
