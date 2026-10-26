@@ -97,15 +97,11 @@
               cargoToml = ./Cargo.toml;
             };
 
-          # Static binary for Linux, which is what the Docker image ships
-          mkBinary =
-            platform:
-            builders.${platform}.callPackage nixLib.mkRustPackage (
-              (mkBuildArgs { src = sources.main; })
-              // {
-                cargoExtraArgs = "--locked";
-              }
-            );
+          # Static binary for Linux, which is what the Docker image ships.
+          # `--locked` is deliberately not used: the shared build-docker workflow rewrites the package version in
+          # Cargo.toml (commit/pr suffix) without refreshing Cargo.lock, so `--locked` would fail every CI build.
+          # Dependencies stay pinned, as Nix vendors them from the Cargo.lock.
+          mkBinary = platform: builders.${platform}.callPackage nixLib.mkRustPackage (mkBuildArgs { src = sources.main; });
 
           binaries = {
             hoprd-operator-x86_64-linux = mkBinary "x86_64-linux";
