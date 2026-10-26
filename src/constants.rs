@@ -32,6 +32,10 @@ pub const HOPR_DOCKER_REGISTRY: &str = "europe-west3-docker.pkg.dev";
 pub const HOPR_DOCKER_IMAGE_NAME: &str = "hoprassociation/docker-images/hoprd";
 pub const HOPR_DOCKER_METRICS_IMAGE_NAME: &str = "hoprassociation/docker-images/hoprd-operator-metrics";
 
+// Image used by the init container and by the job that deletes the database of the nodes.
+// It uses a floating tag on purpose, so it keeps receiving the security patches of alpine
+pub const ALPINE_IMAGE: &str = "alpine:latest";
+
 // HOPRD Arguments
 pub const HOPRD_IDENTITY_FILE: &str = "HOPRD_IDENTITY_FILE";
 pub const HOPRD_CONFIGURATION: &str = "HOPRD_CONFIGURATION";

@@ -20,6 +20,19 @@ hoprdOperator:
     ##
     rpcProviderUrl: ""
 
+  kubectl:
+    ## @param hoprdOperator.kubectl.registry Docker registry to the kubectl image
+    ##
+    registry: docker.io
+
+    ## @param hoprdOperator.kubectl.repository Docker image with kubectl and bash, used by the jobs that talk to the Kubernetes API
+    ##
+    repository: alpine/k8s
+
+    ## @param hoprdOperator.kubectl.tag Docker image tag of the kubectl image
+    ##
+    tag: 1.36.5
+
   fastSync:
     ## @param hoprdOperator.fastSync.enabled Enable Fast Sync
     ## Required: true
