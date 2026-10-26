@@ -11,7 +11,6 @@ use kube::{
 };
 use std::sync::Arc;
 use tokio::time::Duration;
-use tracing::error;
 
 use crate::{
     constants::{self},
@@ -72,19 +71,6 @@ async fn reconcile(identity_hoprd: Arc<IdentityHoprd>, context: Arc<ContextData>
     }
 }
 
-/// Actions to be taken when a reconciliation fails - for whatever reason.
-/// Prints out the error to `stderr` and requeues the resource for another reconciliation after
-/// five seconds.
-///
-/// # Arguments
-/// - `identity_hoprd`: The erroneous resource.
-/// - `error`: A reference to the `kube::Error` that occurred during reconciliation.
-/// - `_context`: Unused argument. Context Data "injected" automatically by kube-rs.
-pub fn on_error(identity_hoprd: Arc<IdentityHoprd>, error: &Error, _context: Arc<ContextData>) -> Action {
-    error!("[IdentityHoprd] Reconciliation error:\n{:?}.\n{:?}", error, identity_hoprd);
-    Action::requeue(Duration::from_secs(constants::RECONCILE_SHORT_FREQUENCY))
-}
-
 /// Initialize the controller
 pub async fn run(client: Client, context_data: Arc<ContextData>) {
     let owned_api: Api<IdentityHoprd> = Api::<IdentityHoprd>::all(client.clone());
@@ -93,18 +79,7 @@ pub async fn run(client: Client, context_data: Arc<ContextData>) {
     Controller::new(owned_api, Config::default())
         .owns(pvc, Config::default())
         .shutdown_on_signal()
-        .run(reconciler, on_error, context_data)
-        .for_each(|reconciliation_result| async move {
-            match reconciliation_result {
-                Ok(_) => {}
-                Err(reconciliation_err) => {
-                    let err_string = reconciliation_err.to_string();
-                    if !err_string.contains("that was not found in local store") && !err_string.contains("event queue error") {
-                        // https://github.com/kube-rs/kube/issues/712
-                        error!("[IdentityHoprd] Reconciliation error: {:?}", reconciliation_err)
-                    }
-                }
-            }
-        })
+        .run(reconciler, utils::on_error, context_data)
+        .for_each(|reconciliation_result| async move { utils::log_reconciliation_result("IdentityHoprd", reconciliation_result) })
         .await;
 }

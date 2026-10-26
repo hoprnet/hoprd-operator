@@ -22,8 +22,7 @@ use k8s_openapi::api::{
     batch::v1::{Job, JobStatus},
 };
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::{LabelSelector, OwnerReference};
-use kube::api::{DeleteParams, ObjectMeta, Patch, PatchParams, PostParams, WatchEvent, WatchParams};
-use kube::runtime::wait::{await_condition, conditions};
+use kube::api::{ObjectMeta, Patch, PatchParams, PostParams, WatchEvent, WatchParams};
 use kube::{Api, Client, Resource, ResourceExt};
 use rand::RngExt;
 use serde_json::{json, Value};
@@ -51,9 +50,8 @@ pub async fn create_deployment(context_data: Arc<ContextData>, hoprd: &Hoprd, id
     labels.insert(constants::LABEL_NODE_MODULE_ADDRESS.to_owned(), identity_hoprd.spec.module_address.to_owned());
 
     // Propagating ClusterHopd instance
-    if hoprd.labels().contains_key(constants::LABEL_NODE_CLUSTER) {
-        let cluster_hoprd: String = hoprd.labels().get_key_value(constants::LABEL_NODE_CLUSTER).unwrap().1.parse().unwrap();
-        labels.insert(constants::LABEL_NODE_CLUSTER.to_owned(), cluster_hoprd);
+    if let Some(cluster_hoprd) = hoprd.labels().get(constants::LABEL_NODE_CLUSTER) {
+        labels.insert(constants::LABEL_NODE_CLUSTER.to_owned(), cluster_hoprd.to_owned());
     }
 
     // Add the user defined labels and annotations to the deployment metadata, keeping them out of the
@@ -177,8 +175,8 @@ pub async fn modify_deployment(
         mark_keys_as_removed(template_metadata, "annotations", &removed_annotations);
     }
     let mut metadata = serde_json::Map::new();
-    metadata.insert("labels".to_owned(), serde_json::to_value(&custom_labels).unwrap());
-    metadata.insert("annotations".to_owned(), serde_json::to_value(&custom_annotations).unwrap());
+    metadata.insert("labels".to_owned(), serde_json::to_value(&custom_labels)?);
+    metadata.insert("annotations".to_owned(), serde_json::to_value(&custom_annotations)?);
     mark_keys_as_removed(&mut metadata, "labels", &removed_labels);
     mark_keys_as_removed(&mut metadata, "annotations", &removed_annotations);
     let patch = &Patch::Merge(json!({
@@ -369,25 +367,19 @@ pub fn metrics_container(identity_pool: &IdentityPool) -> Container {
 }
 
 /// Deletes an existing deployment.
-pub async fn delete_depoyment(client: Client, name: &str, namespace: &str) -> Result<(), Error> {
+pub async fn delete_deployment(client: Client, name: &str, namespace: &str) -> Result<(), Error> {
     let api: Api<Deployment> = Api::namespaced(client, namespace);
-    if let Some(deployment) = api.get_opt(name).await? {
-        let uid = deployment.metadata.uid.unwrap();
-        api.delete(name, &DeleteParams::default()).await?;
-        await_condition(api, name, conditions::is_deleted(&uid)).await.unwrap();
-        Ok(info!("Deployment {name} successfully deleted"))
-    } else {
-        Ok(info!("Deployment {name} in namespace {namespace} about to delete not found"))
-    }
+    crate::utils::delete_and_wait(api, name).await?;
+    Ok(())
 }
 
 pub async fn delete_database(context_data: Arc<ContextData>, deployment_name: &str, namespace: &str) -> Result<(), Error> {
     let api: Api<Deployment> = Api::namespaced(context_data.client.clone(), namespace);
-    let deployment = api.get(deployment_name).await.unwrap();
-    let spec = deployment.spec.as_ref().unwrap();
-    let volumes = spec.template.spec.clone().unwrap().volumes.unwrap().clone();
-    let volume: &Volume = volumes.iter().find(|&volume| volume.name.eq("hoprd-db")).unwrap();
-    let pvc_name = volume.persistent_volume_claim.as_ref().unwrap().claim_name.clone();
+    let deployment = api.get(deployment_name).await?;
+    let invalid_deployment = || Error::HoprdStatusError(format!("Deployment '{deployment_name}' in namespace '{namespace}' has no hoprd-db volume"));
+    let volumes = deployment.spec.as_ref().and_then(|spec| spec.template.spec.as_ref()).and_then(|pod_spec| pod_spec.volumes.as_ref()).ok_or_else(invalid_deployment)?;
+    let volume: &Volume = volumes.iter().find(|&volume| volume.name.eq("hoprd-db")).ok_or_else(invalid_deployment)?;
+    let pvc_name = volume.persistent_volume_claim.as_ref().ok_or_else(invalid_deployment)?.claim_name.clone();
     info!("Scaling down deployment {} in namespace {}", deployment_name, namespace);
     let patch = Patch::Merge(json!({ "spec": { "replicas": 0 } }));
     match api.patch(&deployment_name, &PatchParams::default(), &patch).await {

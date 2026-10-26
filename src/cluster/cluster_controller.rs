@@ -9,7 +9,6 @@ use kube::{
 };
 use std::sync::Arc;
 use tokio::time::Duration;
-use tracing::error;
 
 use crate::{
     cluster::cluster_hoprd::{ClusterHoprd, ClusterHoprdPhaseEnum},
@@ -41,13 +40,20 @@ enum ClusterHoprdAction {
 /// # Arguments
 /// - `cluster_hoprd`: A reference to `ClusterHoprd` being reconciled to decide next action upon.
 fn determine_action(cluster_hoprd: &ClusterHoprd) -> ClusterHoprdAction {
-    return if cluster_hoprd.meta().deletion_timestamp.is_some() && cluster_hoprd.status.is_some() && cluster_hoprd.status.as_ref().unwrap().phase.ne(&ClusterHoprdPhaseEnum::Deleting) {
+    return if cluster_hoprd.meta().deletion_timestamp.is_some() && cluster_hoprd.status.as_ref().is_some_and(|status| status.phase.ne(&ClusterHoprdPhaseEnum::Deleting)) {
         ClusterHoprdAction::Delete
     } else if cluster_hoprd.meta().finalizers.as_ref().map_or(true, |finalizers| finalizers.is_empty()) {
         ClusterHoprdAction::Create
-    } else if cluster_hoprd.status.as_ref().unwrap().phase == ClusterHoprdPhaseEnum::NotScaled || cluster_hoprd.status.as_ref().unwrap().phase == ClusterHoprdPhaseEnum::Scaling {
+    } else if cluster_hoprd.status.is_none() {
+        // A finalizer without status means the resource was not fully initialized: it is created again unless it is going away
+        if cluster_hoprd.meta().deletion_timestamp.is_some() {
+            ClusterHoprdAction::NoOp
+        } else {
+            ClusterHoprdAction::Create
+        }
+    } else if cluster_hoprd.status.as_ref().is_some_and(|status| matches!(status.phase, ClusterHoprdPhaseEnum::NotScaled | ClusterHoprdPhaseEnum::Scaling)) {
         ClusterHoprdAction::Rescale
-    } else if cluster_hoprd.status.as_ref().unwrap().phase == ClusterHoprdPhaseEnum::Deleting {
+    } else if cluster_hoprd.status.as_ref().is_some_and(|status| status.phase == ClusterHoprdPhaseEnum::Deleting) {
         ClusterHoprdAction::NoOp
     } else {
         let current_generation = cluster_hoprd.meta().generation.unwrap_or(0);
@@ -76,19 +82,6 @@ async fn reconcile(cluster_hoprd: Arc<ClusterHoprd>, context: Arc<ContextData>) 
     }
 }
 
-/// Actions to be taken when a reconciliation fails - for whatever reason.
-/// Prints out the error to `stderr` and requeues the resource for another reconciliation after
-/// five seconds.
-///
-/// # Arguments
-/// - `cluster_hoprd`: The erroneous resource.
-/// - `error`: A reference to the `kube::Error` that occurred during reconciliation.
-/// - `_context`: Unused argument. Context Data "injected" automatically by kube-rs.
-pub fn on_error(cluster_hoprd: Arc<ClusterHoprd>, error: &Error, _context: Arc<ContextData>) -> Action {
-    error!("[ClusterHoprd] Reconciliation error:\n{:?}.\n{:?}", error, cluster_hoprd);
-    Action::requeue(Duration::from_secs(constants::RECONCILE_SHORT_FREQUENCY))
-}
-
 /// Initialize the controller
 pub async fn run(client: Client, context_data: Arc<ContextData>) {
     let owned_api: Api<ClusterHoprd> = Api::<ClusterHoprd>::all(client.clone());
@@ -97,18 +90,7 @@ pub async fn run(client: Client, context_data: Arc<ContextData>) {
     Controller::new(owned_api, Config::default())
         .owns(hoprd, Config::default())
         .shutdown_on_signal()
-        .run(reconciler, on_error, context_data)
-        .for_each(|reconciliation_result| async move {
-            match reconciliation_result {
-                Ok(_) => {}
-                Err(reconciliation_err) => {
-                    let err_string = reconciliation_err.to_string();
-                    if !err_string.contains("that was not found in local store") && !err_string.contains("event queue error") {
-                        // https://github.com/kube-rs/kube/issues/712
-                        error!("[ClusterHoprd] Reconciliation error: {:?}", reconciliation_err)
-                    }
-                }
-            }
-        })
+        .run(reconciler, utils::on_error, context_data)
+        .for_each(|reconciliation_result| async move { utils::log_reconciliation_result("ClusterHoprd", reconciliation_result) })
         .await;
 }

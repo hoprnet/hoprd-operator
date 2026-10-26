@@ -64,7 +64,8 @@ async fn wait_for_webhook_ready() -> Result<(), String> {
 
 fn load_rustls_config(cert_path: &str, key_path: &str) -> Result<ServerConfig, Error> {
     // Install the ring crypto provider globally
-    default_provider().install_default().expect("Install ring provider");
+    // Fails only if a provider is already installed, which is harmless
+    let _ = default_provider().install_default();
 
     // Load certificate chain
     let dir = env::current_dir()?
@@ -72,7 +73,7 @@ fn load_rustls_config(cert_path: &str, key_path: &str) -> Result<ServerConfig, E
         .ok_or_else(|| anyhow::anyhow!("Invalid UTF-8 in current directory path"))?
         .to_owned();
     let cert_path = format!("{}/{}", dir.clone(), cert_path);
-    let cert_file = std::fs::File::open(&cert_path).expect(format!("Could not open cert file: {}", cert_path).as_str());
+    let cert_file = std::fs::File::open(&cert_path).map_err(|e| anyhow::anyhow!("Could not open cert file {}: {}", cert_path, e))?;
     let mut cert_reader = BufReader::new(cert_file);
     let cert_chain = certs(&mut cert_reader)
         .collect::<Result<Vec<_>, _>>()?
@@ -82,7 +83,7 @@ fn load_rustls_config(cert_path: &str, key_path: &str) -> Result<ServerConfig, E
 
     // Load private key
     let key_path = format!("{}/{}", dir.clone(), key_path);
-    let key_file = std::fs::File::open(&key_path).expect(format!("Could not open key file: {}", key_path).as_str());
+    let key_file = std::fs::File::open(&key_path).map_err(|e| anyhow::anyhow!("Could not open key file {}: {}", key_path, e))?;
     let mut key_reader = BufReader::new(key_file);
     let mut keys_raw = pkcs8_private_keys(&mut key_reader)
         .collect::<Result<Vec<_>, _>>()?;
@@ -101,13 +102,13 @@ fn load_rustls_config(cert_path: &str, key_path: &str) -> Result<ServerConfig, E
     Ok(cfg)
 }
 
-pub async fn run_webhook_server(webhook_config:WebhookConfig) {
+pub async fn run_webhook_server(webhook_config:WebhookConfig) -> Result<(), Error> {
     // Define Axum app with routes
     let app = Router::new().route("/convert", post(convert));
     let addr = SocketAddr::from(([0, 0, 0, 0], 8443));
 
     info!("Starting webhook server with TLS");
-    let server_config: ServerConfig = load_rustls_config(webhook_config.crt_file.as_str(), webhook_config.key_file.as_str()).expect("Invalid TLS");
+    let server_config: ServerConfig = load_rustls_config(webhook_config.crt_file.as_str(), webhook_config.key_file.as_str())?;
     let tls_config = RustlsConfig::from_config(server_config.into());
     // Spawn the server in a background task
     let server_handle = tokio::spawn(async move {
@@ -128,6 +129,7 @@ pub async fn run_webhook_server(webhook_config:WebhookConfig) {
         Ok(Err(e)) => error!("Webhook server stopped with error: {}", e),
         Err(e) => error!("Webhook server task panicked: {}", e),
     }
+    Ok(())
 }
 
 async fn add_observed_generation(resource: &mut Value) -> Result<(), String> {

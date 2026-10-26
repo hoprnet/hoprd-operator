@@ -1,12 +1,11 @@
 use k8s_openapi::api::core::v1::ServiceAccount;
 use k8s_openapi::api::rbac::v1::{PolicyRule, Role, RoleBinding, RoleRef, Subject};
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::OwnerReference;
-use kube::api::{DeleteParams, PostParams};
+use kube::api::{PostParams};
 use kube::core::ObjectMeta;
-use kube::runtime::wait::{await_condition, conditions};
 use kube::{Api, Client};
 use std::sync::Arc;
-use tracing::{error, info};
+use tracing::error;
 
 use crate::context_data::ContextData;
 
@@ -110,36 +109,18 @@ async fn create_role_binding(context_data: Arc<ContextData>, namespace: &String,
 
 async fn delete_service_account(client: Client, name: &str, namespace: &str) -> Result<(), Error> {
     let api: Api<ServiceAccount> = Api::namespaced(client, namespace);
-    if let Some(service_account) = api.get_opt(name).await? {
-        let uid = service_account.metadata.uid.unwrap();
-        api.delete(name, &DeleteParams::default()).await?;
-        await_condition(api, name, conditions::is_deleted(&uid)).await.unwrap();
-        Ok(info!("ServiceAccount {name} successfully deleted"))
-    } else {
-        Ok(info!("ServiceAccount {name} in namespace {namespace} about to delete not found"))
-    }
+    crate::utils::delete_and_wait(api, name).await?;
+    Ok(())
 }
 
 async fn delete_role(client: Client, name: &str, namespace: &str) -> Result<(), Error> {
     let api: Api<Role> = Api::namespaced(client, namespace);
-    if let Some(role) = api.get_opt(name).await? {
-        let uid = role.metadata.uid.unwrap();
-        api.delete(name, &DeleteParams::default()).await?;
-        await_condition(api, name, conditions::is_deleted(&uid)).await.unwrap();
-        Ok(info!("Role {name} successfully deleted"))
-    } else {
-        Ok(info!("Role {name} in namespace {namespace} about to delete not found"))
-    }
+    crate::utils::delete_and_wait(api, name).await?;
+    Ok(())
 }
 
 async fn delete_role_binding(client: Client, name: &str, namespace: &str) -> Result<(), Error> {
     let api: Api<RoleBinding> = Api::namespaced(client, namespace);
-    if let Some(role_binding) = api.get_opt(name).await? {
-        let uid = role_binding.metadata.uid.unwrap();
-        api.delete(name, &DeleteParams::default()).await?;
-        await_condition(api, name, conditions::is_deleted(&uid)).await.unwrap();
-        Ok(info!("RoleBinding {name} successfully deleted"))
-    } else {
-        Ok(info!("RoleBinding {name} in namespace {namespace} about to delete not found"))
-    }
+    crate::utils::delete_and_wait(api, name).await?;
+    Ok(())
 }

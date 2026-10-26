@@ -1,6 +1,115 @@
 use crate::constants;
 use crate::model::Error;
+use k8s_openapi::serde::de::DeserializeOwned;
+use kube::api::{DeleteParams, Patch, PatchParams};
+use kube::runtime::{conditions, wait::await_condition};
+use kube::{Api, Resource, ResourceExt};
 use std::collections::BTreeMap;
+use crate::context_data::ContextData;
+use kube::runtime::controller::Action;
+use std::fmt::{Debug, Display};
+use std::sync::Arc;
+use std::time::Duration;
+use serde::Serialize;
+use serde_json::json;
+use tracing::{error, info};
+
+/// Turns the absence of a value into `Error::MissingField` so callers can escalate it with `?` instead of unwrapping.
+pub trait OptionExt<T> {
+    fn or_missing(self, what: &str) -> Result<T, Error>;
+}
+
+impl<T> OptionExt<T> for Option<T> {
+    fn or_missing(self, what: &str) -> Result<T, Error> {
+        self.ok_or_else(|| Error::MissingField(what.to_owned()))
+    }
+}
+
+/// Fallible accessors for the identity of a Kubernetes resource, replacing `namespace().unwrap()`.
+pub trait ResourceIdentity: ResourceExt {
+    fn require_namespace(&self) -> Result<String, Error> {
+        self.namespace().ok_or_else(|| Error::MissingField(format!("namespace of {}", self.name_any())))
+    }
+    fn require_name(&self) -> Result<String, Error> {
+        self.meta().name.clone().ok_or_else(|| Error::MissingField("metadata.name".to_owned()))
+    }
+    fn require_uid(&self) -> Result<String, Error> {
+        self.uid().ok_or_else(|| Error::MissingField(format!("metadata.uid of {}", self.name_any())))
+    }
+}
+
+impl<K: ResourceExt> ResourceIdentity for K {}
+
+/// Error policy shared by all the controllers: logs the failure and requeues only the offending resource.
+pub fn on_error<K: Resource<DynamicType = ()> + Debug>(resource: Arc<K>, error: &Error, _context: Arc<ContextData>) -> Action {
+    error!("[{}] Reconciliation error:\n{:?}.\n{:?}", K::kind(&()), error, resource);
+    Action::requeue(Duration::from_secs(constants::RECONCILE_SHORT_FREQUENCY))
+}
+
+/// Logs the outcome of a reconciliation, skipping the known noise described in https://github.com/kube-rs/kube/issues/712
+pub fn log_reconciliation_result<T, E: Debug + Display>(kind: &str, result: Result<T, E>) {
+    if let Err(reconciliation_err) = result {
+        let err_string = reconciliation_err.to_string();
+        if !err_string.contains("that was not found in local store") && !err_string.contains("event queue error") {
+            error!("[{kind}] Reconciliation error: {:?}", reconciliation_err)
+        }
+    }
+}
+
+/// Merge-patches the `status` subresource of the named resource.
+///
+/// A failure is returned instead of being logged and ignored, so the reconciliation is requeued and the status is retried.
+pub async fn patch_status<K, S>(api: &Api<K>, name: &str, status: &S) -> Result<K, Error>
+where
+    K: Resource<DynamicType = ()> + Clone + Debug + DeserializeOwned,
+    S: Serialize,
+{
+    let patch = Patch::Merge(json!({ "status": status }));
+    api.patch_status(name, &PatchParams::default(), &patch).await.map_err(|error| {
+        let kind = K::kind(&());
+        error!("Could not update status on {kind} {name}: {:?}", error);
+        Error::HoprdStatusError(format!("Failed to update status for {kind} '{name}': {error}"))
+    })
+}
+
+/// Deletes the named resource if it exists and waits until it is gone.
+///
+/// Returns `true` when the resource existed and has been deleted, and `false` when there was nothing to delete.
+pub async fn delete_and_wait<K>(api: Api<K>, name: &str) -> Result<bool, Error>
+where
+    K: Resource<DynamicType = ()> + Clone + Debug + DeserializeOwned + Send + 'static,
+{
+    let kind = K::kind(&());
+    match api.get_opt(name).await? {
+        Some(resource) => {
+            api.delete(name, &DeleteParams::default()).await?;
+            await_deleted(api, &resource).await?;
+            info!("{kind} {name} successfully deleted");
+            Ok(true)
+        }
+        None => {
+            info!("{kind} {name} about to delete not found");
+            Ok(false)
+        }
+    }
+}
+
+/// Waits until the given resource, already requested to be deleted, is gone from the cluster.
+///
+/// The wait is bounded by `OPERATOR_JOB_TIMEOUT`, so a stuck finalizer can neither hang a reconciler forever nor panic it:
+/// it becomes an `Error` and the resource is requeued.
+pub async fn await_deleted<K>(api: Api<K>, resource: &K) -> Result<(), Error>
+where
+    K: Resource + Clone + Debug + DeserializeOwned + Send + 'static,
+{
+    let name = resource.name_any();
+    let uid = resource.require_uid()?;
+    let timeout = Duration::from_secs(constants::OPERATOR_JOB_TIMEOUT);
+    match tokio::time::timeout(timeout, await_condition(api, &name, conditions::is_deleted(&uid))).await {
+        Ok(result) => result.map(|_| ()).map_err(Error::from),
+        Err(_) => Err(Error::JobExecutionError(format!("Timed out waiting for the deletion of {name}"))),
+    }
+}
 
 pub fn common_lables(name: String, instance: Option<String>, component: Option<String>) -> BTreeMap<String, String> {
     let mut labels: BTreeMap<String, String> = BTreeMap::new();

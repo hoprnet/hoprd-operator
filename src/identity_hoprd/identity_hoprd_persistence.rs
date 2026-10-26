@@ -1,4 +1,5 @@
 use crate::context_data::ContextData;
+use crate::utils::{OptionExt, ResourceIdentity};
 use k8s_openapi::api::core::v1::{PersistentVolumeClaim, PersistentVolumeClaimSpec, VolumeResourceRequirements};
 use k8s_openapi::apimachinery::pkg::api::resource::Quantity;
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::OwnerReference;
@@ -11,12 +12,12 @@ use crate::identity_hoprd::identity_hoprd_resource::IdentityHoprd;
 use crate::utils;
 
 /// Creates the Persitence Volume Claim
-pub async fn create_pvc(context: Arc<ContextData>, identity_hoprd: &IdentityHoprd) -> Result<PersistentVolumeClaim, kube::Error> {
+pub async fn create_pvc(context: Arc<ContextData>, identity_hoprd: &IdentityHoprd) -> Result<PersistentVolumeClaim, crate::model::Error> {
     let client = context.client.clone();
-    let namespace: String = identity_hoprd.namespace().unwrap();
+    let namespace: String = identity_hoprd.require_namespace()?;
     let name: String = identity_hoprd.name_any();
     let identity_pool_name: String = identity_hoprd.spec.identity_pool_name.to_owned();
-    let owner_references: Option<Vec<OwnerReference>> = Some(vec![identity_hoprd.controller_owner_ref(&()).unwrap()]);
+    let owner_references: Option<Vec<OwnerReference>> = Some(vec![identity_hoprd.controller_owner_ref(&()).or_missing("controller owner reference")?]);
     let labels: Option<BTreeMap<String, String>> = Some(utils::common_lables(identity_pool_name, Some(name.to_owned()), None));
     let mut resource: BTreeMap<String, Quantity> = BTreeMap::new();
     resource.insert("storage".to_string(), Quantity(context.config.persistence.size.to_owned()));
@@ -44,5 +45,5 @@ pub async fn create_pvc(context: Arc<ContextData>, identity_hoprd: &IdentityHopr
 
     // Create the deployment defined above
     let api: Api<PersistentVolumeClaim> = Api::namespaced(client.clone(), &namespace);
-    api.create(&PostParams::default(), &pvc).await
+    Ok(api.create(&PostParams::default(), &pvc).await?)
 }

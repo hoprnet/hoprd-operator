@@ -1,4 +1,5 @@
 use crate::model::Error as HoprError;
+use crate::utils::OptionExt;
 use json_patch::{PatchOperation, ReplaceOperation};
 use json_patch::jsonptr::PointerBuf;
 use k8s_openapi::{
@@ -18,7 +19,7 @@ use crate::{context_data::ContextData, operator_config::IngressConfig};
 
 // Modifies Nginx deployment to add a range of ports that will be used by the operator while creating new nodes
 async fn open_nginx_deployment_ports(client: Client, ingress_config: &IngressConfig) -> Result<(), HoprError> {
-    let namespace = ingress_config.namespace.as_ref().unwrap();
+    let namespace = ingress_config.namespace()?;
     let min_port: i32 = ingress_config.port_min.into();
     let max_port: i32 = ingress_config.port_max as i32 + 1;
     if !(1024..=65535).contains(&min_port) || !(1024..=65535).contains(&max_port) {
@@ -27,12 +28,18 @@ async fn open_nginx_deployment_ports(client: Client, ingress_config: &IngressCon
     if min_port >= max_port {
         return Err(HoprError::UserInputError("min_port must be less than max_port".into()));
     }
-    let field_selector = format!("metadata.name={}", ingress_config.deployment_name.as_ref().unwrap());
+    let field_selector = format!("metadata.name={}", ingress_config.deployment_name()?);
     let api_deployment: Api<Deployment> = Api::namespaced(client.clone(), namespace);
     let deployments = api_deployment.list(&ListParams::default().fields(&field_selector)).await?;
-    let mut deployment = deployments.items.first().map(|deployment| deployment.to_owned()).unwrap();
-    let pod_spec = deployment.to_owned().spec.unwrap().template.spec.unwrap().to_owned();
-    let deployment_ports: Vec<ContainerPort> = pod_spec.containers.first().unwrap().ports.as_ref().unwrap().to_owned();
+    let mut deployment = deployments.items.first().map(|deployment| deployment.to_owned()).or_missing("nginx deployment")?;
+    let deployment_name = deployment.metadata.name.clone().or_missing("nginx deployment name")?;
+    let container = deployment
+        .spec
+        .as_mut()
+        .and_then(|spec| spec.template.spec.as_mut())
+        .and_then(|pod_spec| pod_spec.containers.first_mut())
+        .or_missing("nginx deployment container")?;
+    let deployment_ports: Vec<ContainerPort> = container.ports.clone().unwrap_or_default();
     let mut new_deployment_ports: Vec<ContainerPort> = deployment_ports
         .iter()
         .map(|e| e.to_owned())
@@ -52,24 +59,25 @@ async fn open_nginx_deployment_ports(client: Client, ingress_config: &IngressCon
             ..ContainerPort::default()
         });
     }
-    deployment.spec.as_mut().unwrap().template.spec.as_mut().unwrap().containers[0].ports = Some(new_deployment_ports.to_owned());
+    container.ports = Some(new_deployment_ports);
 
     let json_patch = json_patch::Patch(vec![PatchOperation::Replace(ReplaceOperation {
-        path: PointerBuf::parse("/spec/template/spec/containers").unwrap(),
-        value: json!([deployment.spec.as_mut().unwrap().template.spec.as_mut().unwrap().containers[0]]),
+        path: PointerBuf::parse("/spec/template/spec/containers").map_err(|e| HoprError::UserInputError(format!("Invalid JSON pointer: {e}")))?,
+        value: json!([container]),
     })]);
     let patch: Patch<Value> = Patch::Json(json_patch);
 
-    match api_deployment.patch(&deployment.metadata.name.as_ref().unwrap().to_owned(), &PatchParams::default(), &patch).await {
+    match api_deployment.patch(&deployment_name, &PatchParams::default(), &patch).await {
         Ok(_) => Ok(()),
         Err(error) => Ok(error!("Could not open Nginx default ports on deployment: {:?}", error)),
     }
 }
 
 /// Boot operator
-pub async fn start(client: Client, context_data: Arc<ContextData>) {
+pub async fn start(client: Client, context_data: Arc<ContextData>) -> Result<(), HoprError> {
     // Open Nginx Ports
     if context_data.config.ingress.ingress_class_name == "nginx" {
-        open_nginx_deployment_ports(client.clone(), &context_data.config.ingress).await.unwrap();
+        open_nginx_deployment_ports(client.clone(), &context_data.config.ingress).await?;
     }
+    Ok(())
 }

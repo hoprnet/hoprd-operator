@@ -1,12 +1,10 @@
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::OwnerReference;
-use kube::api::{DeleteParams, PostParams};
+use kube::api::{PostParams};
 use kube::core::ObjectMeta;
-use kube::runtime::wait::{await_condition, conditions};
 use kube::Error;
 use kube::{Api, Client};
 use std::collections::BTreeMap;
 use std::sync::Arc;
-use tracing::info;
 
 use crate::context_data::ContextData;
 use crate::servicemonitor::{
@@ -106,14 +104,8 @@ fn build_metric_relabel() -> Vec<ServiceMonitorEndpointsRelabelings> {
 }
 
 /// Deletes an existing serviceMonitor.
-pub async fn delete_service_monitor(client: Client, name: &str, namespace: &str) -> Result<(), Error> {
+pub async fn delete_service_monitor(client: Client, name: &str, namespace: &str) -> Result<(), crate::model::Error> {
     let api: Api<ServiceMonitor> = Api::namespaced(client, namespace);
-    if let Some(service_monitor) = api.get_opt(name).await? {
-        let uid = service_monitor.metadata.uid.unwrap();
-        api.delete(name, &DeleteParams::default()).await?;
-        await_condition(api, name, conditions::is_deleted(&uid)).await.unwrap();
-        Ok(info!("ServiceMonitor {name} successfully deleted"))
-    } else {
-        Ok(info!("ServiceMonitor {name} in namespace {namespace} about to delete not found"))
-    }
+    crate::utils::delete_and_wait(api, name).await?;
+    Ok(())
 }

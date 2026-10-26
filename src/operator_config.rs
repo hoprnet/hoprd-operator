@@ -29,6 +29,35 @@ pub struct IngressConfig {
     pub deployment_name: Option<String>,
 }
 
+impl IngressConfig {
+    /// Checks at boot the fields that the nginx integration cannot work without, so a misconfiguration stops the operator
+    /// at startup instead of failing every reconciliation later.
+    pub fn validate(&self) -> Result<(), String> {
+        if self.ingress_class_name == "nginx" {
+            if self.namespace.is_none() {
+                return Err("ingress.namespace is required when ingress_class_name is 'nginx'".to_owned());
+            }
+            if self.deployment_name.is_none() {
+                return Err("ingress.deployment_name is required when ingress_class_name is 'nginx'".to_owned());
+            }
+        }
+        if self.port_min >= self.port_max {
+            return Err("ingress.port_min must be lower than ingress.port_max".to_owned());
+        }
+        Ok(())
+    }
+
+    /// The ingress namespace. It is guaranteed by `validate` for nginx, so this only fails for other ingress classes.
+    pub fn namespace(&self) -> Result<&str, crate::model::Error> {
+        self.namespace.as_deref().ok_or_else(|| crate::model::Error::MissingField("ingress.namespace".to_owned()))
+    }
+
+    /// The ingress controller deployment name. It is guaranteed by `validate` for nginx, so this only fails for other ingress classes.
+    pub fn deployment_name(&self) -> Result<&str, crate::model::Error> {
+        self.deployment_name.as_deref().ok_or_else(|| crate::model::Error::MissingField("ingress.deployment_name".to_owned()))
+    }
+}
+
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Hash)]
 pub struct PersistenceConfig {
     pub size: String,

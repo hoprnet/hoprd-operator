@@ -56,4 +56,15 @@ pub enum Error {
     /// A reconciliation panicked and was recovered
     #[error("Reconciler panic: {0}")]
     ReconcilerPanic(String),
+
+    /// Waiting for a Kubernetes condition failed
+    #[error("Wait error: {0}")]
+    WaitError(
+        #[from]
+        kube::runtime::wait::Error,
+    ),
+
+    /// A field that the operator needs is not present in the resource or in the cluster object
+    #[error("Missing required field: {0}")]
+    MissingField(String),
 }

@@ -4,9 +4,8 @@ use k8s_openapi::{
     apimachinery::pkg::{apis::meta::v1::OwnerReference, util::intstr::IntOrString},
 };
 use kube::{
-    api::{DeleteParams, PostParams},
+    api::{PostParams},
     core::ObjectMeta,
-    runtime::wait::{await_condition, conditions},
     Api, Client,
 };
 use schemars::JsonSchema;
@@ -180,10 +179,9 @@ async fn create_load_balancer_service(
             .and_then(|first_ingress| first_ingress.ip.clone());
     }
 
-    if load_balancer_ip.is_none() {
-        //return Err(Error::HoprdStatusError("Failed to obtain load balancer IP within the expected time frame".to_string()));
+    let Some(load_balancer_ip) = load_balancer_ip else {
         return Err(HoprdError::HoprdStatusError("Failed to obtain load balancer IP within the expected time frame".to_string()));
-    }
+    };
 
     let service_udp: Service = Service {
         metadata: ObjectMeta {
@@ -194,7 +192,7 @@ async fn create_load_balancer_service(
             ..ObjectMeta::default()
         },
         spec: Some(ServiceSpec {
-            load_balancer_ip: load_balancer_ip.clone(),
+            load_balancer_ip: Some(load_balancer_ip.clone()),
             selector: Some(labels.clone()),
             type_: Some("LoadBalancer".to_owned()),
             ports: Some(build_ports(starting_port, last_port, Some("udp"))),
@@ -203,7 +201,7 @@ async fn create_load_balancer_service(
         ..Service::default()
     };
     api_service.create(&PostParams::default(), &service_udp).await?;
-    Ok(load_balancer_ip.unwrap())
+    Ok(load_balancer_ip)
 }
 
 async fn create_cluster_ip_service(
@@ -280,26 +278,14 @@ fn build_ports(starting_port: u16, last_port: u16, port_name: Option<&str>) -> V
 ///
 pub async fn delete_service(client: Client, name: &str, namespace: &str, service_type: &ServiceTypeEnum) -> Result<(), HoprdError> {
     let api: Api<Service> = Api::namespaced(client, namespace);
-    delete_named_service(&api, name, namespace).await?;
-    delete_named_service(&api, &format!("{}-metrics", name), namespace).await?;
-    delete_named_service(&api, &format!("{}-api", name), namespace).await?;
+    utils::delete_and_wait(api.clone(), name).await?;
+    utils::delete_and_wait(api.clone(), &format!("{}-metrics", name)).await?;
+    utils::delete_and_wait(api.clone(), &format!("{}-api", name)).await?;
 
     if service_type.eq(&ServiceTypeEnum::LoadBalancer) {
-        delete_named_service(&api, &format!("{}-tcp", name), namespace).await?;
-        delete_named_service(&api, &format!("{}-udp", name), namespace).await?;
+        utils::delete_and_wait(api.clone(), &format!("{}-tcp", name)).await?;
+        utils::delete_and_wait(api.clone(), &format!("{}-udp", name)).await?;
     }
 
-    Ok(())
-}
-
-async fn delete_named_service(api: &Api<Service>, service_name: &str, namespace: &str) -> Result<(), HoprdError> {
-    if let Some(service) = api.get_opt(service_name).await? {
-        let uid = service.metadata.uid.unwrap();
-        api.delete(service_name, &DeleteParams::default()).await?;
-        await_condition(api.clone(), service_name, conditions::is_deleted(&uid)).await.unwrap();
-        info!("Service {service_name} successfully deleted")
-    } else {
-        info!("Service {service_name} in namespace {namespace} about to delete not found")
-    }
     Ok(())
 }

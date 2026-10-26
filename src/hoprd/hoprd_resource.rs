@@ -1,4 +1,5 @@
 use crate::cluster::cluster_hoprd::{ClusterHoprd, ClusterHoprdPhaseEnum};
+use crate::utils::{OptionExt, ResourceIdentity};
 use crate::events::{ClusterHoprdEventEnum, HoprdEventEnum, IdentityHoprdEventEnum, IdentityPoolEventEnum};
 use crate::identity_hoprd::identity_hoprd_resource::{IdentityHoprd, IdentityHoprdPhaseEnum};
 use crate::identity_pool::identity_pool_resource::{IdentityPool, IdentityPoolPhaseEnum};
@@ -172,7 +173,7 @@ impl Hoprd {
     pub async fn modify(&mut self, context_data: Arc<ContextData>) -> Result<Action, Error> {
         let client: Client = context_data.client.clone();
         let hoprd_name: String = self.name_any();
-        if self.status.is_some() && self.status.as_ref().unwrap().phase.eq(&HoprdPhaseEnum::Failed) {
+        if self.status.as_ref().is_some_and(|status| status.phase.eq(&HoprdPhaseEnum::Failed)) {
             // Assumes that the next modification of the resource is to recover to a good state
             context_data.send_event(self, HoprdEventEnum::Modified, None).await;
             if self.spec.enabled.unwrap_or(true) {
@@ -182,7 +183,7 @@ impl Hoprd {
             }
             warn!("Detected a change in Hoprd {hoprd_name} while was in Failed phase. Automatically recovering to a Running/Stopped phase");
         } else if self.annotations().contains_key(constants::ANNOTATION_LAST_CONFIGURATION) {
-            let previous_hoprd_text: String = self.annotations().get_key_value(constants::ANNOTATION_LAST_CONFIGURATION).unwrap().1.parse().unwrap();
+            let previous_hoprd_text: String = self.annotations().get(constants::ANNOTATION_LAST_CONFIGURATION).cloned().or_missing(constants::ANNOTATION_LAST_CONFIGURATION)?;
             match serde_json::from_str::<Hoprd>(&previous_hoprd_text) {
                 Ok(previous_hoprd) => {
                     if self.changed_inmutable_fields(&previous_hoprd.spec) {
@@ -223,7 +224,7 @@ impl Hoprd {
     }
 
     async fn apply_modification(&mut self, context_data: Arc<ContextData>, identity: &IdentityHoprd, previous_deployment_spec: Option<HoprdDeploymentSpec>) -> Result<(), Error> {
-        let hoprd_namespace: String = self.namespace().unwrap();
+        let hoprd_namespace: String = self.require_namespace()?;
         let hoprd_name: String = self.name_any();
         hoprd_deployment::modify_deployment(context_data.clone(), &hoprd_name.to_owned(), &hoprd_namespace.to_owned(), &self.spec.to_owned(), previous_deployment_spec, identity).await?;
         if self.spec_mut().delete_database.unwrap_or(false) {
@@ -251,7 +252,7 @@ impl Hoprd {
     // Recreates the deployment when it has been manually deleted
     pub async fn recreate_deployment(&mut self, context_data: Arc<ContextData>) -> Result<Action, Error> {
         let client: Client = context_data.client.clone();
-        let hoprd_namespace: String = self.namespace().unwrap();
+        let hoprd_namespace: String = self.require_namespace()?;
         let hoprd_name: String = self.name_any();
         warn!("Deployment of Hoprd node {hoprd_name} in namespace {hoprd_namespace} was not found, recreating it");
         if let Some(identity) = self.get_identity(client.clone()).await? {
@@ -272,7 +273,7 @@ impl Hoprd {
     // Recovers the hoprd host and the p2p port range from the existing service, so that the
     // recreated deployment always matches the ports allocated in the service
     async fn get_service_allocation(&self, context_data: Arc<ContextData>) -> Result<(String, u16, u16), Error> {
-        let api: Api<Service> = Api::namespaced(context_data.client.clone(), &self.namespace().unwrap());
+        let api: Api<Service> = Api::namespaced(context_data.client.clone(), &self.require_namespace()?);
         let service_name = if self.spec.service.r#type.eq(&ServiceTypeEnum::ClusterIP) {
             self.name_any()
         } else {
@@ -314,7 +315,7 @@ impl Hoprd {
     // Deletes all the related resources
     pub async fn delete(&self, context_data: Arc<ContextData>) -> Result<Action, Error> {
         let hoprd_name = self.name_any();
-        let hoprd_namespace = self.namespace().unwrap();
+        let hoprd_namespace = self.require_namespace()?;
         let client: Client = context_data.client.clone();
         let current_phase = self.status.to_owned().unwrap_or_default().phase;
         // A previous attempt may have been interrupted (error or restart) leaving the phase in Deleting.
@@ -331,7 +332,7 @@ impl Hoprd {
         let service_type = self.spec.service.r#type.clone();
         hoprd_ingress::delete_ingress(context_data.clone(), &hoprd_name, &hoprd_namespace, &service_type).await?;
         hoprd_service::delete_service(client.clone(), &hoprd_name, &hoprd_namespace, &service_type).await?;
-        hoprd_deployment::delete_depoyment(client.clone(), &hoprd_name, &hoprd_namespace).await?;
+        hoprd_deployment::delete_deployment(client.clone(), &hoprd_name, &hoprd_namespace).await?;
         if let Some(identity) = self.get_identity(client.clone()).await? {
             identity.unlock(context_data.clone()).await?;
         } else {
@@ -357,9 +358,8 @@ impl Hoprd {
         let identity_created: Option<IdentityHoprd>;
         {
             let mut context_state = context_data.state.write().await;
-            let identity_pool_option = context_state.get_identity_pool(&self.namespace().unwrap(), &identity_pool_name);
-            if identity_pool_option.is_some() {
-                let mut identity_pool_arc = identity_pool_option.unwrap();
+            let identity_pool_option = context_state.get_identity_pool(&self.require_namespace()?, &identity_pool_name);
+            if let Some(mut identity_pool_arc) = identity_pool_option {
                 let identity_pool: &mut IdentityPool = Arc::<IdentityPool>::make_mut(&mut identity_pool_arc);
                 if let Some(identity) = identity_pool.get_ready_identity(context_data.client.clone(), identity_name).await? {
                     let already_locked = identity.status.as_ref().is_some_and(|status| status.phase == IdentityHoprdPhaseEnum::InUse);
@@ -374,18 +374,16 @@ impl Hoprd {
                     identity_created = None
                 }
             } else {
-                warn!("Identity pool {} not exists yet in namespace {}", identity_pool_name, &self.namespace().unwrap());
+                warn!("Identity pool {} not exists yet in namespace {}", identity_pool_name, &self.require_namespace()?);
                 identity_created = None
             }
         }
-        if identity_created.as_ref().is_some() {
-            let identity_pool = identity_created.as_ref().unwrap().get_identity_pool(context_data.client.clone()).await?;
+        if let Some(identity) = identity_created.as_ref() {
+            let identity_pool = identity.get_identity_pool(context_data.client.clone()).await?;
             context_data.send_event(&identity_pool, IdentityPoolEventEnum::Locked, hoprd_name.clone()).await;
-            context_data.send_event(identity_created.as_ref().unwrap(), IdentityHoprdEventEnum::InUse, hoprd_name.clone()).await;
-            Ok(identity_created)
-        } else {
-            Ok(None)
+            context_data.send_event(identity, IdentityHoprdEventEnum::InUse, hoprd_name.clone()).await;
         }
+        Ok(identity_created)
     }
 
     fn changed_inmutable_fields(&self, previous_hoprd: &HoprdSpec) -> bool {
@@ -407,22 +405,19 @@ impl Hoprd {
     }
 
     async fn update_status(&self, client: Client, phase: HoprdPhaseEnum) -> Result<(), Error> {
-        let hoprd_name = self.metadata.name.as_ref().unwrap().to_owned();
-        let hoprd_namespace = self.metadata.namespace.as_ref().unwrap().to_owned();
+        let hoprd_name = self.require_name()?;
+        let hoprd_namespace = self.require_namespace()?;
 
         let api: Api<Hoprd> = Api::namespaced(client.clone(), &hoprd_namespace.to_owned());
         let mut status = self.status.as_ref().unwrap_or(&HoprdStatus::default()).to_owned();
         status.phase = phase;
         status.observed_generation = self.metadata.generation.unwrap_or(0);
-        let patch = Patch::Merge(json!({ "status": status }));
-        match api.patch_status(&hoprd_name, &PatchParams::default(), &patch).await {
-            Ok(_) => Ok(()),
-            Err(error) => Ok(error!("Could not update status on node {hoprd_name}: {:?}", error)),
-        }
+        crate::utils::patch_status(&api, &hoprd_name, &status).await?;
+        Ok(())
     }
 
     async fn update_last_configuration(&self, client: Client) -> Result<(), Error> {
-        let api: Api<Hoprd> = Api::namespaced(client, &self.namespace().unwrap());
+        let api: Api<Hoprd> = Api::namespaced(client, &self.require_namespace()?);
         let mut cloned_hoprd = self.clone();
         cloned_hoprd.status = None;
         cloned_hoprd.metadata.managed_fields = None;
@@ -449,7 +444,7 @@ impl Hoprd {
 
     async fn notify_deletion_to_cluster(&self, context_data: Arc<ContextData>) -> Result<Option<ClusterHoprd>, Error> {
         if let Some(owner_reference) = self.owner_references().to_owned().first() {
-            let hoprd_namespace = self.metadata.namespace.as_ref().unwrap().to_owned();
+            let hoprd_namespace = self.require_namespace()?;
             let api: Api<ClusterHoprd> = Api::namespaced(context_data.client.clone(), &hoprd_namespace.to_owned());
             if let Some(cluster) = api.get_opt(&owner_reference.name).await? {
                 let current_phase = cluster.status.as_ref().map(|status| status.phase);
@@ -470,7 +465,7 @@ impl Hoprd {
     async fn get_identity(&self, client: Client) -> Result<Option<IdentityHoprd>, Error> {
         match &self.status {
             Some(_) => {
-                let api: Api<IdentityHoprd> = Api::namespaced(client.clone(), &self.namespace().unwrap());
+                let api: Api<IdentityHoprd> = Api::namespaced(client.clone(), &self.require_namespace()?);
                 Ok(api.get_opt(&self.spec.identity_name).await?)
             }
             None => {
@@ -486,25 +481,25 @@ impl Hoprd {
             let lp = WatchParams::default()
                 .fields(&format!("metadata.name={}", self.name_any()))
                 .timeout(constants::OPERATOR_NODE_SYNC_TIMEOUT);
-            let deployment_api: Api<Deployment> = Api::namespaced(client.clone(), &self.namespace().unwrap());
+            let deployment_api: Api<Deployment> = Api::namespaced(client.clone(), &self.require_namespace()?);
             let mut stream = deployment_api.watch(&lp, "0").await?.boxed();
             while let Some(deployment) = stream.try_next().await? {
                 match deployment {
                     WatchEvent::Added(deployment) => {
                         if deployment.status.as_ref().and_then(|status| status.ready_replicas).unwrap_or(0).eq(&1) {
-                            info!("Hoprd node {} deployment in namespace {:?} is added", self.name_any(), &self.namespace().unwrap());
+                            info!("Hoprd node {} deployment in namespace {:?} is added", self.name_any(), &self.require_namespace()?);
                             return Ok(());
                         }
                     }
                     WatchEvent::Modified(deployment) => {
                         if deployment.status.as_ref().and_then(|status| status.ready_replicas).unwrap_or(0).eq(&1) {
-                            info!("Hoprd node {} deployment in namespace {:?} is modified", self.name_any(), &self.namespace().unwrap());
+                            info!("Hoprd node {} deployment in namespace {:?} is modified", self.name_any(), &self.require_namespace()?);
                             return Ok(());
                         }
                     }
                     WatchEvent::Deleted(_) => return Err(Error::ClusterHoprdSynchError("Deleted operation not expected".to_owned())),
                     WatchEvent::Bookmark(_) => {
-                        warn!("Hoprd node {} deployment in namespace {:?} is bookmarked", self.name_any(), &self.namespace().unwrap());
+                        warn!("Hoprd node {} deployment in namespace {:?} is bookmarked", self.name_any(), &self.require_namespace()?);
                         return Ok(());
                     }
                     WatchEvent::Error(_) => return Err(Error::ClusterHoprdSynchError("Error operation not expected".to_owned())),

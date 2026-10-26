@@ -89,17 +89,18 @@ impl Default for HoprdDeploymentSpec {
             limits: Some(limits),
             ..Default::default()
         })
-        .unwrap();
+        // Serializing these static values cannot fail; if it ever did, the empty default is reported as a parse error by the getters instead of a panic
+        .unwrap_or_default();
 
         let default_probe = HoprdDeploymentSpec::build_probe("some/path".to_string(), Some(5), Some(1), Some(10));
-        let default_probe_string = Some(serde_yml::to_string(&default_probe).unwrap());
+        let default_probe_string = Some(serde_yml::to_string(&default_probe).unwrap_or_default());
 
         let default_env = vec![
             CustomEnvVar::new_value("RUST_BACKTRACE".to_owned(), "full".to_owned()),
             CustomEnvVar::new_value("RUST_LOG".to_owned(), "info".to_owned()),
             CustomEnvVar::new_value("HOPRD_LOG_FORMAT".to_owned(), "json".to_owned()),
         ];
-        let default_env_string = Some(serde_yml::to_string(&default_env).unwrap());
+        let default_env_string = Some(serde_yml::to_string(&default_env).unwrap_or_default());
 
         Self {
             resources: Some(resources_spec),
@@ -126,8 +127,8 @@ impl HoprdDeploymentSpec {
     pub fn get_resource_requirements(hoprd_deployment_spec: Option<HoprdDeploymentSpec>) -> Result<ResourceRequirements, Error> {
         let default_deployment_spec = HoprdDeploymentSpec::default();
         let hoprd_deployment_spec = hoprd_deployment_spec.unwrap_or(default_deployment_spec.clone());
-        let resource_requirements_string = hoprd_deployment_spec.resources.as_ref().unwrap_or(default_deployment_spec.resources.as_ref().unwrap());
-        let resource_requirements: ResourceRequirements = serde_yml::from_str(resource_requirements_string)?;
+        let resource_requirements_string = hoprd_deployment_spec.resources.or(default_deployment_spec.resources).unwrap_or_default();
+        let resource_requirements: ResourceRequirements = serde_yml::from_str(&resource_requirements_string)?;
         Ok(resource_requirements)
     }
 
@@ -135,12 +136,12 @@ impl HoprdDeploymentSpec {
         // Get default env vars
         let default_deployment_spec = HoprdDeploymentSpec::default();
         let hoprd_deployment_spec = hoprd_deployment_spec.unwrap_or(default_deployment_spec.clone());
-        let default_environment_variables: Vec<CustomEnvVar> = serde_yml::from_str(default_deployment_spec.env.as_ref().unwrap()).unwrap();
+        let default_environment_variables: Vec<CustomEnvVar> = serde_yml::from_str(default_deployment_spec.env.as_deref().unwrap_or_default())?;
         trace!("Default environment variables: {:?}", default_environment_variables);
         // Get custom env vars
-        let custom_environment_variables_string = hoprd_deployment_spec.env.as_ref().unwrap_or(default_deployment_spec.env.as_ref().unwrap());
+        let custom_environment_variables_string = hoprd_deployment_spec.env.or(default_deployment_spec.env).unwrap_or_default();
         trace!("Custom environment variables string: {}", custom_environment_variables_string);
-        let custom_environment_variables: Vec<CustomEnvVar> = serde_yml::from_str(custom_environment_variables_string)?;
+        let custom_environment_variables: Vec<CustomEnvVar> = serde_yml::from_str(&custom_environment_variables_string)?;
 
         // Merge default and custom env vars, giving precedence to custom ones in case of name conflicts
         let env_vars: Vec<EnvVar> = default_environment_variables.iter().filter(| &default_environment_variable| {

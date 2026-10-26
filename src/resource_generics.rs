@@ -13,7 +13,10 @@ use tracing::{debug, error};
 /// Adds a finalizer record into the K8s resource
 pub async fn add_finalizer<K: kube::Resource<Scope = NamespaceResourceScope, DynamicType = ()> + Clone + Debug + DeserializeOwned + Default>(client: Client, resource: &K) {
     let name = resource.name_any();
-    let namespace = resource.namespace().unwrap();
+    let Some(namespace) = resource.namespace() else {
+        error!("Could not add finalizer on resource {name}: it has no namespace");
+        return;
+    };
     let api: Api<K> = Api::namespaced(client.clone(), &namespace.to_owned());
     let patch = Patch::Merge(json!({
     "metadata": {
@@ -34,7 +37,10 @@ pub async fn delete_finalizer<K: kube::Resource<Scope = NamespaceResourceScope, 
     resource: &K,
 ) -> Result<(), kube::Error> {
     let name = resource.name_any();
-    let namespace = resource.namespace().unwrap();
+    let Some(namespace) = resource.namespace() else {
+        debug!("Resource {name} has no namespace, there is no finalizer to delete");
+        return Ok(());
+    };
     let api: Api<K> = Api::namespaced(client.clone(), &namespace.to_owned());
     let patch = Patch::Merge(json!({
        "metadata": {

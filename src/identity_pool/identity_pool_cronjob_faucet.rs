@@ -1,9 +1,9 @@
 use k8s_openapi::api::batch::v1::{CronJob, CronJobSpec, JobSpec, JobTemplateSpec};
+use crate::utils::{OptionExt, ResourceIdentity};
 use k8s_openapi::api::core::v1::{Container, EmptyDirVolumeSource, EnvVar, EnvVarSource, PodSpec, PodTemplateSpec, SecretKeySelector, Volume, VolumeMount};
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::OwnerReference;
-use kube::api::{DeleteParams, Patch, PatchParams, PostParams};
+use kube::api::{Patch, PatchParams, PostParams};
 use kube::core::ObjectMeta;
-use kube::runtime::wait::{await_condition, conditions};
 use kube::{Api, Client};
 use kube::{Resource, ResourceExt};
 use serde_json::json;
@@ -20,11 +20,11 @@ use crate::{constants, utils};
 /// Creates a new CronJob to enable the monitoring with Prometheus of the hoprd node,
 pub async fn create_cron_job(context_data: Arc<ContextData>, identity_pool: &IdentityPool) -> Result<CronJob, Error> {
     let identity_pool_name = identity_pool.name_any();
-    let namespace: String = identity_pool.metadata.namespace.as_ref().unwrap().to_owned();
+    let namespace: String = identity_pool.require_namespace()?;
     let cron_job_name: String = format!("auto-funding-{}", identity_pool_name);
     info!("Creating CronJob {cron_job_name} for identity pool {identity_pool_name} in namespace {namespace}");
     validate_funding(identity_pool)?;
-    let owner_references: Option<Vec<OwnerReference>> = Some(vec![identity_pool.controller_owner_ref(&()).unwrap()]);
+    let owner_references: Option<Vec<OwnerReference>> = Some(vec![identity_pool.controller_owner_ref(&()).or_missing("controller owner reference")?]);
     let mut labels: BTreeMap<String, String> = utils::common_lables(identity_pool_name.to_owned(), None, Some("auto-funding".to_owned()));
     labels.insert(constants::LABEL_KUBERNETES_IDENTITY_POOL.to_owned(), identity_pool_name.to_owned());
 
@@ -40,7 +40,7 @@ pub async fn create_cron_job(context_data: Arc<ContextData>, identity_pool: &Ide
             concurrency_policy: Some("Forbid".to_owned()),
             failed_jobs_history_limit: Some(3),
             successful_jobs_history_limit: Some(3),
-            schedule: identity_pool.spec.funding.to_owned().unwrap().schedule,
+            schedule: identity_pool.spec.funding.as_ref().or_missing("IdentityPool funding")?.schedule.to_owned(),
             job_template: JobTemplateSpec {
                 metadata: Some(ObjectMeta::default()),
                 spec: Some(get_job_template(context_data.clone(), identity_pool).await?),
@@ -52,7 +52,7 @@ pub async fn create_cron_job(context_data: Arc<ContextData>, identity_pool: &Ide
 
     info!("CronJob {} created", &cron_job_name.to_owned());
     let api: Api<CronJob> = Api::namespaced(context_data.client.clone(), &namespace);
-    let created_cron_job = api.create(&PostParams::default(), &cron_job).await.unwrap();
+    let created_cron_job = api.create(&PostParams::default(), &cron_job).await?;
 
     Ok(created_cron_job)
 }
@@ -113,7 +113,7 @@ async fn get_job_template(context_data: Arc<ContextData>, identity_pool: &Identi
         parallelism: Some(1),
         completions: Some(1),
         backoff_limit: Some(2),
-        active_deadline_seconds: Some(constants::OPERATOR_JOB_TIMEOUT.try_into().unwrap()),
+        active_deadline_seconds: Some(i64::try_from(constants::OPERATOR_JOB_TIMEOUT).unwrap_or(i64::MAX)),
         template: PodTemplateSpec {
             metadata: Some(ObjectMeta::default()),
             spec: Some(PodSpec {
@@ -183,15 +183,21 @@ async fn get_env_var(secret_name: String) -> Vec<EnvVar> {
 
 pub async fn modify_cron_job(context_data: Arc<ContextData>, identity_pool: &IdentityPool) -> Result<CronJob, Error> {
     let identity_pool_name = identity_pool.name_any();
-    let namespace: String = identity_pool.metadata.namespace.as_ref().unwrap().to_owned();
+    let namespace: String = identity_pool.require_namespace()?;
     validate_funding(identity_pool)?;
     info!("Modifying Cronjob {identity_pool_name} in namespace {namespace}");
     let cron_job_name: String = format!("auto-funding-{}", identity_pool_name);
     let api: Api<CronJob> = Api::namespaced(context_data.client.clone(), &namespace);
     if let Some(cron_job) = api.get_opt(&cron_job_name).await? {
-        let mut cron_job_spec = cron_job.spec.clone().unwrap();
-        cron_job_spec.schedule = identity_pool.spec.funding.clone().unwrap().schedule;
-        let container = cron_job_spec.job_template.spec.as_mut().unwrap().template.spec.as_mut().unwrap().containers.first_mut().unwrap();
+        let mut cron_job_spec = cron_job.spec.clone().or_missing("CronJob spec")?;
+        cron_job_spec.schedule = identity_pool.spec.funding.as_ref().or_missing("IdentityPool funding")?.schedule.clone();
+        let container = cron_job_spec
+            .job_template
+            .spec
+            .as_mut()
+            .and_then(|job_spec| job_spec.template.spec.as_mut())
+            .and_then(|pod_spec| pod_spec.containers.first_mut())
+            .or_missing("CronJob container")?;
         container.args = build_args_line().await;
         container.env = Some({
             let mut env_vars = get_env_var(identity_pool.spec.secret_name.to_owned()).await;
@@ -199,7 +205,7 @@ pub async fn modify_cron_job(context_data: Arc<ContextData>, identity_pool: &Ide
             env_vars
         });
         let patch = &Patch::Merge(json!({ "spec": cron_job_spec }));
-        let cron_job = api.patch(&cron_job_name, &PatchParams::default(), patch).await.expect("Could not modify cronjob");
+        let cron_job = api.patch(&cron_job_name, &PatchParams::default(), patch).await?;
         Ok(cron_job)
     } else {
         Err(Error::HoprdConfigError(format!("CronJob {cron_job_name} was not found in namespace {namespace}")))
@@ -209,16 +215,10 @@ pub async fn modify_cron_job(context_data: Arc<ContextData>, identity_pool: &Ide
 /// Deletes an existing CronJob.
 pub async fn delete_cron_job(client: Client, identity_pool: &IdentityPool) -> Result<(), Error> {
     let identity_pool_name = identity_pool.name_any();
-    let namespace: String = identity_pool.metadata.namespace.as_ref().unwrap().to_owned();
+    let namespace: String = identity_pool.require_namespace()?;
     info!("Deleting previous Cronjob {identity_pool_name} in namespace {namespace}");
     let cron_job_name: String = format!("auto-funding-{}", identity_pool_name);
     let api: Api<CronJob> = Api::namespaced(client, &namespace);
-    if let Some(create_cron_job) = api.get_opt(&cron_job_name).await? {
-        let uid = create_cron_job.metadata.uid.unwrap();
-        api.delete(&cron_job_name, &DeleteParams::default()).await?;
-        await_condition(api, &cron_job_name, conditions::is_deleted(&uid)).await.unwrap();
-        Ok(info!("CronJob {cron_job_name} successfully deleted"))
-    } else {
-        Ok(info!("CronJob {cron_job_name} in namespace {namespace} about to delete not found"))
-    }
+    crate::utils::delete_and_wait(api, &cron_job_name).await?;
+    Ok(())
 }

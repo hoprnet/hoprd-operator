@@ -1,4 +1,9 @@
-use kube::{Client, Result};
+// Panics take down every controller of the shared operator, so unrecoverable shortcuts are rejected at compile time.
+// Fallible code must return `Error` (see `utils::OptionExt` and `utils::ResourceIdentity`).
+#![cfg_attr(not(test), deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unreachable, clippy::todo, clippy::unimplemented))]
+
+use anyhow::{anyhow, Context, Result};
+use kube::Client;
 use rustls::crypto::ring;
 use std::{env, sync::Arc};
 
@@ -29,26 +34,26 @@ use tracing_subscriber::{Layer, layer::SubscriberExt};
 #[tokio::main]
 async fn main() -> Result<()> {
     // 1. Initialize logger
-    init_logger().expect("Failed to initialize logger");
+    init_logger().context("Failed to initialize logger")?;
     let version = env!("CARGO_PKG_VERSION");
     info!("Starting hoprd-operator {}", version);
 
     // 2. Load operator configuration
-    let operator_config = load_operator_config().await.expect("Failed to load operator configuration");
+    let operator_config = load_operator_config().await.map_err(|e| anyhow!("Failed to load operator configuration: {e}"))?;
 
     // 3. Determine operator mode and start appropriate components  
     let mode = std::env::var("OPERATOR_MODE").unwrap_or_else(|_| "controller".into());
     match mode.as_str() {
         "webhook" => {
             info!("Starting in Webhook mode");
-            webhook_server::run_webhook_server(operator_config.webhook).await;
+            webhook_server::run_webhook_server(operator_config.webhook).await?;
         }
         "controller" => {
             info!("Starting in Controller mode");
-            start_controllers(operator_config.clone()).await;
+            start_controllers(operator_config.clone()).await?;
         }
         _ => {
-            panic!("Invalid OPERATOR_MODE: {}. Must be either 'webhook' or 'controller'", mode);
+            return Err(anyhow!("Invalid OPERATOR_MODE: {}. Must be either 'webhook' or 'controller'", mode));
         }
     }
 
@@ -57,7 +62,7 @@ async fn main() -> Result<()> {
 
 /// Load operator configuration from file based on environment
 async fn load_operator_config() -> Result<OperatorConfig, String> {
-    let operator_environment = env::var(constants::OPERATOR_ENVIRONMENT).expect("The OPERATOR_ENVIRONMENT environment variable is not set");
+    let operator_environment = env::var(constants::OPERATOR_ENVIRONMENT).map_err(|e| format!("The {} environment variable is not set: {e}", constants::OPERATOR_ENVIRONMENT))?;
     let config_path = if operator_environment.eq("production") {
         "/app/config/config.yaml".to_owned()
     } else {
@@ -70,25 +75,26 @@ async fn load_operator_config() -> Result<OperatorConfig, String> {
         path
     };
     info!("Loading operator configuration from: {}", config_path);
-    let config_file = std::fs::File::open(&config_path).expect("Could not open config file.");
-    let config: OperatorConfig = serde_yml::from_reader(config_file).expect("Could not read contents of config file.");
+    let config_file = std::fs::File::open(&config_path).map_err(|e| format!("Could not open config file {config_path}: {e}"))?;
+    let config: OperatorConfig = serde_yml::from_reader(config_file).map_err(|e| format!("Could not read contents of config file {config_path}: {e}"))?;
+    config.ingress.validate().map_err(|e| format!("Invalid operator configuration in {config_path}: {e}"))?;
     Ok(config)
 }
 
 // Start all Kubernetes controllers
-async fn start_controllers(operator_config: operator_config::OperatorConfig) {
+async fn start_controllers(operator_config: operator_config::OperatorConfig) -> Result<()> {
     // ⭐ 4. Initialize Kubernetes client and context data
     info!("Initializing Context Data...");
-    ring::default_provider().install_default().expect("failed to install rustls ring CryptoProvider");
-    let client: Client = Client::try_default().await.expect("Failed to create kube Client");
+    ring::default_provider().install_default().map_err(|_| anyhow!("failed to install rustls ring CryptoProvider"))?;
+    let client: Client = Client::try_default().await.context("Failed to create kube Client")?;
     let (context_data, deployment_writer, service_monitor_writer, cron_job_faucet_writer) = ContextData::new(client.clone(), operator_config).await;
     let context_data: Arc<ContextData> = Arc::new(context_data);
-    context_data.sync_identities().await.expect("Failed to sync identities");
-    context_data.sync_identity_pools().await.expect("Failed to sync identity pools");
+    context_data.sync_identities().await.map_err(|e| anyhow!("Failed to sync identities: {e}"))?;
+    context_data.sync_identity_pools().await.map_err(|e| anyhow!("Failed to sync identity pools: {e}"))?;
 
     // ⭐ 5. Initiatilize Kubernetes controllers
     info!("Starting Controllers...");
-    bootstrap_operator::start(client.clone(), context_data.clone()).await;
+    bootstrap_operator::start(client.clone(), context_data.clone()).await?;
     let controller_identity_pool = identity_pool::identity_pool_controller::run(client.clone(), context_data.clone(), service_monitor_writer, cron_job_faucet_writer).fuse();
     let controller_identity_hoprd = identity_hoprd::identity_hoprd_controller::run(client.clone(), context_data.clone()).fuse();
     let controller_hoprd = hoprd::hoprd_controller::run(client.clone(), context_data.clone(), deployment_writer).fuse();
@@ -101,6 +107,7 @@ async fn start_controllers(operator_config: operator_config::OperatorConfig) {
         () = controller_hoprd => println!("Controller Hoprd exited"),
         () = controller_cluster => println!("Controller ClusterHoprd exited"),
     }
+    Ok(())
 }
 
 
