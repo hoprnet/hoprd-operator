@@ -1,5 +1,3 @@
-use json_patch::{PatchOperation, ReplaceOperation};
-use json_patch::jsonptr::PointerBuf;
 use k8s_openapi::{
     api::{
         core::v1::ConfigMap,
@@ -122,36 +120,68 @@ pub async fn delete_ingress(context_data: Arc<ContextData>, name: &str, namespac
     Ok(())
 }
 
-/// Creates a new Ingress for accessing the hoprd node,
+/// Maximum number of attempts to allocate the ports when concurrent allocations conflict
+const OPEN_PORT_MAX_ATTEMPTS: u8 = 10;
+
+/// Opens the ports of a hoprd node in the shared nginx ConfigMaps.
 ///
+/// The ConfigMaps are shared by all the nodes, so two nodes created at the same time could choose the same ports.
+/// To avoid it, the TCP ConfigMap is patched with the `resourceVersion` that was used to choose the ports: if another
+/// node changed the ConfigMap in the meantime, the API server rejects the patch with a conflict and the allocation
+/// is calculated again from the fresh ConfigMap.
 pub async fn open_port(client: Client, service_namespace: &str, service_name: &str, session_port_allocation: u16, ingress_config: &IngressConfig) -> Result<u16, HoprError> {
     let namespace = ingress_config.namespace()?;
     let api: Api<ConfigMap> = Api::namespaced(client.clone(), namespace);
-    let starting_port: u16 = get_available_ports(client.clone(), session_port_allocation, ingress_config).await?;
-    // Create a BTreeMap to hold the new data entries
-    let mut new_ports = BTreeMap::new();
-    if starting_port + session_port_allocation > ingress_config.port_max {
-        return Err(HoprError::HoprdConfigError(format!(
-            "Cannot allocate {} ports starting from {}. Would exceed max_port {}",
-            session_port_allocation, starting_port, ingress_config.port_max
-        )));
-    }
-    if session_port_allocation == 0 {
-        debug!("No ports to allocate, skipping opening nginx ports");
+    for attempt in 1..=OPEN_PORT_MAX_ATTEMPTS {
+        let tcp_config_map = api.get_opt("ingress-nginx-tcp").await?;
+        let starting_port: u16 = get_available_ports(tcp_config_map.as_ref(), session_port_allocation, ingress_config);
+        // Create a BTreeMap to hold the new data entries
+        let mut new_ports = BTreeMap::new();
+        if starting_port + session_port_allocation > ingress_config.port_max {
+            return Err(HoprError::HoprdConfigError(format!(
+                "Cannot allocate {} ports starting from {}. Would exceed max_port {}",
+                session_port_allocation, starting_port, ingress_config.port_max
+            )));
+        }
+        if session_port_allocation == 0 {
+            debug!("No ports to allocate, skipping opening nginx ports");
+            return Ok(starting_port);
+        }
+        // Iterate over the session_port_allocation and insert entries starting from starting_port
+        for i in 0..session_port_allocation.to_owned() {
+            let current_port = starting_port + i;
+            new_ports.insert(current_port.to_string(), format!("{}/{}:{}", service_namespace, service_name, current_port));
+        }
+        if let Some(tcp_config_map) = tcp_config_map {
+            let tcp_patch = Patch::Merge(json!({
+                "metadata": { "resourceVersion": tcp_config_map.metadata.resource_version },
+                "data": new_ports.clone()
+            }));
+            match api.patch("ingress-nginx-tcp", &PatchParams::default(), &tcp_patch).await {
+                Ok(_) => {}
+                Err(kube::Error::Api(response)) if response.code == 409 => {
+                    debug!("Conflict allocating the nginx ports of {service_name} (attempt {attempt}/{OPEN_PORT_MAX_ATTEMPTS}), retrying");
+                    continue;
+                }
+                Err(error) => {
+                    error!("Could not open Nginx tcp port: {:?}", error);
+                    return Err(HoprError::HoprdConfigError("Could not open Nginx tcp port".to_string()));
+                }
+            }
+        } else {
+            debug!("ConfigMap ingress-nginx-tcp not found, skipping Nginx tcp port opening");
+        }
+        // The ports are already reserved in the TCP ConfigMap, so the UDP one does not need a concurrency check
+        let udp_patch = Patch::Merge(json!({
+           "data": new_ports
+        }));
+        open_in_config_map(&api, "udp", &udp_patch).await?;
+        info!("{session_port_allocation} nginx ports starting from {starting_port} opened for Hoprd node {service_name}");
         return Ok(starting_port);
     }
-    // Iterate over the session_port_allocation and insert entries starting from starting_port
-    for i in 0..session_port_allocation.to_owned() {
-        let current_port = starting_port + i;
-        new_ports.insert(current_port.to_string(), format!("{}/{}:{}", service_namespace, service_name, current_port));
-    }
-    let patch = Patch::Merge(json!({
-       "data": new_ports.clone()
-    }));
-    open_in_config_map(&api, "tcp", &patch).await?;
-    open_in_config_map(&api, "udp", &patch).await?;
-    info!("{session_port_allocation} nginx ports starting from {starting_port} opened for Hoprd node {service_name}");
-    Ok(starting_port)
+    Err(HoprError::HoprdConfigError(format!(
+        "Could not allocate the nginx ports of {service_name} after {OPEN_PORT_MAX_ATTEMPTS} attempts due to concurrent allocations"
+    )))
 }
 
 /// Adds the port entries to the `ingress-nginx-<protocol>` ConfigMap, if it exists
@@ -182,17 +212,14 @@ async fn close_in_config_map(api: &Api<ConfigMap>, protocol: &str, service_fqn: 
             return Err(HoprError::HoprdConfigError(format!("Could not get Nginx {protocol} ConfigMap")));
         }
     };
-    let new_data = config_map
-        .data
-        .unwrap_or_default()
-        .into_iter()
-        .filter(|entry| !entry.1.contains(service_fqn))
-        .collect::<BTreeMap<String, String>>();
-    let json_patch = json_patch::Patch(vec![PatchOperation::Replace(ReplaceOperation {
-        path: PointerBuf::parse("/data".to_owned()).map_err(|e| HoprError::HoprdConfigError(format!("Invalid JSON pointer: {e}")))?,
-        value: json!(new_data),
-    })]);
-    let patch: Patch<&Value> = Patch::Json::<&Value>(json_patch);
+    let ports_to_remove = ports_owned_by(&config_map, service_fqn);
+    if ports_to_remove.is_empty() {
+        return Ok(());
+    }
+    // Only the entries of this service are removed (set to null in the merge patch), so the ports allocated
+    // by other nodes in the meantime are not overwritten
+    let removals: BTreeMap<String, Value> = ports_to_remove.into_iter().map(|port| (port, Value::Null)).collect();
+    let patch = Patch::Merge(json!({ "data": removals }));
     if let Err(error) = api.patch(&config_map_name, &PatchParams::default(), &patch).await {
         error!("Could not close Nginx {protocol}-port: {:?}", error);
         return Err(HoprError::HoprdConfigError(format!("Could not close Nginx {protocol}-port")));
@@ -200,22 +227,34 @@ async fn close_in_config_map(api: &Api<ConfigMap>, protocol: &str, service_fqn: 
     Ok(())
 }
 
-async fn get_available_ports(client: Client, session_port_allocation: u16, ingress_config: &IngressConfig) -> Result<u16, HoprError> {
-    let api: Api<ConfigMap> = Api::namespaced(client, ingress_config.namespace()?);
-    if let Some(config_map) = api.get_opt("ingress-nginx-tcp").await? {
-        let data = config_map.data.unwrap_or_default();
-        let mut ports: Vec<u16> = data
-            .keys()
+/// Ports of the ConfigMap that belong to the given service. The entries are matched exactly (`namespace/name:port`),
+/// so a service whose `namespace/name` is contained in the one of another tenant cannot remove its ports.
+fn ports_owned_by(config_map: &ConfigMap, service_fqn: &str) -> Vec<String> {
+    config_map
+        .data
+        .iter()
+        .flatten()
+        .filter(|(port, target)| **target == format!("{}:{}", service_fqn, port))
+        .map(|(port, _)| port.to_owned())
+        .collect()
+}
+
+/// Gets the first port available for the allocation from the content of the TCP ConfigMap
+fn get_available_ports(tcp_config_map: Option<&ConfigMap>, session_port_allocation: u16, ingress_config: &IngressConfig) -> u16 {
+    if let Some(config_map) = tcp_config_map {
+        let mut ports: Vec<u16> = config_map
+            .data
+            .iter()
+            .flat_map(|data| data.keys())
             .filter_map(|port| port.parse::<u16>().ok())
             .filter(|port| port >= &ingress_config.port_min)
             .filter(|port| port <= &ingress_config.port_max)
-            .clone()
             .collect::<Vec<_>>();
         ports.sort();
-        Ok(find_next_port(ports, session_port_allocation, ingress_config.port_min))
+        find_next_port(ports, session_port_allocation, ingress_config.port_min)
     } else {
         debug!("ConfigMap ingress-nginx-tcp not found, using port_min as next free port");
-        Ok(ingress_config.port_min)
+        ingress_config.port_min
     }
 }
 
@@ -257,6 +296,20 @@ pub async fn close_port(client: Client, service_namespace: &str, service_name: &
 mod tests {
     use super::*;
     const OPERATOR_MIN_PORT: u16 = 9000;
+
+    #[test]
+    fn test_ports_owned_by_exact_match() {
+        let config_map = ConfigMap {
+            data: Some(BTreeMap::from([
+                ("9000".to_string(), "ns/node-1:9000".to_string()),
+                ("9001".to_string(), "other-ns/node-1:9001".to_string()),
+                ("9002".to_string(), "x-ns/node-1:9002".to_string()),
+                ("9003".to_string(), "ns/node-1:9004".to_string()),
+            ])),
+            ..ConfigMap::default()
+        };
+        assert_eq!(ports_owned_by(&config_map, "ns/node-1"), vec!["9000".to_string()]);
+    }
 
     #[test]
     fn test_find_next_port_empty() {
