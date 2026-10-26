@@ -119,7 +119,7 @@ async fn get_job_template(context_data: Arc<ContextData>, identity_pool: &Identi
             spec: Some(PodSpec {
                 init_containers: Some(vec![Container {
                     name: "kubectl".to_owned(),
-                    image: Some("registry.hub.docker.com/bitnamilegacy/kubectl:1.33".to_owned()),
+                    image: Some(context_data.config.kubectl_image.to_owned()),
                     image_pull_policy: Some("IfNotPresent".to_owned()),
                     command: Some(vec!["/bin/bash".to_owned(), "-c".to_owned()]),
                     args: kubectl_args,
