@@ -228,7 +228,7 @@ async fn close_in_config_map(api: &Api<ConfigMap>, protocol: &str, service_fqn: 
 }
 
 /// Ports of the ConfigMap that belong to the given service. The entries are matched exactly (`namespace/name:port`),
-/// so a service whose `namespace/name` is contained in the one of another tenant cannot remove its ports.
+/// so a service whose `namespace/name` is contained in the one of another tenant cannot remove the other tenant's ports.
 fn ports_owned_by(config_map: &ConfigMap, service_fqn: &str) -> Vec<String> {
     config_map
         .data
