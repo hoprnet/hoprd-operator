@@ -15,7 +15,7 @@ use crate::{
 use futures::StreamExt;
 use k8s_openapi::api::batch::v1::JobSpec;
 use k8s_openapi::api::core::v1::{
-    ConfigMapEnvSource, Container, ContainerPort, EmptyDirVolumeSource, EnvFromSource, EnvVar, PersistentVolumeClaimVolumeSource, PodSpec, PodTemplateSpec, Probe, SecretEnvSource, TCPSocketAction, Volume, VolumeMount
+    ConfigMapEnvSource, Container, ContainerPort, EmptyDirVolumeSource, EnvFromSource, EnvVar, EnvVarSource, PersistentVolumeClaimVolumeSource, PodSpec, PodTemplateSpec, Probe, SecretEnvSource, SecretKeySelector, TCPSocketAction, Volume, VolumeMount
 };
 use k8s_openapi::api::{
     apps::v1::{Deployment, DeploymentSpec, DeploymentStrategy},
@@ -343,15 +343,21 @@ pub fn metrics_container(identity_pool: &IdentityPool) -> Container {
             protocol: Some("TCP".to_owned()),
             ..ContainerPort::default()
         }]),
-        env_from: Some(vec![
-            EnvFromSource {
-                secret_ref: Some(SecretEnvSource {
+        // The metrics container only needs the API token to query the node. The rest of the Secret (e.g. the identity
+        // password) is not injected, so a compromise of this sidecar does not expose it
+        env: Some(vec![EnvVar {
+            name: constants::HOPRD_API_TOKEN.to_owned(),
+            value_from: Some(EnvVarSource {
+                secret_key_ref: Some(SecretKeySelector {
                     name: format!("{}-env-vars", identity_pool.name_any()),
-                    ..SecretEnvSource::default()
+                    key: constants::HOPRD_API_TOKEN.to_owned(),
+                    // As with `envFrom`, a Secret without the token does not prevent the container from starting
+                    optional: Some(true),
                 }),
-                ..EnvFromSource::default()
-            }
-        ]),
+                ..EnvVarSource::default()
+            }),
+            ..EnvVar::default()
+        }]),
         readiness_probe: Some( Probe {
             tcp_socket: Some( TCPSocketAction {
                 port: IntOrString::Int(8080),
@@ -615,6 +621,18 @@ mod tests {
     }
 
     // The script is rendered as a multi-line string in the Deployment manifest, so its exact lines are part of the contract
+    #[test]
+    fn metrics_container_only_receives_the_api_token() {
+        let container = metrics_container(&IdentityPool::new("pool", IdentityPoolSpec::default()));
+        assert!(container.env_from.is_none(), "the whole Secret must not be injected");
+        let env = container.env.expect("the metrics container has env vars");
+        assert_eq!(env.len(), 1);
+        assert_eq!(env[0].name, "HOPRD_API_TOKEN");
+        let selector = env[0].value_from.as_ref().and_then(|source| source.secret_key_ref.as_ref()).expect("the token comes from a Secret");
+        assert_eq!((selector.name.as_str(), selector.key.as_str()), ("pool-env-vars", "HOPRD_API_TOKEN"));
+        assert_eq!(selector.optional, Some(true));
+    }
+
     #[test]
     fn init_script_of_the_node_collecting_logs_only_writes_the_identity_and_config() {
         assert_eq!(

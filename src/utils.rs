@@ -40,9 +40,16 @@ pub trait ResourceIdentity: ResourceExt {
 
 impl<K: ResourceExt> ResourceIdentity for K {}
 
+/// Reference (`namespace/name`) used to identify a resource in the logs.
+/// The resources are never logged as a whole, as their spec can contain data that should not end up in the logs
+/// (e.g. the identity file of an `IdentityHoprd`).
+fn resource_reference<K: ResourceExt>(resource: &K) -> String {
+    format!("{}/{}", resource.namespace().unwrap_or_default(), resource.name_any())
+}
+
 /// Error policy shared by all the controllers: logs the failure and requeues only the offending resource.
 pub fn on_error<K: Resource<DynamicType = ()> + Debug>(resource: Arc<K>, error: &Error, _context: Arc<ContextData>) -> Action {
-    error!("[{}] Reconciliation error:\n{:?}.\n{:?}", K::kind(&()), error, resource);
+    error!("[{}] Reconciliation error for {}:\n{:?}", K::kind(&()), resource_reference(resource.as_ref()), error);
     Action::requeue(Duration::from_secs(constants::RECONCILE_SHORT_FREQUENCY))
 }
 
@@ -230,5 +237,22 @@ mod tests {
             Err(Error::ReconcilerPanic(message)) => assert!(message.contains("Hoprd")),
             other => panic!("unexpected result: {other:?}"),
         }
+    }
+
+    #[test]
+    fn resource_reference_only_contains_namespace_and_name() {
+        let mut identity = crate::identity_hoprd::identity_hoprd_resource::IdentityHoprd::new(
+            "identity-1",
+            crate::identity_hoprd::identity_hoprd_resource::IdentityHoprdSpec { identity_file: "SECRET-IDENTITY-FILE".to_owned(), ..Default::default() },
+        );
+        identity.metadata.namespace = Some("ns".to_owned());
+        let reference = resource_reference(&identity);
+        assert_eq!(reference, "ns/identity-1");
+        assert!(!reference.contains("SECRET-IDENTITY-FILE"));
+    }
+
+    #[test]
+    fn resource_reference_of_a_resource_without_namespace_is_still_usable() {
+        assert_eq!(resource_reference(&hoprd(Some("node"), None, None)), "/node");
     }
 }
