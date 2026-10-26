@@ -82,7 +82,7 @@ fn validate_funding(identity_pool: &IdentityPool) -> Result<(), Error> {
     Ok(())
 }
 
-/// Environment variables of the faucet command that depend on the IdentityPool values
+/// Environment variables of the faucet command that depend on the IdentityPool values and the operator configuration
 fn get_faucet_env_vars(context_data: &ContextData, identity_pool: &IdentityPool) -> Vec<EnvVar> {
     let native_amount = identity_pool.spec.funding.as_ref().map(|funding| funding.native_amount.to_string()).unwrap_or_default();
     vec![
