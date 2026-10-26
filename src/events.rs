@@ -301,3 +301,41 @@ impl ResourceEvent for IdentityPoolEventEnum {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn missing_attribute_is_reported_as_unknown() {
+        assert_eq!(unwrap_attribute(&None), "unknown");
+        assert_eq!(unwrap_attribute(&Some("node-1".to_owned())), "node-1");
+    }
+
+    #[test]
+    fn failures_are_warnings_and_the_rest_are_normal() {
+        assert!(matches!(HoprdEventEnum::Failed.to_event(None).type_, EventType::Warning));
+        assert!(matches!(ClusterHoprdEventEnum::Failed.to_event(None).type_, EventType::Warning));
+        assert!(matches!(IdentityHoprdEventEnum::Failed.to_event(None).type_, EventType::Warning));
+        assert!(matches!(IdentityPoolEventEnum::Failed.to_event(None).type_, EventType::Warning));
+        assert!(matches!(HoprdEventEnum::Running.to_event(None).type_, EventType::Normal));
+        assert!(matches!(IdentityPoolEventEnum::Ready.to_event(None).type_, EventType::Normal));
+    }
+
+    #[test]
+    fn reason_is_the_name_of_the_event() {
+        assert_eq!(HoprdEventEnum::Running.to_event(None).reason, "Running");
+        assert_eq!(ClusterHoprdEventEnum::Scaling.to_event(None).reason, "Scaling");
+        assert_eq!(IdentityHoprdEventEnum::InUse.to_event(None).reason, "InUse");
+        assert_eq!(IdentityPoolEventEnum::Locked.to_event(None).reason, "Locked");
+    }
+
+    #[test]
+    fn events_with_attribute_work_without_it() {
+        // The attribute is optional and must never make the event building panic
+        for event in [ClusterHoprdEventEnum::NotScaled, ClusterHoprdEventEnum::CreatingNode, ClusterHoprdEventEnum::NodeDeleted] {
+            assert!(event.to_event(None).note.is_some());
+        }
+        assert!(IdentityPoolEventEnum::IdentityCreated.to_event(Some("id-1".to_owned())).note.is_some_and(|note| note.contains("id-1")));
+    }
+}

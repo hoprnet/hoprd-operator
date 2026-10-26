@@ -400,3 +400,35 @@ impl IdentityPool {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn pool(network: &str, secret_name: &str) -> IdentityPool {
+        IdentityPool::new("pool", IdentityPoolSpec { network: network.to_owned(), secret_name: secret_name.to_owned(), funding: None })
+    }
+
+    #[test]
+    fn network_and_secret_name_are_immutable() {
+        let current = pool("rotsee", "secret");
+        assert!(!current.changed_inmutable_fields(&pool("rotsee", "secret").spec));
+        assert!(current.changed_inmutable_fields(&pool("dufour", "secret").spec));
+        assert!(current.changed_inmutable_fields(&pool("rotsee", "other").spec));
+    }
+
+    #[test]
+    fn funding_can_change() {
+        let current = pool("rotsee", "secret");
+        let mut previous = pool("rotsee", "secret").spec;
+        previous.funding = Some(IdentityPoolFunding { schedule: "* * * * *".to_owned(), native_amount: "1".to_owned() });
+        assert!(!current.changed_inmutable_fields(&previous));
+    }
+
+    #[test]
+    fn default_status_is_an_empty_initialized_pool() {
+        let status = IdentityPoolStatus::default();
+        assert_eq!((status.size, status.locked, status.observed_generation), (0, 0, 0));
+        assert_eq!(status.phase, IdentityPoolPhaseEnum::Initialized);
+    }
+}

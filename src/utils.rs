@@ -155,3 +155,79 @@ pub async fn catch_panics<T, F: std::future::Future<Output = Result<T, Error>>>(
         Err(_) => Err(Error::ReconcilerPanic(format!("The reconciliation of a {kind} panicked"))),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::hoprd::hoprd_resource::Hoprd;
+    use kube::api::ObjectMeta;
+
+    fn hoprd(name: Option<&str>, namespace: Option<&str>, uid: Option<&str>) -> Hoprd {
+        let mut hoprd = Hoprd::default();
+        hoprd.metadata = ObjectMeta {
+            name: name.map(str::to_owned),
+            namespace: namespace.map(str::to_owned),
+            uid: uid.map(str::to_owned),
+            ..ObjectMeta::default()
+        };
+        hoprd
+    }
+
+    #[test]
+    fn common_labels_include_the_optional_ones_only_when_present() {
+        let labels = common_lables("pool".to_owned(), Some("node-1".to_owned()), Some("node".to_owned()));
+        assert_eq!(labels.get(constants::LABEL_KUBERNETES_NAME), Some(&"pool".to_owned()));
+        assert_eq!(labels.get(constants::LABEL_KUBERNETES_INSTANCE), Some(&"node-1".to_owned()));
+        assert_eq!(labels.get(constants::LABEL_KUBERNETES_COMPONENT), Some(&"node".to_owned()));
+
+        let labels = common_lables("pool".to_owned(), None, None);
+        assert_eq!(labels.len(), 1);
+    }
+
+    #[test]
+    fn or_missing_returns_the_value_or_a_missing_field_error() {
+        assert_eq!(Some(7).or_missing("value").ok(), Some(7));
+        match None::<i32>.or_missing("some.field") {
+            Err(Error::MissingField(field)) => assert_eq!(field, "some.field"),
+            other => panic!("unexpected result: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn resource_identity_returns_the_metadata_when_present() {
+        let resource = hoprd(Some("node"), Some("ns"), Some("uid-1"));
+        assert_eq!(resource.require_name().ok(), Some("node".to_owned()));
+        assert_eq!(resource.require_namespace().ok(), Some("ns".to_owned()));
+        assert_eq!(resource.require_uid().ok(), Some("uid-1".to_owned()));
+    }
+
+    #[test]
+    fn resource_identity_fails_when_the_metadata_is_missing() {
+        let resource = hoprd(None, None, None);
+        assert!(matches!(resource.require_name(), Err(Error::MissingField(_))));
+        assert!(matches!(resource.require_namespace(), Err(Error::MissingField(_))));
+        assert!(matches!(resource.require_uid(), Err(Error::MissingField(_))));
+    }
+
+    #[tokio::test]
+    async fn catch_panics_returns_the_result_of_a_finished_reconciliation() {
+        assert_eq!(catch_panics("Test", async { Ok::<_, Error>(5) }).await.ok(), Some(5));
+        let failed = catch_panics("Test", async { Err::<i32, _>(Error::UserInputError("bad".to_owned())) }).await;
+        assert!(matches!(failed, Err(Error::UserInputError(_))));
+    }
+
+    #[tokio::test]
+    async fn catch_panics_turns_a_panic_into_an_error() {
+        let result = catch_panics("Hoprd", async {
+            if true {
+                panic!("boom");
+            }
+            Ok::<_, Error>(())
+        })
+        .await;
+        match result {
+            Err(Error::ReconcilerPanic(message)) => assert!(message.contains("Hoprd")),
+            other => panic!("unexpected result: {other:?}"),
+        }
+    }
+}

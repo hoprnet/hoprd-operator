@@ -83,3 +83,48 @@ pub async fn run(client: Client, context_data: Arc<ContextData>) {
         .for_each(|reconciliation_result| async move { utils::log_reconciliation_result("IdentityHoprd", reconciliation_result) })
         .await;
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    fn identity(finalizers: bool, deleting: bool, generation: i64, observed_generation: Option<i64>) -> IdentityHoprd {
+        let mut metadata = json!({ "name": "identity", "namespace": "ns", "generation": generation });
+        if finalizers {
+            metadata["finalizers"] = json!(["hoprnet.org/finalizer"]);
+        }
+        if deleting {
+            metadata["deletionTimestamp"] = json!("2024-01-01T00:00:00Z");
+        }
+        let mut resource = json!({
+            "apiVersion": "hoprnet.org/v1alpha3",
+            "kind": "IdentityHoprd",
+            "metadata": metadata,
+            "spec": { "identityPoolName": "pool", "identityFile": "", "nodeAddress": "", "safeAddress": "", "moduleAddress": "" },
+        });
+        if let Some(observed_generation) = observed_generation {
+            resource["status"] = json!({ "phase": "Ready", "observedGeneration": observed_generation });
+        }
+        serde_json::from_value(resource).expect("valid IdentityHoprd")
+    }
+
+    #[test]
+    fn deletion_wins_over_everything_else() {
+        assert!(matches!(determine_action(&identity(true, true, 1, Some(1))), IdentityHoprdAction::Delete));
+        assert!(matches!(determine_action(&identity(false, true, 1, None)), IdentityHoprdAction::Delete));
+    }
+
+    #[test]
+    fn a_resource_without_finalizer_is_created() {
+        assert!(matches!(determine_action(&identity(false, false, 1, None)), IdentityHoprdAction::Create));
+    }
+
+    #[test]
+    fn generation_decides_between_modify_and_noop() {
+        assert!(matches!(determine_action(&identity(true, false, 2, Some(1))), IdentityHoprdAction::Modify));
+        assert!(matches!(determine_action(&identity(true, false, 2, Some(2))), IdentityHoprdAction::NoOp));
+        // Without status the observed generation is 0, so the resource is reconciled
+        assert!(matches!(determine_action(&identity(true, false, 1, None)), IdentityHoprdAction::Modify));
+    }
+}

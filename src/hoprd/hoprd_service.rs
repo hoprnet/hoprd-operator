@@ -289,3 +289,45 @@ pub async fn delete_service(client: Client, name: &str, namespace: &str, service
 
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn build_ports_for_a_single_protocol() {
+        let ports = build_ports(9000, 9003, Some("tcp"));
+        let numbers: Vec<i32> = ports.iter().map(|port| port.port).collect();
+        assert_eq!(numbers, vec![9000, 9001, 9002]);
+        assert!(ports.iter().all(|port| port.protocol.as_deref() == Some("TCP")));
+        assert_eq!(ports[0].name.as_deref(), Some("p2p-tcp"));
+        assert_eq!(ports[1].name.as_deref(), Some("sessiont-9001"));
+    }
+
+    #[test]
+    fn build_ports_selects_udp_by_name() {
+        let ports = build_ports(9000, 9002, Some("udp"));
+        assert!(ports.iter().all(|port| port.protocol.as_deref() == Some("UDP")));
+        assert_eq!(ports[0].name.as_deref(), Some("p2p-udp"));
+    }
+
+    #[test]
+    fn build_ports_without_name_includes_both_protocols() {
+        let ports = build_ports(9000, 9002, None);
+        assert_eq!(ports.len(), 4);
+        assert_eq!(ports.iter().filter(|port| port.protocol.as_deref() == Some("TCP")).count(), 2);
+        assert_eq!(ports.iter().filter(|port| port.protocol.as_deref() == Some("UDP")).count(), 2);
+    }
+
+    #[test]
+    fn build_ports_with_an_empty_range_only_has_the_p2p_port() {
+        assert_eq!(build_ports(9000, 9000, Some("tcp")).len(), 1);
+    }
+
+    #[test]
+    fn service_defaults_to_cluster_ip() {
+        let spec = HoprdServiceSpec::default();
+        assert_eq!(spec.r#type, ServiceTypeEnum::ClusterIP);
+        assert_eq!(spec.ports_allocation, 4);
+    }
+}

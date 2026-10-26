@@ -69,3 +69,58 @@ pub struct WebhookConfig {
     pub crt_file: String,
     pub key_file: String,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn ingress(class: &str, namespace: Option<&str>, deployment: Option<&str>, port_min: u16, port_max: u16) -> IngressConfig {
+        IngressConfig {
+            ingress_class_name: class.to_owned(),
+            dns_domain: "example.org".to_owned(),
+            namespace: namespace.map(str::to_owned),
+            annotations: None,
+            loadbalancer_ip: "1.2.3.4".to_owned(),
+            port_min,
+            port_max,
+            deployment_name: deployment.map(str::to_owned),
+        }
+    }
+
+    #[test]
+    fn nginx_requires_namespace_and_deployment_name() {
+        assert!(ingress("nginx", Some("ingress-nginx"), Some("controller"), 9000, 10000).validate().is_ok());
+        assert!(ingress("nginx", None, Some("controller"), 9000, 10000).validate().is_err());
+        assert!(ingress("nginx", Some("ingress-nginx"), None, 9000, 10000).validate().is_err());
+    }
+
+    #[test]
+    fn other_ingress_classes_do_not_require_them() {
+        assert!(ingress("traefik", None, None, 9000, 10000).validate().is_ok());
+    }
+
+    #[test]
+    fn port_range_must_be_ordered() {
+        assert!(ingress("traefik", None, None, 10000, 10000).validate().is_err());
+        assert!(ingress("traefik", None, None, 10001, 10000).validate().is_err());
+    }
+
+    #[test]
+    fn accessors_fail_when_the_field_is_missing() {
+        let config = ingress("traefik", None, None, 9000, 10000);
+        assert!(config.namespace().is_err());
+        assert!(config.deployment_name().is_err());
+        let config = ingress("nginx", Some("ns"), Some("dep"), 9000, 10000);
+        assert_eq!(config.namespace().ok(), Some("ns"));
+        assert_eq!(config.deployment_name().ok(), Some("dep"));
+    }
+
+    #[test]
+    fn sample_configs_are_valid() {
+        for file in ["test-data/sample_config-prod.yaml", "test-data/sample_config-staging.yaml"] {
+            let content = std::fs::read_to_string(format!("{}/{}", env!("CARGO_MANIFEST_DIR"), file)).expect("sample config is readable");
+            let config: OperatorConfig = serde_yml::from_str(&content).expect("sample config is parseable");
+            assert!(config.ingress.validate().is_ok(), "{file}");
+        }
+    }
+}

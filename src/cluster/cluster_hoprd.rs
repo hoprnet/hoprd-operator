@@ -463,3 +463,72 @@ impl ClusterHoprd {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::hoprd::hoprd_service::ServiceTypeEnum;
+
+    fn cluster() -> ClusterHoprd {
+        let mut cluster = ClusterHoprd::new("cluster", ClusterHoprdSpec {
+            identity_pool_name: "pool".to_owned(),
+            replicas: 2,
+            config: "cfg".to_owned(),
+            version: "1.0".to_owned(),
+            enabled: Some(true),
+            service: HoprdServiceSpec::default(),
+            deployment: None,
+            source_node_logs: Some("cluster-2".to_owned()),
+            dns_name: Some("node.example.org".to_owned()),
+        });
+        cluster.metadata.namespace = Some("ns".to_owned());
+        cluster
+    }
+
+    #[test]
+    fn hoprd_spec_copies_the_cluster_configuration() {
+        let spec = cluster().build_hoprd_spec("pool-1".to_owned(), "cluster-1");
+        assert_eq!(spec.identity_name, "pool-1");
+        assert_eq!(spec.identity_pool_name, "pool");
+        assert_eq!(spec.config, "cfg");
+        assert_eq!(spec.version, "1.0");
+        assert_eq!(spec.enabled, Some(true));
+        assert_eq!(spec.delete_database, Some(false));
+        assert_eq!(spec.dns_name.as_deref(), Some("node.example.org"));
+    }
+
+    #[test]
+    fn only_the_selected_node_collects_the_logs() {
+        assert_eq!(cluster().build_hoprd_spec("pool-1".to_owned(), "cluster-1").source_node_logs, Some(false));
+        assert_eq!(cluster().build_hoprd_spec("pool-2".to_owned(), "cluster-2").source_node_logs, Some(true));
+        let mut without_source = cluster();
+        without_source.spec.source_node_logs = None;
+        assert_eq!(without_source.build_hoprd_spec("pool-2".to_owned(), "cluster-2").source_node_logs, Some(false));
+    }
+
+    #[test]
+    fn identity_pool_and_service_type_are_immutable() {
+        let current = cluster();
+        let mut previous = cluster().spec;
+        assert!(!current.changed_inmutable_fields(&previous));
+        previous.identity_pool_name = "other".to_owned();
+        assert!(current.changed_inmutable_fields(&previous));
+        let mut previous = cluster().spec;
+        previous.service.r#type = ServiceTypeEnum::LoadBalancer;
+        assert!(current.changed_inmutable_fields(&previous));
+    }
+
+    #[test]
+    fn replicas_can_change() {
+        let current = cluster();
+        let mut previous = cluster().spec;
+        previous.replicas = 10;
+        assert!(!current.changed_inmutable_fields(&previous));
+    }
+
+    #[test]
+    fn phase_is_displayed_by_name() {
+        assert_eq!(ClusterHoprdPhaseEnum::NotScaled.to_string(), "NotScaled");
+        assert_eq!(ClusterHoprdPhaseEnum::Ready.to_string(), "Ready");
+    }
+}

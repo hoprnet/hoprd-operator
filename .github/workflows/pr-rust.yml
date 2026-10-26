@@ -1,6 +1,6 @@
 ---
 
-name: 'Build Docker Image'
+name: 'PR Rust'
 on:
   pull_request:
     types:
@@ -10,11 +10,36 @@ on:
     paths-ignore:
       - "charts/**/*"
 concurrency:
-  group: ${{ github.head_ref }}-docker
+  group: ${{ github.head_ref }}-rust
   cancel-in-progress: true
 jobs:
+  test:
+    name: Clippy and unit tests
+    runs-on: depot-ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - name: Cache Cargo
+        uses: Swatinem/rust-cache@v2
+
+      # The crate denies unwrap, expect and panic outside tests (see src/main.rs), so a panic-prone change fails here
+      - name: Clippy
+        run: cargo clippy --all-targets --locked
+
+      - name: Unit tests
+        run: cargo test --locked
+
   bump_version:
     name: Bump version
+    needs: test
     runs-on: depot-ubuntu-24.04
     permissions:
       contents: write

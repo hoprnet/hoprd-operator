@@ -378,3 +378,27 @@ impl IdentityHoprd {
     }
 
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn identity(pool: &str) -> IdentityHoprd {
+        IdentityHoprd::new("identity", IdentityHoprdSpec { identity_pool_name: pool.to_owned(), ..IdentityHoprdSpec::default() })
+    }
+
+    #[test]
+    fn identity_pool_is_immutable() {
+        let current = identity("pool");
+        assert!(!current.changed_inmutable_fields(&identity("pool").spec));
+        assert!(current.changed_inmutable_fields(&identity("other").spec));
+    }
+
+    #[test]
+    fn other_fields_can_change() {
+        let current = identity("pool");
+        let mut previous = identity("pool").spec;
+        previous.node_address = "0xabc".to_owned();
+        assert!(!current.changed_inmutable_fields(&previous));
+    }
+}

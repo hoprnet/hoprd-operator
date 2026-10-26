@@ -454,3 +454,102 @@ async fn convert(Json(request): Json<ConversionRequest>) -> impl IntoResponse {
         response: response_inner,
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[tokio::test]
+    async fn hoprd_v2_to_v3_moves_ports_allocation_into_the_service() {
+        let mut resource = json!({
+            "kind": "Hoprd",
+            "spec": { "portsAllocation": 7, "supportedRelease": "kaunas", "service": { "type": "ClusterIP" } },
+            "status": { "checksum": "abc" },
+            "metadata": { "generation": 3 },
+        });
+        convert_v2_to_v3(&mut resource).await.expect("conversion succeeds");
+        assert_eq!(resource["spec"]["service"]["portsAllocation"], json!(7));
+        assert!(resource["spec"].get("portsAllocation").is_none());
+        assert!(resource["spec"].get("supportedRelease").is_none());
+        assert_eq!(resource["status"]["observedGeneration"], json!(3));
+        assert!(resource["status"].get("checksum").is_none());
+    }
+
+    #[tokio::test]
+    async fn hoprd_v2_to_v3_uses_a_default_when_ports_allocation_is_missing() {
+        let mut resource = json!({ "kind": "Hoprd", "spec": { "service": {} }, "status": {} });
+        convert_v2_to_v3(&mut resource).await.expect("conversion succeeds");
+        assert_eq!(resource["spec"]["service"]["portsAllocation"], json!(10));
+        // Without generation the observed generation falls back to 0
+        assert_eq!(resource["status"]["observedGeneration"], json!(0));
+    }
+
+    #[tokio::test]
+    async fn hoprd_v3_to_v2_moves_ports_allocation_to_the_spec() {
+        let mut resource = json!({
+            "kind": "Hoprd",
+            "spec": { "service": { "portsAllocation": 5 } },
+            "status": { "observedGeneration": 1 },
+        });
+        convert_v3_to_v2(&mut resource).await.expect("conversion succeeds");
+        assert_eq!(resource["spec"]["portsAllocation"], json!(5));
+        assert_eq!(resource["spec"]["supportedRelease"], json!("kaunas"));
+        assert!(resource["spec"]["service"].get("portsAllocation").is_none());
+        assert!(resource["status"].get("observedGeneration").is_none());
+        assert!(resource["status"]["checksum"].is_string());
+    }
+
+    #[tokio::test]
+    async fn cluster_hoprd_round_trip_keeps_the_ports_allocation() {
+        let mut resource = json!({
+            "kind": "ClusterHoprd",
+            "spec": { "portsAllocation": 4, "supportedRelease": "kaunas", "forceIdentityName": true, "service": {} },
+            "status": {},
+        });
+        convert_v2_to_v3(&mut resource).await.expect("v2 to v3");
+        assert!(resource["spec"].get("forceIdentityName").is_none());
+        assert_eq!(resource["spec"]["service"]["portsAllocation"], json!(4));
+        convert_v3_to_v2(&mut resource).await.expect("v3 to v2");
+        assert_eq!(resource["spec"]["portsAllocation"], json!(4));
+        assert_eq!(resource["spec"]["forceIdentityName"], json!(true));
+    }
+
+    #[tokio::test]
+    async fn identity_hoprd_renames_the_address_field() {
+        let mut resource = json!({ "kind": "IdentityHoprd", "spec": { "nativeAddress": "0x1", "peerId": "p" }, "status": {} });
+        convert_v2_to_v3(&mut resource).await.expect("v2 to v3");
+        assert_eq!(resource["spec"]["nodeAddress"], json!("0x1"));
+        assert!(resource["spec"].get("nativeAddress").is_none());
+        assert!(resource["spec"].get("peerId").is_none());
+        convert_v3_to_v2(&mut resource).await.expect("v3 to v2");
+        assert_eq!(resource["spec"]["nativeAddress"], json!("0x1"));
+        assert_eq!(resource["spec"]["peerId"], json!("unknown"));
+    }
+
+    #[tokio::test]
+    async fn identity_hoprd_uses_placeholders_when_the_address_is_missing() {
+        let mut resource = json!({ "kind": "IdentityHoprd", "spec": {}, "status": {} });
+        convert_v2_to_v3(&mut resource).await.expect("v2 to v3");
+        assert_eq!(resource["spec"]["nodeAddress"], json!("lost"));
+    }
+
+    #[tokio::test]
+    async fn identity_pool_only_touches_the_status() {
+        let mut resource = json!({ "kind": "IdentityPool", "spec": { "network": "rotsee" }, "status": {}, "metadata": { "generation": 2 } });
+        convert_v2_to_v3(&mut resource).await.expect("v2 to v3");
+        assert_eq!(resource["status"]["observedGeneration"], json!(2));
+        assert_eq!(resource["spec"]["network"], json!("rotsee"));
+    }
+
+    #[tokio::test]
+    async fn malformed_resources_are_errors_not_panics() {
+        assert!(convert_v2_to_v3(&mut json!({})).await.is_err());
+        assert!(convert_v2_to_v3(&mut json!({ "kind": "Unknown" })).await.is_err());
+        assert!(convert_v3_to_v2(&mut json!({ "kind": "Unknown" })).await.is_err());
+        assert!(convert_v2_to_v3(&mut json!({ "kind": "Hoprd" })).await.is_err(), "missing spec");
+        assert!(convert_v2_to_v3(&mut json!({ "kind": "Hoprd", "spec": {} })).await.is_err(), "missing status");
+        assert!(convert_v2_to_v3(&mut json!({ "kind": "Hoprd", "spec": 1, "status": {} })).await.is_err(), "spec is not an object");
+        assert!(convert_v3_to_v2(&mut json!({ "kind": "IdentityPool", "spec": {}, "status": 1 })).await.is_err(), "status is not an object");
+    }
+}

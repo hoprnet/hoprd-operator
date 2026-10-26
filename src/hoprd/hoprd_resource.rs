@@ -511,3 +511,47 @@ impl Hoprd {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn hoprd() -> Hoprd {
+        let mut hoprd = Hoprd::new("node", HoprdSpec { identity_pool_name: "pool".to_owned(), identity_name: "pool-1".to_owned(), ..HoprdSpec::default() });
+        hoprd.metadata.namespace = Some("ns".to_owned());
+        hoprd
+    }
+
+    #[test]
+    fn identity_and_ports_allocation_are_immutable() {
+        let current = hoprd();
+        assert!(!current.changed_inmutable_fields(&hoprd().spec));
+
+        let mut previous = hoprd().spec;
+        previous.identity_pool_name = "other".to_owned();
+        assert!(current.changed_inmutable_fields(&previous));
+
+        let mut previous = hoprd().spec;
+        previous.identity_name = "other".to_owned();
+        assert!(current.changed_inmutable_fields(&previous));
+
+        let mut previous = hoprd().spec;
+        previous.service.ports_allocation += 1;
+        assert!(current.changed_inmutable_fields(&previous));
+    }
+
+    #[test]
+    fn other_fields_can_change() {
+        let current = hoprd();
+        let mut previous = hoprd().spec;
+        previous.version = "9.9".to_owned();
+        previous.config = "other".to_owned();
+        assert!(!current.changed_inmutable_fields(&previous));
+    }
+
+    #[test]
+    fn phase_is_displayed_by_name() {
+        assert_eq!(HoprdPhaseEnum::Running.to_string(), "Running");
+        assert_eq!(HoprdPhaseEnum::Failed.to_string(), "Failed");
+    }
+}

@@ -68,3 +68,23 @@ pub enum Error {
     #[error("Missing required field: {0}")]
     MissingField(String),
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn errors_are_displayed_with_their_context() {
+        assert_eq!(Error::MissingField("metadata.name".to_owned()).to_string(), "Missing required field: metadata.name");
+        assert_eq!(Error::ReconcilerPanic("Hoprd".to_owned()).to_string(), "Reconciler panic: Hoprd");
+        assert!(Error::UserInputError("bad".to_owned()).to_string().contains("bad"));
+    }
+
+    #[test]
+    fn parser_and_json_errors_are_converted() {
+        let yaml_error: Result<u8, Error> = serde_yml::from_str::<u8>("{").map_err(Error::from);
+        assert!(matches!(yaml_error, Err(Error::ParserError(_))));
+        let json_error: Result<u8, Error> = serde_json::from_str::<u8>("x").map_err(Error::from);
+        assert!(matches!(json_error, Err(Error::JsonError(_))));
+    }
+}

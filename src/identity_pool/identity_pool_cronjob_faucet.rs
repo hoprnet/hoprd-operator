@@ -222,3 +222,41 @@ pub async fn delete_cron_job(client: Client, identity_pool: &IdentityPool) -> Re
     crate::utils::delete_and_wait(api, &cron_job_name).await?;
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::identity_pool::identity_pool_resource::{IdentityPoolFunding, IdentityPoolSpec};
+
+    fn pool(network: &str, native_amount: Option<&str>) -> IdentityPool {
+        IdentityPool::new(
+            "pool",
+            IdentityPoolSpec {
+                network: network.to_owned(),
+                secret_name: "secret".to_owned(),
+                funding: native_amount.map(|amount| IdentityPoolFunding { schedule: "0 0 * * *".to_owned(), native_amount: amount.to_owned() }),
+            },
+        )
+    }
+
+    #[test]
+    fn valid_funding_is_accepted() {
+        assert!(validate_funding(&pool("rotsee", Some("0.1"))).is_ok());
+        assert!(validate_funding(&pool("dufour_2.0-a", Some("10"))).is_ok());
+    }
+
+    #[test]
+    fn invalid_network_is_rejected() {
+        for network in ["", "a b", "x;rm -rf /", "$(id)", "net\nwork"] {
+            assert!(validate_funding(&pool(network, Some("1"))).is_err(), "{network:?}");
+        }
+    }
+
+    #[test]
+    fn invalid_native_amount_is_rejected() {
+        for amount in ["", "1;2", "1.2.3", "abc", "$(id)", "-1"] {
+            assert!(validate_funding(&pool("rotsee", Some(amount))).is_err(), "{amount:?}");
+        }
+        assert!(validate_funding(&pool("rotsee", None)).is_err());
+    }
+}
