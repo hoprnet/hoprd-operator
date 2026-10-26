@@ -1,6 +1,6 @@
 use crate::events::IdentityPoolEventEnum;
 use crate::utils::{OptionExt, ResourceIdentity};
-use crate::identity_hoprd::identity_hoprd_resource::{IdentityHoprd, IdentityHoprdPhaseEnum};
+use crate::identity_hoprd::identity_hoprd_resource::{IdentityHoprd, IdentityHoprdPhaseEnum, IdentityHoprdStatus};
 use crate::model::Error;
 use crate::{constants, context_data::ContextData};
 use crate::{
@@ -342,7 +342,12 @@ impl IdentityPool {
     }
 
     /// Gets the first identity in ready status
-    pub async fn get_ready_identity(&mut self, client: Client, identity_name: String) -> Result<Option<IdentityHoprd>, Error> {
+    ///
+    /// # Arguments
+    /// - `identity_name` - Name of the identity requested by the Hoprd node
+    /// - `hoprd_node_name` - Name of the Hoprd node that requests the identity. An identity that is already in use
+    ///   can only be returned to the node that is using it, never to another one
+    pub async fn get_ready_identity(&mut self, client: Client, identity_name: String, hoprd_node_name: &str) -> Result<Option<IdentityHoprd>, Error> {
         let pool_identities: Vec<IdentityHoprd> = self.get_pool_identities(client).await?;
         let identity = pool_identities.iter().find(|&identity| identity.name_any().eq(&identity_name)).cloned();
         match identity {
@@ -352,8 +357,7 @@ impl IdentityPool {
             }
             Some(identity) => {
                 if let Some(status) = identity.status.as_ref() {
-                    // A ready identity, or one in use by this very node (recovering a failed node), can be locked
-                    if status.phase.eq(&IdentityHoprdPhaseEnum::Ready) || (status.phase.eq(&IdentityHoprdPhaseEnum::InUse) && status.hoprd_node_name.as_deref() == Some(identity_name.as_str())) {
+                    if can_be_locked_by(status, hoprd_node_name) {
                         Ok(Some(identity))
                     } else {
                         warn!(
@@ -400,6 +404,13 @@ impl IdentityPool {
     }
 }
 
+/// An identity can be locked by a node if it is ready, or if it is in use by that very same node (recovering a failed node).
+/// The comparison must use the name of the node that requests the identity, as comparing it against the name of
+/// the identity would let a second node take over an identity that is already in use.
+fn can_be_locked_by(status: &IdentityHoprdStatus, hoprd_node_name: &str) -> bool {
+    status.phase.eq(&IdentityHoprdPhaseEnum::Ready) || (status.phase.eq(&IdentityHoprdPhaseEnum::InUse) && status.hoprd_node_name.as_deref() == Some(hoprd_node_name))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -429,5 +440,25 @@ mod tests {
         let status = IdentityPoolStatus::default();
         assert_eq!((status.size, status.locked, status.observed_generation), (0, 0, 0));
         assert_eq!(status.phase, IdentityPoolPhaseEnum::Initialized);
+    }
+
+    fn identity_status(phase: IdentityHoprdPhaseEnum, hoprd_node_name: Option<&str>) -> IdentityHoprdStatus {
+        IdentityHoprdStatus { phase, observed_generation: 0, hoprd_node_name: hoprd_node_name.map(|name| name.to_owned()) }
+    }
+
+    #[test]
+    fn ready_identity_can_be_locked_by_any_node() {
+        assert!(can_be_locked_by(&identity_status(IdentityHoprdPhaseEnum::Ready, None), "node-1"));
+    }
+
+    #[test]
+    fn identity_in_use_can_be_locked_by_its_own_node() {
+        assert!(can_be_locked_by(&identity_status(IdentityHoprdPhaseEnum::InUse, Some("node-1")), "node-1"));
+    }
+
+    #[test]
+    fn identity_in_use_cannot_be_locked_by_another_node() {
+        // A node named like the identity (e.g. `pool-1`) used to bypass the lock
+        assert!(!can_be_locked_by(&identity_status(IdentityHoprdPhaseEnum::InUse, Some("node-1")), "pool-1"));
     }
 }
