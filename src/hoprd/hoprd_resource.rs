@@ -186,10 +186,7 @@ impl Hoprd {
             let previous_hoprd_text: String = self.annotations().get(constants::ANNOTATION_LAST_CONFIGURATION).cloned().or_missing(constants::ANNOTATION_LAST_CONFIGURATION)?;
             match serde_json::from_str::<Hoprd>(&previous_hoprd_text) {
                 Ok(previous_hoprd) => {
-                    if self.changed_inmutable_fields(&previous_hoprd.spec) {
-                        context_data.send_event(self, HoprdEventEnum::Failed, None).await;
-                        self.update_status(client.clone(), HoprdPhaseEnum::Failed).await?;
-                    } else if let Some(identity) = self.get_identity(client.clone()).await? {
+                    if let Some(identity) = self.get_identity(client.clone()).await? {
                         self.apply_modification(context_data.clone(), &identity, previous_hoprd.spec.deployment.clone()).await?;
                     } else {
                         error!("Hoprd node {hoprd_name} does not have a linked identity and is inconsistent");
@@ -384,24 +381,6 @@ impl Hoprd {
         Ok(identity_created)
     }
 
-    fn changed_inmutable_fields(&self, previous_hoprd: &HoprdSpec) -> bool {
-        if !self.spec.identity_pool_name.eq(&previous_hoprd.identity_pool_name) {
-            error!("Hoprd configuration is invalid, 'identity_pool_name' field cannot be changed on {}.", self.name_any());
-            true
-        } else if !self.spec.identity_name.clone().eq(&previous_hoprd.identity_name.clone()) {
-            error!("Hoprd configuration is invalid, 'identity_name' field cannot be changed on {}.", self.name_any());
-            true
-        } else {
-            match (&previous_hoprd.service.ports_allocation, &self.spec.service.ports_allocation) {
-                (prev, curr) if prev != curr => {
-                    error!("Hoprd configuration is invalid, 'ports_allocation' field cannot be changed on {}. Previous: {} vs Current: {}", self.name_any(), previous_hoprd.service.ports_allocation, self.spec.service.ports_allocation);
-                    true
-                }
-                _ => false,
-            }
-        }
-    }
-
     async fn update_status(&self, client: Client, phase: HoprdPhaseEnum) -> Result<(), Error> {
         let hoprd_name = self.require_name()?;
         let hoprd_namespace = self.require_namespace()?;
@@ -514,39 +493,6 @@ impl Hoprd {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    fn hoprd() -> Hoprd {
-        let mut hoprd = Hoprd::new("node", HoprdSpec { identity_pool_name: "pool".to_owned(), identity_name: "pool-1".to_owned(), ..HoprdSpec::default() });
-        hoprd.metadata.namespace = Some("ns".to_owned());
-        hoprd
-    }
-
-    #[test]
-    fn identity_and_ports_allocation_are_immutable() {
-        let current = hoprd();
-        assert!(!current.changed_inmutable_fields(&hoprd().spec));
-
-        let mut previous = hoprd().spec;
-        previous.identity_pool_name = "other".to_owned();
-        assert!(current.changed_inmutable_fields(&previous));
-
-        let mut previous = hoprd().spec;
-        previous.identity_name = "other".to_owned();
-        assert!(current.changed_inmutable_fields(&previous));
-
-        let mut previous = hoprd().spec;
-        previous.service.ports_allocation += 1;
-        assert!(current.changed_inmutable_fields(&previous));
-    }
-
-    #[test]
-    fn other_fields_can_change() {
-        let current = hoprd();
-        let mut previous = hoprd().spec;
-        previous.version = "9.9".to_owned();
-        previous.config = "other".to_owned();
-        assert!(!current.changed_inmutable_fields(&previous));
-    }
 
     #[test]
     fn phase_is_displayed_by_name() {

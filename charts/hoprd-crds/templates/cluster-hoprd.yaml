@@ -104,6 +104,9 @@ spec:
                 identityPoolName:
                   description: The name of the IdentityPool
                   type: string
+                  x-kubernetes-validations:
+                  - message: identityPoolName is immutable
+                    rule: self == oldSelf
                 replicas:
                   description: Number of instances for this configuration
                   type: number
@@ -116,6 +119,9 @@ spec:
                         - LoadBalancer
                         - ClusterIP
                       type: string
+                      x-kubernetes-validations:
+                      - message: service.type is immutable
+                        rule: self == oldSelf
                     portsAllocation:
                       description: 'Number of ports to be opened for session management
                     in the hoprd node. Each session requires one port. Default: 10 ports
@@ -236,6 +242,9 @@ spec:
                 identityPoolName:
                   description: The name of the IdentityPool
                   type: string
+                  x-kubernetes-validations:
+                  - message: identityPoolName is immutable
+                    rule: self == oldSelf
                 portsAllocation:
                   description: 'Number of ports to be opened for session management
                     in the hoprd node. Each session requires one port. Default: 10 ports
@@ -256,6 +265,9 @@ spec:
                         - LoadBalancer
                         - ClusterIP
                       type: string
+                      x-kubernetes-validations:
+                      - message: service.type is immutable
+                        rule: self == oldSelf
                   required:
                     - type
                   type: object
