@@ -90,7 +90,7 @@ spec:
             duration: "20m"
             factor: "1"
         container:
-          image: alpine/k8s:1.33.4
+          image: alpine/k8s:1.36.5
           command: ["/bin/bash", "-c"]
           args:
             - |
@@ -125,7 +125,7 @@ spec:
       - name: stop-deployment
         serviceAccountName: {{ include "cluster-hoprd.name" . }}-upload-hoprd-logs-sa
         container:
-          image: alpine/k8s:1.33.4
+          image: alpine/k8s:1.36.5
           command: ["/bin/bash", "-c"]
           args:
             - |
@@ -217,7 +217,7 @@ spec:
             duration: "1m"
             factor: "1"
         container:
-          image: alpine/k8s:1.33.4
+          image: alpine/k8s:1.36.5
           command: ["/bin/bash", "-c"]
           args:
             - |

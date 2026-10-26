@@ -240,7 +240,7 @@ pub fn init_container(hoprd_spec: &HoprdSpec,
     };
     Container {
         name: "init".to_owned(),
-        image: Some("alpine".to_owned()),
+        image: Some(constants::ALPINE_IMAGE.to_owned()),
         env: Some(vec![
             EnvVar {
                 name: constants::HOPRD_IDENTITY_FILE.to_owned(),
@@ -433,7 +433,7 @@ pub async fn job_delete_database(context_data: Arc<ContextData>, deployment_name
                     }]),
                     containers: vec![Container {
                         name: "delete-hoprd-db".to_string(),
-                        image: Some("debian:stable".to_string()),
+                        image: Some(constants::ALPINE_IMAGE.to_string()),
                         command: Some(vec!["/bin/sh".to_string(), "-c".to_string(), command]),
                         volume_mounts: Some(vec![VolumeMount {
                             name: "hoprd-db".to_string(),
