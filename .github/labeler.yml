@@ -1,0 +1,20 @@
+---
+docker:
+  - changed-files:
+      - any-glob-to-any-file:
+          - src/**
+          - Cargo.toml
+          - Cargo.lock
+          - Dockerfile*
+          - flake.*
+          - "*.nix"
+          - rust-toolchain.toml
+helm-chart-cluster:
+  - changed-files:
+      - any-glob-to-any-file: charts/cluster-hoprd/**
+helm-chart-crds:
+  - changed-files:
+      - any-glob-to-any-file: charts/hoprd-crds/**
+helm-chart-operator:
+  - changed-files:
+      - any-glob-to-any-file: charts/hoprd-operator/**

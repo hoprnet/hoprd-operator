@@ -1,0 +1,96 @@
+---
+################################################################################
+# Release pipeline for hoprd-operator
+#
+# Releases one component per run:
+#   - docker:               builds and publishes the operator image, tags it and
+#                           creates the GitHub release (version from Cargo.toml)
+#   - helm-chart-cluster:   publishes charts/cluster-hoprd with its Chart.yaml version
+#   - helm-chart-crds:      publishes charts/hoprd-crds with its Chart.yaml version
+#   - helm-chart-operator:  publishes charts/hoprd-operator with its Chart.yaml version
+################################################################################
+name: Release
+on:
+  workflow_dispatch:
+    inputs:
+      component:
+        description: Component to release
+        required: true
+        type: choice
+        default: docker
+        options:
+          - docker
+          - helm-chart-cluster
+          - helm-chart-crds
+          - helm-chart-operator
+      release_type:
+        description: Version type after release (docker only)
+        required: true
+        type: choice
+        default: "patch"
+        options:
+          - patch
+          - minor
+          - major
+concurrency:
+  group: release-${{ inputs.component }}
+  cancel-in-progress: false
+permissions:
+  contents: read
+jobs:
+  build-docker:
+    name: Docker
+    if: inputs.component == 'docker'
+    uses: hoprnet/hopr-workflows/.github/workflows/build-docker.yaml@25898d13dab1b3fbf4c33c394e7c581578a2b0d7 # build-docker-v3.2.0
+    permissions:
+      contents: read
+      pull-requests: write
+      id-token: write
+    with:
+      source_branch: ${{ github.ref_name }}
+      version_type: release
+      build_matrix: >-
+        [
+          {
+            "runner": "depot-ubuntu-24.04-4",
+            "architecture": "x86_64-linux",
+            "build_command": "nix build -L .#docker-hoprd-operator-x86_64-linux"
+          }
+        ]
+      cachix_cache_name: hoprd-operator
+      build_file: Cargo.toml
+      docker_image_name: hoprd-operator
+      docker_image_format: skopeo
+    secrets:
+      cachix_auth_token: ${{ secrets.CACHIX_AUTH_TOKEN }}
+  release-docker:
+    name: Close release
+    if: inputs.component == 'docker'
+    needs: build-docker
+    runs-on: depot-ubuntu-24.04-2
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - name: Release version
+        uses: hoprnet/hopr-workflows/actions/release-version@c761aa03c00b93ec20c2c0a91c2ee6a2fac2a564 # release-version-v5.5.0
+        with:
+          source_branch: ${{ github.ref_name }}
+          file: Cargo.toml
+          release_type: ${{ inputs.release_type }}
+          release_tag_prefix: ""
+          cachix_cache_name: hoprd-operator
+          cachix_auth_token: ${{ secrets.CACHIX_AUTH_TOKEN }}
+          github_app_private_key: ${{ secrets.GH_APP_HOPRNET_BOT_PRIVATE_KEY }}
+  release-helm:
+    name: Release ${{ inputs.component }}
+    if: startsWith(inputs.component, 'helm-chart-')
+    uses: ./.github/workflows/helm-publish.yaml
+    permissions:
+      contents: read
+      id-token: write
+    with:
+      chart_name: ${{ fromJSON('{"helm-chart-cluster":"cluster-hoprd","helm-chart-crds":"hoprd-crds","helm-chart-operator":"hoprd-operator"}')[inputs.component] }}
+      version_type: release
+    secrets:
+      github_app_private_key: ${{ secrets.GH_APP_HOPRNET_BOT_PRIVATE_KEY }}

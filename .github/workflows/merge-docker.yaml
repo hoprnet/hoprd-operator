@@ -1,0 +1,50 @@
+---
+################################################################################
+# Merge pipeline for the hoprd-operator Docker image
+#
+# Runs when a pull request is merged into master and publishes the image
+# tagged with the pull request version (<Cargo.toml version>+pr.<number>).
+# Releases are cut with release.yaml.
+################################################################################
+name: 'Merge Docker Image'
+on:
+  pull_request:
+    types:
+      - closed
+    branches:
+      - master
+    paths-ignore:
+      - "charts/**/*"
+concurrency:
+  group: merge-docker-${{ github.event.pull_request.base.ref }}
+  cancel-in-progress: false
+permissions:
+  contents: read
+  pull-requests: write
+  id-token: write
+jobs:
+  build-docker:
+    name: Docker
+    if: github.event.pull_request.merged == true
+    uses: hoprnet/hopr-workflows/.github/workflows/build-docker.yaml@25898d13dab1b3fbf4c33c394e7c581578a2b0d7 # build-docker-v3.2.0
+    permissions:
+      contents: read
+      pull-requests: write
+      id-token: write
+    with:
+      source_branch: ${{ github.event.pull_request.base.ref }}
+      version_type: pr
+      build_matrix: >-
+        [
+          {
+            "runner": "depot-ubuntu-24.04-4",
+            "architecture": "x86_64-linux",
+            "build_command": "nix build -L .#docker-hoprd-operator-x86_64-linux"
+          }
+        ]
+      cachix_cache_name: hoprd-operator
+      build_file: Cargo.toml
+      docker_image_name: hoprd-operator
+      docker_image_format: skopeo
+    secrets:
+      cachix_auth_token: ${{ secrets.CACHIX_AUTH_TOKEN }}
