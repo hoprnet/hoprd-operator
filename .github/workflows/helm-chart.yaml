@@ -137,7 +137,6 @@ jobs:
       - lint
       - package
       - trivy
-      - update-readme
     runs-on: depot-ubuntu-24.04
     permissions:
       contents: read
