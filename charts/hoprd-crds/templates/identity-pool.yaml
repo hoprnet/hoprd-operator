@@ -71,9 +71,15 @@ spec:
                 network:
                   description: Name of the Hoprd network
                   type: string
+                  x-kubernetes-validations:
+                  - message: network is immutable
+                    rule: self == oldSelf
                 secretName:
                   description: Name of the secret containing sensitive data
                   type: string
+                  x-kubernetes-validations:
+                  - message: secretName is immutable
+                    rule: self == oldSelf
               required:
               - network
               - secretName
@@ -154,9 +160,15 @@ spec:
                 network:
                   description: Name of the Hoprd network
                   type: string
+                  x-kubernetes-validations:
+                  - message: network is immutable
+                    rule: self == oldSelf
                 secretName:
                   description: Name of the secret containing sensitive data
                   type: string
+                  x-kubernetes-validations:
+                  - message: secretName is immutable
+                    rule: self == oldSelf
               required:
               - network
               - secretName

@@ -163,11 +163,7 @@ impl IdentityHoprd {
                 let previous_config_text: String = self.annotations().get(constants::ANNOTATION_LAST_CONFIGURATION).cloned().or_missing(constants::ANNOTATION_LAST_CONFIGURATION)?;
                 match serde_json::from_str::<IdentityHoprd>(&previous_config_text) {
                     Ok(previous_cluster_hoprd) => {
-                        if self.changed_inmutable_fields(&previous_cluster_hoprd.spec) {
-                            context_data.send_event(self, IdentityHoprdEventEnum::Failed, Some("found changes in immutable fields".to_string())).await;
-                            self.update_phase(context_data.client.clone(), IdentityHoprdPhaseEnum::Failed, None).await?;
-                            Err(Error::HoprdConfigError(format!("IdentityHoprd {} in namespace {} has been modified with changes in immutable fields", self.name_any(), self.require_namespace()?)))
-                        } else if self.spec != previous_cluster_hoprd.spec {
+                        if self.spec != previous_cluster_hoprd.spec {
                             info!("IdentityHoprd {} in namespace {} has been successfully modified", self.name_any(), self.require_namespace()?);
                             Ok(Action::requeue(Duration::from_secs(constants::RECONCILE_SHORT_FREQUENCY)))
                         } else {
@@ -250,16 +246,6 @@ impl IdentityHoprd {
             error!("IdentityHoprd {} was not correctly initialized", &identity_name);
             resource_generics::delete_finalizer(client.clone(), self).await?;
             Ok(Action::await_change())
-        }
-    }
-
-    /// Check the fileds that cannot be modifed
-    fn changed_inmutable_fields(&self, spec: &IdentityHoprdSpec) -> bool {
-        if !self.spec.identity_pool_name.eq(&spec.identity_pool_name) {
-            error!("IdentityHoprd configuration is invalid, identity_pool_name field cannot be changed on {}.", self.name_any());
-            true
-        } else {
-            false
         }
     }
 
@@ -378,28 +364,4 @@ impl IdentityHoprd {
         }
     }
 
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn identity(pool: &str) -> IdentityHoprd {
-        IdentityHoprd::new("identity", IdentityHoprdSpec { identity_pool_name: pool.to_owned(), ..IdentityHoprdSpec::default() })
-    }
-
-    #[test]
-    fn identity_pool_is_immutable() {
-        let current = identity("pool");
-        assert!(!current.changed_inmutable_fields(&identity("pool").spec));
-        assert!(current.changed_inmutable_fields(&identity("other").spec));
-    }
-
-    #[test]
-    fn other_fields_can_change() {
-        let current = identity("pool");
-        let mut previous = identity("pool").spec;
-        previous.node_address = "0xabc".to_owned();
-        assert!(!current.changed_inmutable_fields(&previous));
-    }
 }
