@@ -20,6 +20,6 @@ jobs:
       # pull_request_target runs with write access: the labeler only reads the
       # config from the base branch and the changed file names, it never checks
       # out or executes code from the pull request.
-      - uses: actions/labeler@77a4082b841706ac431479b7e2bb11216ffef250 # main on 22.01.2026
+      - uses: actions/labeler@bc32c493030cc908233048429a1f81da3057fbbc # main on 22.01.2026
         with:
           sync-labels: true
