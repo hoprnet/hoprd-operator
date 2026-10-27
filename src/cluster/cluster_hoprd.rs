@@ -139,58 +139,12 @@ impl ClusterHoprd {
             context_data.send_event(self, ClusterHoprdEventEnum::Ready, None).await;
             self.update_status(context_data.clone(), ClusterHoprdPhaseEnum::Ready).await?;
             warn!("Detected a change in ClusterHoprd {cluster_hoprd_name} while was in Failed phase. Automatically recovering to a Ready phase");
-        } else if self.annotations().contains_key(constants::ANNOTATION_LAST_CONFIGURATION) {
-            let previous_config_text: String = self.annotations().get(constants::ANNOTATION_LAST_CONFIGURATION).cloned().or_missing(constants::ANNOTATION_LAST_CONFIGURATION)?;
-            match serde_json::from_str::<ClusterHoprd>(&previous_config_text) {
-                Ok(previous_cluster_hoprd) => {
-                    if self.changed_inmutable_fields(&previous_cluster_hoprd.spec) {
-                        context_data.send_event(self, ClusterHoprdEventEnum::Failed, None).await;
-                        self.update_status(context_data.clone(), ClusterHoprdPhaseEnum::Failed).await?;
-                    } else {
-                        self.apply_modification(context_data.clone()).await?;
-                        self.check_needs_rescale(context_data.clone()).await?;
-                        info!("ClusterHoprd {cluster_hoprd_name} in namespace {hoprd_namespace} has been successfully modified");
-                    }
-                }
-                Err(_err) => {
-                    context_data.send_event(self, ClusterHoprdEventEnum::Failed, None).await;
-                    self.update_status(context_data.clone(), ClusterHoprdPhaseEnum::Failed).await?;
-                    error!("Could not parse the last applied configuration of ClusterHoprd {cluster_hoprd_name}");
-                }
-            }
-            self.update_last_configuration(context_data.client.clone()).await?;
         } else {
-            context_data.send_event(self, ClusterHoprdEventEnum::Failed, None).await;
-            self.update_status(context_data.clone(), ClusterHoprdPhaseEnum::Failed).await?;
-            error!("Could not modify ClusterHoprd {cluster_hoprd_name} because cannot recover last configuration");
+            self.apply_modification(context_data.clone()).await?;
+            self.check_needs_rescale(context_data.clone()).await?;
+            info!("ClusterHoprd {cluster_hoprd_name} in namespace {hoprd_namespace} has been successfully modified");
         }
         Ok(Action::requeue(Duration::from_secs(constants::RECONCILE_SHORT_FREQUENCY)))
-    }
-
-    async fn update_last_configuration(&self, client: Client) -> Result<(), Error> {
-        let api: Api<ClusterHoprd> = Api::namespaced(client, &self.require_namespace()?);
-        let mut cloned_cluster = self.clone();
-        cloned_cluster.status = None;
-        cloned_cluster.metadata.managed_fields = None;
-        cloned_cluster.metadata.creation_timestamp = None;
-        cloned_cluster.metadata.finalizers = None;
-        cloned_cluster.metadata.annotations = None;
-        cloned_cluster.metadata.generation = None;
-        cloned_cluster.metadata.resource_version = None;
-        cloned_cluster.metadata.uid = None;
-        let cluster_last_configuration = serde_json::to_string(&cloned_cluster)?;
-        let mut annotations = BTreeMap::new();
-        annotations.insert(constants::ANNOTATION_LAST_CONFIGURATION.to_string(), cluster_last_configuration);
-        let patch = Patch::Merge(json!({
-            "metadata": {
-                "annotations": annotations
-            }
-        }));
-        // A failure is returned so the reconciliation is retried: a stale annotation would make the next modification be compared against an outdated configuration
-        api.patch(&self.name_any(), &PatchParams::default(), &patch).await.inspect_err(|error| {
-            error!("Could not update last configuration annotation on ClusterHoprd {}: {:?}", self.name_any(), error);
-        })?;
-        Ok(())
     }
 
     // Handle rescaling
@@ -262,19 +216,6 @@ impl ClusterHoprd {
         resource_generics::delete_finalizer(client.clone(), self).await?;
         info!("ClusterHoprd {cluster_hoprd_name} in namespace {hoprd_namespace} has been successfully deleted");
         Ok(Action::await_change()) // Makes no sense to delete after a successful delete, as the resource is gone
-    }
-
-    /// Check the fileds that cannot be modifed
-    fn changed_inmutable_fields(&self, spec: &ClusterHoprdSpec) -> bool {
-        if !self.spec.identity_pool_name.eq(&spec.identity_pool_name) {
-            error!("Cluster configuration is invalid, identity_pool_name field cannot be changed on {}.", self.name_any());
-            true
-        } else if self.spec.service.r#type != spec.service.r#type {
-            error!("Cluster configuration is invalid, service Type field cannot be changed on {}.", self.name_any());
-            true
-        } else {
-            false
-        }
     }
 
     /// Updates the status of ClusterHoprd
@@ -468,7 +409,6 @@ impl ClusterHoprd {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::hoprd::hoprd_service::ServiceTypeEnum;
 
     fn cluster() -> ClusterHoprd {
         let mut cluster = ClusterHoprd::new("cluster", ClusterHoprdSpec {
@@ -505,26 +445,6 @@ mod tests {
         let mut without_source = cluster();
         without_source.spec.source_node_logs = None;
         assert_eq!(without_source.build_hoprd_spec("pool-2".to_owned(), "cluster-2").source_node_logs, Some(false));
-    }
-
-    #[test]
-    fn identity_pool_and_service_type_are_immutable() {
-        let current = cluster();
-        let mut previous = cluster().spec;
-        assert!(!current.changed_inmutable_fields(&previous));
-        previous.identity_pool_name = "other".to_owned();
-        assert!(current.changed_inmutable_fields(&previous));
-        let mut previous = cluster().spec;
-        previous.service.r#type = ServiceTypeEnum::LoadBalancer;
-        assert!(current.changed_inmutable_fields(&previous));
-    }
-
-    #[test]
-    fn replicas_can_change() {
-        let current = cluster();
-        let mut previous = cluster().spec;
-        previous.replicas = 10;
-        assert!(!current.changed_inmutable_fields(&previous));
     }
 
     #[test]

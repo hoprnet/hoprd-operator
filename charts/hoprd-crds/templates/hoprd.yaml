@@ -95,9 +95,15 @@ spec:
                 identityName:
                   description: The name of the IdentityHoprd
                   type: string
+                  x-kubernetes-validations:
+                  - message: identityName is immutable
+                    rule: self == oldSelf
                 identityPoolName:
                   description: The name of the IdentityPool
                   type: string
+                  x-kubernetes-validations:
+                  - message: identityPoolName is immutable
+                    rule: self == oldSelf
                 service:
                   description: Service configuration
                   properties:
@@ -114,6 +120,9 @@ spec:
                         Warning: Large numbers may impact kubernetes cluster performance.'
                       maximum: 200
                       minimum: 0
+                      x-kubernetes-validations:
+                      - message: service.portsAllocation is immutable
+                        rule: self == oldSelf
                   required:
                   - type
                   type: object
@@ -212,9 +221,15 @@ spec:
                 identityName:
                   description: The name of the IdentityHoprd
                   type: string
+                  x-kubernetes-validations:
+                  - message: identityName is immutable
+                    rule: self == oldSelf
                 identityPoolName:
                   description: The name of the IdentityPool
                   type: string
+                  x-kubernetes-validations:
+                  - message: identityPoolName is immutable
+                    rule: self == oldSelf
                 portsAllocation:
                   description: 'Number of ports to be opened for session management
                     in the hoprd node. Each session requires one port. Default: 10 ports
@@ -223,6 +238,9 @@ spec:
                   maximum: 200
                   minimum: 0
                   type: number
+                  x-kubernetes-validations:
+                  - message: portsAllocation is immutable
+                    rule: self == oldSelf
                 service:
                   description: Service configuration
                   properties:

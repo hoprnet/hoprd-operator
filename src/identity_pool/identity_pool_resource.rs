@@ -143,22 +143,7 @@ impl IdentityPool {
         let identity_pool_name: String = self.name_any();
         if let Some(status) = self.status.as_ref() {
             if status.phase.eq(&IdentityPoolPhaseEnum::Ready) {
-                if self.annotations().contains_key(constants::ANNOTATION_LAST_CONFIGURATION) {
-                    let previous_text: String = self.annotations().get(constants::ANNOTATION_LAST_CONFIGURATION).cloned().or_missing(constants::ANNOTATION_LAST_CONFIGURATION)?;
-                    match serde_json::from_str::<IdentityPool>(&previous_text) {
-                        Ok(previous_identity_pool) => {
-                            self.apply_modification(context_data, &previous_identity_pool).await?;
-                        }
-                        Err(err) => {
-                            error!("Could not parse the last applied configuration from {identity_pool_name}: {}", err);
-                        }
-                    }
-                } else {
-                    error!(
-                        "The IdentityPool {} in namespace {} cannot be modified without the last configuration annotation",
-                        identity_pool_name, identity_pool_namespace
-                    );
-                }
+                self.apply_modification(context_data).await?;
             } else if status.phase.eq(&IdentityPoolPhaseEnum::Failed) {
                 context_data.send_event(self, IdentityPoolEventEnum::Ready, None).await;
                 self.update_status(context_data.client.clone(), IdentityPoolPhaseEnum::Ready).await?;
@@ -175,34 +160,29 @@ impl IdentityPool {
         Ok(Action::requeue(Duration::from_secs(constants::RECONCILE_SHORT_FREQUENCY)))
     }
 
-    async fn apply_modification(&mut self, context_data: Arc<ContextData>, previous_identity_pool: &IdentityPool) -> Result<(), Error> {
+    async fn apply_modification(&mut self, context_data: Arc<ContextData>) -> Result<(), Error> {
         let client: Client = context_data.client.clone();
         let identity_pool_namespace: String = self.require_namespace()?;
         let identity_pool_name: String = self.name_any();
-        if self.changed_inmutable_fields(&previous_identity_pool.spec) {
-            context_data.send_event(self, IdentityPoolEventEnum::Failed, None).await;
-            self.update_status(client.clone(), IdentityPoolPhaseEnum::Failed).await?;
-        } else {
-            let api: Api<CronJob> = Api::namespaced(context_data.client.clone(), &identity_pool_namespace);
-            let cron_job_name = format!("auto-funding-{}", identity_pool_name);
-            match self.spec.funding.as_ref() {
-                Some(_) => {
-                    if api.get_opt(&cron_job_name).await?.is_none() {
-                        identity_pool_cronjob_faucet::create_cron_job(context_data.clone(), self).await?;
-                    } else {
-                        identity_pool_cronjob_faucet::modify_cron_job(context_data.clone(), self).await?;
-                    }
-                }
-                None => {
-                    if api.get_opt(&cron_job_name).await?.is_some() {
-                        identity_pool_cronjob_faucet::delete_cron_job(context_data.client.clone(), self).await?;
-                    }
+        let api: Api<CronJob> = Api::namespaced(context_data.client.clone(), &identity_pool_namespace);
+        let cron_job_name = format!("auto-funding-{}", identity_pool_name);
+        match self.spec.funding.as_ref() {
+            Some(_) => {
+                if api.get_opt(&cron_job_name).await?.is_none() {
+                    identity_pool_cronjob_faucet::create_cron_job(context_data.clone(), self).await?;
+                } else {
+                    identity_pool_cronjob_faucet::modify_cron_job(context_data.clone(), self).await?;
                 }
             }
-            context_data.send_event(self, IdentityPoolEventEnum::Ready, None).await;
-            self.update_status(client.clone(), IdentityPoolPhaseEnum::Ready).await?;
-            info!("Identity pool {identity_pool_name} in namespace {identity_pool_namespace} has been successfully modified");
+            None => {
+                if api.get_opt(&cron_job_name).await?.is_some() {
+                    identity_pool_cronjob_faucet::delete_cron_job(context_data.client.clone(), self).await?;
+                }
+            }
         }
+        context_data.send_event(self, IdentityPoolEventEnum::Ready, None).await;
+        self.update_status(client.clone(), IdentityPoolPhaseEnum::Ready).await?;
+        info!("Identity pool {identity_pool_name} in namespace {identity_pool_namespace} has been successfully modified");
         Ok(())
     }
 
@@ -259,18 +239,6 @@ impl IdentityPool {
         identity_pool_cronjob_faucet::create_cron_job(context_data.clone(), self).await?;
         info!("Cronjob faucet of IdentityPool {identity_pool_name} in namespace {identity_pool_namespace} successfully recreated");
         Ok(Action::requeue(Duration::from_secs(constants::RECONCILE_SHORT_FREQUENCY)))
-    }
-
-    fn changed_inmutable_fields(&self, previous_identity: &IdentityPoolSpec) -> bool {
-        if !self.spec.network.eq(&previous_identity.network) {
-            error!("Configuration is invalid, 'network' field cannot be changed on {}.", self.name_any());
-            true
-        } else if !self.spec.secret_name.eq(&previous_identity.secret_name) {
-            error!("Configuration is invalid, 'secret_name' field cannot be changed on {}.", self.name_any());
-            true
-        } else {
-            false
-        }
     }
 
     /// Updates the status of IdentityPool
@@ -414,26 +382,6 @@ fn can_be_locked_by(status: &IdentityHoprdStatus, hoprd_node_name: &str) -> bool
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    fn pool(network: &str, secret_name: &str) -> IdentityPool {
-        IdentityPool::new("pool", IdentityPoolSpec { network: network.to_owned(), secret_name: secret_name.to_owned(), funding: None })
-    }
-
-    #[test]
-    fn network_and_secret_name_are_immutable() {
-        let current = pool("rotsee", "secret");
-        assert!(!current.changed_inmutable_fields(&pool("rotsee", "secret").spec));
-        assert!(current.changed_inmutable_fields(&pool("dufour", "secret").spec));
-        assert!(current.changed_inmutable_fields(&pool("rotsee", "other").spec));
-    }
-
-    #[test]
-    fn funding_can_change() {
-        let current = pool("rotsee", "secret");
-        let mut previous = pool("rotsee", "secret").spec;
-        previous.funding = Some(IdentityPoolFunding { schedule: "* * * * *".to_owned(), native_amount: "1".to_owned() });
-        assert!(!current.changed_inmutable_fields(&previous));
-    }
 
     #[test]
     fn default_status_is_an_empty_initialized_pool() {

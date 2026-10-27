@@ -78,7 +78,6 @@ pub enum ClusterHoprdEventEnum {
     Initialized,
     NotScaled,
     Scaling,
-    Failed,
     Ready,
     Deleting,
     CreatingNode,
@@ -114,13 +113,6 @@ impl ResourceEvent for ClusterHoprdEventEnum {
                 reason: "Scaling".to_string(),
                 note: Some("ClusterHoprd is scaling to meet the required replicas".to_string()),
                 action: "ClusterHoprd is scaling".to_string(),
-                secondary: None,
-            },
-            ClusterHoprdEventEnum::Failed => Event {
-                type_: EventType::Warning,
-                reason: "Failed".to_string(),
-                note: Some("ClusterHoprd is in failed status.".to_string()),
-                action: "ClusterHoprd configuration is corrupted".to_string(),
                 secondary: None,
             },
             ClusterHoprdEventEnum::Ready => Event {
@@ -315,7 +307,6 @@ mod tests {
     #[test]
     fn failures_are_warnings_and_the_rest_are_normal() {
         assert!(matches!(HoprdEventEnum::Failed.to_event(None).type_, EventType::Warning));
-        assert!(matches!(ClusterHoprdEventEnum::Failed.to_event(None).type_, EventType::Warning));
         assert!(matches!(IdentityHoprdEventEnum::Failed.to_event(None).type_, EventType::Warning));
         assert!(matches!(IdentityPoolEventEnum::Failed.to_event(None).type_, EventType::Warning));
         assert!(matches!(HoprdEventEnum::Running.to_event(None).type_, EventType::Normal));
