@@ -122,7 +122,7 @@ jobs:
           fi
       - name: Commit and push
         if: ${{ steps.generator.outputs.readme_updated }}
-        uses: stefanzweifel/git-auto-commit-action@v6
+        uses: stefanzweifel/git-auto-commit-action@v7
         with:
           commit_message: Update parameters README.md
           repository: .
