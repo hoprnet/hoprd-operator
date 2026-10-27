@@ -1,0 +1,229 @@
+---
+################################################################################
+# Reusable pipeline for one Helm chart
+#
+# Lints, packages and scans the chart and, when `publish` is true, publishes it
+# to the Artifact Registry. The version being published and the commit being
+# built come from the caller's github context:
+#   - pull request (label publish-helm-charts): <version>-commit.<short sha>
+#   - pull request merged:                      <version>-pr.<number>
+#   - workflow_dispatch (release.yaml):         <version>, pushes the git tag and
+#                                               bumps the patch version of the chart
+# The parameters README is regenerated on pull requests.
+################################################################################
+name: 'Helm chart'
+on:
+  workflow_call:
+    inputs:
+      chart_name:
+        description: "Chart directory under charts/ and chart name (cluster-hoprd, hoprd-crds, hoprd-operator)"
+        required: true
+        type: string
+      publish:
+        description: "Whether to publish the chart after the checks pass"
+        required: false
+        type: boolean
+        default: false
+    secrets:
+      github_app_private_key:
+        description: "GitHub App private key used to push the release tag and version bump (release only)"
+        required: false
+permissions:
+  contents: read
+env:
+  # The merge commit once merged, the pull request head on open pull requests
+  # and the branch a release is run on.
+  CHECKOUT_REF: ${{ github.event_name == 'workflow_dispatch' && github.ref_name || (github.event.action == 'closed' && github.event.pull_request.merge_commit_sha || github.event.pull_request.head.sha) }}
+jobs:
+  lint:
+    name: Lint
+    runs-on: depot-ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.CHECKOUT_REF }}
+          persist-credentials: false
+      - name: Set up Helm
+        uses: azure/setup-helm@v5
+        with:
+          version: latest
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Lint
+        run: helm lint -f ./values-staging.yaml .
+        working-directory: charts/${{ inputs.chart_name }}
+
+  package:
+    name: Package
+    runs-on: depot-ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.CHECKOUT_REF }}
+          persist-credentials: false
+      - name: Set up Helm
+        uses: azure/setup-helm@v5
+        with:
+          version: latest
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Helm Package
+        run: helm package .
+        working-directory: charts/${{ inputs.chart_name }}
+
+  trivy:
+    name: Trivy
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.CHECKOUT_REF }}
+          persist-credentials: false
+      - name: Run Trivy vulnerability scanner in IaC mode
+        uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8 # v0.36.0
+        with:
+          scan-type: 'config'
+          hide-progress: false
+          format: 'table'
+          scan-ref: charts/${{ inputs.chart_name }}/
+          exit-code: '1'
+          ignore-unfixed: true
+          severity: 'MEDIUM,HIGH,CRITICAL'
+
+  update-readme:
+    name: Update Readme
+    # Only on open pull requests from this repository, as the result is pushed to the branch
+    if: github.event_name == 'pull_request' && github.event.action != 'closed' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: depot-ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+      - name: Setup NodeJs
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - name: Install readme-generator-for-helm
+        run: npm install -g @bitnami/readme-generator-for-helm@2.5.0
+      - name: Execute readme-generator-for-helm
+        id: generator
+        env:
+          CHART_NAME: ${{ inputs.chart_name }}
+        run: |
+          readme-generator --values "charts/${CHART_NAME}/values.yaml" --readme "charts/${CHART_NAME}/README.md" --schema "/tmp/schema.json"
+          if git status -s | grep charts; then
+            echo "readme_updated=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Commit and push
+        if: ${{ steps.generator.outputs.readme_updated }}
+        uses: stefanzweifel/git-auto-commit-action@v6
+        with:
+          commit_message: Update parameters README.md
+          repository: .
+          commit_user_name: HOPR CI robot
+          commit_user_email: noreply@hoprnet.org
+          commit_author: HOPR CI robot <noreply@hoprnet.org>
+
+  publish:
+    name: Publish
+    if: inputs.publish
+    needs:
+      - lint
+      - package
+      - trivy
+      - update-readme
+    runs-on: depot-ubuntu-24.04
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Generate short-lived github token from GitHub App Hoprnet
+        id: bot-token
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ vars.GH_APP_HOPRNET_BOT_CLIENT_ID }}
+          private-key: ${{ secrets.github_app_private_key }}
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.CHECKOUT_REF }}
+          fetch-depth: 0
+          fetch-tags: true
+          token: ${{ steps.bot-token.outputs.token || github.token }}
+          persist-credentials: ${{ github.event_name == 'workflow_dispatch' }}
+      - name: Set up Helm
+        uses: azure/setup-helm@v5
+        with:
+          version: latest
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Get Helm chart version
+        id: version
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          EVENT_ACTION: ${{ github.event.action }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          CHART_NAME: ${{ inputs.chart_name }}
+        run: |
+          chart_version=$(grep '^version:' Chart.yaml | sed 's/.*: //')
+          if [ "${EVENT_NAME}" = "workflow_dispatch" ]; then
+            tag="helm-${CHART_NAME}-${chart_version}"
+            if git rev-parse "refs/tags/${tag}" >/dev/null 2>&1; then
+              echo "::error::${CHART_NAME} ${chart_version} is already released (tag ${tag}). Bump the chart version first."
+              exit 1
+            fi
+            echo "HELM_CHART_VERSION=${chart_version}" >> "$GITHUB_OUTPUT"
+          elif [ "${EVENT_NAME}" = "pull_request" ] && [ "${EVENT_ACTION}" = "closed" ]; then
+            echo "HELM_CHART_VERSION=${chart_version}-pr.${PR_NUMBER}" >> "$GITHUB_OUTPUT"
+          elif [ "${EVENT_NAME}" = "pull_request" ]; then
+            echo "HELM_CHART_VERSION=${chart_version}-commit.${HEAD_SHA:0:7}" >> "$GITHUB_OUTPUT"
+          else
+            echo "::error::Unsupported event ${EVENT_NAME}"
+            exit 1
+          fi
+        working-directory: charts/${{ inputs.chart_name }}
+      - name: Setup GCP
+        id: gcp
+        uses: hoprnet/hopr-workflows/actions/setup-gcp@ac3e0b6137b0ba470a30c373aab2ceba9e0879e4 # setup-gcp-v4
+        with:
+          login_artifact_registry: 'true'
+      - name: Helm Package
+        env:
+          HELM_CHART_VERSION: ${{ steps.version.outputs.HELM_CHART_VERSION }}
+        run: helm package . --version "${HELM_CHART_VERSION}"
+        working-directory: charts/${{ inputs.chart_name }}
+      - name: Helm Publish
+        env:
+          CHART_NAME: ${{ inputs.chart_name }}
+          HELM_CHART_VERSION: ${{ steps.version.outputs.HELM_CHART_VERSION }}
+        run: helm push "${CHART_NAME}-${HELM_CHART_VERSION}.tgz" oci://europe-west3-docker.pkg.dev/hoprassociation/helm-charts
+        working-directory: charts/${{ inputs.chart_name }}
+      - name: Tag Helm version
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          TAG: helm-${{ inputs.chart_name }}-${{ steps.version.outputs.HELM_CHART_VERSION }}
+        run: |
+          git config user.email "noreply@hoprnet.org"
+          git config user.name "HOPR CI robot"
+          git tag -a "${TAG}" -m "Release ${TAG}"
+          git push origin "${TAG}"
+      - name: Bump Helm chart version
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          CHART_NAME: ${{ inputs.chart_name }}
+          RELEASED_VERSION: ${{ steps.version.outputs.HELM_CHART_VERSION }}
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          patch_number="${RELEASED_VERSION##*.}"
+          next_version="${RELEASED_VERSION%.*}.$((patch_number + 1))"
+          sed -i "s/^version: ${RELEASED_VERSION}$/version: ${next_version}/" "charts/${CHART_NAME}/Chart.yaml"
+          git add "charts/${CHART_NAME}/Chart.yaml"
+          git commit -m "chore: bump ${CHART_NAME} Helm chart version to ${next_version}"
+          git push origin "HEAD:${BRANCH}"

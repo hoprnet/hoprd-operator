@@ -1,3 +1,5 @@
+{{- /* portsAllocation 0 means no ceiling: allow every port from the p2p port up */ -}}
+{{- $p2pEndPort := ternary 65535 (add 9090 .Values.clusterHoprd.nodes.service.portsAllocation) (eq (int .Values.clusterHoprd.nodes.service.portsAllocation) 0) -}}
 {{- if .Values.clusterHoprd.networkPolicy.enabled -}}
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -28,11 +30,11 @@ spec:
               hoprds.hoprnet.org/network: {{ .Values.clusterHoprd.network }}
       ports:
         - protocol: TCP
-          port: 9090
-          endPort: {{ max 9090 (add 9089 .Values.clusterHoprd.nodes.service.portsAllocation) }}
+          port: 9091
+          endPort: {{ $p2pEndPort }}
         - protocol: UDP
-          port: 9090
-          endPort: {{ max 9090 (add 9089 .Values.clusterHoprd.nodes.service.portsAllocation) }}
+          port: 9091
+          endPort: {{ $p2pEndPort }}
     {{- if eq .Values.clusterHoprd.nodes.service.type "LoadBalancer" }}
     # ICMP "port unreachable" replies from unreachable p2p peers get dropped here (no ICMP
     # value in NetworkPolicy - only fix is removing ports: below, which opens all ports from
@@ -43,11 +45,11 @@ spec:
             cidr: 0.0.0.0/0
       ports:
         - protocol: TCP
-          port: 9090
-          endPort: {{ max 9090 (add 9089 .Values.clusterHoprd.nodes.service.portsAllocation) }}
+          port: 9091
+          endPort: {{ $p2pEndPort }}
         - protocol: UDP
-          port: 9090
-          endPort: {{ max 9090 (add 9089 .Values.clusterHoprd.nodes.service.portsAllocation) }}
+          port: 9091
+          endPort: {{ $p2pEndPort }}
     {{- end }}
 ---
 apiVersion: networking.k8s.io/v1
@@ -72,11 +74,11 @@ spec:
               hoprds.hoprnet.org/network: {{ .Values.clusterHoprd.network }}
       ports:
         - protocol: TCP
-          port: 9090
-          endPort: {{ max 9090 (add 9089 .Values.clusterHoprd.nodes.service.portsAllocation) }}
+          port: 9091
+          endPort: {{ $p2pEndPort }}
         - protocol: UDP
-          port: 9090
-          endPort: {{ max 9090 (add 9089 .Values.clusterHoprd.nodes.service.portsAllocation) }}
+          port: 9091
+          endPort: {{ $p2pEndPort }}
     - to:
         - namespaceSelector:
             matchLabels:
