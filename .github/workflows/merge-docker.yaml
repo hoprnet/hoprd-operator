@@ -3,7 +3,8 @@
 # Merge pipeline for the hoprd-operator Docker image
 #
 # Runs when a pull request is merged into master and publishes the image
-# tagged with the pull request version (<Cargo.toml version>+pr.<number>).
+# tagged with the pull request version (<Cargo.toml version>+pr.<number>),
+# also updating the latest and latest-main image tags.
 # Releases are cut with release.yaml.
 ################################################################################
 name: 'Merge Docker Image'
