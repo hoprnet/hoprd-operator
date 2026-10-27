@@ -85,12 +85,12 @@ jobs:
   release-helm:
     name: Release ${{ inputs.component }}
     if: startsWith(inputs.component, 'helm-chart-')
-    uses: ./.github/workflows/helm-publish.yaml
+    uses: ./.github/workflows/helm-chart.yaml
     permissions:
-      contents: read
+      contents: write
       id-token: write
     with:
       chart_name: ${{ fromJSON('{"helm-chart-cluster":"cluster-hoprd","helm-chart-crds":"hoprd-crds","helm-chart-operator":"hoprd-operator"}')[inputs.component] }}
-      version_type: release
+      publish: true
     secrets:
       github_app_private_key: ${{ secrets.GH_APP_HOPRNET_BOT_PRIVATE_KEY }}

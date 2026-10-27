@@ -1,163 +1,36 @@
 ---
-
+################################################################################
+# Pull request pipeline for the cluster-hoprd Helm chart
+#
+# Lints, packages and scans the chart and regenerates its parameters README. The
+# chart is also published with the commit short hash as version when the pull
+# request has the publish-helm-charts label.
+################################################################################
 name: 'PR Helm chart Cluster'
-
 on:
   pull_request:
     types:
       - opened
       - synchronize
+      - reopened
       - ready_for_review
+      - labeled
     branches:
       - master
     paths:
       - "charts/cluster-hoprd/**"
 concurrency:
-  group: ${{ github.head_ref }}-cluster-build
+  group: pr-helm-cluster-hoprd-${{ github.event.pull_request.head.ref }}
   cancel-in-progress: true
+permissions:
+  contents: read
 jobs:
-  bump_version:
-    name: Bump version
-    runs-on: depot-ubuntu-24.04
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-
-      - name: Bump Chart version
-        id: bumping_version
-        run: |
-          helm_chart_version=$(grep '^version:' Chart.yaml | sed 's/.*: //')
-          git_tag=$(git tag -l helm-cluster-hoprd-${helm_chart_version})
-          echo "Workspace version is helm-cluster-hoprd-${helm_chart_version} while tagged is ${git_tag}"
-          if [ "${git_tag}" = "helm-cluster-hoprd-${helm_chart_version}" ]; then
-            patch_number=$(echo $helm_chart_version | sed 's/.*\.//')
-            release_number=$(echo $helm_chart_version | sed "s/\.${patch_number}//")
-            bump_version=${release_number}.$((patch_number + 1))
-            echo "The helm chart version ${git_tag} already exists, bumping to version helm-cluster-hoprd-${bump_version}";
-            sed -i "s/^version: ${helm_chart_version}/version: ${bump_version}/" Chart.yaml
-            echo "bumped_version=true" >> $GITHUB_OUTPUT
-          fi
-        working-directory: 'charts/cluster-hoprd/'
-
-      - name: Commit and push
-        if: ${{ steps.bumping_version.outputs.bumped_version }}
-        uses: stefanzweifel/git-auto-commit-action@v6
-        with:
-          commit_message: "Bump Helm chart version to ${{ steps.bumping_version.outputs.bumped_version }}"
-          repository: .
-          commit_user_name: HOPR CI robot
-          commit_user_email: noreply@hoprnet.org
-          commit_author: HOPR CI robot <noreply@hoprnet.org>
-          skip_fetch: false
-          skip_checkout: false
-          create_branch: false
-
-  lint:
-    name: Lint
-    runs-on: depot-ubuntu-24.04
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-
-      - name: Set up Helm
-        uses: azure/setup-helm@v5
-        with:
-          version: latest
-          token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Lint
-        run: helm lint -f ./values-staging.yaml .
-        working-directory: 'charts/cluster-hoprd/'
-
-  package:
-    name: Package Helm Chart
-    runs-on: depot-ubuntu-24.04
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-
-      - name: Set up Helm
-        uses: azure/setup-helm@v5
-        with:
-          version: latest
-          token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Get Helm chart version
-        id: get_version
-        run: |
-          HELM_CHART_VERSION=$(grep '^version:' Chart.yaml | sed 's/.*: //')
-          echo "HELM_CHART_VERSION=${HELM_CHART_VERSION}" >> $GITHUB_OUTPUT
-        working-directory: 'charts/cluster-hoprd/'
-
-      - name: Helm Package
-        run: helm package . --version ${{ steps.get_version.outputs.HELM_CHART_VERSION }}
-        working-directory: 'charts/cluster-hoprd/'
-
-  trivy:
-    name: Helm Security Analysis
-    runs-on: ubuntu-latest
+  helm-chart:
+    name: Helm Chart
+    uses: ./.github/workflows/helm-chart.yaml
     permissions:
-      security-events: write
-      actions: read
-      contents: read
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7   # 93ea575cb5d8a053eaa0ac8fa3b40d7e05a33cc8 # tag=v3.1.0
-
-      - name: Set up Helm
-        uses: azure/setup-helm@v5
-        with:
-          version: latest
-          token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Set up python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # tag=v7.0.0
-        with:
-          python-version: 3.13
-
-      - name: Run Trivy vulnerability scanner in IaC mode
-        uses: aquasecurity/trivy-action@master
-        with:
-          scan-type: 'config'
-          hide-progress: false
-          format: 'table'
-          scan-ref: 'charts/cluster-hoprd/'
-          exit-code: '1'
-          ignore-unfixed: true
-          # severity: 'MEDIUM,HIGH,CRITICAL'
-          # trivyignores: '.trivyignore'
-
-  generate-readme:
-    name: Generate Readme
-    runs-on: depot-ubuntu-24.04
-    permissions:
-      contents: write
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-
-      - name: Setup NodeJs
-        uses: actions/setup-node@v7
-        with:
-          node-version: 22
-
-      - name: Install readme-generator-for-helm
-        run: npm install -g @bitnami/readme-generator-for-helm@2.5.0
-
-      - name: Execute readme-generator-for-helm
-        id: generator
-        run: |
-          readme-generator --values "charts/cluster-hoprd/values.yaml" --readme "charts/cluster-hoprd/README.md" --schema "/tmp/schema.json"
-          if git status -s | grep charts; then
-            echo "readme_updated=true" >>  $GITHUB_OUTPUT
-          fi
-
-      - name: Commit and push
-        if: ${{ steps.generator.outputs.readme_updated }}
-        uses: stefanzweifel/git-auto-commit-action@v6
-        with:
-          commit_message: Update parameters README.md
-          repository: .
-          commit_user_name: HOPR CI robot
-          commit_user_email: noreply@hoprnet.org
-          commit_author: HOPR CI robot <noreply@hoprnet.org>
+      contents: write # zizmor: ignore[excessive-permissions]
+      id-token: write # zizmor: ignore[excessive-permissions]
+    with:
+      chart_name: cluster-hoprd
+      publish: ${{ contains(github.event.pull_request.labels.*.name, 'publish-helm-charts') }}

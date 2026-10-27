@@ -21,13 +21,13 @@ concurrency:
 permissions:
   contents: read
 jobs:
-  publish:
-    name: Publish
+  helm-chart:
+    name: Helm Chart
     if: github.event.pull_request.merged == true
-    uses: ./.github/workflows/helm-publish.yaml
+    uses: ./.github/workflows/helm-chart.yaml
     permissions:
-      contents: read
-      id-token: write
+      contents: write # zizmor: ignore[excessive-permissions]
+      id-token: write # zizmor: ignore[excessive-permissions]
     with:
       chart_name: hoprd-crds
-      version_type: pr
+      publish: true
