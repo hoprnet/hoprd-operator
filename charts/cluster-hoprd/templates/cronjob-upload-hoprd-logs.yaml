@@ -59,13 +59,15 @@ metadata:
   name: {{ include "cluster-hoprd.name" . }}-upload-hoprd-logs
   namespace: {{ .Release.Namespace }}
 spec:
-  schedule: "{{ .Values.clusterHoprd.logs.upload.schedule }}"
+  schedules:
+    - "{{ .Values.clusterHoprd.logs.upload.schedule }}"
   timezone: Europe/Zurich # Adjust timezone if necessary
   concurrencyPolicy: "Replace" # Ensures only one job runs at a time
   startingDeadlineSeconds: 600 # Deadline to start the job in seconds
-  ttlSecondsAfterFinished: 86400 # Cleanup completed tasks after 24 hour
-  serviceAccountName: argo-workflow
   workflowSpec:
+    serviceAccountName: argo-workflow
+    ttlStrategy:
+      secondsAfterCompletion: 86400 # Cleanup completed tasks after 24 hour
     entrypoint: main
     templates:
       - name: main
@@ -229,8 +231,6 @@ spec:
             requests:
               memory: "64Mi"
               cpu: "50m"
-    # ttlStrategy:
-    #   secondsAfterCompletion: 86400 # Cleanup completed tasks after 24 hour
   successfulJobsHistoryLimit: 1
   failedJobsHistoryLimit: 2
 {{- end -}}
