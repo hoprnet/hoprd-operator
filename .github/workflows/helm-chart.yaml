@@ -83,7 +83,7 @@ jobs:
           ref: ${{ env.CHECKOUT_REF }}
           persist-credentials: false
       - name: Run Trivy vulnerability scanner in IaC mode
-        uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8 # v0.36.0
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           scan-type: 'config'
           hide-progress: false
@@ -122,7 +122,7 @@ jobs:
           fi
       - name: Commit and push
         if: ${{ steps.generator.outputs.readme_updated }}
-        uses: stefanzweifel/git-auto-commit-action@v6
+        uses: stefanzweifel/git-auto-commit-action@v7
         with:
           commit_message: Update parameters README.md
           repository: .
@@ -145,7 +145,7 @@ jobs:
       - name: Generate short-lived github token from GitHub App Hoprnet
         id: bot-token
         if: github.event_name == 'workflow_dispatch'
-        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
         with:
           client-id: ${{ vars.GH_APP_HOPRNET_BOT_CLIENT_ID }}
           private-key: ${{ secrets.github_app_private_key }}
