@@ -15,7 +15,7 @@ on:
       - ready_for_review
 permissions: {}
 concurrency:
-  group: ${{ github.event.pull_request.head.ref || github.ref_name }}-pr-docker
+  group: ${{ github.event.pull_request.number || github.ref }}-pr-docker
   cancel-in-progress: true
 env:
   CARGO_TERM_COLOR: always
