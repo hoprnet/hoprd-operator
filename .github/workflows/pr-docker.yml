@@ -74,7 +74,9 @@ jobs:
   # ── Unit tests ──────────────────────────────────────────────────────────────
   tests:
     name: Test
-    needs: changes
+    needs:
+      - changes
+      - checks
     uses: hoprnet/hopr-workflows/.github/workflows/tests.yaml@83afac7a1d7b7c3e6d20bed7b64ed2bb94fb97b6 # workflow-tests-v6.1.2
     with:
       source_branch: ${{ github.event.pull_request.head.ref || github.ref }}
