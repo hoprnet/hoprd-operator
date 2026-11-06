@@ -20,7 +20,7 @@ on:
     paths:
       - "charts/hoprd-operator/**"
 concurrency:
-  group: pr-helm-hoprd-operator-${{ github.event.pull_request.head.ref }}
+  group: pr-helm-hoprd-operator-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 permissions:
   contents: read
