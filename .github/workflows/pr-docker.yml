@@ -13,9 +13,7 @@ on:
       - synchronize
       - reopened
       - ready_for_review
-permissions:
-  contents: read
-  id-token: write # zizmor: ignore[excessive-permissions]
+permissions: {}
 concurrency:
   group: ${{ github.event.pull_request.head.ref || github.ref_name }}-pr-docker
   cancel-in-progress: true
@@ -57,6 +55,8 @@ jobs:
   checks:
     name: Check
     needs: changes
+    permissions:
+      contents: read
     uses: hoprnet/hopr-workflows/.github/workflows/checks.yaml@83afac7a1d7b7c3e6d20bed7b64ed2bb94fb97b6 # workflow-checks-v2.1.1
     with:
       source_branch: ${{ github.event.pull_request.head.ref || github.ref }}
@@ -77,6 +77,9 @@ jobs:
     needs:
       - changes
       - checks
+    permissions:
+      contents: read
+      id-token: write # the callee's coverage job declares it, even when disabled
     uses: hoprnet/hopr-workflows/.github/workflows/tests.yaml@83afac7a1d7b7c3e6d20bed7b64ed2bb94fb97b6 # workflow-tests-v6.1.2
     with:
       source_branch: ${{ github.event.pull_request.head.ref || github.ref }}
