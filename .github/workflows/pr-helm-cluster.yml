@@ -20,7 +20,7 @@ on:
     paths:
       - "charts/cluster-hoprd/**"
 concurrency:
-  group: pr-helm-cluster-hoprd-${{ github.event.pull_request.head.ref }}
+  group: pr-helm-cluster-hoprd-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 permissions:
   contents: read

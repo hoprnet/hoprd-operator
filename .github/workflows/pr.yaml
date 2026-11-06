@@ -13,28 +13,59 @@ on:
       - synchronize
       - reopened
       - ready_for_review
-    paths-ignore:
-      - "charts/**/*"
-permissions:
-  contents: read
-  id-token: write # zizmor: ignore[excessive-permissions]
+permissions: {}
 concurrency:
-  group: ${{ github.event.pull_request.head.ref || github.ref_name }}-pr-docker
+  group: ${{ github.event.pull_request.number || github.ref }}-pr-docker
   cancel-in-progress: true
 env:
   CARGO_TERM_COLOR: always
 jobs:
+  # Chart-only and docs-only pull requests skip the Nix stages. The check is
+  # an input or a caller `if:`, not a workflow-level `paths:` filter, so the
+  # `Merge gate` job still runs and reports on every pull request.
+  changes:
+    name: Detect changes
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+    outputs:
+      code: ${{ steps.filter.outputs.code == 'true' }}
+    steps:
+      - name: Filter changed paths
+        id: filter
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        with:
+          filters: |
+            code:
+              - "src/**"
+              - "Cargo.toml"
+              - "Cargo.lock"
+              - "build.rs"
+              - "rust-toolchain.toml"
+              - "rustfmt.toml"
+              - ".cargo/**"
+              - "flake.nix"
+              - "flake.lock"
+              - "Dockerfile"
+              - ".dockerignore"
+              - ".trivyignore"
+              - "metrics-container/**"
+              - "test-data/**"
+              - ".github/workflows/**"
   # ── Lint ────────────────────────────────────────────────────────────────────
   # Clippy runs with -Dwarnings, and the crate denies unwrap, expect and panic outside tests (see src/main.rs)
   checks:
     name: Check
+    needs: changes
+    permissions:
+      contents: read
     uses: hoprnet/hopr-workflows/.github/workflows/checks.yaml@83afac7a1d7b7c3e6d20bed7b64ed2bb94fb97b6 # workflow-checks-v2.1.1
     with:
       source_branch: ${{ github.event.pull_request.head.ref || github.ref }}
       cachix_cache_name: hoprd-operator
       format: false
       pre_commit: false
-      lint: true
+      lint: ${{ needs.changes.outputs.code == 'true' }}
       audit: false
       deps: false
       lint_command: "nix build -L .#hoprd-operator-clippy"
@@ -45,11 +76,17 @@ jobs:
   # ── Unit tests ──────────────────────────────────────────────────────────────
   tests:
     name: Test
+    needs:
+      - changes
+      - checks
+    permissions:
+      contents: read
+      id-token: write # the callee's coverage job declares it, even when disabled
     uses: hoprnet/hopr-workflows/.github/workflows/tests.yaml@83afac7a1d7b7c3e6d20bed7b64ed2bb94fb97b6 # workflow-tests-v6.1.2
     with:
       source_branch: ${{ github.event.pull_request.head.ref || github.ref }}
       cachix_cache_name: hoprd-operator
-      enable_unit_tests: true
+      enable_unit_tests: ${{ needs.changes.outputs.code == 'true' }}
       enable_unit_coverage: false
       unit_test_command: "nix build -L .#hoprd-operator-test"
       runner_unit: depot-ubuntu-24.04-4
@@ -59,8 +96,10 @@ jobs:
   # ── Build: Docker ───────────────────────────────────────────────────────────
   build-docker:
     name: Docker
+    if: needs.changes.outputs.code == 'true'
     uses: hoprnet/hopr-workflows/.github/workflows/build-docker.yaml@83afac7a1d7b7c3e6d20bed7b64ed2bb94fb97b6 # build-docker-v3.2.0
     needs:
+      - changes
       - checks
       - tests
     permissions:
@@ -70,6 +109,7 @@ jobs:
     with:
       source_branch: ${{ github.event.pull_request.head.ref || github.ref }}
       version_type: commit
+      concurrency_group_suffix: ${{ github.event.pull_request.number || github.ref_name }}
       build_matrix: >-
         [
           {
@@ -84,3 +124,27 @@ jobs:
       docker_image_format: skopeo
     secrets:
       cachix_auth_token: ${{ secrets.CACHIX_AUTH_TOKEN }}
+  # Keeps one required check name stable however the jobs above change
+  # (hoprnet/hopr-devops#372). `if: always()` makes it run when a job fails;
+  # alls-green then reds it on any failure or on a skip that is not allowed.
+  # Charts are checked by the pr-helm-*.yml workflows, which the gate does not
+  # cover.
+  merge-gate:
+    name: Merge gate
+    if: always()
+    needs:
+      - changes
+      - checks
+      - tests
+      - build-docker
+    runs-on: ubuntu-latest
+    permissions: {}
+    steps:
+      - name: Require all jobs to pass
+        uses: re-actors/alls-green@b5b5b37504aa4183270bd3d855c52a67f212be35 # v1.3.0
+        with:
+          jobs: ${{ toJSON(needs) }}
+          # `tests` and `build-docker` skip only when the path filter finds no
+          # code change. A code change must still run them, so a skip there
+          # reds the gate. `checks` is input-gated and may report skipped too.
+          allowed-skips: ${{ needs.changes.outputs.code != 'true' && 'checks, tests, build-docker' || '' }}
