@@ -118,3 +118,27 @@ jobs:
       docker_image_format: skopeo
     secrets:
       cachix_auth_token: ${{ secrets.CACHIX_AUTH_TOKEN }}
+  # Keeps one required check name stable however the jobs above change
+  # (hoprnet/hopr-devops#372). `if: always()` makes it run when a job fails;
+  # alls-green then reds it on any failure or on a skip that is not allowed.
+  # Charts are checked by the pr-helm-*.yml workflows, which the gate does not
+  # cover.
+  merge-gate:
+    name: Merge gate
+    if: always()
+    needs:
+      - changes
+      - checks
+      - tests
+      - build-docker
+    runs-on: ubuntu-latest
+    permissions: {}
+    steps:
+      - name: Require all jobs to pass
+        uses: re-actors/alls-green@b5b5b37504aa4183270bd3d855c52a67f212be35 # v1.3.0
+        with:
+          jobs: ${{ toJSON(needs) }}
+          # `tests` and `build-docker` skip only when the path filter finds no
+          # code change. A code change must still run them, so a skip there
+          # reds the gate. `checks` is input-gated and may report skipped too.
+          allowed-skips: ${{ needs.changes.outputs.code != 'true' && 'checks, tests, build-docker' || '' }}
