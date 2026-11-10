@@ -26,7 +26,7 @@ jobs:
   build-docker:
     name: Docker
     if: github.event.pull_request.merged == true
-    uses: hoprnet/hopr-workflows/.github/workflows/build-docker.yaml@83afac7a1d7b7c3e6d20bed7b64ed2bb94fb97b6 # build-docker-v3.2.0
+    uses: hoprnet/hopr-workflows/.github/workflows/build-docker.yaml@c7d61783cf76f48f2210cabfd37e85cab54f493a # build-docker-v3.2.0
     permissions:
       contents: read
       pull-requests: write
