@@ -101,17 +101,34 @@ jobs:
     permissions:
       contents: write
     steps:
+      # The branch is deleted when the pull request is merged right after the workflow starts
+      - name: Check the branch still exists
+        id: branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          BRANCH: ${{ github.event.pull_request.head.ref }}
+        run: |
+          if gh api "repos/${REPOSITORY}/branches/${BRANCH}" --silent; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::Branch ${BRANCH} no longer exists, skipping the readme update"
+          fi
       - name: Checkout
+        if: steps.branch.outputs.exists == 'true'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.event.pull_request.head.ref }}
       - name: Setup NodeJs
+        if: steps.branch.outputs.exists == 'true'
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 22
       - name: Install readme-generator-for-helm
+        if: steps.branch.outputs.exists == 'true'
         run: npm install -g @bitnami/readme-generator-for-helm@2.5.0
       - name: Execute readme-generator-for-helm
+        if: steps.branch.outputs.exists == 'true'
         id: generator
         env:
           CHART_NAME: ${{ inputs.chart_name }}
