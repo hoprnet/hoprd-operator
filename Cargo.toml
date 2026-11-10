@@ -6,7 +6,7 @@ edition = "2021"
 
 [dependencies]
 tokio = { version = "1.46.1", features = ["full", "macros", "rt-multi-thread"] }
-kube = { version = "4.2.0", default-features = true, features = [
+kube = { version = "5.0.0", default-features = true, features = [
     "derive",
     "runtime",
 ] }
@@ -25,13 +25,13 @@ async-recursion = "1.0.5"
 # Add openssl-sys as a direct dependency so it can be cross compiled to
 # x86_64-unknown-linux-musl using the "vendored" feature below
 openssl-sys = "*"
-json-patch = "4.1.0" # Needs to be upgraded every time the dependency 'kube' is upgraded
+json-patch = "5.0.0" # Needs to be upgraded every time the dependency 'kube' is upgraded
 chrono = "0.4.31"
 tracing = "0.1.43"
 tracing-subscriber = { version = "0.3.22", default-features = true, features = ["env-filter", "json"]}
 base64 = "0.23.1"
 axum = { version = "0.8.7", features = ["json"] }
-axum-server = { version = "0.8.0", features = ["tls-rustls"] }
+axum-server = { version = "0.9.0", features = ["tls-rustls"] }
 rustls = { version = "0.23.35", default-features = false, features = ["ring"] }
 tokio-rustls = { version = "0.26.4", default-features = false, features = ["ring"] }
 rustls-pemfile = "2.2.0"
