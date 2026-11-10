@@ -5,7 +5,7 @@ hoprdOperator:
   image:
     tag: latest
   hopli:
-    tag: 2.2.3
+    tag: 0.20.1
   fastSync:
     enabled: true
     bucketName: logs-snapshots-rotsee.hoprnet.org
