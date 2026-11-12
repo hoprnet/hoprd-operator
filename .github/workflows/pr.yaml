@@ -59,9 +59,9 @@ jobs:
     needs: changes
     permissions:
       contents: read
-    uses: hoprnet/hopr-workflows/.github/workflows/checks.yaml@c7d61783cf76f48f2210cabfd37e85cab54f493a # workflow-checks-v2.1.1
+    uses: hoprnet/hopr-workflows/.github/workflows/checks.yaml@43c833e72dffe4f2f3be60193733e5657f8aa0d7 # workflow-checks-v3.0.0
     with:
-      source_branch: ${{ github.event.pull_request.head.ref || github.ref }}
+      repo_sha: ${{ github.event.pull_request.head.sha || github.sha }}
       cachix_cache_name: hoprd-operator
       format: false
       pre_commit: false
@@ -82,9 +82,9 @@ jobs:
     permissions:
       contents: read
       id-token: write # the callee's coverage job declares it, even when disabled
-    uses: hoprnet/hopr-workflows/.github/workflows/tests.yaml@c7d61783cf76f48f2210cabfd37e85cab54f493a # workflow-tests-v6.1.2
+    uses: hoprnet/hopr-workflows/.github/workflows/tests.yaml@43c833e72dffe4f2f3be60193733e5657f8aa0d7 # workflow-tests-v7.0.0
     with:
-      source_branch: ${{ github.event.pull_request.head.ref || github.ref }}
+      repo_sha: ${{ github.event.pull_request.head.sha || github.sha }}
       cachix_cache_name: hoprd-operator
       enable_unit_tests: ${{ needs.changes.outputs.code == 'true' }}
       enable_unit_coverage: false
@@ -97,7 +97,7 @@ jobs:
   build-docker:
     name: Docker
     if: needs.changes.outputs.code == 'true'
-    uses: hoprnet/hopr-workflows/.github/workflows/build-docker.yaml@c7d61783cf76f48f2210cabfd37e85cab54f493a # build-docker-v3.2.0
+    uses: hoprnet/hopr-workflows/.github/workflows/build-docker.yaml@43c833e72dffe4f2f3be60193733e5657f8aa0d7 # build-docker-v4.0.0
     needs:
       - changes
       - checks
@@ -107,7 +107,7 @@ jobs:
       pull-requests: write
       id-token: write
     with:
-      source_branch: ${{ github.event.pull_request.head.ref || github.ref }}
+      repo_sha: ${{ github.event.pull_request.head.sha || github.sha }}
       version_type: commit
       concurrency_group_suffix: ${{ github.event.pull_request.number || github.ref_name }}
       build_matrix: >-
