@@ -207,7 +207,7 @@ jobs:
         working-directory: charts/${{ inputs.chart_name }}
       - name: Setup GCP
         id: gcp
-        uses: hoprnet/hopr-workflows/actions/setup-gcp@c7d61783cf76f48f2210cabfd37e85cab54f493a # setup-gcp-v4
+        uses: hoprnet/hopr-workflows/actions/setup-gcp@e76de35dba2b96a224bd7cd39b58441802b40057 # setup-gcp-v4
         with:
           login_artifact_registry: 'true'
       - name: Helm Package
