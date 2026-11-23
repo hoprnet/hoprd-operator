@@ -857,7 +857,6 @@ dependencies = [
  "base64 0.23.1",
  "chrono",
  "futures",
- "json-patch",
  "k8s-openapi",
  "kube",
  "openssl-sys",

@@ -1,7 +1,5 @@
 use crate::model::Error as HoprError;
 use crate::utils::OptionExt;
-use json_patch::{PatchOperation, ReplaceOperation};
-use json_patch::jsonptr::PointerBuf;
 use k8s_openapi::{
     api::{apps::v1::Deployment, core::v1::ContainerPort}
 };
@@ -61,11 +59,12 @@ async fn open_nginx_deployment_ports(client: Client, ingress_config: &IngressCon
     }
     container.ports = Some(new_deployment_ports);
 
-    let json_patch = json_patch::Patch(vec![PatchOperation::Replace(ReplaceOperation {
-        path: PointerBuf::parse("/spec/template/spec/containers").map_err(|e| HoprError::UserInputError(format!("Invalid JSON pointer: {e}")))?,
-        value: json!([container]),
-    })]);
-    let patch: Patch<Value> = Patch::Json(json_patch);
+    // A JSON merge patch replaces the whole `containers` array, which is the same
+    // result as the JSON patch replace operation it replaces. It keeps kube's own
+    // json-patch version as the only one in the dependency graph.
+    let patch: Patch<Value> = Patch::Merge(json!({
+        "spec": { "template": { "spec": { "containers": [container] } } }
+    }));
 
     api_deployment.patch(&deployment_name, &PatchParams::default(), &patch).await.inspect_err(|error| {
         error!("Could not open Nginx default ports on deployment: {:?}", error);
