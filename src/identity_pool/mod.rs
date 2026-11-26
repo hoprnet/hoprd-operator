@@ -2,4 +2,3 @@ pub mod identity_pool_controller;
 mod identity_pool_cronjob_faucet;
 pub mod identity_pool_resource;
 mod identity_pool_service_account;
-mod identity_pool_service_monitor;

@@ -79,6 +79,21 @@ where
     })
 }
 
+/// Field manager used for the server-side apply of the resources created by the operator
+pub const FIELD_MANAGER: &str = "hoprd-operator";
+
+/// Server-side applies a resource, so the creation is idempotent and a re-run of an interrupted reconciliation converges.
+/// The `apiVersion` and `kind` that the server-side apply requires are taken from the resource type.
+pub async fn apply<K>(api: &Api<K>, name: &str, resource: &K) -> Result<K, Error>
+where
+    K: Resource<DynamicType = ()> + Clone + Debug + Serialize + DeserializeOwned,
+{
+    let mut value = serde_json::to_value(resource)?;
+    value["apiVersion"] = K::api_version(&()).to_string().into();
+    value["kind"] = K::kind(&()).to_string().into();
+    Ok(api.patch(name, &PatchParams::apply(FIELD_MANAGER).force(), &Patch::Apply(&value)).await?)
+}
+
 /// Deletes the named resource if it exists and waits until it is gone.
 ///
 /// Returns `true` when the resource existed and has been deleted, and `false` when there was nothing to delete.

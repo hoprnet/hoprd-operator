@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use tracing::trace;
 use std::collections::BTreeMap;
 
-use crate::model::Error;
+use crate::{constants, model::Error};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 struct CustomKeyRef {
@@ -154,7 +154,7 @@ impl HoprdDeploymentSpec {
         Probe {
             http_get: Some(HTTPGetAction {
                 path: Some(path.to_string()),
-                port: IntOrString::Int(3001),
+                port: IntOrString::Int(constants::API_PORT),
                 ..HTTPGetAction::default()
             }),
             timeout_seconds: Some(5),

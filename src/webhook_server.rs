@@ -410,6 +410,89 @@ async fn convert_v3_to_v2(resource: &mut Value) -> Result<(), String> {
     }
 }
 
+/// Annotation that keeps `spec.gateway` while a `Hoprd` or `ClusterHoprd` is viewed as `v1alpha3`, which has no such field
+const GATEWAY_ANNOTATION: &str = "hoprds.hoprnet.org/gateway";
+/// `v1alpha4` removes `spec.service`: the nodes are always exposed through the Gateway, with only their p2p port
+/// (the same number for TCP and UDP), so `service.type` and `portsAllocation` disappear.
+async fn convert_hoprd_v3_to_v4(resource: &mut Value) -> Result<(), String> {
+    trace!("Convert hoprd: v1alpha3 -> v1alpha4");
+    resource.get_mut("spec").ok_or("Missing 'spec' field in Hoprd object")?.as_object_mut().ok_or("Spec is not a JSON object")?.remove("service");
+    // Restore the gateway that was kept while the resource was viewed as v1alpha3
+    let gateway = resource.pointer_mut("/metadata/annotations").and_then(|annotations| annotations.as_object_mut()).and_then(|annotations| annotations.remove(GATEWAY_ANNOTATION));
+    if let Some(gateway) = gateway.and_then(|gateway| gateway.as_str().and_then(|text| serde_json::from_str::<Value>(text).ok())) {
+        if let Some(spec_obj) = resource.get_mut("spec").and_then(|spec| spec.as_object_mut()) {
+            spec_obj.insert("gateway".to_string(), gateway);
+        }
+    }
+    Ok(())
+}
+
+async fn convert_hoprd_v4_to_v3(resource: &mut Value) -> Result<(), String> {
+    trace!("Convert hoprd: v1alpha4 -> v1alpha3");
+    let gateway = {
+        let spec_obj = resource.get_mut("spec").ok_or("Missing 'spec' field in Hoprd object")?.as_object_mut().ok_or("Spec is not a JSON object")?;
+        // A node only has its p2p port
+        spec_obj.insert("service".to_string(), serde_json::json!({ "type": "ClusterIP", "portsAllocation": 1 }));
+        spec_obj.remove("gateway")
+    };
+    // Keep the gateway in an annotation, so converting back to v1alpha4 does not lose it
+    if let Some(gateway) = gateway {
+        let metadata = resource.get_mut("metadata").and_then(|metadata| metadata.as_object_mut()).ok_or("Missing 'metadata' field in Hoprd object")?;
+        let annotations = metadata.entry("annotations".to_string()).or_insert_with(|| serde_json::json!({}));
+        if let Some(annotations) = annotations.as_object_mut() {
+            annotations.insert(GATEWAY_ANNOTATION.to_string(), Value::String(gateway.to_string()));
+        }
+    }
+    Ok(())
+}
+
+async fn convert_v3_to_v4(resource: &mut Value) -> Result<(), String> {
+    let kind = resource.get("kind").and_then(|k| k.as_str()).ok_or("Missing 'kind' field")?;
+    match kind {
+        "ClusterHoprd" | "Hoprd" => convert_hoprd_v3_to_v4(resource).await,
+        // The other kinds have no v1alpha4 version, so there is nothing to change
+        "IdentityHoprd" | "IdentityPool" => Ok(()),
+        _ => Err(format!("Unsupported kind for conversion from v3 to v4: {}", kind)),
+    }
+}
+
+async fn convert_v4_to_v3(resource: &mut Value) -> Result<(), String> {
+    let kind = resource.get("kind").and_then(|k| k.as_str()).ok_or("Missing 'kind' field")?;
+    match kind {
+        "ClusterHoprd" | "Hoprd" => convert_hoprd_v4_to_v3(resource).await,
+        "IdentityHoprd" | "IdentityPool" => Ok(()),
+        _ => Err(format!("Unsupported kind for conversion from v4 to v3: {}", kind)),
+    }
+}
+
+fn version_rank(api_version: &str) -> Option<u8> {
+    match api_version {
+        "hoprnet.org/v1alpha2" => Some(2),
+        "hoprnet.org/v1alpha3" => Some(3),
+        "hoprnet.org/v1alpha4" => Some(4),
+        _ => None,
+    }
+}
+
+/// Converts the resource to the desired API version one version at a time (v1alpha2 <-> v1alpha3 <-> v1alpha4)
+async fn convert_to_version(resource: &mut Value, desired_api_version: &str) -> Result<(), String> {
+    let desired = version_rank(desired_api_version).ok_or_else(|| format!("Unsupported desired API version: {}", desired_api_version))?;
+    let current_api_version = resource.get("apiVersion").and_then(|version| version.as_str()).ok_or("Missing 'apiVersion' field")?.to_owned();
+    let mut current = version_rank(&current_api_version).ok_or_else(|| format!("Unsupported source API version: {}", current_api_version))?;
+    while current != desired {
+        match (current, desired > current) {
+            (2, true) => convert_v2_to_v3(resource).await?,
+            (3, true) => convert_v3_to_v4(resource).await?,
+            (4, false) => convert_v4_to_v3(resource).await?,
+            (3, false) => convert_v3_to_v2(resource).await?,
+            _ => return Err(format!("Unsupported conversion from {} to {}", current_api_version, desired_api_version)),
+        }
+        current = if desired > current { current + 1 } else { current - 1 };
+    }
+    resource["apiVersion"] = Value::String(desired_api_version.to_owned());
+    Ok(())
+}
+
 // Conversion handler
 async fn convert(Json(request): Json<ConversionRequest>) -> impl IntoResponse {
     trace!("Received conversion request: {:?}", request);
@@ -426,14 +509,7 @@ async fn convert(Json(request): Json<ConversionRequest>) -> impl IntoResponse {
         let mut resource = obj.clone();
         trace!("Converting resource: {:?}", resource);
 
-        let conversion_result = match request.request.desired_apiversion.as_str() {
-            "hoprnet.org/v1alpha2" => Ok(convert_v3_to_v2(&mut resource).await),
-            "hoprnet.org/v1alpha3" => Ok(convert_v2_to_v3(&mut resource).await),
-            _ => {
-                let msg = format!("Unsupported desired API version: {}", request.request.desired_apiversion.as_str());
-                Err(msg)
-            }
-        };
+        let conversion_result = convert_to_version(&mut resource, request.request.desired_apiversion.as_str()).await;
 
         if let Err(err_msg) = conversion_result {
             response_inner.result.status = "Failure".to_string();
@@ -511,6 +587,62 @@ mod tests {
         convert_v3_to_v2(&mut resource).await.expect("v3 to v2");
         assert_eq!(resource["spec"]["portsAllocation"], json!(4));
         assert_eq!(resource["spec"]["forceIdentityName"], json!(true));
+    }
+
+    #[tokio::test]
+    async fn hoprd_v3_to_v4_drops_the_service() {
+        let mut resource = json!({
+            "kind": "Hoprd",
+            "spec": { "service": { "type": "LoadBalancer", "portsAllocation": 10 } },
+            "status": {},
+        });
+        convert_v3_to_v4(&mut resource).await.expect("conversion succeeds");
+        assert!(resource["spec"].get("service").is_none());
+        let mut without_service = json!({ "kind": "ClusterHoprd", "spec": {}, "status": {} });
+        convert_v3_to_v4(&mut without_service).await.expect("conversion succeeds");
+        assert!(without_service["spec"].get("service").is_none());
+    }
+
+    #[tokio::test]
+    async fn hoprd_v4_to_v3_and_back_keeps_the_gateway() {
+        let mut resource = json!({
+            "kind": "Hoprd",
+            "metadata": { "name": "node" },
+            "spec": { "gateway": { "ref": { "name": "gw", "namespace": "ns" } } },
+            "status": {},
+        });
+        convert_v4_to_v3(&mut resource).await.expect("v4 to v3");
+        assert_eq!(resource["spec"]["service"], json!({ "type": "ClusterIP", "portsAllocation": 1 }));
+        assert!(resource["spec"].get("gateway").is_none());
+        convert_v3_to_v4(&mut resource).await.expect("v3 to v4");
+        assert!(resource["spec"].get("service").is_none());
+        assert_eq!(resource["spec"]["gateway"], json!({ "ref": { "name": "gw", "namespace": "ns" } }));
+        assert!(resource["metadata"]["annotations"].get(GATEWAY_ANNOTATION).is_none());
+    }
+
+    #[tokio::test]
+    async fn conversion_walks_through_the_intermediate_versions() {
+        let mut resource = json!({
+            "apiVersion": "hoprnet.org/v1alpha2",
+            "kind": "Hoprd",
+            "spec": { "portsAllocation": 4, "supportedRelease": "kaunas", "service": { "type": "ClusterIP" } },
+            "status": { "checksum": "abc" },
+            "metadata": { "generation": 1 },
+        });
+        convert_to_version(&mut resource, "hoprnet.org/v1alpha4").await.expect("v2 to v4");
+        assert!(resource["spec"].get("service").is_none());
+        convert_to_version(&mut resource, "hoprnet.org/v1alpha2").await.expect("v4 to v2");
+        assert_eq!(resource["spec"]["portsAllocation"], json!(1));
+        convert_to_version(&mut resource, "hoprnet.org/v1alpha2").await.expect("same version is a no-op");
+    }
+
+    #[tokio::test]
+    async fn unknown_versions_are_rejected() {
+        let mut resource = json!({ "apiVersion": "hoprnet.org/v1alpha3", "kind": "Hoprd", "spec": {}, "status": {} });
+        assert!(convert_to_version(&mut resource, "hoprnet.org/v1beta1").await.is_err());
+        let mut unknown_source = json!({ "apiVersion": "hoprnet.org/v9", "kind": "Hoprd", "spec": {}, "status": {} });
+        assert!(convert_to_version(&mut unknown_source, "hoprnet.org/v1alpha3").await.is_err());
+        assert!(convert_to_version(&mut json!({ "kind": "Hoprd" }), "hoprnet.org/v1alpha3").await.is_err());
     }
 
     #[tokio::test]

@@ -92,11 +92,3 @@ docker-build: ## Builds docker image
 # Deploys docker image into GCP Artifact registry
 docker-push: ## Deploys docker image into GCP Artifact registry
   docker push europe-west3-docker.pkg.dev/hoprassociation/docker-images/hoprd-operator:latest
-
-# Builds Metrics docker image
-docker-metrics-build: ## Builds Metrics docker image
-  docker build -t europe-west3-docker.pkg.dev/hoprassociation/docker-images/hoprd-operator-metrics:latest --platform linux/amd64 --progress plain ./metrics-container
-
-# Deploys Metrics docker image into GCP Artifact registry
-docker-metrics-push: ## Deploys Metrics docker image into GCP Artifact registry
-  docker push europe-west3-docker.pkg.dev/hoprassociation/docker-images/hoprd-operator-metrics:latest

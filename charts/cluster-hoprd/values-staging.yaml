@@ -31,9 +31,6 @@ clusterHoprd:
         requests:
           cpu: 750m
           memory: 512Mi
-    service:
-      type: LoadBalancer
-      portsAllocation: 5
   logs:
     download:
       enabled: true

@@ -7,7 +7,7 @@ use kube::Client;
 use rustls::crypto::ring;
 use std::{env, sync::Arc};
 
-mod bootstrap_operator;
+mod certificate;
 mod cluster;
 mod constants;
 mod context_data;
@@ -18,7 +18,6 @@ mod identity_pool;
 pub mod model;
 mod operator_config;
 mod resource_generics;
-mod servicemonitor;
 mod utils;
 mod webhook_server;
 
@@ -77,7 +76,7 @@ async fn load_operator_config() -> Result<OperatorConfig, String> {
     info!("Loading operator configuration from: {}", config_path);
     let config_file = std::fs::File::open(&config_path).map_err(|e| format!("Could not open config file {config_path}: {e}"))?;
     let config: OperatorConfig = serde_yml::from_reader(config_file).map_err(|e| format!("Could not read contents of config file {config_path}: {e}"))?;
-    config.ingress.validate().map_err(|e| format!("Invalid operator configuration in {config_path}: {e}"))?;
+    config.gateway.validate().map_err(|e| format!("Invalid operator configuration in {config_path}: {e}"))?;
     Ok(config)
 }
 
@@ -87,15 +86,14 @@ async fn start_controllers(operator_config: operator_config::OperatorConfig) -> 
     info!("Initializing Context Data...");
     ring::default_provider().install_default().map_err(|_| anyhow!("failed to install rustls ring CryptoProvider"))?;
     let client: Client = Client::try_default().await.context("Failed to create kube Client")?;
-    let (context_data, deployment_writer, service_monitor_writer, cron_job_faucet_writer) = ContextData::new(client.clone(), operator_config).await;
+    let (context_data, deployment_writer, cron_job_faucet_writer) = ContextData::new(client.clone(), operator_config).await;
     let context_data: Arc<ContextData> = Arc::new(context_data);
     context_data.sync_identities().await.map_err(|e| anyhow!("Failed to sync identities: {e}"))?;
     context_data.sync_identity_pools().await.map_err(|e| anyhow!("Failed to sync identity pools: {e}"))?;
 
     // ⭐ 5. Initiatilize Kubernetes controllers
     info!("Starting Controllers...");
-    bootstrap_operator::start(client.clone(), context_data.clone()).await?;
-    let controller_identity_pool = identity_pool::identity_pool_controller::run(client.clone(), context_data.clone(), service_monitor_writer, cron_job_faucet_writer).fuse();
+    let controller_identity_pool = identity_pool::identity_pool_controller::run(client.clone(), context_data.clone(), cron_job_faucet_writer).fuse();
     let controller_identity_hoprd = identity_hoprd::identity_hoprd_controller::run(client.clone(), context_data.clone()).fuse();
     let controller_hoprd = hoprd::hoprd_controller::run(client.clone(), context_data.clone(), deployment_writer).fuse();
     let controller_cluster = cluster::cluster_controller::run(client.clone(), context_data.clone()).fuse();

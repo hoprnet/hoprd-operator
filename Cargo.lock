@@ -477,6 +477,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "delegate"
+version = "0.13.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "780eb241654bf097afb00fc5f054a09b687dad862e485fdcf8399bb056565370"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.110",
+]
+
+[[package]]
 name = "deranged"
 version = "0.5.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -750,6 +761,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "gateway-api"
+version = "0.23.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9913addfd2a7f3ee04a944b71bce8af5f4566bcca5f8506ecba340ca34a41a9b"
+dependencies = [
+ "delegate",
+ "k8s-openapi",
+ "kube",
+ "regex-lite",
+ "schemars",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "generic-array"
 version = "0.14.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -848,7 +874,7 @@ dependencies = [
 
 [[package]]
 name = "hoprd_operator"
-version = "0.4.13"
+version = "0.5.0-rc.1"
 dependencies = [
  "anyhow",
  "async-recursion",
@@ -857,7 +883,7 @@ dependencies = [
  "base64 0.23.1",
  "chrono",
  "futures",
- "json-patch",
+ "gateway-api",
  "k8s-openapi",
  "kube",
  "openssl-sys",
@@ -1204,6 +1230,7 @@ checksum = "ab0d13801242174b1f3966907c3f32039f2d6b36c7ce82c61225d66ed5d1eb70"
 dependencies = [
  "base64 0.22.1",
  "jiff",
+ "schemars",
  "serde",
  "serde_json",
 ]
@@ -1754,6 +1781,12 @@ dependencies = [
  "memchr",
  "regex-syntax",
 ]
+
+[[package]]
+name = "regex-lite"
+version = "0.1.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cab834c73d247e67f4fae452806d17d3c7501756d98c8808d7c9c7aa7d18f973"
 
 [[package]]
 name = "regex-syntax"

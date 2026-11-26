@@ -1,5 +1,5 @@
 ---
-apiVersion: hoprnet.org/v1alpha3
+apiVersion: hoprnet.org/v1alpha4
 kind: ClusterHoprd
 metadata:
   name: pr-1234
@@ -11,8 +11,6 @@ spec:
   replicas: 1
   version: singapore-latest
   enabled: true
-  service:
-    type: LoadBalancer
   config: |
     hopr:
       chain:

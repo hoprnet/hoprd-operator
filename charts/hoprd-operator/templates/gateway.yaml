@@ -1,0 +1,56 @@
+{{- if .Values.hoprdOperator.gateway.builtin.enabled }}
+# Built-in Envoy Gateway resources used by all the Hoprd nodes of this operator instance.
+# The Hoprd nodes attach their own ListenerSet to this Gateway.
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: EnvoyProxy
+metadata:
+  name: {{ include "hoprd-operator.fullname" . }}
+  namespace: {{ .Release.Namespace | quote }}
+  labels:
+    {{- include "hoprd-operator.labels" . | nindent 4 }}
+spec:
+  provider:
+    type: Kubernetes
+    kubernetes:
+      envoyDeployment:
+        replicas: 1
+      envoyService:
+        type: LoadBalancer  
+        loadBalancerIP: {{ required "The hoprdOperator.gateway.loadBalancerIP value is required!" .Values.hoprdOperator.gateway.loadBalancerIP | quote }}
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: GatewayClass
+metadata:
+  name: {{ include "hoprd-operator.fullname" . }}
+  labels:
+    {{- include "hoprd-operator.labels" . | nindent 4 }}
+spec:
+  controllerName: {{ .Values.hoprdOperator.gateway.controllerName | quote }}
+  parametersRef:
+    group: gateway.envoyproxy.io
+    kind: EnvoyProxy
+    name: {{ include "hoprd-operator.fullname" . }}
+    namespace: {{ .Release.Namespace | quote }}
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: {{ include "hoprd-operator.fullname" . }}
+  namespace: {{ .Release.Namespace | quote }}
+  labels:
+    {{- include "hoprd-operator.labels" . | nindent 4 }}
+spec:
+  gatewayClassName: {{ include "hoprd-operator.fullname" . }}
+  # The ListenerSets of the Hoprd nodes (any namespace) may attach to this Gateway
+  allowedListeners:
+    namespaces:
+      from: All
+  listeners:
+    # A Gateway needs at least one listener. The listeners of the nodes come from their ListenerSets
+    - name: http
+      protocol: HTTP
+      port: 80
+      allowedRoutes:
+        namespaces:
+          from: All
+{{- end }}

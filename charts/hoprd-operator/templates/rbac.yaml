@@ -20,25 +20,49 @@ rules:
   verbs:
   - create
 - apiGroups:
-  - "monitoring.coreos.com"
+  - "gateway.networking.k8s.io"
   resources:
-  - servicemonitors
+  - gateways
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - "gateway.networking.k8s.io"
+  resources:
+  - listenersets
+  - httproutes
+  - tcproutes
+  - udproutes
   verbs:
   - create
   - get
   - list
   - watch
   - delete
+  - patch
 - apiGroups:
   - "networking.k8s.io"
   resources:
-  - ingresses
+  - networkpolicies
   verbs:
   - create
   - get
   - list
   - watch
   - delete
+  - patch
+- apiGroups:
+  - "cert-manager.io"
+  resources:
+  - certificates
+  verbs:
+  - create
+  - get
+  - list
+  - watch
+  - delete
+  - patch
 - apiGroups:
   - ""
   resources:

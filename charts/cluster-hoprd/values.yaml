@@ -92,16 +92,16 @@ clusterHoprd:
       ##
       startupProbe: ""
 
-    service:
-      ##
-      ## @param clusterHoprd.nodes.service.type Service Type
-      ##
-      type: "ClusterIP"
+    ##
+    gateway:
+      ref:
+        ## @param clusterHoprd.nodes.gateway.ref.name Name of an existing Gateway to attach the nodes to. When empty, the built-in Gateway of the operator is used
+        ##
+        name: ""
 
-      ##
-      ## @param clusterHoprd.nodes.service.portsAllocation Ports allocation
-      ##
-      portsAllocation: 10
+        ## @param clusterHoprd.nodes.gateway.ref.namespace Namespace of the existing Gateway
+        ##
+        namespace: ""
 
     ##
     ## @param clusterHoprd.nodes.replicateEnvVars Override param clusterHoprd.nodes.envVars with default values provided by Hoprd Operator
@@ -149,18 +149,9 @@ clusterHoprd:
       logsFileName: ""
 
   networkPolicy:
-    ## @param clusterHoprd.networkPolicy.enabled Create all NetworkPolicy resources for the node (Prometheus scrape, ingress controller, p2p ingress/egress - both internet and other Hoprd nodes in this cluster). Single switch for everything below; set to false to opt this release out of NetworkPolicy management entirely
+    ## @param clusterHoprd.networkPolicy.enabled Create the egress NetworkPolicy of the nodes (nodes of the same network, Blokli and the OTLP collector). The ingress policy of each node is created by the operator. Set to false to opt this release out
     ##
     enabled: true
-
-    ## @param clusterHoprd.networkPolicy.extraScrapePorts Additional ports (e.g. a sidecar's own metrics endpoint, added via nodes.deployment.extraContainers) to allow Prometheus to scrape, alongside the operator's own fixed metrics port. Joined dash-separated into network-policy.hoprnet.org/prometheus-scrape-port, which supports multiple ports this way - do not use commas, Kubernetes rejects those as invalid label values.
-    ##
-    extraScrapePorts: []
-
-    ingressNginx:
-      ## @param clusterHoprd.networkPolicy.ingressNginx.namespace Namespace the ingress controller runs in
-      ##
-      namespace: "ingress-nginx"
 
     egressBlokli:
       ## @param clusterHoprd.networkPolicy.egressBlokli.namespace Namespace Blokli runs in
@@ -170,3 +161,13 @@ clusterHoprd:
       ## @param clusterHoprd.networkPolicy.egressBlokli.port Blokli GraphQL API port
       ##
       port: 8080
+
+    egressOtlp:
+      ## @param clusterHoprd.networkPolicy.egressOtlp.namespace Namespace the OTLP collector runs in, the one in hoprdOperator.otlp.endpoint
+      ##
+      namespace: "monitoring"
+
+      ## @param clusterHoprd.networkPolicy.egressOtlp.port Port of the OTLP collector: 4318 for OTLP/HTTP (http(s):// endpoint), 4317 for gRPC
+      ##
+      port: 4318
+

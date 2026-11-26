@@ -111,40 +111,54 @@ hoprdOperator:
     ##
     pullPolicy: Always
 
-  ingress:
-    ## @param hoprdOperator.ingress.ingressClassName Name of the ingress class name to be used by Hoprd nodes
-    ##
-    ingressClassName: "nginx"
-
-    ## @param hoprdOperator.ingress.dnsDomain Name of the DNS suffix domain to be added to Hoprd nodes
+  gateway:
+    ## @param hoprdOperator.gateway.dnsDomain Name of the DNS suffix domain to be added to Hoprd nodes
     ##
     dnsDomain: ""
 
-    ## @param hoprdOperator.ingress.namespace Namespace of the running ingress controller
-    ##
-    namespace: ""
-
-    ## @param hoprdOperator.ingress.annotations Annotations to be added to ingress resources of Hoprd nodes
-    ## @skip hoprdOperator.ingress.annotations
-    ##
-    annotations: {}
-
-    ## @param hoprdOperator.ingress.loadBalancerIP Public IP of the LoadBalancer Service for the Ingress 
+    ## @param hoprdOperator.gateway.loadBalancerIP Public IP of the LoadBalancer Service of the Gateway (Envoy proxy). It is also the host IP advertised by the Hoprd nodes
     ##
     loadBalancerIP: ""
 
     ports:
-      ## @param hoprdOperator.ingress.ports.min Starting port to open on Ingress controller
+      ## @param hoprdOperator.gateway.ports.min Starting port to open on the Gateway
       ##
       min: 9000
 
-      ## @param hoprdOperator.ingress.ports.max End port to open on Ingress controller
+      ## @param hoprdOperator.gateway.ports.max End port to open on the Gateway
       ##
       max: 10000
 
-    ## @param hoprdOperator.ingress.deploymentName Labels selector to choose the Nginx deployment and service
+    certificateIssuer:
+      ## @param hoprdOperator.gateway.certificateIssuer.name Name of the cert-manager issuer used to create the TLS certificate of each Hoprd node
+      ##
+      name: ""
+
+      ## @param hoprdOperator.gateway.certificateIssuer.kind Kind of the cert-manager issuer (ClusterIssuer or Issuer)
+      ##
+      kind: ClusterIssuer
+
+    ## @param hoprdOperator.gateway.controllerName Controller name of the GatewayClass. Use a different value per operator instance when several instances share a cluster
     ##
-    deploymentName: ""
+    controllerName: gateway.envoyproxy.io/gatewayclass-controller
+
+    builtin:
+      ## @param hoprdOperator.gateway.builtin.enabled Create the built-in EnvoyProxy, GatewayClass and Gateway used by the Hoprd nodes
+      ##
+      enabled: true
+
+  otlp:
+    ## @param hoprdOperator.otlp.endpoint OTLP endpoint where Hoprd nodes send their telemetry. When empty, telemetry is disabled. An http(s):// URL uses OTLP/HTTP (port 4318), any other value uses gRPC (port 4317)
+    ##
+    endpoint: ""
+
+    ## @param hoprdOperator.otlp.signals Comma separated list of signals to export (traces,logs,metrics). Empty uses the Hoprd default
+    ##
+    signals: ""
+
+    ## @param hoprdOperator.otlp.metricExportInterval Metric export interval in milliseconds, e.g. 15000 or 15000,hopr_session=1000. Empty uses the Hoprd default
+    ##
+    metricExportInterval: ""
 
   persistence:
     ## @param hoprdOperator.persistence.size Size of the persistence Volume
