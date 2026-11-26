@@ -54,7 +54,6 @@ pub struct HoprdSpec {
     /// Gateway the node is attached to. The built-in Gateway of the operator is used when it is not set
     pub gateway: Option<HoprdGatewaySpec>,
     pub deployment: Option<HoprdDeploymentSpec>,
-    pub source_node_logs: Option<bool>,
     pub dns_name: Option<String>,
 }
 

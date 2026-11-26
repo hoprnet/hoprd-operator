@@ -214,28 +214,12 @@ pub fn init_container(hoprd_spec: &HoprdSpec,
     identity_hoprd: &IdentityHoprd,) -> Container {
     let encoded_configuration = general_purpose::STANDARD.encode(&hoprd_spec.config);
     let volume_mounts: Option<Vec<VolumeMount>> = build_volume_mounts();
-    let args = if hoprd_spec.source_node_logs.unwrap_or(false) {
-        Some(vec![String::from(
-            "set -x\n\
-            set -e\n\
-            echo $HOPRD_IDENTITY_FILE | base64 -d > /app/hoprd-identity/.hopr-id\n\
-            echo $HOPRD_CONFIGURATION | base64 -d > /app/hoprd-identity/config.yaml"
-        )])
-    } else {
-        Some(vec![String::from(
-            "set -x\n\
-            set -e\n\
-            if [ -n \"$HOPRD_LOGS_SNAPSHOT_URL\" ] && ! ls /app/hoprd-db/db/hopr_logs.db* 1> /dev/null 2>&1; then\n\
-            apk add --no-cache curl tar xz;\n\
-            mkdir -p /app/hoprd-db/db;\n\
-            curl -sf --retry 3 \"$HOPRD_LOGS_SNAPSHOT_URL\" -o /app/hoprd-db/db/snapshot.tar.xz;\n\
-            tar xf /app/hoprd-db/db/snapshot.tar.xz -C /app/hoprd-db/db;\n\
-            rm -f /app/hoprd-db/db/snapshot.tar.xz;\n\
-            fi;\n\
-            echo $HOPRD_IDENTITY_FILE | base64 -d > /app/hoprd-identity/.hopr-id\n\
-            echo $HOPRD_CONFIGURATION | base64 -d > /app/hoprd-identity/config.yaml"
-        )])
-    };
+    let args = Some(vec![String::from(
+        "set -x\n\
+        set -e\n\
+        echo $HOPRD_IDENTITY_FILE | base64 -d > /app/hoprd-identity/.hopr-id\n\
+        echo $HOPRD_CONFIGURATION | base64 -d > /app/hoprd-identity/config.yaml"
+    )]);
     Container {
         name: "init".to_owned(),
         image: Some(constants::ALPINE_IMAGE.to_owned()),
@@ -284,8 +268,8 @@ pub fn hoprd_container(hoprd_spec: &HoprdSpec,
 
     let resources = Some(HoprdDeploymentSpec::get_resource_requirements(hoprd_spec.deployment.clone())?);
     let liveness_probe = HoprdDeploymentSpec::get_liveness_probe(hoprd_spec.deployment.clone())?;
-    let readiness_probe = HoprdDeploymentSpec::get_readiness_probe(hoprd_spec.deployment.clone(), hoprd_spec.source_node_logs.unwrap_or(false))?;
-    let startup_probe = HoprdDeploymentSpec::get_startup_probe(hoprd_spec.deployment.clone(), hoprd_spec.source_node_logs.unwrap_or(false))?;
+    let readiness_probe = HoprdDeploymentSpec::get_readiness_probe(hoprd_spec.deployment.clone())?;
+    let startup_probe = HoprdDeploymentSpec::get_startup_probe(hoprd_spec.deployment.clone())?;
     let volume_mounts: Option<Vec<VolumeMount>> = build_volume_mounts();
     let hoprd_host_port = format!("{}:{}", hoprd_host, p2p_port);
 
@@ -559,8 +543,8 @@ mod tests {
     use crate::identity_hoprd::identity_hoprd_resource::IdentityHoprdSpec;
     use crate::identity_pool::identity_pool_resource::IdentityPoolSpec;
 
-    fn init_script(source_node_logs: bool) -> String {
-        let spec = HoprdSpec { source_node_logs: Some(source_node_logs), ..HoprdSpec::default() };
+    fn init_script() -> String {
+        let spec = HoprdSpec::default();
         let identity_pool = IdentityPool::new("pool", IdentityPoolSpec::default());
         let identity = IdentityHoprd::new("identity", IdentityHoprdSpec::default());
         let args = init_container(&spec, &identity_pool, &identity).args.expect("the init container has args");
@@ -594,10 +578,10 @@ mod tests {
 
     #[test]
     fn otlp_variables_carry_the_endpoint_and_the_node_labels() {
-        let otlp = OtlpConfig { endpoint: "http://collector:4318".to_owned(), signals: Some("traces,logs,metrics".to_owned()), metric_export_interval: Some("15000,hopr_session=1000".to_owned()) };
+        let otlp = OtlpConfig { endpoint: "http://collector:4318".to_owned(), signals: Some("metrics".to_owned()), metric_export_interval: Some("15000,hopr_session=1000".to_owned()) };
         let env = otlp_env_vars(Some(&otlp), &node_labels());
         assert_eq!(env_value(&env, "HOPRD_OTLP_ENDPOINT").as_deref(), Some("http://collector:4318"));
-        assert_eq!(env_value(&env, "HOPRD_OTEL_SIGNALS").as_deref(), Some("traces,logs,metrics"));
+        assert_eq!(env_value(&env, "HOPRD_OTEL_SIGNALS").as_deref(), Some("metrics"));
         assert_eq!(env_value(&env, "HOPRD_METRIC_EXPORT_INTERVAL").as_deref(), Some("15000,hopr_session=1000"));
         assert_eq!(
             env_value(&env, "HOPRD_OTEL_EXPORT_LABELS").as_deref(),
@@ -629,21 +613,10 @@ mod tests {
     }
 
     #[test]
-    fn init_script_of_the_node_collecting_logs_only_writes_the_identity_and_config() {
+    fn init_script_only_writes_the_identity_and_config() {
         assert_eq!(
-            init_script(true),
+            init_script(),
             "set -x\nset -e\necho $HOPRD_IDENTITY_FILE | base64 -d > /app/hoprd-identity/.hopr-id\necho $HOPRD_CONFIGURATION | base64 -d > /app/hoprd-identity/config.yaml"
         );
-    }
-
-    #[test]
-    fn init_script_of_the_other_nodes_restores_the_logs_snapshot_first() {
-        let script = init_script(false);
-        let lines: Vec<&str> = script.lines().collect();
-        assert_eq!(&lines[..2], ["set -x", "set -e"]);
-        assert!(lines[2].starts_with("if [ -n \"$HOPRD_LOGS_SNAPSHOT_URL\" ]"));
-        assert_eq!(lines[lines.len() - 3], "fi;");
-        assert!(lines[lines.len() - 1].ends_with("/app/hoprd-identity/config.yaml"));
-        assert!(!script.contains("  "), "the line continuations must not leak indentation into the script");
     }
 }

@@ -13,6 +13,3 @@ data:
   HOPRD_DATA: "/app/hoprd-db"
   HOPRD_API_HOST: "0.0.0.0"
   HOPRD_DEFAULT_SESSION_LISTEN_HOST: "0.0.0.0:0"
-  {{- if .Values.clusterHoprd.logs.download.enabled }}
-  HOPRD_LOGS_SNAPSHOT_URL: {{ .Values.clusterHoprd.logs.download.snapshotUrl | quote }}
-  {{- end }}

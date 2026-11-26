@@ -1,16 +1,6 @@
 operator:
   persistence:
     storageClassName: standard-rwo
-  fastSync:
-    enabled: true
-    bucketName: logs-snapshots.hoprnet.org
-    namespaces:
-      - ctdapp
-    crossplane:
-      provider:
-        crossplane: gcp-crossplane
-        upbound: gcp-upbound
-      gcpProjectId: hopr-prod
   image:
     tag: latest
     pullPolicy: Always

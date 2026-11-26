@@ -43,7 +43,6 @@ pub struct ClusterHoprdSpec {
     /// Gateway the nodes are attached to. The built-in Gateway of the operator is used when it is not set
     pub gateway: Option<HoprdGatewaySpec>,
     pub deployment: Option<HoprdDeploymentSpec>,
-    pub source_node_logs: Option<String>,
     pub dns_name: Option<String>,
 }
 
@@ -290,8 +289,8 @@ impl ClusterHoprd {
         Ok(next)
     }
 
-    /// Builds the spec of a node of the cluster. Only the logs of the node chosen in `source_node_logs` are collected.
-    fn build_hoprd_spec(&self, identity_name: String, node_name: &str) -> HoprdSpec {
+    /// Builds the spec of a node of the cluster.
+    fn build_hoprd_spec(&self, identity_name: String) -> HoprdSpec {
         HoprdSpec {
             config: self.spec.config.to_owned(),
             enabled: self.spec.enabled,
@@ -301,7 +300,6 @@ impl ClusterHoprd {
             delete_database: Some(false),
             gateway: self.spec.gateway.to_owned(),
             identity_name,
-            source_node_logs: Some(self.spec.source_node_logs.as_deref() == Some(node_name)),
             dns_name: self.spec.dns_name.to_owned(),
         }
     }
@@ -314,7 +312,7 @@ impl ClusterHoprd {
         context_data.send_event(self, ClusterHoprdEventEnum::CreatingNode, Some(node_name.to_owned())).await;
         let identity_name = format!("{}-{}", self.spec.identity_pool_name, node_instance);
         info!("Creating node {} for cluster {}", node_name.to_owned(), cluster_name.to_owned());
-        let hoprd_spec = self.build_hoprd_spec(identity_name, &node_name);
+        let hoprd_spec = self.build_hoprd_spec(identity_name);
         match self.create_hoprd_resource(context_data.clone(), node_name.to_owned(), hoprd_spec).await {
             Ok(_) => {
                 info!("Node {} successfully created for cluster {}", node_name.to_owned(), cluster_name.to_owned());
@@ -375,7 +373,7 @@ impl ClusterHoprd {
     async fn apply_modification(&self, context_data: Arc<ContextData>) -> Result<(), Error> {
         let api: Api<Hoprd> = Api::namespaced(context_data.client.clone(), &self.require_namespace()?);
         for hoprd_node in self.get_hoprd_nodes_from_cluster(api.clone()).await? {
-            let hoprd_spec = self.build_hoprd_spec(hoprd_node.spec.identity_name.clone(), &hoprd_node.name_any());
+            let hoprd_spec = self.build_hoprd_spec(hoprd_node.spec.identity_name.clone());
             let patch = &Patch::Merge(json!({ "spec": hoprd_spec }));
             let hoprd_modified = api.patch(&hoprd_node.name_any(), &PatchParams::default(), patch).await?;
             hoprd_modified.wait_deployment(context_data.client.clone()).await?;
@@ -417,7 +415,6 @@ mod tests {
             enabled: Some(true),
             gateway: Some(HoprdGatewaySpec::default()),
             deployment: None,
-            source_node_logs: Some("cluster-2".to_owned()),
             dns_name: Some("node.example.org".to_owned()),
         });
         cluster.metadata.namespace = Some("ns".to_owned());
@@ -426,7 +423,7 @@ mod tests {
 
     #[test]
     fn hoprd_spec_copies_the_cluster_configuration() {
-        let spec = cluster().build_hoprd_spec("pool-1".to_owned(), "cluster-1");
+        let spec = cluster().build_hoprd_spec("pool-1".to_owned());
         assert_eq!(spec.identity_name, "pool-1");
         assert_eq!(spec.identity_pool_name, "pool");
         assert_eq!(spec.config, "cfg");
@@ -435,15 +432,6 @@ mod tests {
         assert_eq!(spec.delete_database, Some(false));
         assert_eq!(spec.dns_name.as_deref(), Some("node.example.org"));
         assert_eq!(spec.gateway, Some(HoprdGatewaySpec::default()));
-    }
-
-    #[test]
-    fn only_the_selected_node_collects_the_logs() {
-        assert_eq!(cluster().build_hoprd_spec("pool-1".to_owned(), "cluster-1").source_node_logs, Some(false));
-        assert_eq!(cluster().build_hoprd_spec("pool-2".to_owned(), "cluster-2").source_node_logs, Some(true));
-        let mut without_source = cluster();
-        without_source.spec.source_node_logs = None;
-        assert_eq!(without_source.build_hoprd_spec("pool-2".to_owned(), "cluster-2").source_node_logs, Some(false));
     }
 
     #[test]

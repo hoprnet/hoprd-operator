@@ -8,6 +8,7 @@ default:
 # Login into GCP Artifact Registry
 login:
   #!/usr/bin/env bash
+  set -euo pipefail
   gcloud auth print-access-token | helm registry login -u oauth2accesstoken --password-stdin https://europe-west3-docker.pkg.dev
 
 # Start a debugging session by opening a port-forward to the hoprd-operator pod
@@ -75,15 +76,16 @@ run:
 package chartName:
   #!/usr/bin/env bash
   set -euo pipefail
-  version=$(yq '.version' ./charts/{{ chartName }}/Chart.yaml )
   helm package ./charts/{{ chartName }}
 
 # Push a Helm chart for a given chart name
 push chartName:
   #!/usr/bin/env bash
   set -euo pipefail
-  version=$(yq '.version' ./charts/{{ chartName }}/Chart.yaml )
-  helm push {{ chartName }}-${version}.tgz oci://europe-west3-docker.pkg.dev/hoprassociation/helm-charts
+  version=$(yq '.version' ./charts/{{ chartName }}/Chart.yaml)
+  package="{{ chartName }}-${version}.tgz"
+  [ -f "${package}" ] || { echo "Error: ${package} not found, run 'just package {{ chartName }}' first" >&2; exit 1; }
+  helm push "${package}" oci://europe-west3-docker.pkg.dev/hoprassociation/helm-charts
 
 # Builds docker image
 docker-build: ## Builds docker image
@@ -92,3 +94,30 @@ docker-build: ## Builds docker image
 # Deploys docker image into GCP Artifact registry
 docker-push: ## Deploys docker image into GCP Artifact registry
   docker push europe-west3-docker.pkg.dev/hoprassociation/docker-images/hoprd-operator:latest
+
+# Validates, packages and pushes a Helm chart, stopping at the first failure
+publish chartName:
+  #!/usr/bin/env bash
+  set -euo pipefail
+  chart="{{ chartName }}"
+  if [ ! -f "./charts/${chart}/Chart.yaml" ]; then
+    echo "Error: unknown chart '${chart}'. Available charts: $(ls ./charts | tr '\n' ' ')" >&2
+    exit 1
+  fi
+  version=$(yq '.version' "./charts/${chart}/Chart.yaml")
+  package="${chart}-${version}.tgz"
+  trap 'rm -f "${package}"' EXIT
+  just template "${chart}" > /dev/null
+  just lint
+  just docs
+  if [ -n "$(git status --porcelain charts/)" ]; then
+    echo "Error: charts/ has uncommitted changes (the docs step may have regenerated a README). Commit them and run again" >&2
+    exit 1
+  fi
+  just package "${chart}"
+  if [ ! -f "${package}" ]; then
+    echo "Error: ${package} was not created" >&2
+    exit 1
+  fi
+  just push "${chart}"
+  echo "Published ${package}"

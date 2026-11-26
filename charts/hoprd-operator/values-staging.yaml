@@ -6,18 +6,6 @@ hoprdOperator:
     tag: latest
   hopli:
     tag: 0.20.1
-  fastSync:
-    enabled: true
-    bucketName: logs-snapshots-rotsee.hoprnet.org
-    namespaces:
-      - core-team
-      - ctdapp
-      - demo-nodes
-    crossplane:
-      provider:
-        crossplane: gcp-crossplane
-        upbound: gcp-upbound
-      gcpProjectId: hopr-staging
   extraEnvVars: 
     - name: RUST_BACKTRACE
       value: full

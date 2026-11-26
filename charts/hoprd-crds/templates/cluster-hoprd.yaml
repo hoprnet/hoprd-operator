@@ -127,9 +127,6 @@ spec:
                       required:
                       - name
                       - namespace
-                sourceNodeLogs:
-                  description: Name of the hoprd node to upload logs from
-                  type: string
                 version:
                   description: An specific hoprd version. Should match with a docker tag
                   type: string
@@ -276,9 +273,6 @@ spec:
                   required:
                     - type
                   type: object
-                sourceNodeLogs:
-                  description: Name of the hoprd node to upload logs from
-                  type: string
                 version:
                   description: An specific hoprd version. Should match with a docker tag
                   type: string
@@ -414,9 +408,6 @@ spec:
                   required:
                     - type
                   type: object
-                sourceNodeLogs:
-                  description: Name of the hoprd node to upload logs from
-                  type: string
                 supportedRelease:
                   description: Release Name of the supported version
                   enum:

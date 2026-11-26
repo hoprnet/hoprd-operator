@@ -49,7 +49,4 @@ spec:
       namespace: {{ required "clusterHoprd.nodes.gateway.ref.namespace is required when gateway.ref.name is set" .Values.clusterHoprd.nodes.gateway.ref.namespace | quote }}
   {{- end }}
   config: {{ .Values.clusterHoprd.nodes.config | toYaml | nindent 4 }}
-  {{ if .Values.clusterHoprd.logs.upload.enabled }}
-  sourceNodeLogs: {{ .Values.clusterHoprd.logs.upload.sourceNode }}
-  {{- end }}
   dnsName: {{ .Values.clusterHoprd.dnsName | quote }}

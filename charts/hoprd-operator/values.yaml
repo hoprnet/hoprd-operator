@@ -33,31 +33,6 @@ hoprdOperator:
     ##
     tag: 1.36.5
 
-  fastSync:
-    ## @param hoprdOperator.fastSync.enabled Enable Fast Sync
-    ## Required: true
-    enabled: false
-
-    ## @param hoprdOperator.fastSync.bucketName Name of the bucket to store the logs
-    ## Required: true when fast-sync is enabled
-    bucketName: ""
-
-    ## @param hoprdOperator.fastSync.namespaces Allowed namespaces for uploading logs
-    namespaces: []
-
-    crossplane:
-      provider:
-        ## @param hoprdOperator.fastSync.crossplane.provider.crossplane Crossplane provider name for Crossplane
-        ##
-        crossplane: ""
-        ## @param hoprdOperator.fastSync.crossplane.provider.upbound Crossplane provider name for GCP
-        ##
-        upbound: ""
-
-      ## @param hoprdOperator.fastSync.crossplane.gcpProjectId GCP Project ID
-      ##
-      gcpProjectId: ""
-
   ## @param hoprdOperator.defaultHoprdEnvVars Environment variables to be set in the Hoprd Nodes
   ##
   defaultHoprdEnvVars: {}
