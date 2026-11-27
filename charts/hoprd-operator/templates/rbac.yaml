@@ -140,7 +140,7 @@ rules:
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: {{ include "hoprd-operator.fullname" . }}
+  name: {{ include "hoprd-operator.serviceAccountName" . }}
   namespace: {{ .Release.Namespace | quote }}
   labels:
     {{- include "hoprd-operator.labels" . | nindent 4 }}
@@ -158,5 +158,5 @@ roleRef:
   name: {{ include "hoprd-operator.fullname" . }}
 subjects:
 - kind: ServiceAccount
-  name: {{ include "hoprd-operator.fullname" . }}
+  name: {{ include "hoprd-operator.serviceAccountName" . }}
   namespace: {{ .Release.Namespace | quote }}

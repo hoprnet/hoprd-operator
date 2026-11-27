@@ -90,7 +90,7 @@ spec:
           - name: webhook-tls
             mountPath: /tls
             readOnly: true
-      serviceAccountName: {{ include "hoprd-operator.fullname" . }}
+      serviceAccountName: {{ include "hoprd-operator.serviceAccountName" . }}
       volumes:
         - name: hopr-config-volume
           configMap:
