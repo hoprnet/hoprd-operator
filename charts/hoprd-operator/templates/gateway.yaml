@@ -12,12 +12,14 @@ spec:
   provider:
     type: Kubernetes
     kubernetes:
-      # Explicit name for the proxy ServiceAccount, which Envoy Gateway would otherwise derive from the name of the Gateway
+      # Explicit names of the proxy resources, which Envoy Gateway would otherwise derive from the name of the Gateway
       envoyServiceAccount:
-        name: {{ include "hoprd-operator.fullname" . }}-proxy
+        name: {{ include "hoprd-operator.proxyName" . }}
       envoyDeployment:
+        name: {{ include "hoprd-operator.proxyName" . }}
         replicas: 1
       envoyService:
+        name: {{ include "hoprd-operator.proxyName" . }}
         type: LoadBalancer  
         loadBalancerIP: {{ required "The hoprdOperator.gateway.loadBalancerIP value is required!" .Values.hoprdOperator.gateway.loadBalancerIP | quote }}
 ---

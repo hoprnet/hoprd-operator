@@ -25,3 +25,75 @@ spec:
         - protocol: TCP
           port: webhook
 {{- end }}
+{{- if and .Values.hoprdOperator.networkPolicy.enabled .Values.hoprdOperator.gateway.builtin.enabled }}
+{{- $proxyLabels := dict "app.kubernetes.io/managed-by" "envoy-gateway" "app.kubernetes.io/name" "envoy" "gateway.envoyproxy.io/owning-gateway-name" (include "hoprd-operator.fullname" .) "gateway.envoyproxy.io/owning-gateway-namespace" .Release.Namespace }}
+---
+# Envoy proxy of the built-in Gateway. It runs in this namespace (Envoy Gateway "GatewayNamespace" mode)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "hoprd-operator.proxyName" . }}-allow-baseline
+  namespace: {{ .Release.Namespace | quote }}
+  labels:
+    {{- include "hoprd-operator.labels" . | nindent 4 }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "9"
+spec:
+  podSelector:
+    matchLabels:
+      {{- $proxyLabels | toYaml | nindent 6 }}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Listener container ports plus the p2p range of the Hoprd nodes. Internet clients (ipBlock) and in-cluster
+    # last hops (namespaceSelector)
+    - from:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+        - namespaceSelector: {}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.hoprdOperator.networkPolicy.proxy.httpPort }}
+        - protocol: TCP
+          port: {{ .Values.hoprdOperator.networkPolicy.proxy.httpsPort }}
+        - protocol: TCP
+          port: {{ .Values.hoprdOperator.gateway.ports.min }}
+          endPort: {{ .Values.hoprdOperator.gateway.ports.max }}
+        - protocol: UDP
+          port: {{ .Values.hoprdOperator.gateway.ports.min }}
+          endPort: {{ .Values.hoprdOperator.gateway.ports.max }}
+  egress:
+    # Backends (Hoprd nodes and their API) in any namespace, and the xDS server of the Envoy Gateway controller.
+    # namespaceSelector, not ipBlock, for Cilium
+    - to:
+        - namespaceSelector: {}
+---
+# xDS server of the Envoy Gateway controller, reached by the proxy of the built-in Gateway from this namespace
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "hoprd-operator.proxyName" . }}-allow-xds
+  namespace: {{ .Values.hoprdOperator.networkPolicy.envoyGateway.namespace | quote }}
+  labels:
+    {{- include "hoprd-operator.labels" . | nindent 4 }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "9"
+spec:
+  podSelector:
+    matchLabels:
+      {{- .Values.hoprdOperator.networkPolicy.envoyGateway.podSelector | toYaml | nindent 6 }}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Release.Namespace | quote }}
+          podSelector:
+            matchLabels:
+              {{- $proxyLabels | toYaml | nindent 14 }}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.hoprdOperator.networkPolicy.envoyGateway.xdsPort }}
+{{- end }}

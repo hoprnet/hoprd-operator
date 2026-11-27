@@ -162,6 +162,24 @@ hoprdOperator:
     ## reaches webhooks by proxying through it rather than a direct apiserver IP)
     ##
     enabled: true
+    envoyGateway:
+      ## @param hoprdOperator.networkPolicy.envoyGateway.namespace Namespace where the Envoy Gateway controller runs. The proxy of the built-in Gateway reaches its xDS server from this namespace
+      ##
+      namespace: envoy
+      podSelector:
+        ## @param hoprdOperator.networkPolicy.envoyGateway.podSelector.control-plane Label identifying the Envoy Gateway controller pods
+        ##
+        control-plane: envoy-gateway
+      ## @param hoprdOperator.networkPolicy.envoyGateway.xdsPort Port of the xDS server of the Envoy Gateway controller
+      ##
+      xdsPort: 18000
+    proxy:
+      ## @param hoprdOperator.networkPolicy.proxy.httpPort Container port of the HTTP listener of the proxy (Envoy Gateway adds 10000 to the privileged port 80)
+      ##
+      httpPort: 10080
+      ## @param hoprdOperator.networkPolicy.proxy.httpsPort Container port of the HTTPS listener of the proxy (Envoy Gateway adds 10000 to the privileged port 443)
+      ##
+      httpsPort: 10443
     ingressKonnectivityAgent:
       ## @param hoprdOperator.networkPolicy.ingressKonnectivityAgent.namespace Namespace where the konnectivity-agent runs
       ##

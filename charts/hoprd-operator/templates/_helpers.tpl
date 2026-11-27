@@ -27,6 +27,13 @@ and of the Envoy proxy resources that Envoy Gateway creates in this namespace.
 {{- end }}
 
 {{/*
+Name of the ServiceAccount, Deployment and Service of the Envoy proxy of the built-in Gateway
+*/}}
+{{- define "hoprd-operator.proxyName" -}}
+{{- printf "envoy-proxy-%s" (include "hoprd-operator.fullname" .) | trunc 63 | trimSuffix "-" }}
+{{- end }}
+
+{{/*
 Create chart name and version as used by the chart label.
 */}}
 {{- define "hoprd-operator.chart" -}}
