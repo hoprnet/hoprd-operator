@@ -19,6 +19,21 @@ If release name contains chart name it will be used as a full name.
 {{- end }}
 
 {{/*
+Name of the ServiceAccount of the operator pods. Kept apart from the fullname, which is also the name of the built-in Gateway
+and of the Envoy proxy resources that Envoy Gateway creates in this namespace.
+*/}}
+{{- define "hoprd-operator.serviceAccountName" -}}
+{{- printf "%s-operator" (include "hoprd-operator.fullname" .) | trunc 63 | trimSuffix "-" }}
+{{- end }}
+
+{{/*
+Name of the ServiceAccount, Deployment and Service of the Envoy proxy of the built-in Gateway
+*/}}
+{{- define "hoprd-operator.proxyName" -}}
+{{- printf "%s-envoy-proxy" (include "hoprd-operator.fullname" .) | trunc 63 | trimSuffix "-" }}
+{{- end }}
+
+{{/*
 Create chart name and version as used by the chart label.
 */}}
 {{- define "hoprd-operator.chart" -}}

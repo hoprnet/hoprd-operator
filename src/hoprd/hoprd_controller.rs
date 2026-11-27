@@ -1,9 +1,9 @@
 use futures::StreamExt;
+use gateway_api::{httproutes::HttpRoute, listenersets::ListenerSet, tcproutes::TcpRoute, udproutes::UdpRoute};
 use k8s_openapi::api::{
     apps::v1::Deployment,
     batch::v1::Job,
     core::v1::{Secret, Service},
-    networking::v1::Ingress,
 };
 use kube::{
     api::Api,
@@ -24,9 +24,9 @@ use crate::{
     constants::{self},
     context_data::ContextData,
     hoprd::hoprd_resource::{Hoprd, HoprdPhaseEnum},
+    certificate::Certificate,
     model::Error,
     utils,
-    servicemonitor::ServiceMonitor,
 };
 
 /// Action to be taken upon an `Hoprd` resource during reconciliation
@@ -81,7 +81,6 @@ async fn determine_action(hoprd: &Hoprd, context: &Arc<ContextData>) -> Result<H
     }
     if phase == HoprdPhaseEnum::Running || phase == HoprdPhaseEnum::Stopped {
         let namespace = hoprd.namespace().ok_or_else(|| Error::UserInputError("The Hoprd resource has no namespace".to_owned()))?;
-        // Check the in-memory cache first to avoid querying the API server on every reconciliation
         let deployment_ref = ObjectRef::new(&hoprd.name_any()).within(&namespace);
         if context.deployment_store.get(&deployment_ref).is_none() {
             // Confirm against the API server, as the cache may not be populated yet after the operator startup
@@ -124,8 +123,11 @@ pub async fn run(client: Client, context_data: Arc<ContextData>, deployment_writ
     let deployment = Api::<Deployment>::all(client.clone());
     let secret = Api::<Secret>::all(client.clone());
     let service = Api::<Service>::all(client.clone());
-    let service_monitor = Api::<ServiceMonitor>::all(client.clone());
-    let ingress = Api::<Ingress>::all(client.clone());
+    let certificate = Api::<Certificate>::all(client.clone());
+    let listener_set = Api::<ListenerSet>::all(client.clone());
+    let http_route = Api::<HttpRoute>::all(client.clone());
+    let tcp_route = Api::<TcpRoute>::all(client.clone());
+    let udp_route = Api::<UdpRoute>::all(client.clone());
 
     // Keep the in-memory cache of hoprd node deployments up to date, so that the reconciliation
     // loop can check for their existence without querying the API server
@@ -147,8 +149,11 @@ pub async fn run(client: Client, context_data: Arc<ContextData>, deployment_writ
         .owns(deployment, Config::default())
         .owns(secret, Config::default())
         .owns(service, Config::default())
-        .owns(service_monitor, Config::default())
-        .owns(ingress, Config::default())
+        .owns(certificate, Config::default())
+        .owns(listener_set, Config::default())
+        .owns(http_route, Config::default())
+        .owns(tcp_route, Config::default())
+        .owns(udp_route, Config::default())
         .shutdown_on_signal()
         .run(reconciler, utils::on_error, context_data)
         .for_each(|reconciliation_result| async move { utils::log_reconciliation_result("Hoprd", reconciliation_result) })

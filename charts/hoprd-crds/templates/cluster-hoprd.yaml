@@ -24,9 +24,149 @@ spec:
       - clusterhoprd
   scope: Namespaced
   versions:
-    - name: v1alpha3
+    - name: v1alpha4
       served: true
       storage: true
+      subresources:
+        status: {}
+      additionalPrinterColumns:
+        - description: ClusterHoprd phase
+          jsonPath: .status.phase
+          name: Phase
+          type: string
+        - description: Pool name
+          jsonPath: .spec.identityPoolName
+          name: Pool
+          type: string
+        - description: Hoprd version
+          jsonPath: .spec.version
+          name: version
+          type: string
+        - description: Replicas
+          jsonPath: .spec.replicas
+          name: Replicas
+          type: number
+        - description: Nodes running
+          jsonPath: .status.currentNodes
+          name: Current
+          type: number
+        - description: Age
+          jsonPath: .metadata.creationTimestamp
+          name: Age
+          type: date
+      schema:
+        openAPIV3Schema:
+          description: Schema definition for ClusterHoprd Node
+          properties:
+            spec:
+              properties:
+                config:
+                  description: Yaml configuration for Hoprd nodes
+                  type: string
+                deployment:
+                  description: Deployment configuration
+                  properties:
+                    annotations:
+                      additionalProperties:
+                        type: string
+                      description: Custom annotations to be added to the node deployment and its pods
+                      type: object
+                    env:
+                      description: The definition for environment variables to be used by the node deployment
+                      type: string
+                    extraContainers:
+                      description: The definition of extra containers to be added to the node deployment
+                      type: string
+                    labels:
+                      additionalProperties:
+                        type: string
+                      description: Custom labels to be added to the node deployment and its pods
+                      type: object
+                    livenessProbe:
+                      description: The definition of the liveness probe to be used by the node deployment
+                      type: string
+                    readinessProbe:
+                      description: The definition of the readiness probe to be used by the node deployment
+                      type: string
+                    resources:
+                      description: The definition for hardware resources to be used by the node deployment
+                      type: string
+                    startupProbe:
+                      description: The definition of the startup probe to be used by the node deployment
+                      type: string
+                  type: object
+                dnsName:
+                  description: The DNS name to be used by the cluster of hoprd nodes
+                  type: string
+                enabled:
+                  description: 'Flag indicating if the node should be started or stopped'
+                  type: boolean
+                identityPoolName:
+                  description: The name of the IdentityPool
+                  type: string
+                  x-kubernetes-validations:
+                  - message: identityPoolName is immutable
+                    rule: self == oldSelf
+                replicas:
+                  description: Number of instances for this configuration
+                  type: number
+                gateway:
+                  description: Gateway configuration. When omitted, the built-in Gateway of the operator is used
+                  type: object
+                  properties:
+                    ref:
+                      description: Reference to an existing Gateway to attach the node to
+                      type: object
+                      properties:
+                        name:
+                          description: Name of the Gateway
+                          type: string
+                        namespace:
+                          description: Namespace of the Gateway
+                          type: string
+                      required:
+                      - name
+                      - namespace
+                version:
+                  description: An specific hoprd version. Should match with a docker tag
+                  type: string
+              required:
+                - identityPoolName
+                - replicas
+                - config
+                - version
+              type: object
+            status:
+              description: The status object of ClusterHord node
+              nullable: true
+              properties:
+                currentNodes:
+                  description: Number of nodes running
+                  type: number
+                observedGeneration:
+                  description: The current applied metadata.generation specification
+                  type: number
+                phase:
+                  description: Phase of the last applied change
+                  enum:
+                  - Initialized
+                  - NotScaled
+                  - Scaling
+                  - Failed
+                  - Ready
+                  - Deleting
+                  type: string
+              required:
+              - observedGeneration
+              - phase
+              - currentNodes
+              type: object
+          required:
+            - spec
+          type: object
+    - name: v1alpha3
+      served: true
+      storage: false
       subresources:
         status: {}
       additionalPrinterColumns:
@@ -133,9 +273,6 @@ spec:
                   required:
                     - type
                   type: object
-                sourceNodeLogs:
-                  description: Name of the hoprd node to upload logs from
-                  type: string
                 version:
                   description: An specific hoprd version. Should match with a docker tag
                   type: string
@@ -271,9 +408,6 @@ spec:
                   required:
                     - type
                   type: object
-                sourceNodeLogs:
-                  description: Name of the hoprd node to upload logs from
-                  type: string
                 supportedRelease:
                   description: Release Name of the supported version
                   enum:

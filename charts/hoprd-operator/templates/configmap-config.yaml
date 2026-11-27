@@ -11,15 +11,26 @@ data:
     instance:
       name: {{ include "hoprd-operator.fullname" . | quote }}
       namespace: {{ .Release.Namespace | quote }}
-    ingress:
-      ingress_class_name: {{ .Values.hoprdOperator.ingress.ingressClassName | quote }}
-      dns_domain: {{ .Values.hoprdOperator.ingress.dnsDomain | quote }}
-      loadbalancer_ip: {{ required "The hoprdOperator.ingress.loadBalancerIP value is required!" .Values.hoprdOperator.ingress.loadBalancerIP }}
-      namespace: {{ .Values.hoprdOperator.ingress.namespace | quote }}
-      port_min: {{ .Values.hoprdOperator.ingress.ports.min }}
-      port_max: {{ .Values.hoprdOperator.ingress.ports.max }}
-      deployment_name: {{ .Values.hoprdOperator.ingress.deploymentName | quote }}
-      annotations: {{- .Values.hoprdOperator.ingress.annotations | toYaml | nindent 8 }}
+    gateway:
+      gateway_name: {{ include "hoprd-operator.fullname" . | quote }}
+      gateway_namespace: {{ .Release.Namespace | quote }}
+      dns_domain: {{ .Values.hoprdOperator.gateway.dnsDomain | quote }}
+      loadbalancer_ip: {{ required "The hoprdOperator.gateway.loadBalancerIP value is required!" .Values.hoprdOperator.gateway.loadBalancerIP | quote }}
+      port_min: {{ .Values.hoprdOperator.gateway.ports.min }}
+      port_max: {{ .Values.hoprdOperator.gateway.ports.max }}
+      certificate_issuer:
+        name: {{ required "The hoprdOperator.gateway.certificateIssuer.name value is required!" .Values.hoprdOperator.gateway.certificateIssuer.name | quote }}
+        kind: {{ .Values.hoprdOperator.gateway.certificateIssuer.kind | quote }}
+    {{- if .Values.hoprdOperator.otlp.endpoint }}
+    otlp:
+      endpoint: {{ .Values.hoprdOperator.otlp.endpoint | quote }}
+      {{- if .Values.hoprdOperator.otlp.signals }}
+      signals: {{ .Values.hoprdOperator.otlp.signals | quote }}
+      {{- end }}
+      {{- if .Values.hoprdOperator.otlp.metricExportInterval }}
+      metric_export_interval: {{ .Values.hoprdOperator.otlp.metricExportInterval | quote }}
+      {{- end }}
+    {{- end }}
     hopli_image: {{ printf "%s/%s:%s" .Values.hoprdOperator.hopli.registry .Values.hoprdOperator.hopli.repository .Values.hoprdOperator.hopli.tag | quote }}
     kubectl_image: {{ printf "%s/%s:%s" .Values.hoprdOperator.kubectl.registry .Values.hoprdOperator.kubectl.repository .Values.hoprdOperator.kubectl.tag | quote }}
     hopli_rpc_provider_url: {{ .Values.hoprdOperator.hopli.rpcProviderUrl | quote }}

@@ -1,5 +1,5 @@
 ---
-apiVersion: hoprnet.org/v1alpha3
+apiVersion: hoprnet.org/v1alpha4
 kind: ClusterHoprd
 metadata:
   name: {{ include "cluster-hoprd.name" . }}
@@ -15,19 +15,8 @@ spec:
   {{- if .Values.clusterHoprd.nodes.deployment.annotations }}
     annotations: {{- .Values.clusterHoprd.nodes.deployment.annotations | toYaml | nindent 6 }}
   {{- end }}
-  {{- if or .Values.clusterHoprd.networkPolicy.enabled .Values.clusterHoprd.nodes.deployment.labels }}
-    labels:
-    {{- if .Values.clusterHoprd.networkPolicy.enabled }}
-      # 8080 matches the hardcoded metrics container port in hoprd_deployment.rs's
-      # metrics_container() - do not change without changing that too. Additional
-      # scraped ports (e.g. a sidecar added via nodes.deployment.extraContainers) go in
-      # networkPolicy.extraScrapePorts instead; generate-allow-prometheus-scrape-networkpolicy
-      # supports multiple dash-separated ports in this one label.
-      network-policy.hoprnet.org/prometheus-scrape-port: {{ prepend .Values.clusterHoprd.networkPolicy.extraScrapePorts 8080 | join "-" | quote }}
-    {{- end }}
-    {{- with .Values.clusterHoprd.nodes.deployment.labels }}
-      {{- toYaml . | nindent 6 }}
-    {{- end }}
+  {{- with .Values.clusterHoprd.nodes.deployment.labels }}
+    labels: {{- toYaml . | nindent 6 }}
   {{- end }}
   {{- if .Values.clusterHoprd.nodes.deployment.env }}
     env: |
@@ -53,11 +42,11 @@ spec:
     startupProbe: |
 {{ .Values.clusterHoprd.nodes.deployment.startupProbe | indent 6 }}
   {{- end }}
-  service:
-    type: {{ .Values.clusterHoprd.nodes.service.type }}
-    portsAllocation: {{ .Values.clusterHoprd.nodes.service.portsAllocation }}
-  config: {{ .Values.clusterHoprd.nodes.config | toYaml | nindent 4 }}
-  {{ if .Values.clusterHoprd.logs.upload.enabled }}
-  sourceNodeLogs: {{ .Values.clusterHoprd.logs.upload.sourceNode }}
+  {{- if .Values.clusterHoprd.nodes.gateway.ref.name }}
+  gateway:
+    ref:
+      name: {{ .Values.clusterHoprd.nodes.gateway.ref.name | quote }}
+      namespace: {{ required "clusterHoprd.nodes.gateway.ref.namespace is required when gateway.ref.name is set" .Values.clusterHoprd.nodes.gateway.ref.namespace | quote }}
   {{- end }}
+  config: {{ .Values.clusterHoprd.nodes.config | toYaml | nindent 4 }}
   dnsName: {{ .Values.clusterHoprd.dnsName | quote }}

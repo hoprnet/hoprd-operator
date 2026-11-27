@@ -1,8 +1,23 @@
+Hoprd nodes are exposed through the Gateway API (Envoy Gateway): each node gets a ListenerSet, routes and a TLS Certificate.
+
+This release REQUIRES, and does not install:
+  1. The Envoy Gateway controller v1.9 or newer, with its CRDs and the Gateway API CRDs v1.6 or newer
+     (Gateway, HTTPRoute, TCPRoute, UDPRoute, ListenerSet), installed in the cluster and watching the namespace of this release.
+     The GatewayClass of this release uses the controller name "{{ .Values.hoprdOperator.gateway.controllerName }}".
+  2. DNS records for the node hostnames (<node>.<namespace>.{{ .Values.hoprdOperator.gateway.dnsDomain | default "<dnsDomain>" }}) pointing to the Gateway IP ({{ .Values.hoprdOperator.gateway.loadBalancerIP | default "<loadBalancerIP>" }}),
+     for example a wildcard record, or external-dns watching the Gateway API routes.
+  3. A cert-manager issuer ({{ .Values.hoprdOperator.gateway.certificateIssuer.kind }} "{{ .Values.hoprdOperator.gateway.certificateIssuer.name }}") able to issue the certificates of the nodes.
+{{- if .Values.hoprdOperator.otlp.endpoint }}
+  4. An OTLP collector listening at {{ .Values.hoprdOperator.otlp.endpoint }}.
+{{- else }}
+  4. An OTLP collector, configured in hoprdOperator.otlp.endpoint (currently empty: nodes do not export telemetry).
+{{- end }}
+
 1. Start creating hoprd nodes by executing this  command:
 
 cat <<EOF |  apply -f -
 ---
-apiVersion: hoprnet.org/v1alpha3
+apiVersion: hoprnet.org/v1alpha4
 kind: Hoprd
 metadata:
   name: {{ .Release.Namespace }}-1

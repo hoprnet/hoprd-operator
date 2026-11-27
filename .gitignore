@@ -39,3 +39,6 @@ test-data/identity-pool-secret.yaml
 charts/*/secrets-*.yaml
 test-data/tls.crt
 test-data/tls.key
+
+## direnv
+.direnv/

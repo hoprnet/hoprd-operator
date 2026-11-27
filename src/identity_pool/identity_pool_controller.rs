@@ -23,7 +23,6 @@ use crate::{
     identity_pool::identity_pool_resource::{IdentityPool, IdentityPoolPhaseEnum},
     model::Error,
     utils,
-    servicemonitor::ServiceMonitor,
 };
 
 /// Action to be taken upon an `IdentityPool` resource during reconciliation
@@ -36,8 +35,6 @@ enum IdentityPoolAction {
     Modify,
     /// Delete the IdentityPool resource
     Delete,
-    /// The owned `ServiceMonitor` is missing (e.g. manually deleted) and needs to be recreated
-    RecreateServiceMonitor,
     /// The owned auto-funding `CronJob` is missing (e.g. manually deleted) and needs to be recreated
     RecreateCronJobFaucet,
     /// This `IdentityPool` resource is in desired state and requires no actions to be taken
@@ -50,7 +47,7 @@ enum IdentityPoolAction {
 ///
 /// # Arguments
 /// - `identity_hoprd`: A reference to `IdentityPool` being reconciled to decide next action upon.
-/// - `context`: Context Data used to query the current state of owned resources like the `ServiceMonitor`.
+/// - `context`: Context Data used to query the current state of owned resources like the auto-funding `CronJob`.
 async fn determine_action(identity_pool: &IdentityPool, context: &Arc<ContextData>) -> Result<IdentityPoolAction, Error> {
     if identity_pool.meta().deletion_timestamp.is_some() {
         return Ok(IdentityPoolAction::Delete);
@@ -58,15 +55,6 @@ async fn determine_action(identity_pool: &IdentityPool, context: &Arc<ContextDat
         return Ok(IdentityPoolAction::Create);
     } else if identity_pool.status.as_ref().is_some_and(|status| status.phase.eq(&IdentityPoolPhaseEnum::OutOfSync)) {
         return Ok(IdentityPoolAction::Sync);
-    }
-    // Check the in-memory cache first to avoid querying the API server on every reconciliation
-    let service_monitor_ref = ObjectRef::new(&identity_pool.name_any()).within(&identity_pool.require_namespace()?);
-    if context.service_monitor_store.get(&service_monitor_ref).is_none() {
-        // Confirm against the API server, as the cache may not be populated yet after the operator startup
-        let service_monitor_api: Api<ServiceMonitor> = Api::namespaced(context.client.clone(), &identity_pool.require_namespace()?);
-        if service_monitor_api.get_opt(&identity_pool.name_any()).await?.is_none() {
-            return Ok(IdentityPoolAction::RecreateServiceMonitor);
-        }
     }
     if identity_pool.spec.funding.is_some() {
         let cron_job_name = format!("auto-funding-{}", identity_pool.name_any());
@@ -101,7 +89,6 @@ async fn reconcile(identity_pool: Arc<IdentityPool>, context: Arc<ContextData>) 
         IdentityPoolAction::Modify => identity_pool_mutable.modify(context.clone()).await,
         IdentityPoolAction::Sync => identity_pool_mutable.sync(context.clone()).await,
         IdentityPoolAction::Delete => identity_pool_mutable.delete(context.clone()).await,
-        IdentityPoolAction::RecreateServiceMonitor => identity_pool_mutable.recreate_service_monitor(context.clone()).await,
         IdentityPoolAction::RecreateCronJobFaucet => identity_pool_mutable.recreate_cron_job_faucet(context.clone()).await,
         // The resource is already in desired state, do nothing and re-check after 10 seconds
         IdentityPoolAction::NoOp => Ok(Action::requeue(Duration::from_secs(constants::RECONCILE_SHORT_FREQUENCY))),
@@ -109,26 +96,10 @@ async fn reconcile(identity_pool: Arc<IdentityPool>, context: Arc<ContextData>) 
 }
 
 /// Initialize the controller
-pub async fn run(client: Client, context_data: Arc<ContextData>, service_monitor_writer: Writer<ServiceMonitor>, cron_job_faucet_writer: Writer<CronJob>) {
+pub async fn run(client: Client, context_data: Arc<ContextData>, cron_job_faucet_writer: Writer<CronJob>) {
     let owned_api: Api<IdentityPool> = Api::<IdentityPool>::all(client.clone());
-    let service_monitor = Api::<ServiceMonitor>::all(client.clone());
     let identity_hoprd = Api::<IdentityHoprd>::all(client.clone());
     let cron_job_faucet = Api::<CronJob>::all(client.clone());
-
-    // Keep the in-memory cache of identity pool service monitors up to date, so that the
-    // reconciliation loop can check for their existence without querying the API server
-    let service_monitor_reflector = watcher::watcher(service_monitor.clone(), Config::default().labels(constants::LABEL_KUBERNETES_IDENTITY_POOL))
-        .default_backoff()
-        .reflect(service_monitor_writer)
-        .applied_objects();
-    tokio::spawn(async move {
-        futures::pin_mut!(service_monitor_reflector);
-        while let Some(event) = service_monitor_reflector.next().await {
-            if let Err(watcher_error) = event {
-                error!("[IdentityPool] ServiceMonitor reflector error: {:?}", watcher_error);
-            }
-        }
-    });
 
     // Keep the in-memory cache of identity pool auto-funding CronJobs up to date, so that the
     // reconciliation loop can check for their existence without querying the API server
@@ -146,7 +117,6 @@ pub async fn run(client: Client, context_data: Arc<ContextData>, service_monitor
     });
 
     Controller::new(owned_api, Config::default())
-        .owns(service_monitor, Config::default())
         .owns(identity_hoprd, Config::default())
         .owns(cron_job_faucet, Config::default())
         .shutdown_on_signal()

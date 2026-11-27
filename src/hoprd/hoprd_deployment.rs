@@ -2,9 +2,9 @@ use crate::hoprd::hoprd_deployment_spec::HoprdDeploymentSpec;
 use crate::identity_hoprd::identity_hoprd_resource::IdentityHoprd;
 use crate::identity_pool::identity_pool_resource::IdentityPool;
 use crate::model::Error;
+use crate::operator_config::OtlpConfig;
 use crate::{context_data::ContextData, hoprd::hoprd_deployment};
 use base64::{engine::general_purpose, Engine as _};
-use k8s_openapi::apimachinery::pkg::util::intstr::IntOrString;
 use rand::distr::Alphanumeric;
 
 use crate::{
@@ -15,7 +15,7 @@ use crate::{
 use futures::StreamExt;
 use k8s_openapi::api::batch::v1::JobSpec;
 use k8s_openapi::api::core::v1::{
-    ConfigMapEnvSource, Container, ContainerPort, EmptyDirVolumeSource, EnvFromSource, EnvVar, EnvVarSource, PersistentVolumeClaimVolumeSource, PodSpec, PodTemplateSpec, Probe, SecretEnvSource, SecretKeySelector, TCPSocketAction, Volume, VolumeMount
+    ConfigMapEnvSource, Container, ContainerPort, EmptyDirVolumeSource, EnvFromSource, EnvVar, PersistentVolumeClaimVolumeSource, PodSpec, PodTemplateSpec, SecretEnvSource, Volume, VolumeMount
 };
 use k8s_openapi::api::{
     apps::v1::{Deployment, DeploymentSpec, DeploymentStrategy},
@@ -36,7 +36,7 @@ use tracing::{error, info};
 /// - `client` - A Kubernetes client to create the deployment with.
 /// - `hoprd` - Details about the hoprd configuration node
 ///
-pub async fn create_deployment(context_data: Arc<ContextData>, hoprd: &Hoprd, identity_hoprd: &IdentityHoprd, hoprd_host: &str, starting_port: u16, last_port: u16) -> Result<Deployment, Error> {
+pub async fn create_deployment(context_data: Arc<ContextData>, hoprd: &Hoprd, identity_hoprd: &IdentityHoprd, hoprd_host: &str, p2p_port: u16) -> Result<Deployment, Error> {
     let namespace: String = hoprd.namespace().ok_or_else(|| Error::UserInputError("The Hoprd resource has no namespace".to_owned()))?;
     let name: String = hoprd.name_any();
     let owner_references: Option<Vec<OwnerReference>> = Some(vec![hoprd.controller_owner_ref(&()).ok_or_else(|| Error::UserInputError("The Hoprd resource has no uid".to_owned()))?]);
@@ -73,7 +73,7 @@ pub async fn create_deployment(context_data: Arc<ContextData>, hoprd: &Hoprd, id
             owner_references,
             ..ObjectMeta::default()
         },
-        spec: Some(build_deployment_spec(labels, &hoprd.spec, identity_pool, identity_hoprd, hoprd_host, starting_port, last_port).await?),
+        spec: Some(build_deployment_spec(labels, &hoprd.spec, identity_pool, identity_hoprd, hoprd_host, p2p_port, context_data.config.otlp.as_ref()).await?),
         ..Deployment::default()
     };
 
@@ -84,19 +84,19 @@ pub async fn create_deployment(context_data: Arc<ContextData>, hoprd: &Hoprd, id
     Ok(deployment)
 }
 
+#[allow(clippy::too_many_arguments)]
 pub async fn build_deployment_spec(
     labels: BTreeMap<String, String>,
     hoprd_spec: &HoprdSpec,
     identity_pool: IdentityPool,
     identity_hoprd: &IdentityHoprd,
     hoprd_host: &str,
-    starting_port: u16,
-    last_port: u16
+    p2p_port: u16,
+    otlp: Option<&OtlpConfig>,
 ) -> Result<DeploymentSpec, Error> {
     let replicas: i32 = if hoprd_spec.enabled.unwrap_or(true) { 1 } else { 0 };
     let mut containers: Vec<Container> = extra_containers(hoprd_spec.deployment.clone())?;
-    containers.push(hoprd_container(hoprd_spec, &identity_pool, identity_hoprd, hoprd_host, starting_port, last_port)?);
-    containers.push(metrics_container(&identity_pool));
+    containers.push(hoprd_container(hoprd_spec, &identity_pool, identity_hoprd, hoprd_host, p2p_port, &labels, otlp)?);
 
     // Add the user defined labels and annotations to the pod template, keeping them out of the
     // selector labels. Managed labels win on key collisions so that the pod template always keeps
@@ -154,14 +154,12 @@ pub async fn modify_deployment(
     let hoprd_container = pod_spec.containers.iter().find(|&container| container.name == "hoprd").ok_or_else(invalid_deployment)?;
     let hoprd_host_env_var = hoprd_container.env.as_ref().and_then(|env| env.iter().find(|&env_var| env_var.name.eq(&constants::HOPRD_HOST.to_owned()))).ok_or_else(invalid_deployment)?;
     let hoprd_host_port = hoprd_host_env_var.value.as_ref().ok_or_else(invalid_deployment)?.to_owned();
-    let (hoprd_host, starting_port_string) = hoprd_host_port.split_once(':').ok_or_else(invalid_deployment)?;
-    let starting_port = starting_port_string.parse::<u16>().map_err(|_| invalid_deployment())?;
-    let ports_allocation = hoprd_spec.service.ports_allocation;
-    let last_port = starting_port + ports_allocation;
+    let (hoprd_host, p2p_port_string) = hoprd_host_port.split_once(':').ok_or_else(invalid_deployment)?;
+    let p2p_port = p2p_port_string.parse::<u16>().map_err(|_| invalid_deployment())?;
     let identity_pool: IdentityPool = identity_hoprd.get_identity_pool(context_data.client.clone()).await?;
     // Use the selector labels so that user defined labels on the deployment metadata do not leak into the immutable selector
     let selector_labels = deployment.spec.clone().ok_or_else(invalid_deployment)?.selector.match_labels.unwrap_or(deployment.labels().to_owned());
-    let spec = build_deployment_spec(selector_labels.clone(), hoprd_spec, identity_pool, identity_hoprd, hoprd_host, starting_port, last_port).await?;
+    let spec = build_deployment_spec(selector_labels.clone(), hoprd_spec, identity_pool, identity_hoprd, hoprd_host, p2p_port, context_data.config.otlp.as_ref()).await?;
     let custom_labels = HoprdDeploymentSpec::get_labels(hoprd_spec.deployment.clone());
     let custom_annotations = HoprdDeploymentSpec::get_annotations(hoprd_spec.deployment.clone());
     let previous_labels = HoprdDeploymentSpec::get_labels(previous_deployment_spec.clone());
@@ -216,28 +214,12 @@ pub fn init_container(hoprd_spec: &HoprdSpec,
     identity_hoprd: &IdentityHoprd,) -> Container {
     let encoded_configuration = general_purpose::STANDARD.encode(&hoprd_spec.config);
     let volume_mounts: Option<Vec<VolumeMount>> = build_volume_mounts();
-    let args = if hoprd_spec.source_node_logs.unwrap_or(false) {
-        Some(vec![String::from(
-            "set -x\n\
-            set -e\n\
-            echo $HOPRD_IDENTITY_FILE | base64 -d > /app/hoprd-identity/.hopr-id\n\
-            echo $HOPRD_CONFIGURATION | base64 -d > /app/hoprd-identity/config.yaml"
-        )])
-    } else {
-        Some(vec![String::from(
-            "set -x\n\
-            set -e\n\
-            if [ -n \"$HOPRD_LOGS_SNAPSHOT_URL\" ] && ! ls /app/hoprd-db/db/hopr_logs.db* 1> /dev/null 2>&1; then\n\
-            apk add --no-cache curl tar xz;\n\
-            mkdir -p /app/hoprd-db/db;\n\
-            curl -sf --retry 3 \"$HOPRD_LOGS_SNAPSHOT_URL\" -o /app/hoprd-db/db/snapshot.tar.xz;\n\
-            tar xf /app/hoprd-db/db/snapshot.tar.xz -C /app/hoprd-db/db;\n\
-            rm -f /app/hoprd-db/db/snapshot.tar.xz;\n\
-            fi;\n\
-            echo $HOPRD_IDENTITY_FILE | base64 -d > /app/hoprd-identity/.hopr-id\n\
-            echo $HOPRD_CONFIGURATION | base64 -d > /app/hoprd-identity/config.yaml"
-        )])
-    };
+    let args = Some(vec![String::from(
+        "set -x\n\
+        set -e\n\
+        echo $HOPRD_IDENTITY_FILE | base64 -d > /app/hoprd-identity/.hopr-id\n\
+        echo $HOPRD_CONFIGURATION | base64 -d > /app/hoprd-identity/config.yaml"
+    )]);
     Container {
         name: "init".to_owned(),
         image: Some(constants::ALPINE_IMAGE.to_owned()),
@@ -269,12 +251,14 @@ pub fn init_container(hoprd_spec: &HoprdSpec,
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn hoprd_container(hoprd_spec: &HoprdSpec,
     identity_pool: &IdentityPool,
     identity_hoprd: &IdentityHoprd,
     hoprd_host: &str,
-    starting_port: u16,
-    last_port: u16) -> Result<Container, Error> {
+    p2p_port: u16,
+    labels: &BTreeMap<String, String>,
+    otlp: Option<&OtlpConfig>) -> Result<Container, Error> {
     let image = format!(
         "{}/{}:{}",
         constants::HOPR_DOCKER_REGISTRY.to_owned(),
@@ -284,24 +268,17 @@ pub fn hoprd_container(hoprd_spec: &HoprdSpec,
 
     let resources = Some(HoprdDeploymentSpec::get_resource_requirements(hoprd_spec.deployment.clone())?);
     let liveness_probe = HoprdDeploymentSpec::get_liveness_probe(hoprd_spec.deployment.clone())?;
-    let readiness_probe = HoprdDeploymentSpec::get_readiness_probe(hoprd_spec.deployment.clone(), hoprd_spec.source_node_logs.unwrap_or(false))?;
-    let startup_probe = HoprdDeploymentSpec::get_startup_probe(hoprd_spec.deployment.clone(), hoprd_spec.source_node_logs.unwrap_or(false))?;
+    let readiness_probe = HoprdDeploymentSpec::get_readiness_probe(hoprd_spec.deployment.clone())?;
+    let startup_probe = HoprdDeploymentSpec::get_startup_probe(hoprd_spec.deployment.clone())?;
     let volume_mounts: Option<Vec<VolumeMount>> = build_volume_mounts();
-    let hoprd_host_port = format!("{}:{}", hoprd_host, starting_port);
-
-    // Only define the session port range env var if the ports allocated value is greater than 0
-    let session_port_range: Option<String> = if starting_port != last_port {
-        Some(format!("{}:{}", starting_port + 1, last_port - 1))
-    } else {
-        None
-    };
+    let hoprd_host_port = format!("{}:{}", hoprd_host, p2p_port);
 
     Ok(Container {
         name: "hoprd".to_owned(),
         image: Some(image),
         image_pull_policy: Some("Always".to_owned()),
-        ports: Some(build_ports(starting_port.into(), last_port.into())),
-        env: Some(build_env_vars(identity_hoprd, &hoprd_host_port, hoprd_spec, session_port_range)?),
+        ports: Some(build_ports(p2p_port.into())),
+        env: Some(build_env_vars(identity_hoprd, &hoprd_host_port, hoprd_spec, otlp, labels)?),
         env_from: Some(vec![
             EnvFromSource {
                 secret_ref: Some(SecretEnvSource {
@@ -325,51 +302,6 @@ pub fn hoprd_container(hoprd_spec: &HoprdSpec,
         resources,
         ..Container::default()
     })
-}
-
-pub fn metrics_container(identity_pool: &IdentityPool) -> Container {
-    let image: String = format!(
-        "{}/{}:{}",
-        constants::HOPR_DOCKER_REGISTRY,
-        constants::HOPR_DOCKER_METRICS_IMAGE_NAME,
-        constants::OPERATOR_METRICS_CONTAINER_TAG
-    );
-    Container {
-        name: "hoprd-metrics".to_owned(),
-        image: Some(image),
-        ports: Some(vec![ContainerPort {
-            container_port: 8080,
-            name: Some("metrics".to_owned()),
-            protocol: Some("TCP".to_owned()),
-            ..ContainerPort::default()
-        }]),
-        // The metrics container only needs the API token to query the node. The rest of the Secret (e.g. the identity
-        // password) is not injected, so a compromise of this sidecar does not expose it
-        env: Some(vec![EnvVar {
-            name: constants::HOPRD_API_TOKEN.to_owned(),
-            value_from: Some(EnvVarSource {
-                secret_key_ref: Some(SecretKeySelector {
-                    name: format!("{}-env-vars", identity_pool.name_any()),
-                    key: constants::HOPRD_API_TOKEN.to_owned(),
-                    // As with `envFrom`, a Secret without the token does not prevent the container from starting
-                    optional: Some(true),
-                }),
-                ..EnvVarSource::default()
-            }),
-            ..EnvVar::default()
-        }]),
-        readiness_probe: Some( Probe {
-            tcp_socket: Some( TCPSocketAction {
-                port: IntOrString::Int(8080),
-                ..Default::default()
-            }),
-            initial_delay_seconds: Some(15),
-            period_seconds: Some(10),
-            failure_threshold: Some(6),
-            ..Probe::default()
-        }),
-         ..Container::default()
-    }
 }
 
 /// Deletes an existing deployment.
@@ -526,46 +458,17 @@ async fn build_volumes(pvc_name: &String) -> Vec<Volume> {
 }
 
 /// Build struct ContainerPort
-fn build_ports(starting_port: i32, last_port: i32) -> Vec<ContainerPort> {
-    let mut ports: Vec<ContainerPort> = Vec::new();
-    ports.push(ContainerPort {
-        container_port: 3001,
-        name: Some("api".to_owned()),
-        protocol: Some("TCP".to_owned()),
-        ..ContainerPort::default()
-    });
-    ports.push(ContainerPort {
-        container_port: starting_port,
-        name: Some("p2p-tcp".to_owned()),
-        protocol: Some("TCP".to_owned()),
-        ..ContainerPort::default()
-    });
-    ports.push(ContainerPort {
-        container_port: starting_port,
-        name: Some("p2p-udp".to_owned()),
-        protocol: Some("UDP".to_owned()),
-        ..ContainerPort::default()
-    });
-    for session_port in starting_port + 1..last_port {
-        ports.push(ContainerPort {
-            container_port: session_port,
-            name: Some(format!("sessiont-{}", session_port)),
-            protocol: Some("TCP".to_owned()),
-            ..ContainerPort::default()
-        });
-        ports.push(ContainerPort {
-            container_port: session_port,
-            name: Some(format!("sessionu-{}", session_port)),
-            protocol: Some("UDP".to_owned()),
-            ..ContainerPort::default()
-        });
-    }
-    ports
+fn build_ports(p2p_port: i32) -> Vec<ContainerPort> {
+    vec![
+        ContainerPort { container_port: constants::API_PORT, name: Some("api".to_owned()), protocol: Some("TCP".to_owned()), ..ContainerPort::default() },
+        ContainerPort { container_port: p2p_port, name: Some("p2p-tcp".to_owned()), protocol: Some("TCP".to_owned()), ..ContainerPort::default() },
+        ContainerPort { container_port: p2p_port, name: Some("p2p-udp".to_owned()), protocol: Some("UDP".to_owned()), ..ContainerPort::default() },
+    ]
 }
 
 ///Build struct environment variable
 ///
-fn build_env_vars(identity_hoprd: &IdentityHoprd, hoprd_host: &String, hoprd_spec: &HoprdSpec, session_port_range: Option<String>) -> Result<Vec<EnvVar>, Error> {
+fn build_env_vars(identity_hoprd: &IdentityHoprd, hoprd_host: &String, hoprd_spec: &HoprdSpec, otlp: Option<&OtlpConfig>, labels: &BTreeMap<String, String>) -> Result<Vec<EnvVar>, Error> {
     let mut env_vars = Vec::new();
     env_vars.extend_from_slice(&HoprdDeploymentSpec::get_environment_variables(hoprd_spec.deployment.to_owned())?);
 
@@ -595,14 +498,43 @@ fn build_env_vars(identity_hoprd: &IdentityHoprd, hoprd_host: &String, hoprd_spe
         ..EnvVar::default()
     });
 
-    if session_port_range.is_some() {
-        env_vars.push(EnvVar {
-            name: constants::HOPRD_SESSION_PORT_RANGE.to_owned(),
-            value: session_port_range.clone(),
-            ..EnvVar::default()
-        });
-    }
+    env_vars.extend(otlp_env_vars(otlp, labels));
     Ok(env_vars)
+}
+
+/// Environment variables that make hoprd send its telemetry to the OTLP endpoint of the operator configuration.
+/// Nothing is set when no endpoint is configured, which keeps the telemetry of hoprd disabled.
+///
+/// `HOPRD_OTEL_EXPORT_LABELS` adds to every signal the labels that identify the node (network, cluster, node address,
+/// safe address and the Kubernetes application labels), so the pipeline that receives them can tell the nodes apart.
+fn otlp_env_vars(otlp: Option<&OtlpConfig>, labels: &BTreeMap<String, String>) -> Vec<EnvVar> {
+    let Some(otlp) = otlp.filter(|otlp| !otlp.endpoint.trim().is_empty()) else {
+        return vec![];
+    };
+    let env_var = |name: &str, value: String| EnvVar { name: name.to_owned(), value: Some(value), ..EnvVar::default() };
+    let mut env_vars = vec![env_var(constants::HOPRD_OTLP_ENDPOINT, otlp.endpoint.trim().to_owned())];
+    if let Some(signals) = otlp.signals.as_ref().filter(|signals| !signals.trim().is_empty()) {
+        env_vars.push(env_var(constants::HOPRD_OTEL_SIGNALS, signals.trim().to_owned()));
+    }
+    if let Some(interval) = otlp.metric_export_interval.as_ref().filter(|interval| !interval.trim().is_empty()) {
+        env_vars.push(env_var(constants::HOPRD_METRIC_EXPORT_INTERVAL, interval.trim().to_owned()));
+    }
+    let export_labels: Vec<String> = [
+        ("network", constants::LABEL_NODE_NETWORK),
+        ("hoprd_cluster", constants::LABEL_NODE_CLUSTER),
+        ("node_address", constants::LABEL_NODE_ADDRESS),
+        ("safe_address", constants::LABEL_NODE_SAFE_ADDRESS),
+        ("app_kubernetes_io_name", constants::LABEL_KUBERNETES_NAME),
+        ("app_kubernetes_io_instance", constants::LABEL_KUBERNETES_INSTANCE),
+        ("app_kubernetes_io_component", constants::LABEL_KUBERNETES_COMPONENT),
+    ]
+    .iter()
+    .filter_map(|(label, key)| labels.get(*key).filter(|value| !value.is_empty()).map(|value| format!("{label}={value}")))
+    .collect();
+    if !export_labels.is_empty() {
+        env_vars.push(env_var(constants::HOPRD_OTEL_EXPORT_LABELS, export_labels.join(",")));
+    }
+    env_vars
 }
 
 #[cfg(test)]
@@ -611,8 +543,8 @@ mod tests {
     use crate::identity_hoprd::identity_hoprd_resource::IdentityHoprdSpec;
     use crate::identity_pool::identity_pool_resource::IdentityPoolSpec;
 
-    fn init_script(source_node_logs: bool) -> String {
-        let spec = HoprdSpec { source_node_logs: Some(source_node_logs), ..HoprdSpec::default() };
+    fn init_script() -> String {
+        let spec = HoprdSpec::default();
         let identity_pool = IdentityPool::new("pool", IdentityPoolSpec::default());
         let identity = IdentityHoprd::new("identity", IdentityHoprdSpec::default());
         let args = init_container(&spec, &identity_pool, &identity).args.expect("the init container has args");
@@ -621,34 +553,70 @@ mod tests {
     }
 
     // The script is rendered as a multi-line string in the Deployment manifest, so its exact lines are part of the contract
-    #[test]
-    fn metrics_container_only_receives_the_api_token() {
-        let container = metrics_container(&IdentityPool::new("pool", IdentityPoolSpec::default()));
-        assert!(container.env_from.is_none(), "the whole Secret must not be injected");
-        let env = container.env.expect("the metrics container has env vars");
-        assert_eq!(env.len(), 1);
-        assert_eq!(env[0].name, "HOPRD_API_TOKEN");
-        let selector = env[0].value_from.as_ref().and_then(|source| source.secret_key_ref.as_ref()).expect("the token comes from a Secret");
-        assert_eq!((selector.name.as_str(), selector.key.as_str()), ("pool-env-vars", "HOPRD_API_TOKEN"));
-        assert_eq!(selector.optional, Some(true));
+    fn node_labels() -> BTreeMap<String, String> {
+        BTreeMap::from([
+            (constants::LABEL_NODE_NETWORK.to_owned(), "rotsee".to_owned()),
+            (constants::LABEL_NODE_CLUSTER.to_owned(), "cluster-1".to_owned()),
+            (constants::LABEL_NODE_SAFE_ADDRESS.to_owned(), "0xsafe".to_owned()),
+            (constants::LABEL_KUBERNETES_NAME.to_owned(), "pool".to_owned()),
+            (constants::LABEL_KUBERNETES_INSTANCE.to_owned(), "node-1".to_owned()),
+            (constants::LABEL_KUBERNETES_COMPONENT.to_owned(), "node".to_owned()),
+            (constants::LABEL_NODE_ADDRESS.to_owned(), "0xnode".to_owned()),
+        ])
+    }
+
+    fn env_value(env: &[EnvVar], name: &str) -> Option<String> {
+        env.iter().find(|var| var.name == name).and_then(|var| var.value.clone())
     }
 
     #[test]
-    fn init_script_of_the_node_collecting_logs_only_writes_the_identity_and_config() {
+    fn no_otlp_variables_without_an_endpoint() {
+        assert!(otlp_env_vars(None, &node_labels()).is_empty());
+        let empty = OtlpConfig { endpoint: "  ".to_owned(), signals: Some("traces".to_owned()), metric_export_interval: None };
+        assert!(otlp_env_vars(Some(&empty), &node_labels()).is_empty());
+    }
+
+    #[test]
+    fn otlp_variables_carry_the_endpoint_and_the_node_labels() {
+        let otlp = OtlpConfig { endpoint: "http://collector:4318".to_owned(), signals: Some("metrics".to_owned()), metric_export_interval: Some("15000,hopr_session=1000".to_owned()) };
+        let env = otlp_env_vars(Some(&otlp), &node_labels());
+        assert_eq!(env_value(&env, "HOPRD_OTLP_ENDPOINT").as_deref(), Some("http://collector:4318"));
+        assert_eq!(env_value(&env, "HOPRD_OTEL_SIGNALS").as_deref(), Some("metrics"));
+        assert_eq!(env_value(&env, "HOPRD_METRIC_EXPORT_INTERVAL").as_deref(), Some("15000,hopr_session=1000"));
         assert_eq!(
-            init_script(true),
-            "set -x\nset -e\necho $HOPRD_IDENTITY_FILE | base64 -d > /app/hoprd-identity/.hopr-id\necho $HOPRD_CONFIGURATION | base64 -d > /app/hoprd-identity/config.yaml"
+            env_value(&env, "HOPRD_OTEL_EXPORT_LABELS").as_deref(),
+            Some("network=rotsee,hoprd_cluster=cluster-1,node_address=0xnode,safe_address=0xsafe,app_kubernetes_io_name=pool,app_kubernetes_io_instance=node-1,app_kubernetes_io_component=node")
         );
     }
 
     #[test]
-    fn init_script_of_the_other_nodes_restores_the_logs_snapshot_first() {
-        let script = init_script(false);
-        let lines: Vec<&str> = script.lines().collect();
-        assert_eq!(&lines[..2], ["set -x", "set -e"]);
-        assert!(lines[2].starts_with("if [ -n \"$HOPRD_LOGS_SNAPSHOT_URL\" ]"));
-        assert_eq!(lines[lines.len() - 3], "fi;");
-        assert!(lines[lines.len() - 1].ends_with("/app/hoprd-identity/config.yaml"));
-        assert!(!script.contains("  "), "the line continuations must not leak indentation into the script");
+    fn optional_otlp_settings_and_labels_are_skipped_when_missing() {
+        let otlp = OtlpConfig { endpoint: "collector:4317".to_owned(), signals: None, metric_export_interval: None };
+        let mut labels = node_labels();
+        labels.remove(constants::LABEL_NODE_CLUSTER);
+        let env = otlp_env_vars(Some(&otlp), &labels);
+        assert!(env_value(&env, "HOPRD_OTEL_SIGNALS").is_none());
+        assert!(env_value(&env, "HOPRD_METRIC_EXPORT_INTERVAL").is_none());
+        assert!(!env_value(&env, "HOPRD_OTEL_EXPORT_LABELS").unwrap_or_default().contains("hoprd_cluster"));
+    }
+
+    #[test]
+    fn the_node_opens_the_p2p_port_for_both_protocols_and_no_session_ports() {
+        let identity_pool = IdentityPool::new("pool", IdentityPoolSpec::default());
+        let identity = IdentityHoprd::new("identity", IdentityHoprdSpec::default());
+        let container = hoprd_container(&HoprdSpec::default(), &identity_pool, &identity, "1.2.3.4", 9000, &node_labels(), None).expect("container builds");
+        let ports: Vec<(String, i32, String)> = container.ports.unwrap_or_default().into_iter().map(|port| (port.name.unwrap_or_default(), port.container_port, port.protocol.unwrap_or_default())).collect();
+        assert_eq!(ports, vec![("api".to_owned(), constants::API_PORT, "TCP".to_owned()), ("p2p-tcp".to_owned(), 9000, "TCP".to_owned()), ("p2p-udp".to_owned(), 9000, "UDP".to_owned())]);
+        let env = container.env.unwrap_or_default();
+        assert!(env_value(&env, "HOPRD_SESSION_PORT_RANGE").is_none());
+        assert_eq!(env_value(&env, "HOPRD_HOST").as_deref(), Some("1.2.3.4:9000"));
+    }
+
+    #[test]
+    fn init_script_only_writes_the_identity_and_config() {
+        assert_eq!(
+            init_script(),
+            "set -x\nset -e\necho $HOPRD_IDENTITY_FILE | base64 -d > /app/hoprd-identity/.hopr-id\necho $HOPRD_CONFIGURATION | base64 -d > /app/hoprd-identity/config.yaml"
+        );
     }
 }

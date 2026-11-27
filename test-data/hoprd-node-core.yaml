@@ -1,5 +1,5 @@
 ---
-apiVersion: hoprnet.org/v1alpha3
+apiVersion: hoprnet.org/v1alpha4
 kind: Hoprd
 metadata:
   name: core-rotsee-1
@@ -9,8 +9,6 @@ spec:
   identityPoolName: pull-requests-rotsee
   identityName: pull-requests-rotsee-1
   deleteDatabase: false
-  service:
-    type: LoadBalancer
   enabled: true
   config: |
     hopr:

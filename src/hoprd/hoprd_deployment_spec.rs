@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use tracing::trace;
 use std::collections::BTreeMap;
 
-use crate::model::Error;
+use crate::{constants, model::Error};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 struct CustomKeyRef {
@@ -154,7 +154,7 @@ impl HoprdDeploymentSpec {
         Probe {
             http_get: Some(HTTPGetAction {
                 path: Some(path.to_string()),
-                port: IntOrString::Int(3001),
+                port: IntOrString::Int(constants::API_PORT),
                 ..HTTPGetAction::default()
             }),
             timeout_seconds: Some(5),
@@ -178,9 +178,8 @@ impl HoprdDeploymentSpec {
         }
     }
 
-    pub fn get_startup_probe(hoprd_deployment_spec_option: Option<HoprdDeploymentSpec>, source_node_logs: bool) -> Result<Option<Probe>, Error> {
-        let period_seconds = if source_node_logs { Some(60) } else { Some(15) };
-        let default_startup_probe = HoprdDeploymentSpec::build_probe("/startedz".to_owned(), period_seconds, Some(1), Some(60));
+    pub fn get_startup_probe(hoprd_deployment_spec_option: Option<HoprdDeploymentSpec>) -> Result<Option<Probe>, Error> {
+        let default_startup_probe = HoprdDeploymentSpec::build_probe("/startedz".to_owned(), Some(15), Some(1), Some(60));
         if let Some(hoprd_deployment_spec) = hoprd_deployment_spec_option {
             if let Some(startup_probe_string) = hoprd_deployment_spec.startup_probe {
                 Ok(Some(serde_yml::from_str(&startup_probe_string)?))
@@ -192,9 +191,8 @@ impl HoprdDeploymentSpec {
         }
     }
 
-    pub fn get_readiness_probe(hoprd_deployment_spec_option: Option<HoprdDeploymentSpec>, source_node_logs: bool) -> Result<Option<Probe>, Error> {
-        let period_seconds = if source_node_logs { Some(60) } else { Some(15) };
-        let default_readiness_probe = HoprdDeploymentSpec::build_probe("/readyz".to_owned(), period_seconds, Some(1), Some(60));
+    pub fn get_readiness_probe(hoprd_deployment_spec_option: Option<HoprdDeploymentSpec>) -> Result<Option<Probe>, Error> {
+        let default_readiness_probe = HoprdDeploymentSpec::build_probe("/readyz".to_owned(), Some(15), Some(1), Some(60));
         if let Some(hoprd_deployment_spec) = hoprd_deployment_spec_option {
             if let Some(readiness_probe_string) = hoprd_deployment_spec.readiness_probe {
                 Ok(Some(serde_yml::from_str(&readiness_probe_string)?))
@@ -280,10 +278,10 @@ mod tests {
     fn default_probes_use_the_expected_paths_and_periods() {
         let liveness = HoprdDeploymentSpec::get_liveness_probe(None).expect("ok").expect("probe");
         assert_eq!(liveness.http_get.and_then(|get| get.path), Some("/healthyz".to_owned()));
-        let startup = HoprdDeploymentSpec::get_startup_probe(None, false).expect("ok").expect("probe");
+        let startup = HoprdDeploymentSpec::get_startup_probe(None).expect("ok").expect("probe");
         assert_eq!(startup.period_seconds, Some(15));
-        let readiness = HoprdDeploymentSpec::get_readiness_probe(None, true).expect("ok").expect("probe");
-        assert_eq!(readiness.period_seconds, Some(60));
+        let readiness = HoprdDeploymentSpec::get_readiness_probe(None).expect("ok").expect("probe");
+        assert_eq!(readiness.period_seconds, Some(15));
     }
 
     #[test]
@@ -295,6 +293,6 @@ mod tests {
 
         let mut invalid = spec();
         invalid.startup_probe = Some("periodSeconds: [".to_owned());
-        assert!(HoprdDeploymentSpec::get_startup_probe(Some(invalid), false).is_err());
+        assert!(HoprdDeploymentSpec::get_startup_probe(Some(invalid)).is_err());
     }
 }

@@ -1,49 +1,34 @@
 clusterHoprd:
-  network: rotsee
+  network: piz-palu-dev
   replicas: 2
-  version: edinburgh-latest
-  funding:
-    enabled: true
-    deployerPrivateKey: SomeDummyValue
-    schedule: 0 1 * * 1
-    nativeAmount: 0.01
+  version: latest
   nodes:
     config: |
-      hopr:
-        chain:
-          network: rotsee
-          provider: https://rpc-provider.hoprnet.org
-        strategy:
-          on_fail_continue: true
-          allow_recursive: false
-          finalize_channel_closure: true
-          strategies: []
+      session_ip_forwarding:
+        use_target_allow_list: false
+      blokli_url: http://blokli-jura-dev.blokli.svc:8080
+      strategy:
+        allow_recursive: false
+        strategies: []
     identityPassword: SuperSecret
     hoprdApiToken: TokenToken
     deployment:
       annotations:
         keel.sh/policy: force
         keel.sh/match-tag: "true"
-      resources: |
-        limits:
-          cpu: 1500m
-          memory: 2Gi
-        requests:
-          cpu: 750m
-          memory: 512Mi
-    service:
-      type: LoadBalancer
-      portsAllocation: 5
-  logs:
-    download:
-      enabled: true
-      snapshotUrl: https://logs-snapshots-rotsee.hoprnet.org/rotsee-v3.0-latest.tar.xz
-    upload:
-      enabled: true
-      bucketName: logs-snapshots-rotsee.hoprnet.org
-      schedule: "0 0 * * *"
-      sourceNode: hoprd-operator-demo-node-1
-      logsFileName: rotsee-v3.0-latest.tar.xz
+      env: |
+        - name: HOPRD_NAT
+          value: "true"
+        - name: HOPRD_SESSION_ENTRY_UDP_RX_PARALLELISM
+          value: "1"
+        - name: HOPRD_SESSION_EXIT_UDP_RX_PARALLELISM
+          value: "1"
+        - name: RUST_LOG
+          value: info
+        - name: HOPR_INTERNAL_MIXER_DELAY_RANGE_IN_MS
+          value: "10"
+        - name: HOPRD_ENABLE_EXPLICIT_PATH_SESSIONS
+          value: "true"
   identities:
     hoprd-operator-demo-node-1:
       identityFile: "eyJjcnlwdG8iOnsiY2lwaGVyIjoiYWVzLTEyOC1jdHIiLCJjaXBoZXJwYXJhbXMiOnsiaXYiOiJiNzc3OTVjNThmODA1NGQ2ZTQwOTdiNjAxNzdjZDQwYiJ9LCJjaXBoZXJ0ZXh0IjoiN2Q1YWI1ODQ1ZWM4YzI2MDYzMjNmNDcxZTBkMTE1NGM2ZjA2YWNhOGQyMGFiYjVjNmU3N2E5MGY1ODk3OGVjNjRmMzU3OWJhZTg1ZThjODMzZWIzMzdhMjc4OTM4MWZlNTc2NmZlODk5NmMwYTJhZmVhYzIxNzVmMzdkMzc0Zjk2ODZkMzc2MmU0ZDJhMWIwMWMzZjMzNmMzZjg0MTMxOTIwODk4MDhmZGE5MDlmNWYwZDI0NzY5YTg5NWNhMTMwZGJlZTdjYzQxMTU2MGMzNDVlZWNiYTFlNzc0OTIzNTI1ZjNlODVmMWRmMzcwNmEzZDk0ODFjN2ExMmM2NDI4YzI1MzUxNzZlNjRhYmY3MjE4YTVlZTEwOTE3ZTQyMTViY2UwOGRiOGYxZmQwZjQyMGI2MDNmYjZmM2MyMTU0ZWI3ZDE4MzY1YTNkZWVhNDUzNmZhMmJjZDQiLCJrZGYiOiJzY3J5cHQiLCJrZGZwYXJhbXMiOnsiZGtsZW4iOjMyLCJuIjo4MTkyLCJwIjoxLCJyIjo4LCJzYWx0IjoiNTc2M2U5NDFjMjRlNmYyMjU3YTc5NjEyYWE1MDA3ZDI4YzEzNzliZWVkMjA0N2JjYzM4YWExOGE3NWE1ODY3OCJ9LCJtYWMiOiJkYTBjYzVlMjMyMjhhYWY4ODEzNzQyMjAzZjMwZDRhMDZhOWU1MTU0YWVlZTIyNzNjNDI0NTJjNzgwMGNkMDM1In0sImlkIjoiYjczNzgwZGMtZDcwZC00Y2YyLWExNGYtYmU4ZTU2NzAwZTQxIiwidmVyc2lvbiI6M30="

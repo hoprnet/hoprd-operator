@@ -25,3 +25,70 @@ spec:
         - protocol: TCP
           port: webhook
 {{- end }}
+{{- if and .Values.hoprdOperator.networkPolicy.enabled .Values.hoprdOperator.gateway.builtin.enabled }}
+{{- $proxyLabels := dict "app.kubernetes.io/managed-by" "envoy-gateway" "app.kubernetes.io/name" "envoy" "gateway.envoyproxy.io/owning-gateway-name" (include "hoprd-operator.fullname" .) "gateway.envoyproxy.io/owning-gateway-namespace" .Release.Namespace }}
+---
+# Envoy proxy of the built-in Gateway. It runs in this namespace (Envoy Gateway "GatewayNamespace" mode)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "hoprd-operator.proxyName" . }}-allow-baseline
+  namespace: {{ .Release.Namespace | quote }}
+  labels:
+    {{- include "hoprd-operator.labels" . | nindent 4 }}
+  annotations:
+    # Before the Gateway: Argo CD waits for it to be healthy, and it only gets there once its proxy can reach the xDS server
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  podSelector:
+    matchLabels:
+      {{- $proxyLabels | toYaml | nindent 6 }}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Listener container ports plus the p2p range of the Hoprd nodes. Internet clients (ipBlock) and in-cluster
+    # last hops (namespaceSelector)
+    - from:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+        - namespaceSelector: {}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.hoprdOperator.networkPolicy.proxy.httpPort }}
+        - protocol: TCP
+          port: {{ .Values.hoprdOperator.networkPolicy.proxy.httpsPort }}
+        - protocol: TCP
+          port: {{ .Values.hoprdOperator.gateway.ports.min }}
+          endPort: {{ .Values.hoprdOperator.gateway.ports.max }}
+        - protocol: UDP
+          port: {{ .Values.hoprdOperator.gateway.ports.min }}
+          endPort: {{ .Values.hoprdOperator.gateway.ports.max }}
+  egress:
+    # xDS server of the Envoy Gateway controller (the envoy app allows the ingress side).
+    # namespaceSelector, not ipBlock, for Cilium
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Values.hoprdOperator.networkPolicy.envoyGateway.namespace | quote }}
+          podSelector:
+            matchLabels:
+              {{- .Values.hoprdOperator.networkPolicy.envoyGateway.podSelector | toYaml | nindent 14 }}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.hoprdOperator.networkPolicy.envoyGateway.xdsPort }}
+    # Backends: the Hoprd nodes of any namespace, only on their API port and their p2p port
+    - to:
+        - namespaceSelector: {}
+          podSelector:
+            matchExpressions:
+              - key: hoprds.hoprnet.org/network
+                operator: Exists
+      ports:
+        - protocol: TCP
+          port: {{ .Values.hoprdOperator.gateway.ports.min }}
+          endPort: {{ .Values.hoprdOperator.gateway.ports.max }}
+        - protocol: UDP
+          port: {{ .Values.hoprdOperator.gateway.ports.min }}
+          endPort: {{ .Values.hoprdOperator.gateway.ports.max }}
+{{- end }}

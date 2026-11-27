@@ -4,7 +4,7 @@ use crate::identity_hoprd::identity_hoprd_resource::{IdentityHoprd, IdentityHopr
 use crate::model::Error;
 use crate::{constants, context_data::ContextData};
 use crate::{
-    identity_pool::{identity_pool_cronjob_faucet, identity_pool_service_account, identity_pool_service_monitor},
+    identity_pool::{identity_pool_cronjob_faucet, identity_pool_service_account},
     resource_generics,
 };
 use k8s_openapi::api::batch::v1::CronJob;
@@ -64,7 +64,7 @@ impl Default for IdentityPoolStatus {
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone, JsonSchema, Copy)]
 pub enum IdentityPoolPhaseEnum {
-    // Status that represent when the IdentityPool is initialized after creation by creating the serviceMonitor
+    // Status that represent when the IdentityPool is initialized after creation
     Initialized,
     /// Status that represent when the IdentityPool initialization validation has failed
     Failed,
@@ -123,7 +123,6 @@ impl IdentityPool {
         }
         info!("Starting to create IdentityPool {identity_pool_name} in namespace {identity_pool_namespace}");
         resource_generics::add_finalizer(client.clone(), self).await;
-        identity_pool_service_monitor::create_service_monitor(context_data.clone(), &identity_pool_name, &identity_pool_namespace, owner_references.to_owned()).await?;
         identity_pool_service_account::create_rbac(context_data.clone(), &identity_pool_namespace, &identity_pool_name, owner_references.to_owned()).await?;
         if self.spec.funding.is_some() {
             identity_pool_cronjob_faucet::create_cron_job(context_data.clone(), self).await?;
@@ -198,7 +197,6 @@ impl IdentityPool {
             self.update_status(context_data.client.clone(), IdentityPoolPhaseEnum::Deleting).await?;
             context_data.send_event(self, IdentityPoolEventEnum::Deleting, None).await;
             info!("Starting to delete identity pool {identity_pool_name} from namespace {identity_pool_namespace}");
-            identity_pool_service_monitor::delete_service_monitor(client.clone(), &identity_pool_name, &identity_pool_namespace).await?;
             identity_pool_service_account::delete_rbac(client.clone(), &identity_pool_namespace, &identity_pool_name).await?;
             if self.spec.funding.is_some() {
                 identity_pool_cronjob_faucet::delete_cron_job(client.clone(), self).await?;
@@ -216,18 +214,6 @@ impl IdentityPool {
     pub async fn sync(&mut self, _context_data: Arc<ContextData>) -> Result<Action, Error> {
         warn!("IdentityPool {} in namespace {} requires more identities", self.name_any(), self.require_namespace()?);
         Ok(Action::requeue(Duration::from_secs(constants::RECONCILE_LONG_FREQUENCY)))
-    }
-
-    /// Recreates the `ServiceMonitor` owned by this `IdentityPool` when it has been manually deleted
-    /// without deleting the `IdentityPool` itself, keeping it in sync with the expected configuration.
-    pub async fn recreate_service_monitor(&mut self, context_data: Arc<ContextData>) -> Result<Action, Error> {
-        let identity_pool_namespace: String = self.require_namespace()?;
-        let identity_pool_name: String = self.name_any();
-        let owner_references: Option<Vec<OwnerReference>> = Some(vec![self.controller_owner_ref(&()).or_missing("controller owner reference")?]);
-        warn!("ServiceMonitor of IdentityPool {identity_pool_name} in namespace {identity_pool_namespace} was not found, recreating it");
-        identity_pool_service_monitor::create_service_monitor(context_data.clone(), &identity_pool_name, &identity_pool_namespace, owner_references).await?;
-        info!("ServiceMonitor of IdentityPool {identity_pool_name} in namespace {identity_pool_namespace} successfully recreated");
-        Ok(Action::requeue(Duration::from_secs(constants::RECONCILE_SHORT_FREQUENCY)))
     }
 
     /// Recreates the auto-funding `CronJob` owned by this `IdentityPool` when it has been manually deleted

@@ -3,7 +3,6 @@ pub const RECONCILE_SHORT_FREQUENCY: u64 = 10;
 pub const RECONCILE_LONG_FREQUENCY: u64 = 30;
 pub const OPERATOR_ENVIRONMENT: &str = "OPERATOR_ENVIRONMENT";
 pub const OPERATOR_FINALIZER: &str = "hoprds.hoprnet.org/finalizer";
-pub const OPERATOR_METRICS_CONTAINER_TAG: &str = "edinburgh";
 pub const OPERATOR_JOB_TIMEOUT: u64 = 300;
 // This value `OPERATOR_NODE_SYNC_TIMEOUT` should be lower than 295
 pub const OPERATOR_NODE_SYNC_TIMEOUT: u32 = 290;
@@ -12,7 +11,6 @@ pub const IDENTITY_POOL_WALLET_PRIVATE_KEY_REF_KEY: &str = "PRIVATE_KEY";
 
 // Annotations
 pub const ANNOTATION_LAST_CONFIGURATION: &str = "kubectl.kubernetes.io/last-applied-configuration";
-pub const ANNOTATION_EXTERNAL_DNS_HOSTNAME: &str = "external-dns.kubernetes.io/hostname";
 pub const ANNOTATION_IDENTITY_POOL_DELETION_ACCOUNTED: &str = "hoprds.hoprnet.org/identity-pool-deletion-accounted";
 
 // Labels
@@ -30,7 +28,6 @@ pub const LABEL_NODE_CLUSTER: &str = "hoprds.hoprnet.org/cluster";
 // Kubernetes Specs
 pub const HOPR_DOCKER_REGISTRY: &str = "europe-west3-docker.pkg.dev";
 pub const HOPR_DOCKER_IMAGE_NAME: &str = "hoprassociation/docker-images/hoprd";
-pub const HOPR_DOCKER_METRICS_IMAGE_NAME: &str = "hoprassociation/docker-images/hoprd-operator-metrics";
 
 // Image used by the init container and by the job that deletes the database of the nodes.
 // It uses a floating tag on purpose, so it keeps receiving the security patches of alpine
@@ -39,10 +36,14 @@ pub const ALPINE_IMAGE: &str = "alpine:latest";
 // HOPRD Arguments
 pub const HOPRD_IDENTITY_FILE: &str = "HOPRD_IDENTITY_FILE";
 pub const HOPRD_CONFIGURATION: &str = "HOPRD_CONFIGURATION";
-pub const HOPRD_API_TOKEN: &str = "HOPRD_API_TOKEN";
 pub const HOPRD_SAFE_ADDRESS: &str = "HOPRD_SAFE_ADDRESS";
 pub const HOPRD_MODULE_ADDRESS: &str = "HOPRD_MODULE_ADDRESS";
 pub const HOPRD_HOST: &str = "HOPRD_HOST";
 pub const HOPRD_API: &str = "HOPRD_API";
-pub const HOPRD_SESSION_PORT_RANGE: &str = "HOPRD_SESSION_PORT_RANGE";
+/// Port of the hoprd API container, exposed by the `<name>-api` Service and reached through the Gateway
+pub const API_PORT: i32 = 3001;
 pub const OTEL_SERVICE_NAME: &str = "OTEL_SERVICE_NAME";
+pub const HOPRD_OTLP_ENDPOINT: &str = "HOPRD_OTLP_ENDPOINT";
+pub const HOPRD_OTEL_SIGNALS: &str = "HOPRD_OTEL_SIGNALS";
+pub const HOPRD_METRIC_EXPORT_INTERVAL: &str = "HOPRD_METRIC_EXPORT_INTERVAL";
+pub const HOPRD_OTEL_EXPORT_LABELS: &str = "HOPRD_OTEL_EXPORT_LABELS";
