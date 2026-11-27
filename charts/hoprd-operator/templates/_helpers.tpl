@@ -30,7 +30,7 @@ and of the Envoy proxy resources that Envoy Gateway creates in this namespace.
 Name of the ServiceAccount, Deployment and Service of the Envoy proxy of the built-in Gateway
 */}}
 {{- define "hoprd-operator.proxyName" -}}
-{{- printf "envoy-proxy-%s" (include "hoprd-operator.fullname" .) | trunc 63 | trimSuffix "-" }}
+{{- printf "%s-envoy-proxy" (include "hoprd-operator.fullname" .) | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
 {{/*
