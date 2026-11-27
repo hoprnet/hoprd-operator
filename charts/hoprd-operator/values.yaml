@@ -163,7 +163,7 @@ hoprdOperator:
     ##
     enabled: true
     envoyGateway:
-      ## @param hoprdOperator.networkPolicy.envoyGateway.namespace Namespace where the Envoy Gateway controller runs. The proxy of the built-in Gateway reaches its xDS server from this namespace
+      ## @param hoprdOperator.networkPolicy.envoyGateway.namespace Namespace where the Envoy Gateway controller runs. The proxy of the built-in Gateway is only allowed to reach its xDS server there
       ##
       namespace: envoy
       podSelector:

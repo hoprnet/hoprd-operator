@@ -9,9 +9,6 @@ operator:
       value: full
     - name: RUST_LOG
       value: "hoprd_operator=DEBUG"
-  networkPolicy:
-    envoyGateway:
-      namespace: envoy
   gateway:
     dnsDomain: prod.hoprnet.link
     loadBalancerIP: 35.242.216.67
