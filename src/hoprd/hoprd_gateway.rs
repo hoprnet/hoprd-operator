@@ -150,8 +150,14 @@ async fn attached_listener_sets(context_data: &ContextData, target: &GatewayTarg
     Ok(attached)
 }
 
-fn ports_of(listener_set: &ListenerSet) -> BTreeSet<u16> {
-    listener_set.spec.listeners.iter().filter_map(|listener| u16::try_from(listener.port).ok()).collect()
+/// Whether `created` has to give up its p2p port because an older ListenerSet of `others` already uses it.
+/// Only the p2p port can conflict: the HTTPS listener is on the same port in every node and is told apart by its hostname
+fn loses_port_conflict(created: &ListenerSet, others: &[ListenerSet]) -> bool {
+    let Some(created_port) = p2p_port_of(created) else { return false };
+    others
+        .iter()
+        .filter(|other| other.namespace() != created.namespace() || other.name_any() != created.name_any())
+        .any(|other| precedence(other, created) == Ordering::Less && p2p_port_of(other) == Some(created_port))
 }
 
 /// Orders two ListenerSets the way the Gateway API resolves conflicts: the oldest wins, and `namespace/name` breaks ties
@@ -321,17 +327,13 @@ async fn allocate_and_create(
     let namespace = hoprd.require_namespace()?;
     let config = &context_data.config.gateway;
     for attempt in 1..=ALLOCATION_MAX_ATTEMPTS {
-        let used: BTreeSet<u16> = attached_listener_sets(context_data, target).await?.iter().flat_map(ports_of).collect();
+        let used: BTreeSet<u16> = attached_listener_sets(context_data, target).await?.iter().filter_map(p2p_port_of).collect();
         let p2p_port = find_free_port(&used, config.port_min, config.port_max)
             .ok_or_else(|| Error::HoprdConfigError(format!("No free port in the range {}..={} of Gateway {}/{}", config.port_min, config.port_max, target.namespace, target.name)))?;
         let created = utils::apply(listener_set_api, &name, &build_listener_set(&name, &namespace, hostname, target, p2p_port, labels, owner_references)).await?;
         // Two nodes created at the same time can choose the same ports: the oldest ListenerSet keeps them
         // and the other one allocates again, which is the same precedence the Gateway uses to resolve conflicts
-        let lost = attached_listener_sets(context_data, target)
-            .await?
-            .iter()
-            .filter(|other| other.namespace() != created.namespace() || other.name_any() != created.name_any())
-            .any(|other| precedence(other, &created) == Ordering::Less && !ports_of(other).is_disjoint(&ports_of(&created)));
+        let lost = loses_port_conflict(&created, &attached_listener_sets(context_data, target).await?);
         if !lost {
             return Ok(p2p_port);
         }
@@ -435,7 +437,29 @@ mod tests {
     fn the_p2p_port_is_recovered_from_the_listener_set() {
         let listener_set = ListenerSet::new("node", ListenerSetSpec { parent_ref: ListenerSetParentRef::default(), listeners: build_listeners("h", "s", 9100) });
         assert_eq!(p2p_port_of(&listener_set), Some(9100));
-        assert_eq!(ports_of(&listener_set), used(&[443, 9100]));
+    }
+
+    fn node_listener_set(name: &str, created: &str, p2p_port: u16) -> ListenerSet {
+        let mut listener_set = ListenerSet::new(name, ListenerSetSpec { parent_ref: ListenerSetParentRef::default(), listeners: build_listeners(&format!("{name}.ns.example.org"), "tls", p2p_port) });
+        listener_set.metadata.namespace = Some("ns".to_owned());
+        listener_set.metadata.creation_timestamp = Some(k8s_openapi::apimachinery::pkg::apis::meta::v1::Time(created.parse().expect("a valid timestamp")));
+        listener_set
+    }
+
+    #[test]
+    fn nodes_with_different_p2p_ports_do_not_conflict_even_though_they_share_the_https_port() {
+        let older = node_listener_set("node-1", "2026-11-27T12:00:00Z", 9000);
+        let newer = node_listener_set("node-2", "2026-11-27T12:05:00Z", 9001);
+        assert!(!loses_port_conflict(&newer, &[older.clone(), newer.clone()]));
+    }
+
+    #[test]
+    fn only_the_newest_node_with_the_same_p2p_port_gives_it_up() {
+        let older = node_listener_set("node-1", "2026-11-27T12:00:00Z", 9000);
+        let newer = node_listener_set("node-2", "2026-11-27T12:05:00Z", 9000);
+        let all = [older.clone(), newer.clone()];
+        assert!(loses_port_conflict(&newer, &all));
+        assert!(!loses_port_conflict(&older, &all));
     }
 
     #[test]
