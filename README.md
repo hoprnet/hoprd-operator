@@ -12,7 +12,7 @@ Keep in mind that in order for the wallet to work correctly, the wallet has be c
 ## Usage
 
 This operator provides the following CRD:
-- **IdentityPool**: This resource manages a pool of identities issued from the same wallet. This resources requires that a previous `Secret` is created holding the private key of the wallet. On the creation of a `IdentityPool` resource, the operator will create the corresponding service account, service monitor and cronjob for auto-funding. 
+- **IdentityPool**: This resource manages a pool of identities issued from the same wallet. This resources requires that a previous `Secret` is created holding the private key of the wallet. On the creation of a `IdentityPool` resource, the operator will create the corresponding service account and cronjob for auto-funding. 
 Bellow is described the example of a secret holding the required information by the IdentityPool
 ````
 apiVersion: v1
@@ -104,7 +104,7 @@ status:
   currentNodes: 5
   phase: Ready
 ````
-- **Hoprd**: This resource manages a single hoprd node. See the [specifications](./charts/hoprd-operator/templates/crd-hoprd.yaml) for details about what can be configured on an specific hoprd node. On the creation of a `Hoprd` resource, the operator will create the corresponding deployment, services, a TLS certificate, and a `ListenerSet` with its routes (HTTPRoute, TCPRoute, UDPRoute) attached to an Envoy Gateway. Telemetry is sent by the nodes to the OTLP endpoint configured in the operator.
+- **Hoprd**: This resource manages a single hoprd node. See the [specifications](./charts/hoprd-crds/templates/hoprd.yaml) for details about what can be configured on an specific hoprd node. On the creation of a `Hoprd` resource, the operator will create the corresponding deployment, services, a TLS certificate, and a `ListenerSet` with its routes (HTTPRoute, TCPRoute, UDPRoute) attached to an Envoy Gateway. Telemetry is sent by the nodes to the OTLP endpoint configured in the operator.
 Bellow is described the contents of a sample `Hoprd` which belongs to the previously created cluster.
 ````
 apiVersion: hoprnet.org/v1alpha2

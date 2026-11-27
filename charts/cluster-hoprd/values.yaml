@@ -99,7 +99,7 @@ clusterHoprd:
         ##
         name: ""
 
-        ## @param clusterHoprd.nodes.gateway.ref.namespace Namespace of the existing Gateway
+        ## @param clusterHoprd.nodes.gateway.ref.namespace Namespace of the existing Gateway. Required when `gateway.ref.name` is set
         ##
         namespace: ""
 
